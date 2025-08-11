@@ -1,0 +1,149 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.virtualenv
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim
+.netrwhist
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+*.log.*
+logs/
+data/logs/*.log*
+data/logs/*.txt
+
+# Data files
+data/parquet/*.parquet
+data/exports/*
+data/backups/*
+backups/*.sql
+backups/*.tar.gz
+backups/*.zip
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+nosetests.xml
+.nose2
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# Profiling
+.prof
+
+# Documentation
+docs/_build/
+site/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+*.pid
+
+# Database files
+*.db
+*.sqlite3
+
+# Compiled translations
+*.mo
+*.pot
+
+# Secrets and credentials
+secrets/
+credentials/
+keys/
+certs/
+*.key
+*.pem
+*.crt
+
+# API responses cache
+.api_cache/
+
+# Local development overrides
+docker-compose.local.yml
+.local/
+
+# Package managers
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Trading specific
+strategies/custom/
+*.pickle
+*.pkl
+
+# Generated files
+generated/
+auto_generated/

@@ -1,0 +1,537 @@
+version: "3.8"
+
+services:
+    # Database Services
+    postgres:
+        image: postgres:15-alpine
+        container_name: trading_postgres
+        environment:
+            POSTGRES_DB: ${DB_NAME:-trading_system}
+            POSTGRES_USER: ${DB_USER:-trader}
+            POSTGRES_PASSWORD: ${DB_PASSWORD}
+            POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+        ports:
+            - "${DB_PORT:-5432}:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trading_system}",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    redis:
+        image: redis:7-alpine
+        container_name: trading_redis
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        volumes:
+            - redis_data:/data
+            - ./scripts/redis.conf:/usr/local/etc/redis/redis.conf:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        command: >
+            sh -c "
+            if [ -n '$$REDIS_PASSWORD' ]; then
+              redis-server /usr/local/etc/redis/redis.conf --requirepass $$REDIS_PASSWORD
+            else
+              redis-server /usr/local/etc/redis/redis.conf
+            fi
+            "
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 3s
+            retries: 5
+
+    # Trading System Services
+    data_collector:
+        build:
+            context: ./services/data_collector
+            dockerfile: Dockerfile
+        container_name: trading_data_collector
+        environment:
+            - SERVICE_NAME=data_collector
+            - SERVICE_PORT=8001
+            - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
+            - FINVIZ_API_KEY=${FINVIZ_API_KEY}
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+        ports:
+            - "8001:8001"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    strategy_engine:
+        build:
+            context: ./services/strategy_engine
+            dockerfile: Dockerfile
+        container_name: trading_strategy_engine
+        environment:
+            - SERVICE_NAME=strategy_engine
+            - SERVICE_PORT=8002
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+            - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
+            - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
+        ports:
+            - "8002:8002"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            data_collector:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    risk_manager:
+        build:
+            context: ./services/risk_manager
+            dockerfile: Dockerfile
+        container_name: trading_risk_manager
+        environment:
+            - SERVICE_NAME=risk_manager
+            - SERVICE_PORT=8003
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+            - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
+            - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
+            - RISK_DRAWDOWN_LIMIT=${RISK_DRAWDOWN_LIMIT:-0.15}
+        ports:
+            - "8003:8003"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    trade_executor:
+        build:
+            context: ./services/trade_executor
+            dockerfile: Dockerfile
+        container_name: trading_trade_executor
+        environment:
+            - SERVICE_NAME=trade_executor
+            - SERVICE_PORT=8004
+            - ALPACA_API_KEY=${ALPACA_API_KEY}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+            - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+            - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+        ports:
+            - "8004:8004"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            risk_manager:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    scheduler:
+        build:
+            context: ./services/scheduler
+            dockerfile: Dockerfile
+        container_name: trading_scheduler
+        environment:
+            - SERVICE_NAME=scheduler
+            - SERVICE_PORT=8005
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+            - GOTIFY_URL=${GOTIFY_URL}
+            - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+            - SCHEDULER_MARKET_DATA_INTERVAL=${SCHEDULER_MARKET_DATA_INTERVAL:-60}
+            - SCHEDULER_STRATEGY_INTERVAL=${SCHEDULER_STRATEGY_INTERVAL:-300}
+            - SCHEDULER_RISK_CHECK_INTERVAL=${SCHEDULER_RISK_CHECK_INTERVAL:-60}
+        ports:
+            - "8005:8005"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            data_collector:
+                condition: service_healthy
+            strategy_engine:
+                condition: service_healthy
+            risk_manager:
+                condition: service_healthy
+            trade_executor:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    # Monitoring Services
+    prometheus:
+        image: prom/prometheus:latest
+        container_name: trading_prometheus
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - ./monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+            - prometheus_data:/prometheus
+        networks:
+            - trading_network
+        restart: unless-stopped
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/etc/prometheus/console_libraries"
+            - "--web.console.templates=/etc/prometheus/consoles"
+            - "--storage.tsdb.retention.time=30d"
+            - "--storage.tsdb.retention.size=10GB"
+            - "--web.enable-lifecycle"
+            - "--web.enable-admin-api"
+
+    grafana:
+        image: grafana/grafana:latest
+        container_name: trading_grafana
+        ports:
+            - "3000:3000"
+        environment:
+            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+            - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+            - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/trading-dashboard.json:ro
+            - ./monitoring/grafana-provisioning:/etc/grafana/provisioning:ro
+        networks:
+            - trading_network
+        depends_on:
+            - prometheus
+        restart: unless-stopped
+
+    alertmanager:
+        image: prom/alertmanager:latest
+        container_name: trading_alertmanager
+        ports:
+            - "9093:9093"
+        volumes:
+            - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+            - alertmanager_data:/alertmanager
+        networks:
+            - trading_network
+        restart: unless-stopped
+        command:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+            - "--web.external-url=http://localhost:9093"
+
+    node_exporter:
+        image: prom/node-exporter:latest
+        container_name: trading_node_exporter
+        ports:
+            - "9100:9100"
+        volumes:
+            - /proc:/host/proc:ro
+            - /sys:/host/sys:ro
+            - /:/rootfs:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        command:
+            - "--path.procfs=/host/proc"
+            - "--path.rootfs=/rootfs"
+            - "--path.sysfs=/host/sys"
+            - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+
+    postgres_exporter:
+        image: prometheuscommunity/postgres-exporter:latest
+        container_name: trading_postgres_exporter
+        environment:
+            DATA_SOURCE_NAME: "postgresql://${DB_USER:-trader}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-trading_system}?sslmode=disable"
+        ports:
+            - "9187:9187"
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+
+    redis_exporter:
+        image: oliver006/redis_exporter:latest
+        container_name: trading_redis_exporter
+        environment:
+            REDIS_ADDR: "redis://redis:6379"
+            REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+        ports:
+            - "9121:9121"
+        networks:
+            - trading_network
+        depends_on:
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+
+    cadvisor:
+        image: gcr.io/cadvisor/cadvisor:latest
+        container_name: trading_cadvisor
+        ports:
+            - "8080:8080"
+        volumes:
+            - /:/rootfs:ro
+            - /var/run:/var/run:ro
+            - /sys:/sys:ro
+            - /var/lib/docker/:/var/lib/docker:ro
+            - /dev/disk/:/dev/disk:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        privileged: true
+        devices:
+            - /dev/kmsg
+
+    # Log aggregation
+    elasticsearch:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        container_name: trading_elasticsearch
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ports:
+            - "9200:9200"
+        volumes:
+            - elasticsearch_data:/usr/share/elasticsearch/data
+        networks:
+            - trading_network
+        restart: unless-stopped
+
+    kibana:
+        image: docker.elastic.co/kibana/kibana:8.11.0
+        container_name: trading_kibana
+        environment:
+            - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+        ports:
+            - "5601:5601"
+        networks:
+            - trading_network
+        depends_on:
+            - elasticsearch
+        restart: unless-stopped
+
+    logstash:
+        image: docker.elastic.co/logstash/logstash:8.11.0
+        container_name: trading_logstash
+        volumes:
+            - ./logging/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+            - ./logging/patterns:/usr/share/logstash/patterns:ro
+        ports:
+            - "5044:5044"
+            - "9600:9600"
+        networks:
+            - trading_network
+        depends_on:
+            - elasticsearch
+        restart: unless-stopped
+
+    export_service:
+        build:
+            context: ./services/export_service
+            dockerfile: Dockerfile
+        container_name: trading_export_service
+        environment:
+            - SERVICE_NAME=export_service
+            - SERVICE_PORT=8006
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+            - API_SECRET_KEY=${API_SECRET_KEY}
+        ports:
+            - "8006:8006"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    maintenance_service:
+        build:
+            context: ./services/maintenance_service
+            dockerfile: Dockerfile
+        container_name: trading_maintenance_service
+        environment:
+            - SERVICE_NAME=maintenance_service
+            - SERVICE_PORT=8007
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+            - API_SECRET_KEY=${API_SECRET_KEY}
+            - GOTIFY_URL=${GOTIFY_URL}
+            - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+        ports:
+            - "8007:8007"
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./data:/app/data
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+volumes:
+    postgres_data:
+        driver: local
+    redis_data:
+        driver: local
+    prometheus_data:
+        driver: local
+    grafana_data:
+        driver: local
+    alertmanager_data:
+        driver: local
+    elasticsearch_data:
+        driver: local
+
+networks:
+    trading_network:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: 172.20.0.0/16

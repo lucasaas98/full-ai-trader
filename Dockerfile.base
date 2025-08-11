@@ -1,0 +1,55 @@
+# Base Dockerfile for Python trading system services
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_NO_CACHE=1 \
+    UV_COMPILE_BYTECODE=1
+
+# Install system dependencies and uv
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    wget \
+    git \
+    postgresql-client \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add uv to PATH
+ENV PATH="/root/.cargo/bin:$PATH"
+
+# Create app user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set work directory
+WORKDIR /app
+
+# Install Python dependencies with uv
+COPY requirements.txt .
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Copy shared modules
+COPY shared/ ./shared/
+
+# Copy service source code
+COPY src/ ./src/
+
+# Create necessary directories
+RUN mkdir -p /app/data/logs /app/data/parquet && \
+    chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Default port (override in service-specific Dockerfiles)
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${SERVICE_PORT:-8000}/health || exit 1
+
+# Default command (override in service-specific Dockerfiles)
+CMD ["python", "-m", "src.main"]

@@ -1,0 +1,58 @@
+# Data Collector Service Dependencies
+# Core dependencies for fetching market data from TwelveData and FinViz
+
+# Web framework and API
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+httpx==0.25.2
+aiohttp==3.9.1
+requests==2.31.0
+
+# Data processing and validation
+pydantic==2.5.0
+pandas==2.1.4
+polars==0.20.2
+numpy>=1.26.0
+pyarrow==14.0.1
+
+# Database and caching
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+alembic==1.13.1
+redis==5.0.1
+asyncpg==0.29.0
+
+# HTML parsing for FinViz scraping
+beautifulsoup4==4.12.2
+lxml==4.9.3
+html5lib==1.1
+
+# Rate limiting and async
+aioredis==2.0.1
+asyncio-throttle==1.0.2
+backoff==2.2.1
+
+# Monitoring and logging
+prometheus-client==0.19.0
+structlog==23.2.0
+
+# Utilities
+python-dotenv==1.0.0
+schedule==1.2.0
+apscheduler==3.10.4
+pytz==2023.3
+dateparser==1.2.0
+aiofiles==23.2.1
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-mock==3.12.0
+pytest-cov==4.1.0
+httpx==0.25.2
+
+# Development tools
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1

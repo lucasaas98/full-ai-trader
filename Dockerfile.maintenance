@@ -1,0 +1,75 @@
+# Maintenance Mode Dockerfile - Lightweight service for system maintenance
+FROM python:3.11-alpine as maintenance-builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    postgresql-dev
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install minimal dependencies for maintenance mode
+RUN pip install --upgrade pip && \
+    pip install \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    pydantic==2.5.0 \
+    redis==5.0.1 \
+    psycopg2-binary==2.9.9 \
+    httpx==0.25.2 \
+    structlog==23.2.0 \
+    python-dotenv==1.0.0 \
+    click==8.1.7
+
+# Runtime stage
+FROM python:3.11-alpine as maintenance-runtime
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    curl \
+    postgresql-client \
+    redis
+
+# Copy virtual environment
+COPY --from=maintenance-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create maintenance user
+RUN addgroup -g 1003 maintenance && \
+    adduser -D -u 1003 -G maintenance maintenance
+
+# Set work directory
+WORKDIR /app
+
+# Copy maintenance service code
+COPY --chown=maintenance:maintenance src/maintenance_service/ ./src/maintenance_service/
+COPY --chown=maintenance:maintenance shared/utils/ ./shared/utils/
+COPY --chown=maintenance:maintenance scripts/maintenance/ ./scripts/maintenance/
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/config /app/logs && \
+    chown -R maintenance:maintenance /app && \
+    chmod +x /app/scripts/maintenance/*.sh
+
+# Switch to maintenance user
+USER maintenance
+
+# Expose maintenance service port
+EXPOSE 8007
+
+# Health check for maintenance mode
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=2 \
+    CMD curl -f http://localhost:8007/maintenance/health || exit 1
+
+# Start maintenance service
+CMD ["python", "-m", "src.maintenance_service.main"]
+
+# Metadata
+LABEL maintainer="AI Trading System Team" \
+      service="maintenance_service" \
+      version="1.0.0" \
+      description="Maintenance mode service for graceful system management"

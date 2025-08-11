@@ -1,0 +1,404 @@
+version: "3.8"
+
+services:
+    # Test Database
+    postgres_test:
+        image: postgres:15-alpine
+        container_name: trading_postgres_test
+        environment:
+            POSTGRES_DB: test_trading_system
+            POSTGRES_USER: trader
+            POSTGRES_PASSWORD: test_password
+            POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+        ports:
+            - "5433:5432"
+        volumes:
+            - postgres_test_data:/var/lib/postgresql/data
+            - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+        networks:
+            - test_network
+        restart: "no"
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U trader -d test_trading_system"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+
+    # Test Redis
+    redis_test:
+        image: redis:7-alpine
+        container_name: trading_redis_test
+        ports:
+            - "6380:6379"
+        volumes:
+            - redis_test_data:/data
+        networks:
+            - test_network
+        restart: "no"
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 5s
+            timeout: 3s
+            retries: 5
+
+    # Test Elasticsearch for logging tests
+    elasticsearch_test:
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        container_name: trading_elasticsearch_test
+        environment:
+            - discovery.type=single-node
+            - xpack.security.enabled=false
+            - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+        ports:
+            - "9201:9200"
+        volumes:
+            - elasticsearch_test_data:/usr/share/elasticsearch/data
+        networks:
+            - test_network
+        restart: "no"
+
+    # Unit Test Runner
+    unit_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_unit_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=DEBUG
+            - DB_HOST=postgres_test
+            - DB_PORT=5432
+            - DB_NAME=test_trading_system
+            - DB_USER=trader
+            - DB_PASSWORD=test_password
+            - REDIS_HOST=redis_test
+            - REDIS_PORT=6379
+            - REDIS_DB=1
+            - DISABLE_EXTERNAL_APIS=true
+            - TEST_MODE=true
+            - COVERAGE_TARGET=80
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+        command: >
+            sh -c "
+            python -m pytest tests/unit/
+            --cov=services
+            --cov=shared
+            --cov=backtesting
+            --cov-report=term-missing
+            --cov-report=html:/app/tests/coverage/unit
+            --cov-report=xml:/app/tests/coverage/unit.xml
+            --cov-fail-under=80
+            --tb=short
+            --durations=10
+            --maxfail=10
+            -m unit
+            --junitxml=/app/tests/coverage/junit_unit.xml
+            -v
+            "
+        profiles: ["unit"]
+
+    # Integration Test Runner
+    integration_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_integration_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=DEBUG
+            - DB_HOST=postgres_test
+            - DB_PORT=5432
+            - DB_NAME=test_trading_system
+            - DB_USER=trader
+            - DB_PASSWORD=test_password
+            - REDIS_HOST=redis_test
+            - REDIS_PORT=6379
+            - REDIS_DB=1
+            - ELASTICSEARCH_HOST=elasticsearch_test
+            - ELASTICSEARCH_PORT=9200
+            - TEST_MODE=true
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+            elasticsearch_test:
+                condition: service_started
+        command: >
+            sh -c "
+            python -m pytest tests/integration/
+            --tb=short
+            --durations=15
+            --maxfail=5
+            -m integration
+            --junitxml=/app/tests/coverage/junit_integration.xml
+            -v
+            "
+        profiles: ["integration"]
+
+    # Performance Test Runner
+    performance_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_performance_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=INFO
+            - DB_HOST=postgres_test
+            - DB_PORT=5432
+            - DB_NAME=test_trading_system
+            - DB_USER=trader
+            - DB_PASSWORD=test_password
+            - REDIS_HOST=redis_test
+            - REDIS_PORT=6379
+            - REDIS_DB=1
+            - TEST_MODE=true
+            - PERFORMANCE_TEST_TIMEOUT=600
+            - LOAD_TEST_MAX_WORKERS=20
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+        command: >
+            sh -c "
+            python -m pytest tests/performance/
+            --tb=short
+            --durations=20
+            --maxfail=3
+            -m 'performance and not slow'
+            --junitxml=/app/tests/coverage/junit_performance.xml
+            -v
+            "
+        profiles: ["performance"]
+
+    # Load Test Runner (separate for resource isolation)
+    load_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_load_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=WARNING
+            - DB_HOST=postgres_test
+            - REDIS_HOST=redis_test
+            - TEST_MODE=true
+            - STRESS_TEST_DURATION=300
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+        command: >
+            sh -c "
+            python -m pytest tests/performance/test_load.py
+            --tb=short
+            --durations=30
+            --maxfail=1
+            -m 'load and not slow'
+            --junitxml=/app/tests/coverage/junit_load.xml
+            -v
+            "
+        profiles: ["load"]
+
+    # Security Test Runner
+    security_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_security_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=DEBUG
+            - TEST_MODE=true
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        command: >
+            sh -c "
+            # Run security tests
+            python -m pytest tests/
+            --tb=short
+            --maxfail=3
+            -m security
+            --junitxml=/app/tests/coverage/junit_security.xml
+            -v &&
+
+            # Run security scan with bandit
+            bandit -r services/ shared/ backtesting/
+            -f json
+            -o /app/tests/coverage/security_report.json &&
+
+            # Check dependencies for vulnerabilities
+            safety check --json --output /app/tests/coverage/safety_report.json
+            "
+        profiles: ["security"]
+
+    # All Tests Runner
+    all_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_all_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=INFO
+            - DB_HOST=postgres_test
+            - DB_PORT=5432
+            - DB_NAME=test_trading_system
+            - DB_USER=trader
+            - DB_PASSWORD=test_password
+            - REDIS_HOST=redis_test
+            - REDIS_PORT=6379
+            - REDIS_DB=1
+            - ELASTICSEARCH_HOST=elasticsearch_test
+            - ELASTICSEARCH_PORT=9200
+            - TEST_MODE=true
+            - COVERAGE_TARGET=80
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+            elasticsearch_test:
+                condition: service_started
+        command: >
+            sh -c "
+            echo '🚀 Running comprehensive test suite...' &&
+
+            # Run smoke tests first
+            python -m pytest tests/ -m smoke --tb=short -q &&
+            echo '✅ Smoke tests passed' &&
+
+            # Run unit tests with coverage
+            python -m pytest tests/unit/
+            --cov=services
+            --cov=shared
+            --cov=backtesting
+            --cov-report=term-missing
+            --cov-report=html:/app/tests/coverage/html
+            --cov-report=xml:/app/tests/coverage/coverage.xml
+            --cov-fail-under=80
+            --tb=short
+            --durations=10
+            --maxfail=10
+            -m unit
+            --junitxml=/app/tests/coverage/junit_unit.xml &&
+            echo '✅ Unit tests passed' &&
+
+            # Run integration tests
+            python -m pytest tests/integration/
+            --tb=short
+            --durations=15
+            --maxfail=5
+            -m 'integration and not slow'
+            --junitxml=/app/tests/coverage/junit_integration.xml &&
+            echo '✅ Integration tests passed' &&
+
+            # Run performance tests (quick mode)
+            python -m pytest tests/performance/
+            --tb=short
+            --durations=20
+            --maxfail=3
+            -m 'performance and not slow'
+            --junitxml=/app/tests/coverage/junit_performance.xml &&
+            echo '✅ Performance tests passed' &&
+
+            # Generate final report
+            python scripts/run_tests.py --coverage-only &&
+            echo '📊 Test report generated' &&
+
+            echo '🎉 All tests completed successfully!'
+            "
+        profiles: ["all"]
+
+    # CI/CD Test Runner (optimized for CI environments)
+    ci_tests:
+        build:
+            context: .
+            dockerfile: Dockerfile.test
+        container_name: trading_ci_tests
+        environment:
+            - ENVIRONMENT=test
+            - LOG_LEVEL=WARNING
+            - DB_HOST=postgres_test
+            - REDIS_HOST=redis_test
+            - TEST_MODE=true
+            - CI=true
+            - COVERAGE_TARGET=80
+        volumes:
+            - .:/app
+            - test_coverage:/app/tests/coverage
+        networks:
+            - test_network
+        depends_on:
+            postgres_test:
+                condition: service_healthy
+            redis_test:
+                condition: service_healthy
+        command: >
+            sh -c "
+            # CI-optimized test run
+            python -m pytest
+            --cov=services
+            --cov=shared
+            --cov-report=xml:/app/tests/coverage/coverage.xml
+            --cov-fail-under=80
+            --tb=line
+            --durations=10
+            --maxfail=5
+            -m 'not slow and not manual'
+            --junitxml=/app/tests/coverage/junit_ci.xml
+            -q
+            "
+        profiles: ["ci"]
+
+volumes:
+    postgres_test_data:
+        driver: local
+    redis_test_data:
+        driver: local
+    elasticsearch_test_data:
+        driver: local
+    test_coverage:
+        driver: local
+
+networks:
+    test_network:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: 172.21.0.0/16

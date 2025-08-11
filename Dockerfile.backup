@@ -1,0 +1,80 @@
+# Backup Service Dockerfile - Specialized for data backup operations
+FROM python:3.11-slim as backup-builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install backup-specific dependencies
+COPY requirements-backup.txt ./
+RUN pip install --upgrade pip && \
+    pip install -r requirements-backup.txt
+
+# Runtime stage
+FROM python:3.11-slim as backup-runtime
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    postgresql-client \
+    redis-tools \
+    curl \
+    wget \
+    cron \
+    gzip \
+    gpg \
+    rsync \
+    awscli \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy virtual environment
+COPY --from=backup-builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Create backup user
+RUN groupadd -r backup && useradd -r -g backup -u 1002 backup
+
+# Set work directory
+WORKDIR /app
+
+# Copy backup scripts and configuration
+COPY --chown=backup:backup scripts/backup/ ./scripts/backup/
+COPY --chown=backup:backup src/backup_service/ ./src/backup_service/
+COPY --chown=backup:backup shared/ ./shared/
+
+# Create necessary directories
+RUN mkdir -p /app/backups /app/data /app/config /app/logs && \
+    chown -R backup:backup /app && \
+    chmod +x /app/scripts/backup/*.sh
+
+# Set up cron for automated backups
+COPY --chown=backup:backup config/backup/crontab /etc/cron.d/backup-cron
+RUN chmod 0644 /etc/cron.d/backup-cron && \
+    crontab -u backup /etc/cron.d/backup-cron
+
+# Switch to backup user
+USER backup
+
+# Expose port for backup service API
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=60s --timeout=30s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Start backup service with cron
+CMD ["sh", "-c", "cron && python -m src.backup_service.main"]
+
+# Metadata
+LABEL maintainer="AI Trading System Team" \
+      service="backup_manager" \
+      version="1.0.0" \
+      description="Backup and restore service for AI Trading System"

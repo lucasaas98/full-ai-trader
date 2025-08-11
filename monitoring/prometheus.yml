@@ -1,0 +1,87 @@
+global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+    external_labels:
+        monitor: "trading-system"
+
+rule_files:
+    - "alert_rules.yml"
+
+alerting:
+    alertmanagers:
+        - static_configs:
+              - targets:
+                    - alertmanager:9093
+
+scrape_configs:
+    # Prometheus itself
+    - job_name: "prometheus"
+      static_configs:
+          - targets: ["localhost:9090"]
+
+    # Trading system services
+    - job_name: "data-collector"
+      static_configs:
+          - targets: ["data_collector:8001"]
+      metrics_path: "/metrics"
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    - job_name: "strategy-engine"
+      static_configs:
+          - targets: ["strategy_engine:8002"]
+      metrics_path: "/metrics"
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    - job_name: "risk-manager"
+      static_configs:
+          - targets: ["risk_manager:8003"]
+      metrics_path: "/metrics"
+      scrape_interval: 15s # More frequent for risk monitoring
+      scrape_timeout: 10s
+
+    - job_name: "trade-executor"
+      static_configs:
+          - targets: ["trade_executor:8004"]
+      metrics_path: "/metrics"
+      scrape_interval: 15s # More frequent for trade monitoring
+      scrape_timeout: 10s
+
+    - job_name: "scheduler"
+      static_configs:
+          - targets: ["scheduler:8005"]
+      metrics_path: "/metrics"
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    # System monitoring
+    - job_name: "node-exporter"
+      static_configs:
+          - targets: ["node_exporter:9100"]
+
+    # Database monitoring
+    - job_name: "postgres-exporter"
+      static_configs:
+          - targets: ["postgres_exporter:9187"]
+
+    # Redis monitoring
+    - job_name: "redis-exporter"
+      static_configs:
+          - targets: ["redis_exporter:9121"]
+
+    # Docker container monitoring
+    - job_name: "cadvisor"
+      static_configs:
+          - targets: ["cadvisor:8080"]
+# Remote write configuration for long-term storage (optional)
+# remote_write:
+#   - url: "https://your-remote-storage/api/v1/write"
+#     basic_auth:
+#       username: "your-username"
+#       password: "your-password"
+
+# Storage configuration is handled via command line flags:
+# --storage.tsdb.retention.time=30d
+# --storage.tsdb.retention.size=10GB
+# --storage.tsdb.wal-compression=true

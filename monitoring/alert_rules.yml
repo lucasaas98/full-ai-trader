@@ -1,0 +1,721 @@
+groups:
+    - name: trading_system_alerts
+      rules:
+          # Service Health Alerts
+          - alert: ServiceDown
+            expr: up == 0
+            for: 1m
+            labels:
+                severity: critical
+                service: "{{ $labels.job }}"
+            annotations:
+                summary: "Trading service {{ $labels.job }} is down"
+                description: "Service {{ $labels.job }} has been down for more than 1 minute"
+
+          - alert: ServiceHighLatency
+            expr: http_request_duration_seconds{quantile="0.95"} > 5
+            for: 2m
+            labels:
+                severity: warning
+                service: "{{ $labels.job }}"
+            annotations:
+                summary: "High latency detected in {{ $labels.job }}"
+                description: "95th percentile latency is {{ $value }}s for service {{ $labels.job }}"
+
+          - alert: ServiceHighErrorRate
+            expr: rate(http_requests_total{code=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+            for: 2m
+            labels:
+                severity: warning
+                service: "{{ $labels.job }}"
+            annotations:
+                summary: "High error rate in {{ $labels.job }}"
+                description: "Error rate is {{ $value | humanizePercentage }} in service {{ $labels.job }}"
+
+    - name: trading_performance_alerts
+      rules:
+          # Trading Performance Alerts
+          - alert: LargePortfolioLoss
+            expr: portfolio_daily_pnl < -10000
+            for: 0m
+            labels:
+                severity: critical
+                category: trading
+            annotations:
+                summary: "Large portfolio loss detected"
+                description: "Daily P&L is {{ $value | humanize }} - exceeds loss threshold"
+
+          - alert: ExcessiveDrawdown
+            expr: portfolio_drawdown > 0.15
+            for: 5m
+            labels:
+                severity: critical
+                category: trading
+            annotations:
+                summary: "Portfolio drawdown exceeds limit"
+                description: "Current drawdown is {{ $value | humanizePercentage }} - exceeds 15% limit"
+
+          - alert: HighPortfolioVolatility
+            expr: portfolio_volatility > 0.4
+            for: 10m
+            labels:
+                severity: warning
+                category: trading
+            annotations:
+                summary: "High portfolio volatility detected"
+                description: "Portfolio volatility is {{ $value | humanizePercentage }} - above normal levels"
+
+          - alert: TradeExecutionLatencyHigh
+            expr: trade_execution_latency_seconds{quantile="0.95"} > 2
+            for: 3m
+            labels:
+                severity: warning
+                category: trading
+            annotations:
+                summary: "High trade execution latency"
+                description: "95th percentile execution latency is {{ $value }}s"
+
+          - alert: FailedTradeExecutions
+            expr: rate(failed_trade_executions_total[5m]) > 0.1
+            for: 2m
+            labels:
+                severity: warning
+                category: trading
+            annotations:
+                summary: "High rate of failed trade executions"
+                description: "Failed trade execution rate is {{ $value | humanizePercentage }}"
+
+          - alert: PositionConcentrationHigh
+            expr: max_position_concentration > 0.25
+            for: 5m
+            labels:
+                severity: warning
+                category: risk
+            annotations:
+                summary: "High position concentration detected"
+                description: "Maximum position concentration is {{ $value | humanizePercentage }}"
+
+    - name: market_data_alerts
+      rules:
+          # Market Data Alerts
+          - alert: MarketDataStale
+            expr: time() - market_data_last_update_timestamp > 300
+            for: 1m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Market data is stale"
+                description: "Market data hasn't been updated for {{ $value }} seconds"
+
+          - alert: MarketDataFeedDown
+            expr: rate(market_data_collection_errors_total[5m]) > 0.2
+            for: 3m
+            labels:
+                severity: critical
+                category: data
+            annotations:
+                summary: "Market data feed experiencing errors"
+                description: "Market data error rate is {{ $value | humanizePercentage }}"
+
+          - alert: MissingSymbolData
+            expr: missing_symbol_data_count > 5
+            for: 5m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Multiple symbols missing data"
+                description: "{{ $value }} symbols are missing current market data"
+
+          - alert: DataQualityIssue
+            expr: invalid_market_data_percentage > 0.1
+            for: 5m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Data quality issues detected"
+                description: "{{ $value | humanizePercentage }} of market data points are invalid"
+
+    - name: system_resource_alerts
+      rules:
+          # System Resource Alerts
+          - alert: HighCPUUsage
+            expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+            for: 5m
+            labels:
+                severity: warning
+                category: system
+            annotations:
+                summary: "High CPU usage on {{ $labels.instance }}"
+                description: "CPU usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+          - alert: HighMemoryUsage
+            expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+            for: 5m
+            labels:
+                severity: warning
+                category: system
+            annotations:
+                summary: "High memory usage on {{ $labels.instance }}"
+                description: "Memory usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+          - alert: DiskSpaceLow
+            expr: (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 85
+            for: 5m
+            labels:
+                severity: warning
+                category: system
+            annotations:
+                summary: "Low disk space on {{ $labels.instance }}"
+                description: "Disk usage is {{ $value | humanizePercentage }} on {{ $labels.instance }}"
+
+          - alert: HighNetworkTraffic
+            expr: rate(node_network_receive_bytes_total[5m]) > 100000000 # 100MB/s
+            for: 5m
+            labels:
+                severity: warning
+                category: system
+            annotations:
+                summary: "High network traffic on {{ $labels.instance }}"
+                description: "Network receive rate is {{ $value | humanizeBytes }}/s on {{ $labels.instance }}"
+
+    - name: database_alerts
+      rules:
+          # Database Alerts
+          - alert: PostgreSQLDown
+            expr: pg_up == 0
+            for: 1m
+            labels:
+                severity: critical
+                category: database
+            annotations:
+                summary: "PostgreSQL is down"
+                description: "PostgreSQL database is not responding"
+
+          - alert: HighDatabaseConnections
+            expr: pg_stat_activity_count > 80
+            for: 5m
+            labels:
+                severity: warning
+                category: database
+            annotations:
+                summary: "High number of database connections"
+                description: "{{ $value }} active database connections"
+
+          - alert: SlowDatabaseQueries
+            expr: pg_stat_activity_max_tx_duration > 30
+            for: 2m
+            labels:
+                severity: warning
+                category: database
+            annotations:
+                summary: "Slow database queries detected"
+                description: "Longest running transaction is {{ $value }}s"
+
+          - alert: DatabaseDiskSpaceLow
+            expr: pg_database_size_bytes / (1024*1024*1024) > 8 # 8GB
+            for: 5m
+            labels:
+                severity: warning
+                category: database
+            annotations:
+                summary: "Database size is growing large"
+                description: "Database size is {{ $value | humanizeBytes }}"
+
+          - alert: RedisDown
+            expr: redis_up == 0
+            for: 1m
+            labels:
+                severity: critical
+                category: redis
+            annotations:
+                summary: "Redis is down"
+                description: "Redis cache is not responding"
+
+          - alert: RedisHighMemoryUsage
+            expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            for: 5m
+            labels:
+                severity: warning
+                category: redis
+            annotations:
+                summary: "Redis memory usage is high"
+                description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+          - alert: RedisHighCommandRate
+            expr: rate(redis_commands_processed_total[5m]) > 10000
+            for: 5m
+            labels:
+                severity: warning
+                category: redis
+            annotations:
+                summary: "High Redis command rate"
+                description: "Redis command rate is {{ $value }}/s"
+
+    - name: api_alerts
+      rules:
+          # External API Alerts
+          - alert: AlpacaAPIDown
+            expr: alpaca_api_requests_total{status="success"} / alpaca_api_requests_total < 0.8
+            for: 5m
+            labels:
+                severity: critical
+                category: external_api
+            annotations:
+                summary: "Alpaca API experiencing issues"
+                description: "Alpaca API success rate is {{ $value | humanizePercentage }}"
+
+          - alert: TwelveDataAPIRateLimit
+            expr: rate(twelve_data_api_rate_limit_errors_total[5m]) > 0.1
+            for: 2m
+            labels:
+                severity: warning
+                category: external_api
+            annotations:
+                summary: "TwelveData API rate limit exceeded"
+                description: "Rate limit error rate is {{ $value }}/s"
+
+          - alert: ExternalAPILatencyHigh
+            expr: external_api_request_duration_seconds{quantile="0.95"} > 10
+            for: 3m
+            labels:
+                severity: warning
+                category: external_api
+            annotations:
+                summary: "High external API latency"
+                description: "95th percentile API latency is {{ $value }}s for {{ $labels.api }}"
+
+    - name: strategy_alerts
+      rules:
+          # Strategy Performance Alerts
+          - alert: StrategyPerformanceDegraded
+            expr: strategy_sharpe_ratio < 0.5
+            for: 30m
+            labels:
+                severity: warning
+                category: strategy
+            annotations:
+                summary: "Strategy performance degraded"
+                description: "Strategy {{ $labels.strategy }} Sharpe ratio is {{ $value }}"
+
+          - alert: StrategyExcessiveLosses
+            expr: strategy_consecutive_losses > 10
+            for: 5m
+            labels:
+                severity: warning
+                category: strategy
+            annotations:
+                summary: "Strategy experiencing consecutive losses"
+                description: "Strategy {{ $labels.strategy }} has {{ $value }} consecutive losses"
+
+          - alert: NoTradingSignals
+            expr: rate(trading_signals_generated_total[1h]) == 0
+            for: 30m
+            labels:
+                severity: warning
+                category: strategy
+            annotations:
+                summary: "No trading signals generated"
+                description: "No trading signals have been generated in the last hour"
+
+          - alert: StrategySignalConfidenceLow
+            expr: avg_over_time(signal_confidence[1h]) < 0.5
+            for: 30m
+            labels:
+                severity: warning
+                category: strategy
+            annotations:
+                summary: "Low signal confidence"
+                description: "Average signal confidence is {{ $value | humanizePercentage }} over the last hour"
+
+    - name: risk_management_alerts
+      rules:
+          # Risk Management Alerts
+          - alert: VaRExceeded
+            expr: portfolio_var_exceeded_count > 0
+            for: 0m
+            labels:
+                severity: critical
+                category: risk
+            annotations:
+                summary: "Value at Risk exceeded"
+                description: "Portfolio VaR has been exceeded {{ $value }} times today"
+
+          - alert: PortfolioBetaHigh
+            expr: portfolio_beta > 1.5
+            for: 10m
+            labels:
+                severity: warning
+                category: risk
+            annotations:
+                summary: "High portfolio beta"
+                description: "Portfolio beta is {{ $value }} - above target range"
+
+          - alert: CorrelationRiskHigh
+            expr: portfolio_correlation_risk > 0.8
+            for: 10m
+            labels:
+                severity: warning
+                category: risk
+            annotations:
+                summary: "High correlation risk in portfolio"
+                description: "Portfolio correlation risk is {{ $value | humanizePercentage }}"
+
+          - alert: MarginCallRisk
+            expr: account_buying_power / account_equity < 0.25
+            for: 5m
+            labels:
+                severity: critical
+                category: risk
+            annotations:
+                summary: "Margin call risk detected"
+                description: "Buying power ratio is {{ $value | humanizePercentage }}"
+
+    - name: market_condition_alerts
+      rules:
+          # Market Condition Alerts
+          - alert: HighMarketVolatility
+            expr: market_volatility_vix > 30
+            for: 10m
+            labels:
+                severity: warning
+                category: market
+            annotations:
+                summary: "High market volatility detected"
+                description: "VIX is {{ $value }} - above normal levels"
+
+          - alert: MarketGapDetected
+            expr: abs(price_gap_percentage) > 0.05
+            for: 0m
+            labels:
+                severity: warning
+                category: market
+            annotations:
+                summary: "Large price gap detected"
+                description: "{{ $labels.symbol }} gapped {{ $value | humanizePercentage }}"
+
+          - alert: UnusualVolumeSpike
+            expr: volume_vs_average > 5
+            for: 5m
+            labels:
+                severity: info
+                category: market
+            annotations:
+                summary: "Unusual volume spike"
+                description: "{{ $labels.symbol }} volume is {{ $value }}x average"
+
+          - alert: MarketHalted
+            expr: market_halted_status == 1
+            for: 0m
+            labels:
+                severity: critical
+                category: market
+            annotations:
+                summary: "Market trading halted"
+                description: "{{ $labels.symbol }} trading has been halted"
+
+    - name: business_logic_alerts
+      rules:
+          # Business Logic Alerts
+          - alert: DailyTradeLimitReached
+            expr: daily_trade_count >= daily_trade_limit
+            for: 0m
+            labels:
+                severity: warning
+                category: trading
+            annotations:
+                summary: "Daily trade limit reached"
+                description: "Executed {{ $value }} trades today, reaching the daily limit"
+
+          - alert: PositionSizeTooLarge
+            expr: position_size_percentage > 0.1
+            for: 0m
+            labels:
+                severity: warning
+                category: risk
+            annotations:
+                summary: "Position size too large"
+                description: "Position in {{ $labels.symbol }} is {{ $value | humanizePercentage }} of portfolio"
+
+          - alert: RiskLimitsViolated
+            expr: risk_limit_violations_total > 0
+            for: 0m
+            labels:
+                severity: critical
+                category: risk
+            annotations:
+                summary: "Risk limits violated"
+                description: "{{ $value }} risk limit violations detected"
+
+          - alert: UnauthorizedTradingAttempt
+            expr: unauthorized_trading_attempts_total > 0
+            for: 0m
+            labels:
+                severity: critical
+                category: security
+            annotations:
+                summary: "Unauthorized trading attempt detected"
+                description: "{{ $value }} unauthorized trading attempts in the last 5 minutes"
+
+    - name: data_quality_alerts
+      rules:
+          # Data Quality Alerts
+          - alert: StaleMarketData
+            expr: time() - market_data_last_timestamp > 900 # 15 minutes
+            for: 5m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Stale market data"
+                description: "Market data for {{ $labels.symbol }} is {{ $value }}s old"
+
+          - alert: DataValidationFailures
+            expr: rate(data_validation_failures_total[5m]) > 0.05
+            for: 5m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Data validation failures"
+                description: "Data validation failure rate is {{ $value | humanizePercentage }}"
+
+          - alert: MissingCriticalData
+            expr: critical_symbols_missing_data > 0
+            for: 5m
+            labels:
+                severity: critical
+                category: data
+            annotations:
+                summary: "Critical symbols missing data"
+                description: "{{ $value }} critical symbols are missing market data"
+
+          - alert: DataInconsistency
+            expr: data_consistency_score < 0.95
+            for: 10m
+            labels:
+                severity: warning
+                category: data
+            annotations:
+                summary: "Data inconsistency detected"
+                description: "Data consistency score is {{ $value | humanizePercentage }}"
+
+    - name: infrastructure_alerts
+      rules:
+          # Infrastructure Alerts
+          - alert: ContainerRestarting
+            expr: increase(container_restarts_total[10m]) > 0
+            for: 0m
+            labels:
+                severity: warning
+                category: infrastructure
+            annotations:
+                summary: "Container restarting"
+                description: "Container {{ $labels.name }} has restarted {{ $value }} times in 10 minutes"
+
+          - alert: HighContainerCPU
+            expr: rate(container_cpu_usage_seconds_total[5m]) * 100 > 80
+            for: 5m
+            labels:
+                severity: warning
+                category: infrastructure
+            annotations:
+                summary: "High container CPU usage"
+                description: "Container {{ $labels.name }} CPU usage is {{ $value | humanizePercentage }}"
+
+          - alert: HighContainerMemory
+            expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.85
+            for: 5m
+            labels:
+                severity: warning
+                category: infrastructure
+            annotations:
+                summary: "High container memory usage"
+                description: "Container {{ $labels.name }} memory usage is {{ $value | humanizePercentage }}"
+
+          - alert: NetworkConnectivityIssues
+            expr: rate(network_connection_failures_total[5m]) > 0.1
+            for: 3m
+            labels:
+                severity: warning
+                category: infrastructure
+            annotations:
+                summary: "Network connectivity issues"
+                description: "Network connection failure rate is {{ $value }}/s"
+
+    - name: security_alerts
+      rules:
+          # Security Alerts
+          - alert: SuspiciousAPIActivity
+            expr: rate(api_requests_total{user_agent!~"trading-system.*"}[5m]) > 10
+            for: 5m
+            labels:
+                severity: warning
+                category: security
+            annotations:
+                summary: "Suspicious API activity"
+                description: "High rate of requests from unknown user agents: {{ $value }}/s"
+
+          - alert: FailedAuthenticationAttempts
+            expr: rate(authentication_failures_total[5m]) > 0.5
+            for: 3m
+            labels:
+                severity: warning
+                category: security
+            annotations:
+                summary: "Failed authentication attempts"
+                description: "Authentication failure rate is {{ $value }}/s"
+
+          - alert: UnexpectedDataAccess
+            expr: rate(unauthorized_data_access_total[5m]) > 0
+            for: 0m
+            labels:
+                severity: critical
+                category: security
+            annotations:
+                summary: "Unauthorized data access detected"
+                description: "{{ $value }} unauthorized data access attempts detected"
+
+    - name: compliance_alerts
+      rules:
+          # Compliance and Audit Alerts
+          - alert: AuditLogGaps
+            expr: audit_log_gap_minutes > 5
+            for: 0m
+            labels:
+                severity: critical
+                category: compliance
+            annotations:
+                summary: "Audit log gaps detected"
+                description: "{{ $value }} minute gap in audit logs"
+
+          - alert: RegulatoryReportingDelay
+            expr: regulatory_reporting_delay_hours > 1
+            for: 0m
+            labels:
+                severity: warning
+                category: compliance
+            annotations:
+                summary: "Regulatory reporting delay"
+                description: "Regulatory reporting is {{ $value }} hours delayed"
+
+          - alert: TradeReportingFailure
+            expr: trade_reporting_failures_total > 0
+            for: 0m
+            labels:
+                severity: critical
+                category: compliance
+            annotations:
+                summary: "Trade reporting failure"
+                description: "{{ $value }} trades failed to be reported to regulatory systems"
+
+    - name: performance_degradation_alerts
+      rules:
+          # Performance Degradation Alerts
+          - alert: StrategyPerformanceDecline
+            expr: (strategy_cumulative_return - strategy_benchmark_return) < -0.05
+            for: 24h
+            labels:
+                severity: warning
+                category: performance
+            annotations:
+                summary: "Strategy underperforming benchmark"
+                description: "Strategy {{ $labels.strategy }} is underperforming benchmark by {{ $value | humanizePercentage }}"
+
+          - alert: LowSignalQuality
+            expr: avg_over_time(signal_accuracy_rate[24h]) < 0.6
+            for: 6h
+            labels:
+                severity: warning
+                category: performance
+            annotations:
+                summary: "Low signal quality"
+                description: "Signal accuracy rate is {{ $value | humanizePercentage }} over 24 hours"
+
+          - alert: HighTradingCosts
+            expr: trading_costs_percentage > 0.01
+            for: 1h
+            labels:
+                severity: warning
+                category: performance
+            annotations:
+                summary: "High trading costs"
+                description: "Trading costs are {{ $value | humanizePercentage }} of portfolio value"
+
+    - name: operational_alerts
+      rules:
+          # Operational Alerts
+          - alert: BackupFailure
+            expr: backup_success == 0
+            for: 0m
+            labels:
+                severity: critical
+                category: operational
+            annotations:
+                summary: "Backup failure detected"
+                description: "Latest backup failed for {{ $labels.backup_type }}"
+
+          - alert: LogAggregationDown
+            expr: log_messages_received_rate == 0
+            for: 10m
+            labels:
+                severity: warning
+                category: operational
+            annotations:
+                summary: "Log aggregation not receiving messages"
+                description: "No log messages received in the last 10 minutes"
+
+          - alert: MonitoringSystemDown
+            expr: up{job="prometheus"} == 0
+            for: 2m
+            labels:
+                severity: critical
+                category: operational
+            annotations:
+                summary: "Monitoring system is down"
+                description: "Prometheus monitoring system is not responding"
+
+          - alert: AlertManagerDown
+            expr: up{job="alertmanager"} == 0
+            for: 2m
+            labels:
+                severity: critical
+                category: operational
+            annotations:
+                summary: "Alert manager is down"
+                description: "AlertManager is not responding - alerts may not be delivered"
+
+    - name: business_hours_alerts
+      rules:
+          # Business Hours Specific Alerts
+          - alert: TradingOutsideMarketHours
+            expr: trades_executed_total and ON() market_hours_open == 0
+            for: 0m
+            labels:
+                severity: warning
+                category: trading
+            annotations:
+                summary: "Trading outside market hours"
+                description: "{{ $value }} trades executed outside normal market hours"
+
+          - alert: NoActivityDuringMarketHours
+            expr: rate(api_requests_total[30m]) == 0 and ON() market_hours_open == 1
+            for: 30m
+            labels:
+                severity: warning
+                category: operational
+            annotations:
+                summary: "No system activity during market hours"
+                description: "No API activity detected during market hours"
+
+          - alert: PreMarketActivityUnusual
+            expr: rate(trades_executed_total[1h]) > 10 and ON() pre_market_hours == 1
+            for: 15m
+            labels:
+                severity: info
+                category: trading
+            annotations:
+                summary: "Unusual pre-market activity"
+                description: "{{ $value }} trades/hour during pre-market hours"

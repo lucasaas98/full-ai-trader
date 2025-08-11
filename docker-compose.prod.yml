@@ -1,0 +1,890 @@
+version: "3.8"
+
+services:
+    # Database Services
+    postgres:
+        image: postgres:15-alpine
+        container_name: trading_postgres
+        environment:
+            POSTGRES_DB: ${DB_NAME:-trading_system}
+            POSTGRES_USER: ${DB_USER:-trader}
+            POSTGRES_PASSWORD: ${DB_PASSWORD}
+            POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+        ports:
+            - "${DB_PORT:-5432}:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+            - postgres_backups:/backups
+            - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql:ro
+            - ./config/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 2G
+                    cpus: '1.0'
+                reservations:
+                    memory: 1G
+                    cpus: '0.5'
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trading_system}"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    redis:
+        image: redis:7-alpine
+        container_name: trading_redis
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD}
+        ports:
+            - "${REDIS_PORT:-6379}:6379"
+        volumes:
+            - redis_data:/data
+            - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 512M
+                    cpus: '0.5'
+                reservations:
+                    memory: 256M
+                    cpus: '0.25'
+        command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+        healthcheck:
+            test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+            interval: 10s
+            timeout: 3s
+            retries: 5
+            start_period: 10s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    # Trading System Services
+    data_collector:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: data_collector
+        image: trading-system/data_collector:${IMAGE_TAG:-latest}
+        container_name: trading_data_collector
+        environment:
+            - SERVICE_NAME=data_collector
+            - SERVICE_PORT=8001
+            - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
+            - FINVIZ_API_KEY=${FINVIZ_API_KEY}
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+        ports:
+            - "8001:8001"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                    cpus: '0.8'
+                reservations:
+                    memory: 512M
+                    cpus: '0.4'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "5"
+        security_opt:
+            - no-new-privileges:true
+
+    strategy_engine:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: strategy_engine
+        image: trading-system/strategy_engine:${IMAGE_TAG:-latest}
+        container_name: trading_strategy_engine
+        environment:
+            - SERVICE_NAME=strategy_engine
+            - SERVICE_PORT=8002
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
+            - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-50}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+        ports:
+            - "8002:8002"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            data_collector:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 2G
+                    cpus: '1.5'
+                reservations:
+                    memory: 1G
+                    cpus: '0.8'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 90s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "5"
+        security_opt:
+            - no-new-privileges:true
+
+    risk_manager:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: risk_manager
+        image: trading-system/risk_manager:${IMAGE_TAG:-latest}
+        container_name: trading_risk_manager
+        environment:
+            - SERVICE_NAME=risk_manager
+            - SERVICE_PORT=8003
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
+            - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
+            - RISK_DRAWDOWN_LIMIT=${RISK_DRAWDOWN_LIMIT:-0.15}
+            - RISK_VAR_CONFIDENCE=${RISK_VAR_CONFIDENCE:-0.95}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-200}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+        ports:
+            - "8003:8003"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                    cpus: '1.0'
+                reservations:
+                    memory: 512M
+                    cpus: '0.5'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "5"
+        security_opt:
+            - no-new-privileges:true
+
+    trade_executor:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: trade_executor
+        image: trading-system/trade_executor:${IMAGE_TAG:-latest}
+        container_name: trading_trade_executor
+        environment:
+            - SERVICE_NAME=trade_executor
+            - SERVICE_PORT=8004
+            - ALPACA_API_KEY=${ALPACA_API_KEY}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+            - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://api.alpaca.markets}
+            - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-20}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+            - TRADING_DRY_RUN=${TRADING_DRY_RUN:-false}
+        ports:
+            - "8004:8004"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            risk_manager:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                    cpus: '0.8'
+                reservations:
+                    memory: 512M
+                    cpus: '0.4'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "5"
+        security_opt:
+            - no-new-privileges:true
+
+    scheduler:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: scheduler
+        image: trading-system/scheduler:${IMAGE_TAG:-latest}
+        container_name: trading_scheduler
+        environment:
+            - SERVICE_NAME=scheduler
+            - SERVICE_PORT=8005
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - GOTIFY_URL=${GOTIFY_URL}
+            - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+            - SCHEDULER_MARKET_DATA_INTERVAL=${SCHEDULER_MARKET_DATA_INTERVAL:-60}
+            - SCHEDULER_STRATEGY_INTERVAL=${SCHEDULER_STRATEGY_INTERVAL:-300}
+            - SCHEDULER_RISK_CHECK_INTERVAL=${SCHEDULER_RISK_CHECK_INTERVAL:-60}
+            - SCHEDULER_BACKUP_INTERVAL=${SCHEDULER_BACKUP_INTERVAL:-86400}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-30}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+        ports:
+            - "8005:8005"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+            - ./backups:/app/backups
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            data_collector:
+                condition: service_healthy
+            strategy_engine:
+                condition: service_healthy
+            risk_manager:
+                condition: service_healthy
+            trade_executor:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                    cpus: '0.5'
+                reservations:
+                    memory: 512M
+                    cpus: '0.25'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 120s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "5"
+        security_opt:
+            - no-new-privileges:true
+
+    # API Gateway / Load Balancer
+    nginx:
+        image: nginx:alpine
+        container_name: trading_nginx
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+            - ./config/nginx/ssl:/etc/nginx/ssl:ro
+            - ./config/nginx/sites-enabled:/etc/nginx/conf.d:ro
+            - nginx_logs:/var/log/nginx
+        networks:
+            - trading_network
+        depends_on:
+            - data_collector
+            - strategy_engine
+            - risk_manager
+            - trade_executor
+            - scheduler
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+                    cpus: '0.3'
+                reservations:
+                    memory: 128M
+                    cpus: '0.1'
+        healthcheck:
+            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    # Monitoring Services
+    prometheus:
+        image: prom/prometheus:v2.48.0
+        container_name: trading_prometheus
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+            - ./config/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+            - prometheus_data:/prometheus
+        networks:
+            - trading_network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 2G
+                    cpus: '1.0'
+                reservations:
+                    memory: 1G
+                    cpus: '0.5'
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.console.libraries=/etc/prometheus/console_libraries"
+            - "--web.console.templates=/etc/prometheus/consoles"
+            - "--storage.tsdb.retention.time=30d"
+            - "--storage.tsdb.retention.size=10GB"
+            - "--web.enable-lifecycle"
+            - "--web.enable-admin-api"
+            - "--web.enable-remote-write-receiver"
+        healthcheck:
+            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    grafana:
+        image: grafana/grafana:10.2.2
+        container_name: trading_grafana
+        ports:
+            - "3000:3000"
+        environment:
+            - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+            - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+            - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+            - GF_SECURITY_DISABLE_GRAVATAR=true
+            - GF_USERS_ALLOW_SIGN_UP=false
+            - GF_ANALYTICS_REPORTING_ENABLED=false
+            - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+            - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+            - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+        networks:
+            - trading_network
+        depends_on:
+            - prometheus
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 512M
+                    cpus: '0.5'
+                reservations:
+                    memory: 256M
+                    cpus: '0.25'
+        healthcheck:
+            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    alertmanager:
+        image: prom/alertmanager:v0.26.0
+        container_name: trading_alertmanager
+        ports:
+            - "9093:9093"
+        volumes:
+            - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+            - alertmanager_data:/alertmanager
+        networks:
+            - trading_network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+                    cpus: '0.3'
+                reservations:
+                    memory: 128M
+                    cpus: '0.1'
+        command:
+            - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--storage.path=/alertmanager"
+            - "--web.external-url=http://localhost:9093"
+            - "--web.route-prefix=/"
+        healthcheck:
+            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    # System Exporters
+    node_exporter:
+        image: prom/node-exporter:v1.7.0
+        container_name: trading_node_exporter
+        ports:
+            - "9100:9100"
+        volumes:
+            - /proc:/host/proc:ro
+            - /sys:/host/sys:ro
+            - /:/rootfs:ro
+        networks:
+            - trading_network
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 128M
+                    cpus: '0.2'
+        command:
+            - "--path.procfs=/host/proc"
+            - "--path.rootfs=/rootfs"
+            - "--path.sysfs=/host/sys"
+            - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "2"
+        security_opt:
+            - no-new-privileges:true
+
+    postgres_exporter:
+        image: prometheuscommunity/postgres-exporter:v0.15.0
+        container_name: trading_postgres_exporter
+        environment:
+            DATA_SOURCE_NAME: "postgresql://${DB_USER:-trader}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-trading_system}?sslmode=disable"
+            PG_EXPORTER_EXTEND_QUERY_PATH: "/etc/postgres_exporter/queries.yaml"
+        ports:
+            - "9187:9187"
+        volumes:
+            - ./config/postgres_exporter/queries.yaml:/etc/postgres_exporter/queries.yaml:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 128M
+                    cpus: '0.2'
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "2"
+        security_opt:
+            - no-new-privileges:true
+
+    redis_exporter:
+        image: oliver006/redis_exporter:v1.55.0
+        container_name: trading_redis_exporter
+        environment:
+            REDIS_ADDR: "redis://redis:6379"
+            REDIS_PASSWORD: "${REDIS_PASSWORD}"
+        ports:
+            - "9121:9121"
+        networks:
+            - trading_network
+        depends_on:
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 128M
+                    cpus: '0.2'
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "2"
+        security_opt:
+            - no-new-privileges:true
+
+    # Backup Service
+    backup_manager:
+        build:
+            context: .
+            dockerfile: Dockerfile.backup
+        image: trading-system/backup_manager:${IMAGE_TAG:-latest}
+        container_name: trading_backup_manager
+        environment:
+            - SERVICE_NAME=backup_manager
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+            - BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+            - S3_BUCKET=${S3_BACKUP_BUCKET}
+            - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+            - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+            - AWS_REGION=${AWS_REGION:-us-east-1}
+            - ENCRYPTION_KEY=${BACKUP_ENCRYPTION_KEY}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+        volumes:
+            - ./data:/app/data
+            - ./backups:/app/backups
+            - ./config:/app/config:ro
+            - postgres_backups:/postgres_backups
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 512M
+                    cpus: '0.5'
+                reservations:
+                    memory: 256M
+                    cpus: '0.25'
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    # Export Service
+    export_service:
+        build:
+            context: .
+            dockerfile: Dockerfile.prod
+            target: runtime
+            args:
+                SERVICE_NAME: export_service
+        image: trading-system/export_service:${IMAGE_TAG:-latest}
+        container_name: trading_export_service
+        environment:
+            - SERVICE_NAME=export_service
+            - SERVICE_PORT=8006
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - SENTRY_DSN=${SENTRY_DSN}
+            - EXPORT_ENCRYPTION_KEY=${EXPORT_ENCRYPTION_KEY}
+            - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-10}
+            - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
+        ports:
+            - "8006:8006"
+        volumes:
+            - ./data:/app/data:ro
+            - ./exports:/app/exports
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 1G
+                    cpus: '0.5'
+                reservations:
+                    memory: 512M
+                    cpus: '0.25'
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 60s
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "100m"
+                max-file: "3"
+        security_opt:
+            - no-new-privileges:true
+
+    # Maintenance Mode Service
+    maintenance_service:
+        build:
+            context: .
+            dockerfile: Dockerfile.maintenance
+        image: trading-system/maintenance:${IMAGE_TAG:-latest}
+        container_name: trading_maintenance
+        environment:
+            - SERVICE_NAME=maintenance_service
+            - SERVICE_PORT=8007
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - REDIS_HOST=redis
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - ENVIRONMENT=production
+            - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
+            - MAINTENANCE_MESSAGE=${MAINTENANCE_MESSAGE:-System under maintenance}
+        ports:
+            - "8007:8007"
+        volumes:
+            - ./data:/app/data
+            - ./config:/app/config:ro
+        networks:
+            - trading_network
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    memory: 256M
+                    cpus: '0.3'
+                reservations:
+                    memory: 128M
+                    cpus: '0.1'
+        profiles:
+            - maintenance
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "50m"
+                max-file: "2"
+        security_opt:
+            - no-new-privileges:true
+
+volumes:
+    postgres_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${DATA_ROOT:-./data}/postgres
+    postgres_backups:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${BACKUP_ROOT:-./backups}/postgres
+    redis_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${DATA_ROOT:-./data}/redis
+    prometheus_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${DATA_ROOT:-./data}/prometheus
+    grafana_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${DATA_ROOT:-./data}/grafana
+    alertmanager_data:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${DATA_ROOT:-./data}/alertmanager
+    nginx_logs:
+        driver: local
+        driver_opts:
+            type: none
+            o: bind
+            device: ${LOG_ROOT:-./logs}/nginx
+
+networks:
+    trading_network:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: 172.20.0.0/16
+        driver_opts:
+            com.docker.network.bridge.name: trading_br0

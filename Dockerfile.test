@@ -1,0 +1,73 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies for testing and uv
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    gcc \
+    g++ \
+    make \
+    postgresql-client \
+    redis-tools \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add uv to PATH
+ENV PATH="/root/.cargo/bin:$PATH"
+
+# Install Python testing dependencies
+COPY requirements.txt .
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Install additional test dependencies
+RUN uv pip install --system --no-cache \
+    pytest==7.4.3 \
+    pytest-cov==4.1.0 \
+    pytest-asyncio==0.21.1 \
+    pytest-xdist==3.3.1 \
+    pytest-mock==3.12.0 \
+    pytest-timeout==2.2.0 \
+    pytest-html==4.1.1 \
+    pytest-json-report==1.5.0 \
+    pytest-benchmark==4.0.0 \
+    coverage==7.3.2 \
+    flake8==6.1.0 \
+    black==23.9.1 \
+    isort==5.12.0 \
+    mypy==1.6.1 \
+    bandit==1.7.5 \
+    safety==2.3.5 \
+    psutil==5.9.6 \
+    memory-profiler==0.61.0 \
+    line-profiler==4.1.1
+
+# Create directories for test artifacts
+RUN mkdir -p /app/tests/coverage \
+    /app/tests/reports \
+    /app/tests/artifacts
+
+# Copy project files
+COPY . .
+
+# Set environment variables for testing
+ENV ENVIRONMENT=test
+ENV TEST_MODE=true
+ENV PYTHONPATH=/app
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Create test user (non-root for security)
+RUN useradd --create-home --shell /bin/bash testuser && \
+    chown -R testuser:testuser /app
+USER testuser
+
+# Health check for test container
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.exit(0)"
+
+# Default command runs all tests
+CMD ["python", "scripts/run_tests.py", "--all", "--verbose"]

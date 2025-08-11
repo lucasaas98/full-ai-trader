@@ -1,0 +1,96 @@
+# Multi-stage production Dockerfile for AI Trading System
+# This creates optimized, secure, and minimal production images
+
+# Stage 1: Build dependencies and compile Python packages
+FROM python:3.11-slim as builder
+
+# Set build environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    UV_NO_CACHE=1 \
+    UV_COMPILE_BYTECODE=1
+
+# Install build dependencies and uv
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libpq-dev \
+    build-essential \
+    git \
+    curl \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add uv to PATH
+ENV PATH="/root/.cargo/bin:$PATH"
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy and install Python dependencies
+COPY requirements.txt requirements-prod.txt ./
+RUN uv pip install --system -r requirements-prod.txt
+
+# Stage 2: Runtime image
+FROM python:3.11-slim as runtime
+
+# Set runtime environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app"
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    postgresql-client \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Create non-root user for security
+RUN groupadd -r trader && useradd -r -g trader -u 1001 trader
+
+# Set work directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=trader:trader shared/ ./shared/
+COPY --chown=trader:trader src/ ./src/
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/data/logs /app/data/parquet /app/data/exports /app/data/backups && \
+    chown -R trader:trader /app/data && \
+    chmod -R 755 /app/data
+
+# Create config directory
+RUN mkdir -p /app/config && \
+    chown -R trader:trader /app/config
+
+# Switch to non-root user
+USER trader
+
+# Default port (override with SERVICE_PORT environment variable)
+EXPOSE 8000
+
+# Health check with proper timeout and retries
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${SERVICE_PORT:-8000}/health || exit 1
+
+# Default command (override in service-specific builds)
+CMD ["python", "-m", "src.main"]
+
+# Metadata labels
+LABEL maintainer="AI Trading System Team" \
+      version="1.0.0" \
+      description="Production AI Trading System Service" \
+      org.opencontainers.image.title="AI Trading System" \
+      org.opencontainers.image.description="Automated trading system with AI-driven strategies" \
+      org.opencontainers.image.version="1.0.0" \
+      org.opencontainers.image.vendor="Trading Team" \
+      org.opencontainers.image.licenses="MIT"
