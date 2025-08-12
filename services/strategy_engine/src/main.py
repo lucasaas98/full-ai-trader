@@ -24,16 +24,16 @@ import polars as pl
 # Add shared module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared'))
 
-from base_strategy import BaseStrategy, StrategyConfig, StrategyMode
-from technical_analysis import TechnicalStrategy, TechnicalAnalysisEngine
-from fundamental_analysis import FundamentalStrategy, FundamentalAnalysisEngine
-from hybrid_strategy import (
+from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode
+from .technical_analysis import TechnicalStrategy, TechnicalAnalysisEngine
+from .fundamental_analysis import FundamentalStrategy, FundamentalAnalysisEngine
+from .hybrid_strategy import (
     HybridStrategy, HybridMode, HybridSignalGenerator, HybridSignal,
     HybridStrategyFactory
 )
-from market_regime import MarketRegimeDetector, RegimeAwareStrategyManager
-from backtesting_engine import BacktestingEngine, BacktestConfig, BacktestMode
-from redis_integration import RedisStrategyEngine
+from .market_regime import MarketRegimeDetector, RegimeAwareStrategyManager
+from .backtesting_engine import BacktestingEngine, BacktestConfig, BacktestMode
+from .redis_integration import RedisStrategyEngine
 
 # Import shared models
 from shared.models import FinVizData
@@ -101,8 +101,13 @@ class StrategyEngineService:
         # Signal validation handled within strategies
 
         # Configuration
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = os.getenv("REDIS_PORT", "6379")
+        redis_password = os.getenv("REDIS_PASSWORD", "")
+        redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}" if redis_password else f"redis://{redis_host}:{redis_port}"
+
         self.config = {
-            "redis_url": os.getenv("REDIS_URL", "redis://localhost:6379"),
+            "redis_url": os.getenv("REDIS_URL", redis_url),
             "max_concurrent_strategies": int(os.getenv("MAX_CONCURRENT_STRATEGIES", "10")),
             "signal_cache_ttl": int(os.getenv("SIGNAL_CACHE_TTL", "300")),
             "enable_real_time": os.getenv("ENABLE_REAL_TIME", "true").lower() == "true",
@@ -821,10 +826,11 @@ async def get_service_status():
 
 if __name__ == "__main__":
     # Development server
+    port = int(os.environ.get('SERVICE_PORT', 8002))
     uvicorn.run(
-        "main:app",
+        "src.main:app",
         host="0.0.0.0",
-        port=8002,
+        port=port,
         reload=True,
         log_level="info"
     )

@@ -15,7 +15,7 @@ from uuid import UUID
 import math
 
 import asyncpg
-import aioredis
+import redis.asyncio as redis
 import pandas as pd
 
 from shared.config import get_config
@@ -49,13 +49,17 @@ class PerformanceTracker:
         """Initialize database and Redis connections."""
         try:
             self._db_pool = await asyncpg.create_pool(
-                self.config.database.url,
+                host=self.config.database.host,
+                port=self.config.database.port,
+                database=self.config.database.database,
+                user=self.config.database.username,
+                password=self.config.database.password,
                 min_size=2,
                 max_size=5,
                 command_timeout=30
             )
 
-            self._redis = aioredis.from_url(
+            self._redis = redis.from_url(
                 self.config.redis.url,
                 max_connections=5,
                 retry_on_timeout=True
@@ -297,7 +301,7 @@ class PerformanceTracker:
                     FROM trading.positions
                     WHERE strategy_type = $1
                     AND status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $2
                 """, strategy_name, days)
 
                 if not strategy_stats or strategy_stats['total_trades'] == 0:
@@ -318,13 +322,13 @@ class PerformanceTracker:
                 gross_profit = await conn.fetchval("""
                     SELECT SUM(pnl) FROM trading.positions
                     WHERE strategy_type = $1 AND pnl > 0 AND status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $2
                 """, strategy_name, days) or Decimal("0")
 
                 gross_loss = await conn.fetchval("""
                     SELECT SUM(ABS(pnl)) FROM trading.positions
                     WHERE strategy_type = $1 AND pnl < 0 AND status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $2
                 """, strategy_name, days) or Decimal("0")
 
                 profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
@@ -382,7 +386,7 @@ class PerformanceTracker:
                     SELECT pnl, exit_time
                     FROM trading.positions
                     WHERE strategy_type = $1 AND status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $2
                     ORDER BY exit_time ASC
                 """, strategy_name, days)
 
@@ -459,7 +463,7 @@ class PerformanceTracker:
                         portfolio_value,
                         net_pnl / NULLIF(portfolio_value, 0) as daily_return
                     FROM trading.daily_performance
-                    WHERE date >= CURRENT_DATE - INTERVAL '%s days'
+                    WHERE date >= CURRENT_DATE - INTERVAL '1 day' * $1
                     ORDER BY date
                 """, days)
 
@@ -730,7 +734,7 @@ class PerformanceTracker:
                 strategies = await conn.fetch("""
                     SELECT DISTINCT strategy_type
                     FROM trading.positions
-                    WHERE entry_time >= NOW() - INTERVAL '%s days'
+                    WHERE entry_time >= NOW() - INTERVAL '1 day' * $1
                     AND status = 'closed'
                 """, days)
 
@@ -785,7 +789,7 @@ class PerformanceTracker:
                         MIN(pnl) as worst_trade
                     FROM trading.positions
                     WHERE status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $1
                     GROUP BY ticker
                     ORDER BY total_pnl DESC
                     LIMIT 20
@@ -830,7 +834,7 @@ class PerformanceTracker:
                         strategy_type
                     FROM trading.positions
                     WHERE status = 'closed'
-                    AND exit_time >= NOW() - INTERVAL '%s days'
+                    AND exit_time >= NOW() - INTERVAL '1 day' * $1
                     ORDER BY exit_time DESC
                     LIMIT $2
                 """, days, limit)
@@ -983,7 +987,7 @@ class PerformanceTracker:
                         SUM(commission) as total_commission
                     FROM trading.positions
                     WHERE status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $1
                 """, days)
 
                 if not summary or summary['total_trades'] == 0:
@@ -1092,7 +1096,7 @@ class PerformanceTracker:
                 # Clean up old trade performance records
                 deleted_count = await conn.fetchval("""
                     DELETE FROM trading.trade_performance
-                    WHERE entry_date < CURRENT_DATE - INTERVAL '%s days'
+                    WHERE entry_date < CURRENT_DATE - INTERVAL '1 day' * $1
                 """, days_to_keep)
 
                 if deleted_count and deleted_count > 0:
@@ -1165,7 +1169,7 @@ class PerformanceTracker:
                     SELECT pnl
                     FROM trading.positions
                     WHERE status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $1
                     AND pnl IS NOT NULL
                     ORDER BY pnl
                 """, days)
@@ -1226,7 +1230,7 @@ class PerformanceTracker:
                         AVG(portfolio_value) as avg_portfolio_value,
                         COUNT(DISTINCT date) as trading_days
                     FROM trading.daily_performance
-                    WHERE date >= CURRENT_DATE - INTERVAL '%s months'
+                    WHERE date >= CURRENT_DATE - INTERVAL '1 month' * $1
                     GROUP BY EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date)
                     ORDER BY year DESC, month DESC
                 """, months)
@@ -1267,7 +1271,7 @@ class PerformanceTracker:
                 strategies = await conn.fetch("""
                     SELECT DISTINCT strategy_type
                     FROM trading.positions
-                    WHERE entry_time >= NOW() - INTERVAL '%s days'
+                    WHERE entry_time >= NOW() - INTERVAL '1 day' * $1
                     AND status = 'closed'
                 """, days)
 
@@ -1361,7 +1365,7 @@ class PerformanceTracker:
                         JOIN trading.positions p2 ON DATE(p1.exit_time) = DATE(p2.exit_time)
                         WHERE p1.ticker = $1 AND p2.ticker = $2
                         AND p1.status = 'closed' AND p2.status = 'closed'
-                        AND p1.entry_time >= NOW() - INTERVAL '%s days'
+                        AND p1.entry_time >= NOW() - INTERVAL '1 day' * $3
                         AND p1.cost_basis > 0 AND p2.cost_basis > 0
                     )
                     SELECT CORR(return1, return2)

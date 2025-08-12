@@ -21,7 +21,7 @@ WORKDIR /app
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared modules
 COPY --chown=trader:trader ../../shared ./shared

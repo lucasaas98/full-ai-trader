@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union, Callable
 
-import aioredis
+import redis.asyncio as redis
 from pydantic import BaseModel, Field
 
 from shared.models import MarketData, FinVizData, TimeFrame
@@ -70,13 +70,13 @@ class RedisClient:
 
     def __init__(self, config: RedisConfig):
         self.config = config
-        self._pool: Optional[aioredis.ConnectionPool] = None
-        self._redis: Optional[aioredis.Redis] = None
+        self._pool: Optional[redis.ConnectionPool] = None
+        self.redis: Optional[redis.Redis] = None
 
     async def connect(self):
         """Establish connection to Redis."""
         try:
-            self._pool = aioredis.ConnectionPool.from_url(
+            self.redis = redis.Redis.from_url(
                 self.config.url,
                 max_connections=self.config.max_connections,
                 socket_timeout=self.config.socket_timeout,
@@ -84,11 +84,9 @@ class RedisClient:
                 decode_responses=self.config.decode_responses
             )
 
-            self._redis = aioredis.Redis(connection_pool=self._pool)
-
             # Test connection
-            if self._redis:
-                await self._redis.ping()
+            if self.redis:
+                await self.redis.ping()
                 logger.info("Successfully connected to Redis")
 
         except Exception as e:
@@ -97,10 +95,8 @@ class RedisClient:
 
     async def disconnect(self):
         """Close Redis connection."""
-        if self._redis:
-            await self._redis.close()
-        if self._pool:
-            await self._pool.disconnect()
+        if self.redis:
+            await self.redis.close()
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -119,7 +115,7 @@ class RedisClient:
             tickers: List of new ticker symbols
             metadata: Optional metadata about the tickers
         """
-        if not self._redis:
+        if not self.redis:
             raise RuntimeError("Redis not connected")
 
         message = {
@@ -130,13 +126,13 @@ class RedisClient:
         }
 
         try:
-            await self._redis.publish(
+            await self.redis.publish(
                 RedisChannels.TICKERS_NEW,
                 json.dumps(message, default=str)
             )
 
             # Also update the active tickers list
-            await self._redis.sadd(RedisKeys.TICKER_LIST, *tickers)
+            await self.redis.sadd(RedisKeys.TICKER_LIST, *tickers)
 
             logger.info(f"Published {len(tickers)} new tickers to Redis")
 
@@ -158,7 +154,7 @@ class RedisClient:
             price_data: Price data (MarketData object or dict)
             ttl: Time to live in seconds
         """
-        if not self._redis:
+        if not self.redis:
             raise RuntimeError("Redis not connected")
 
         # Convert MarketData to dict if needed
@@ -181,11 +177,11 @@ class RedisClient:
 
         try:
             # Publish to channel
-            await self._redis.publish(channel, json.dumps(data_dict, default=str))
+            await self.redis.publish(channel, json.dumps(data_dict, default=str))
 
             # Cache the latest price with TTL
             cache_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
-            await self._redis.setex(
+            await self.redis.setex(
                 cache_key,
                 ttl,
                 json.dumps(data_dict, default=str)
@@ -209,7 +205,7 @@ class RedisClient:
             screener_data: List of FinViz data
             screener_type: Type of screener
         """
-        if not self._redis:
+        if not self.redis:
             raise RuntimeError("Redis not connected")
 
         # Convert to serializable format
@@ -237,14 +233,14 @@ class RedisClient:
         }
 
         try:
-            await self._redis.publish(
+            await self.redis.publish(
                 RedisChannels.SCREENER_UPDATES,
                 json.dumps(message, default=str)
             )
 
             # Cache screener results
             cache_key = f"{RedisKeys.SCREENER_CACHE_PREFIX}{screener_type}"
-            await self._redis.setex(
+            await self.redis.setex(
                 cache_key,
                 1800,  # 30 minutes TTL
                 json.dumps(message, default=str)
@@ -272,7 +268,7 @@ class RedisClient:
             data: List of MarketData objects
             ttl: Time to live in seconds
         """
-        if not self._redis or not data:
+        if not self.redis or not data:
             return
 
         cache_key = f"market_data:{ticker.upper()}:{timeframe.value}"
@@ -290,7 +286,7 @@ class RedisClient:
             })
 
         try:
-            await self._redis.setex(
+            await self.redis.setex(
                 cache_key,
                 ttl,
                 json.dumps(data_list, default=str)
@@ -316,13 +312,13 @@ class RedisClient:
         Returns:
             List of cached data or None if not found
         """
-        if not self._redis:
+        if not self.redis:
             return None
 
         cache_key = f"market_data:{ticker.upper()}:{timeframe.value}"
 
         try:
-            cached_data = await self._redis.get(cache_key)
+            cached_data = await self.redis.get(cache_key)
             if cached_data:
                 return json.loads(cached_data)
 
@@ -341,13 +337,13 @@ class RedisClient:
         Returns:
             Cached price data or None if not found
         """
-        if not self._redis:
+        if not self.redis:
             return None
 
         cache_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
 
         try:
-            cached_price = await self._redis.get(cache_key)
+            cached_price = await self.redis.get(cache_key)
             if cached_price:
                 return json.loads(cached_price)
 
@@ -363,11 +359,11 @@ class RedisClient:
         Returns:
             List of active ticker symbols
         """
-        if not self._redis:
+        if not self.redis:
             return []
 
         try:
-            tickers = await self._redis.smembers(RedisKeys.TICKER_LIST)
+            tickers = await self.redis.smembers(RedisKeys.TICKER_LIST)
             return list(tickers) if tickers else []
 
         except Exception as e:
@@ -381,22 +377,22 @@ class RedisClient:
         Args:
             ticker: Ticker symbol to remove
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         try:
             # Remove from active tickers set
-            await self._redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
+            await self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
 
             # Clear cached price data
             price_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
-            await self._redis.delete(price_key)
+            await self.redis.delete(price_key)
 
             # Clear cached market data
             pattern = f"market_data:{ticker.upper()}:*"
-            keys = await self._redis.keys(pattern)
+            keys = await self.redis.keys(pattern)
             if keys:
-                await self._redis.delete(*keys)
+                await self.redis.delete(*keys)
 
             logger.info(f"Removed ticker {ticker} from Redis")
 
@@ -417,7 +413,7 @@ class RedisClient:
             timeframe: Data timeframe
             timestamp: Update timestamp (current time if None)
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         if timestamp is None:
@@ -426,7 +422,7 @@ class RedisClient:
         key = f"{RedisKeys.LAST_UPDATE_PREFIX}{ticker.upper()}:{timeframe.value}"
 
         try:
-            await self._redis.set(key, timestamp.isoformat())
+            await self.redis.set(key, timestamp.isoformat())
             logger.debug(f"Updated last update time for {ticker} {timeframe}")
 
         except Exception as e:
@@ -447,13 +443,13 @@ class RedisClient:
         Returns:
             Last update timestamp or None if not found
         """
-        if not self._redis:
+        if not self.redis:
             return None
 
         key = f"{RedisKeys.LAST_UPDATE_PREFIX}{ticker.upper()}:{timeframe.value}"
 
         try:
-            timestamp_str = await self._redis.get(key)
+            timestamp_str = await self.redis.get(key)
             if timestamp_str:
                 return datetime.fromisoformat(timestamp_str)
 
@@ -476,7 +472,7 @@ class RedisClient:
             issues: List of validation issues
             severity: Alert severity (info, warning, error)
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         alert = {
@@ -488,7 +484,7 @@ class RedisClient:
         }
 
         try:
-            await self._redis.publish(
+            await self.redis.publish(
                 RedisChannels.DATA_VALIDATION,
                 json.dumps(alert, default=str)
             )
@@ -514,13 +510,13 @@ class RedisClient:
             stats: Statistics to cache
             ttl: Time to live in seconds
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         key = f"{RedisKeys.DATA_STATS_PREFIX}{ticker.upper()}:{timeframe.value}"
 
         try:
-            await self._redis.setex(
+            await self.redis.setex(
                 key,
                 ttl,
                 json.dumps(stats, default=str)
@@ -546,13 +542,13 @@ class RedisClient:
         Returns:
             Cached statistics or None if not found
         """
-        if not self._redis:
+        if not self.redis:
             return None
 
         key = f"{RedisKeys.DATA_STATS_PREFIX}{ticker.upper()}:{timeframe.value}"
 
         try:
-            cached_stats = await self._redis.get(key)
+            cached_stats = await self.redis.get(key)
             if cached_stats:
                 return json.loads(cached_stats)
 
@@ -575,7 +571,7 @@ class RedisClient:
             status: Status (online, offline, error, maintenance)
             details: Optional status details
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         status_data = {
@@ -587,7 +583,7 @@ class RedisClient:
         key = f"system_status:{component}"
 
         try:
-            await self._redis.setex(
+            await self.redis.setex(
                 key,
                 300,  # 5 minutes TTL
                 json.dumps(status_data, default=str)
@@ -608,13 +604,13 @@ class RedisClient:
         Returns:
             Status data or None if not found
         """
-        if not self._redis:
+        if not self.redis:
             return None
 
         key = f"system_status:{component}"
 
         try:
-            status_data = await self._redis.get(key)
+            status_data = await self.redis.get(key)
             if status_data:
                 return json.loads(status_data)
 
@@ -635,10 +631,10 @@ class RedisClient:
             price_data: Dictionary mapping tickers to price data
             ttl: Time to live in seconds
         """
-        if not self._redis or not price_data:
+        if not self.redis or not price_data:
             return
 
-        pipeline = self._redis.pipeline()
+        pipeline = self.redis.pipeline()
 
         try:
             for ticker, data in price_data.items():
@@ -683,10 +679,10 @@ class RedisClient:
         Returns:
             Dictionary mapping tickers to cached price data
         """
-        if not self._redis or not tickers:
+        if not self.redis or not tickers:
             return {}
 
-        pipeline = self._redis.pipeline()
+        pipeline = self.redis.pipeline()
 
         # Add all get commands to pipeline
         for ticker in tickers:
@@ -729,7 +725,7 @@ class RedisClient:
             record_count: Number of records updated
             update_type: Type of update (new_data, backfill, correction)
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         message = {
@@ -741,7 +737,7 @@ class RedisClient:
         }
 
         try:
-            await self._redis.publish(
+            await self.redis.publish(
                 RedisChannels.MARKET_DATA_UPDATES,
                 json.dumps(message, default=str)
             )
@@ -765,15 +761,15 @@ class RedisClient:
             callback: Callback function for messages
             pattern: Whether channel is a pattern
         """
-        if not self._redis:
+        if not self.redis:
             raise RuntimeError("Redis not connected")
 
         try:
             if pattern:
-                pubsub = self._redis.pubsub()
+                pubsub = self.redis.pubsub()
                 await pubsub.psubscribe(channel)
             else:
-                pubsub = self._redis.pubsub()
+                pubsub = self.redis.pubsub()
                 await pubsub.subscribe(channel)
 
             logger.info(f"Subscribed to {'pattern' if pattern else 'channel'}: {channel}")
@@ -804,21 +800,21 @@ class RedisClient:
             "error": None
         }
 
-        if not self._redis:
+        if not self.redis:
             health_info["error"] = "Redis not connected"
             return health_info
 
         try:
             # Measure latency
             start_time = datetime.now(timezone.utc)
-            await self._redis.ping()
+            await self.redis.ping()
             latency = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
             health_info["connected"] = True
             health_info["latency_ms"] = round(latency, 2)
 
             # Get memory info
-            info = await self._redis.info("memory")
+            info = await self.redis.info("memory")
             health_info["memory_usage"] = {
                 "used_memory": info.get("used_memory"),
                 "used_memory_human": info.get("used_memory_human"),
@@ -839,14 +835,14 @@ class RedisClient:
         Args:
             pattern: Optional pattern to match keys (clears all cache if None)
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         try:
             if pattern:
-                keys = await self._redis.keys(pattern)
+                keys = await self.redis.keys(pattern)
                 if keys:
-                    await self._redis.delete(*keys)
+                    await self.redis.delete(*keys)
                     logger.info(f"Cleared {len(keys)} keys matching pattern: {pattern}")
             else:
                 # Clear common cache keys
@@ -859,9 +855,9 @@ class RedisClient:
 
                 total_cleared = 0
                 for pattern in patterns:
-                    keys = await self._redis.keys(pattern)
+                    keys = await self.redis.keys(pattern)
                     if keys:
-                        await self._redis.delete(*keys)
+                        await self.redis.delete(*keys)
                         total_cleared += len(keys)
 
                 logger.info(f"Cleared {total_cleared} cache keys")
@@ -876,17 +872,17 @@ class RedisClient:
         Returns:
             Cache statistics
         """
-        if not self._redis:
+        if not self.redis:
             return {}
 
         try:
-            info = await self._redis.info()
+            info = await self.redis.info()
 
             # Count keys by type
-            price_keys = await self._redis.keys(f"{RedisKeys.PRICE_CACHE_PREFIX}*")
-            screener_keys = await self._redis.keys(f"{RedisKeys.SCREENER_CACHE_PREFIX}*")
-            market_data_keys = await self._redis.keys("market_data:*")
-            stats_keys = await self._redis.keys(f"{RedisKeys.DATA_STATS_PREFIX}*")
+            price_keys = await self.redis.keys(f"{RedisKeys.PRICE_CACHE_PREFIX}*")
+            screener_keys = await self.redis.keys(f"{RedisKeys.SCREENER_CACHE_PREFIX}*")
+            market_data_keys = await self.redis.keys("market_data:*")
+            stats_keys = await self.redis.keys(f"{RedisKeys.DATA_STATS_PREFIX}*")
 
             return {
                 "total_keys": info.get("db0", {}).get("keys", 0),
@@ -923,13 +919,13 @@ class RedisClient:
             count: Current count
             window_seconds: Time window in seconds
         """
-        if not self._redis:
+        if not self.redis:
             return
 
         key = f"rate_limit:{service}"
 
         try:
-            await self._redis.setex(key, window_seconds, count)
+            await self.redis.setex(key, window_seconds, count)
 
         except Exception as e:
             logger.error(f"Failed to set rate limit counter for {service}: {e}")
@@ -944,13 +940,13 @@ class RedisClient:
         Returns:
             Current count
         """
-        if not self._redis:
+        if not self.redis:
             return 0
 
         key = f"rate_limit:{service}"
 
         try:
-            count = await self._redis.get(key)
+            count = await self.redis.get(key)
             return int(count) if count else 0
 
         except Exception as e:
@@ -967,13 +963,13 @@ class RedisClient:
         Returns:
             New count value
         """
-        if not self._redis:
+        if not self.redis:
             return 0
 
         key = f"rate_limit:{service}"
 
         try:
-            return await self._redis.incr(key)
+            return await self.redis.incr(key)
 
         except Exception as e:
             logger.error(f"Failed to increment rate limit counter for {service}: {e}")

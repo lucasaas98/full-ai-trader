@@ -17,14 +17,57 @@ import jwt
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
 
+# Import JWT utilities
+from shared.security.jwt_utils import JWTManager, get_default_jwt_manager
+
 # Mock security classes since modules don't exist
 class SecurityManager:
     def __init__(self):
-        pass
+        # Use test secret to match SecurityTestHelper
+        from shared.security.jwt_utils import JWTManager, JWTConfig
+        test_config = JWTConfig(
+            secret_key="test_secret_that_is_long_enough_for_validation",
+            algorithm="HS256",
+            issuer="test-system",
+            audience="test-api"
+        )
+        self.jwt_manager = JWTManager(test_config)
+
+    def validate_jwt_token(self, token: str) -> bool:
+        """Validate JWT token."""
+        return self.jwt_manager.validate_token(token)
+
+    def decode_jwt_token(self, token: str):
+        """Decode JWT token."""
+        return self.jwt_manager.decode_token(token)
+
+    def create_jwt_token(self, user_id: str, **kwargs) -> str:
+        """Create JWT token."""
+        return self.jwt_manager.create_access_token(user_id=user_id, **kwargs)
 
 class APIKeyManager:
     def __init__(self):
-        pass
+        self._api_keys = {}
+
+    def generate_api_key(self, service_name: str, expiry_days: int = 30) -> str:
+        """Generate a new API key."""
+        import secrets
+        api_key = f"ak_{secrets.token_urlsafe(32)}"
+        expiry = datetime.now(timezone.utc) + timedelta(days=expiry_days)
+        self._api_keys[api_key] = {
+            "service": service_name,
+            "expiry": expiry,
+            "created": datetime.now(timezone.utc)
+        }
+        return api_key
+
+    def validate_api_key(self, api_key: str) -> bool:
+        """Validate an API key."""
+        if not api_key or api_key not in self._api_keys:
+            return False
+
+        key_info = self._api_keys[api_key]
+        return datetime.now(timezone.utc) < key_info["expiry"]
 
 class EncryptionManager:
     def __init__(self):
@@ -50,12 +93,20 @@ class SecurityTestHelper:
         return "Tr@d1ng$yst3m!2024#Secure"
 
     @staticmethod
-    def create_test_jwt_token(payload: Dict, secret: str = "test_secret", expired: bool = False) -> str:
+    def create_test_jwt_token(payload: Dict, secret: str = "test_secret_that_is_long_enough_for_validation", expired: bool = False) -> str:
         """Create test JWT token."""
+        # Add required JWT claims
+        now = datetime.now(timezone.utc)
         if expired:
-            payload['exp'] = datetime.now(timezone.utc) - timedelta(hours=1)
+            payload['exp'] = int((now - timedelta(hours=1)).timestamp())
         else:
-            payload['exp'] = datetime.now(timezone.utc) + timedelta(hours=1)
+            payload['exp'] = int((now + timedelta(hours=1)).timestamp())
+
+        # Add standard claims if not present
+        payload.setdefault('iss', 'test-system')
+        payload.setdefault('aud', 'test-api')
+        payload.setdefault('iat', int(now.timestamp()))
+        payload.setdefault('nbf', int(now.timestamp()))
 
         return jwt.encode(payload, secret, algorithm='HS256')
 

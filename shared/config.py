@@ -112,6 +112,33 @@ class FinVizConfig(BaseSettings):
     )
 
 
+class JWTConfig(BaseSettings):
+    """JWT authentication configuration."""
+
+    secret_key: str = Field(default="default-jwt-secret-change-in-production", alias="JWT_SECRET")
+    algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
+    refresh_token_expire_days: int = Field(default=7, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
+    issuer: str = Field(default="trading-system", alias="JWT_ISSUER")
+    audience: str = Field(default="trading-api", alias="JWT_AUDIENCE")
+
+    model_config = SettingsConfigDict(
+        env_prefix="",
+        case_sensitive=False
+    )
+
+    @field_validator('secret_key')
+    @classmethod
+    def validate_secret_key(cls, v):
+        """Validate JWT secret key strength."""
+        if not v:
+            # Allow empty for configuration loading, but warn
+            return v
+        if len(v) < 32:
+            raise ValueError("JWT secret key must be at least 32 characters long")
+        return v
+
+
 class NotificationConfig(BaseSettings):
     """Notification configuration."""
 
@@ -310,6 +337,11 @@ class Config(BaseSettings):
     def data(self) -> DataConfig:
         """Get data configuration."""
         return DataConfig(**{})
+
+    @property
+    def jwt(self) -> JWTConfig:
+        """Get JWT configuration."""
+        return JWTConfig(**{})
 
     # Service-specific settings
     service_name: str = Field(default="trading_system", alias="SERVICE_NAME")

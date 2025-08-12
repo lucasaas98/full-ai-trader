@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 import json
 
-import aioredis
+import redis.asyncio as redis
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +25,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
 from shared.models import TradeSignal
 from shared.config import get_config
-from execution_engine import ExecutionEngine
+from .execution_engine import ExecutionEngine
 # from .alpaca_client import AlpacaClient  # Removed unused import
 
 
@@ -67,13 +67,11 @@ class TradeExecutorService:
             logger.info("Initializing Trade Executor Service...")
 
             # Initialize Redis connection
-            redis_url = getattr(self.config, 'redis', {}).get('url') or 'redis://localhost:6379'
-            self._redis = aioredis.from_url(
+            redis_url = self.config.redis.url if hasattr(self.config, 'redis') else 'redis://localhost:6379'
+            self._redis = redis.from_url(
                 redis_url,
                 max_connections=30,
-                retry_on_timeout=True,
-                socket_keepalive=True,
-                socket_keepalive_options={}
+                retry_on_timeout=True
             )
 
             # Initialize execution engine
@@ -678,15 +676,19 @@ async def main():
         # Initialize service
         await service.initialize()
 
-        # Start background tasks
-        await asyncio.gather(
-            service.start_signal_processing(),
-            service.start_status_broadcaster(),
-            return_exceptions=True
-        )
+        # Start background tasks with error handling
+        try:
+            task1 = asyncio.create_task(service.start_signal_processing())
+            task2 = asyncio.create_task(service.start_status_broadcaster())
+            logger.info("Background tasks started")
+
+            # Give background tasks a moment to initialize
+            await asyncio.sleep(1)
+        except Exception as e:
+            logger.error(f"Error starting background tasks: {e}")
 
         # Get port from environment or config
-        port = int(os.getenv("PORT", service.config.service_port))
+        port = int(os.getenv("SERVICE_PORT", service.config.service_port))
         host = os.getenv("HOST", "0.0.0.0")
 
         # Configure uvicorn

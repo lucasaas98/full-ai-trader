@@ -860,10 +860,12 @@ if __name__ == "__main__":
     config = get_config()
 
     # Run the application
+    import os
+    port = int(os.environ.get('SERVICE_PORT', 9103))
     uvicorn.run(
-        "main:app",
+        "src.main:app",
         host="0.0.0.0",
-        port=config.service_port + 1,  # Risk manager on port 8001
+        port=port,
         reload=config.is_development,
         log_level=config.logging.level.lower(),
         access_log=True

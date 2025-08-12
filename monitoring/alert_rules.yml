@@ -179,7 +179,7 @@ groups:
                 category: system
             annotations:
                 summary: "High network traffic on {{ $labels.instance }}"
-                description: "Network receive rate is {{ $value | humanizeBytes }}/s on {{ $labels.instance }}"
+                description: "Network receive rate is {{ $value }} bytes/s on {{ $labels.instance }}"
 
     - name: database_alerts
       rules:
@@ -222,7 +222,7 @@ groups:
                 category: database
             annotations:
                 summary: "Database size is growing large"
-                description: "Database size is {{ $value | humanizeBytes }}"
+                description: "Database size is {{ $value }} bytes"
 
           - alert: RedisDown
             expr: redis_up == 0

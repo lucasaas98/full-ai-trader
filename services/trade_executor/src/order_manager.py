@@ -21,7 +21,7 @@ from enum import Enum
 
 
 import asyncpg
-import aioredis
+import redis.asyncio as redis
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from shared.models import (
@@ -29,7 +29,7 @@ from shared.models import (
     TradeSignal
 )
 from shared.config import get_config
-from alpaca_client import AlpacaClient
+from .alpaca_client import AlpacaClient
 
 
 logger = logging.getLogger(__name__)
@@ -84,14 +84,18 @@ class OrderManager:
         try:
             # Initialize database connection pool
             self._db_pool = await asyncpg.create_pool(
-                self.config.database.url,
+                host=self.config.database.host,
+                port=self.config.database.port,
+                database=self.config.database.database,
+                user=self.config.database.username,
+                password=self.config.database.password,
                 min_size=5,
                 max_size=20,
                 command_timeout=30
             )
 
             # Initialize Redis connection
-            self._redis = aioredis.from_url(
+            self._redis = redis.from_url(
                 self.config.redis.url,
                 max_connections=20,
                 retry_on_timeout=True
@@ -1119,7 +1123,7 @@ class OrderManager:
                     SELECT signal_id, symbol, side, created_at
                     FROM trading.orders
                     WHERE symbol = $1
-                    AND created_at > NOW() - INTERVAL '%s minutes'
+                    AND created_at > NOW() - INTERVAL '1 minute' * $2
                     ORDER BY created_at DESC
                 """, symbol, minutes)
 
@@ -1417,7 +1421,7 @@ class OrderManager:
                 return {}
             async with self._db_pool.acquire() as conn:
                 # Base query conditions
-                conditions = ["created_at >= NOW() - INTERVAL '%s days'"]
+                conditions = ["created_at >= NOW() - INTERVAL '1 day' * $1"]
                 params: List[Any] = [days]
 
                 if symbol:

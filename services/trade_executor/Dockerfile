@@ -5,13 +5,19 @@ FROM trading-system-base:latest
 ENV SERVICE_NAME=trade_executor \
     SERVICE_PORT=8004
 
+# Switch to root to install packages
+USER root
+
 # Copy service-specific requirements
 COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy service source code
 COPY src/ ./src/
-COPY tests/ ./tests/
+
+# Fix ownership and switch back to non-root user
+RUN chown -R appuser:appuser /app
+USER appuser
 
 # Expose service port
 EXPOSE 8004

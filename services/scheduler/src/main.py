@@ -7,6 +7,7 @@ logging initialization, and service coordination for the trading system schedule
 
 import asyncio
 import logging
+import os
 import signal
 import sys
 from pathlib import Path
@@ -143,8 +144,8 @@ class SchedulerService:
         # Data Collector Service
         data_collector = ServiceConfiguration(
             name="data_collector",
-            url="http://data-collector:8001",
-            port=8001,
+            url="http://trading_data_collector:9101",
+            port=9101,
             health_check=HealthCheck(
                 endpoint="/health",
                 timeout=5.0,
@@ -163,8 +164,8 @@ class SchedulerService:
         # Strategy Engine Service
         strategy_engine = ServiceConfiguration(
             name="strategy_engine",
-            url="http://strategy-engine:8002",
-            port=8002,
+            url="http://trading_strategy_engine:9102",
+            port=9102,
             health_check=HealthCheck(
                 endpoint="/health",
                 timeout=10.0,
@@ -185,7 +186,7 @@ class SchedulerService:
         # Risk Manager Service
         risk_manager = ServiceConfiguration(
             name="risk_manager",
-            url="http://risk-manager:8003",
+            url="http://trading_risk_manager:8003",
             port=8003,
             health_check=HealthCheck(
                 endpoint="/health",
@@ -208,7 +209,7 @@ class SchedulerService:
         # Trade Executor Service
         trade_executor = ServiceConfiguration(
             name="trade_executor",
-            url="http://trade-executor:8004",
+            url="http://trading_trade_executor:8004",
             port=8004,
             health_check=HealthCheck(
                 endpoint="/health",
@@ -372,10 +373,11 @@ class SchedulerService:
         if not self.app:
             raise RuntimeError("Application not initialized")
 
+        port = int(os.getenv("SERVICE_PORT", 8000))
         config_uvicorn = uvicorn.Config(
             app=self.app,
             host="0.0.0.0",
-            port=8000,
+            port=port,
             log_level=self.config.logging.level.lower(),
             access_log=True,
             loop="asyncio"
@@ -507,11 +509,15 @@ class SchedulerService:
             # Initialize service
             await self.initialize()
 
-            # Start all components
-            await self.start()
+            # Start the HTTP server first so health checks work
+            server_task = asyncio.create_task(self.run_server())
+            logger.info("HTTP server started")
 
-            # Run the API server
-            await self.run_server()
+            # Start all components in background
+            asyncio.create_task(self.start())
+
+            # Wait for the server
+            await server_task
 
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")

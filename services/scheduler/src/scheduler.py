@@ -19,7 +19,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
-import pandas_market_calendars as mcal
+# import pandas_market_calendars as mcal  # Temporarily disabled due to version conflicts
 import redis.asyncio as redis
 import httpx
 import psutil
@@ -91,8 +91,8 @@ class MarketHoursManager:
 
     def __init__(self, timezone: str = "America/New_York"):
         self.timezone = pytz.timezone(timezone)
-        self.nyse = mcal.get_calendar('NYSE')
-        self.nasdaq = mcal.get_calendar('NASDAQ')
+        # self.nyse = mcal.get_calendar('NYSE')  # Temporarily disabled
+        # self.nasdaq = mcal.get_calendar('NASDAQ')  # Temporarily disabled
 
         # Default trading hours
         self.pre_market_start = time(4, 0)  # 4:00 AM ET
@@ -118,15 +118,18 @@ class MarketHoursManager:
         else:
             return MarketSession.CLOSED
 
-    def is_trading_day(self, date: date) -> bool:
+    def is_trading_day(self, date: datetime.date) -> bool:
         """Check if the given date is a trading day."""
         # Check if it's a weekend
         if date.weekday() >= 5:  # Saturday = 5, Sunday = 6
             return False
 
-        # Check NYSE calendar for holidays
-        schedule = self.nyse.schedule(start_date=date, end_date=date)
-        return not schedule.empty
+        # Check NYSE calendar for holidays - temporarily disabled
+        # schedule = self.nyse.schedule(start_date=date, end_date=date)
+        # return not schedule.empty
+
+        # Fallback: assume weekdays are trading days (no holiday checking)
+        return True
 
     def is_market_open(self) -> bool:
         """Check if the market is currently open."""

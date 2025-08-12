@@ -14,17 +14,20 @@ from datetime import datetime, date, time, timedelta
 from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 import pytz
-try:
-    import pandas as pd
-    import pandas_market_calendars as mcal
-except ImportError:
-    pd = None
-    mcal = None
 from dataclasses import dataclass
 import asyncio
 
-
 logger = logging.getLogger(__name__)
+
+try:
+    import pandas as pd
+    import pandas_market_calendars as mcal
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pd = None
+    mcal = None
+    PANDAS_AVAILABLE = False
+    logger.warning("pandas-market-calendars not available, using basic market hours functionality")
 
 
 class MarketSession(str, Enum):

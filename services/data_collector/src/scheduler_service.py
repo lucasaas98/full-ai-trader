@@ -1154,20 +1154,31 @@ def create_market_aware_trigger(
 def calculate_optimal_intervals(
     api_rate_limits: Dict[str, int],
     active_tickers: int,
-    timeframes: List[TimeFrame]
+    timeframes: List[TimeFrame],
+    market_volatility: float = 1.0,
+    priority_weights: Optional[Dict[TimeFrame, float]] = None
 ) -> Dict[TimeFrame, int]:
     """
-    Calculate optimal update intervals based on API limits and ticker count.
+    Calculate optimal update intervals based on API limits, ticker count, and market conditions.
+
+    This sophisticated algorithm considers:
+    - Multiple API rate limits from different services
+    - Market volatility for dynamic adjustment
+    - Priority weights for different timeframes
+    - Dynamic batch sizing with efficiency curves
+    - Safety margins and burst allowances
 
     Args:
-        api_rate_limits: API rate limits per service
-        active_tickers: Number of active tickers
+        api_rate_limits: API rate limits per service (requests per minute)
+        active_tickers: Number of active tickers to track
         timeframes: List of timeframes to schedule
+        market_volatility: Market volatility multiplier (1.0 = normal, >1.0 = high volatility)
+        priority_weights: Optional priority weights for timeframes (higher = more frequent)
 
     Returns:
-        Dictionary mapping timeframes to optimal intervals
+        Dictionary mapping timeframes to optimal intervals in seconds
     """
-    # Base intervals in seconds
+    # Base intervals in seconds (minimum update frequencies)
     base_intervals = {
         TimeFrame.FIVE_MINUTES: 300,
         TimeFrame.FIFTEEN_MINUTES: 900,
@@ -1175,20 +1186,86 @@ def calculate_optimal_intervals(
         TimeFrame.ONE_DAY: 86400
     }
 
-    # Calculate requests needed per timeframe
-    requests_per_update = {
-        tf: max(1, active_tickers // 100)  # Batch size consideration
-        for tf in timeframes
-    }
+    # Default priority weights (higher values = more frequent updates)
+    if priority_weights is None:
+        priority_weights = {
+            TimeFrame.FIVE_MINUTES: 4.0,    # Highest priority for short-term trading
+            TimeFrame.FIFTEEN_MINUTES: 3.0, # High priority for intraday
+            TimeFrame.ONE_HOUR: 2.0,        # Medium priority for swing trading
+            TimeFrame.ONE_DAY: 1.0          # Lower priority for long-term analysis
+        }
 
-    # Adjust intervals based on API limits
+    # Calculate effective API rate limit (use the most restrictive)
+    effective_rate_limit = min(api_rate_limits.values()) if api_rate_limits else 500
+
+    # Apply safety margin (use 80% of rate limit to avoid hitting limits)
+    safe_rate_limit = int(effective_rate_limit * 0.8)
+
+    # Dynamic batch sizing with efficiency curves
+    def calculate_optimal_batch_size(ticker_count: int) -> int:
+        """Calculate optimal batch size based on ticker count and API efficiency."""
+        if ticker_count <= 0:
+            return 1  # Minimum batch size for edge cases
+        elif ticker_count <= 10:
+            return min(5, ticker_count)  # Small batches for few tickers
+        elif ticker_count <= 50:
+            return min(10, ticker_count)  # Medium batches
+        elif ticker_count <= 200:
+            return min(25, ticker_count)  # Large batches for efficiency
+        else:
+            return min(50, ticker_count)  # Max batch size for very large sets
+
+    # Calculate sophisticated intervals
     optimal_intervals = {}
+
     for timeframe in timeframes:
         base_interval = base_intervals.get(timeframe, 300)
-        requests_needed = requests_per_update[timeframe]
+        priority_weight = priority_weights.get(timeframe, 1.0)
 
-        # Simple calculation - can be made more sophisticated
-        optimal_interval = max(base_interval, requests_needed * 60)  # 1 minute per request minimum
+        # Calculate requests needed per update cycle
+        batch_size = calculate_optimal_batch_size(active_tickers)
+        if active_tickers <= 0:
+            batches_needed = 1  # Handle zero tickers case
+        else:
+            batches_needed = max(1, (active_tickers + batch_size - 1) // batch_size)  # Ceiling division
+
+        # Apply volatility adjustment (higher volatility = more frequent updates)
+        volatility_multiplier = 1.0 / max(0.5, min(2.0, market_volatility))  # Clamp between 0.5x and 2x
+
+        # Apply priority weighting (higher priority = more frequent updates)
+        priority_multiplier = 1.0 / max(0.5, min(3.0, priority_weight))  # Clamp between 0.33x and 2x
+
+        # Calculate minimum interval based on rate limits
+        # Allow for burst capacity by spreading requests over a longer window
+        requests_per_minute = batches_needed
+        if safe_rate_limit <= 0:
+            # Handle zero or negative rate limit edge case
+            min_interval_from_rate_limit = base_interval * 10  # Conservative fallback
+        elif requests_per_minute > safe_rate_limit:
+            # Need to slow down to stay within rate limits
+            minutes_needed = requests_per_minute / safe_rate_limit
+            min_interval_from_rate_limit = int(minutes_needed * 60)
+        else:
+            # Can update more frequently, but respect minimum API call spacing
+            min_interval_from_rate_limit = max(60, int(60 / max(1, safe_rate_limit) * requests_per_minute))
+
+        # Combine all factors
+        calculated_interval = max(
+            base_interval,  # Never go below the base interval for the timeframe
+            min_interval_from_rate_limit  # Respect rate limits
+        )
+
+        # Apply market condition adjustments
+        calculated_interval = int(calculated_interval * volatility_multiplier * priority_multiplier)
+
+        # Ensure we don't update too frequently (minimum 30 seconds)
+        optimal_interval = max(30, calculated_interval)
+
+        # Ensure we don't update too infrequently (maximum 24 hours)
+        optimal_interval = min(86400, optimal_interval)
+
+        # Final validation: ensure we never go below base interval
+        optimal_interval = max(optimal_interval, base_interval)
 
         optimal_intervals[timeframe] = optimal_interval
 

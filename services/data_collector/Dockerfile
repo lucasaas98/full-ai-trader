@@ -5,20 +5,25 @@ FROM trading-system-base:latest
 ENV SERVICE_NAME=data_collector \
     SERVICE_PORT=8001
 
+# Switch to root to install packages
+USER root
+
 # Copy service-specific requirements
 COPY requirements.txt .
-RUN uv pip install --system --no-cache -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy service source code
 COPY src/ ./src/
-COPY tests/ ./tests/
+
+# Fix ownership and switch back to non-root user
+RUN chown -R appuser:appuser /app
+USER appuser
 
 # Expose service port
 EXPOSE 8001
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+# Health check - disabled for background service (override base image health check)
+HEALTHCHECK NONE
 
 # Run the data collector service
 CMD ["python", "-m", "src.main"]

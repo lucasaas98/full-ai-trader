@@ -77,156 +77,133 @@ class RiskDatabaseManager:
 
     async def _create_risk_tables(self):
         """Create additional risk management tables."""
-        create_tables_sql = """
-        -- Enable UUID extension
-        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-        -- Create risk schema
-        CREATE SCHEMA IF NOT EXISTS risk;
-
-        -- Risk events table
-        CREATE TABLE IF NOT EXISTS risk.risk_events (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            event_type VARCHAR(50) NOT NULL,
-            severity VARCHAR(20) NOT NULL,
-            symbol VARCHAR(20),
-            description TEXT NOT NULL,
-            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            resolved_at TIMESTAMP WITH TIME ZONE,
-            action_taken VARCHAR(200),
-            metadata JSONB,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Portfolio snapshots table
-        CREATE TABLE IF NOT EXISTS risk.portfolio_snapshots (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            account_id VARCHAR(50) NOT NULL,
-            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            cash DECIMAL(15,8) NOT NULL,
-            buying_power DECIMAL(15,8) NOT NULL,
-            total_equity DECIMAL(15,8) NOT NULL,
-            total_market_value DECIMAL(15,8) NOT NULL,
-            total_unrealized_pnl DECIMAL(15,8) NOT NULL,
-            day_trades_count INTEGER DEFAULT 0,
-            pattern_day_trader BOOLEAN DEFAULT FALSE,
-            positions JSONB,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Portfolio metrics table
-        CREATE TABLE IF NOT EXISTS risk.portfolio_metrics (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            total_exposure DECIMAL(15,8) NOT NULL,
-            cash_percentage DECIMAL(8,6) NOT NULL,
-            position_count INTEGER NOT NULL,
-            concentration_risk DECIMAL(8,6) NOT NULL,
-            portfolio_beta DECIMAL(8,6) NOT NULL,
-            portfolio_correlation DECIMAL(8,6) NOT NULL,
-            value_at_risk_1d DECIMAL(15,8) NOT NULL,
-            value_at_risk_5d DECIMAL(15,8) NOT NULL,
-            expected_shortfall DECIMAL(15,8) NOT NULL,
-            sharpe_ratio DECIMAL(8,6) NOT NULL,
-            max_drawdown DECIMAL(8,6) NOT NULL,
-            current_drawdown DECIMAL(8,6) NOT NULL,
-            volatility DECIMAL(8,6) NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Position risks table
-        CREATE TABLE IF NOT EXISTS risk.position_risks (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            symbol VARCHAR(20) NOT NULL,
-            position_size DECIMAL(15,8) NOT NULL,
-            portfolio_percentage DECIMAL(8,6) NOT NULL,
-            volatility DECIMAL(8,6) NOT NULL,
-            beta DECIMAL(8,6) NOT NULL,
-            var_1d DECIMAL(15,8) NOT NULL,
-            expected_return DECIMAL(8,6) NOT NULL,
-            sharpe_ratio DECIMAL(8,6) NOT NULL,
-            correlation_with_portfolio DECIMAL(8,6) NOT NULL,
-            sector VARCHAR(50),
-            risk_score DECIMAL(4,2) NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Risk alerts table
-        CREATE TABLE IF NOT EXISTS risk.risk_alerts (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            alert_type VARCHAR(50) NOT NULL,
-            severity VARCHAR(20) NOT NULL,
-            symbol VARCHAR(20),
-            title VARCHAR(200) NOT NULL,
-            message TEXT NOT NULL,
-            timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            acknowledged BOOLEAN DEFAULT FALSE,
-            acknowledged_at TIMESTAMP WITH TIME ZONE,
-            acknowledged_by VARCHAR(100),
-            action_required BOOLEAN DEFAULT FALSE,
-            metadata JSONB,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Daily reports table
-        CREATE TABLE IF NOT EXISTS risk.daily_reports (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            report_date DATE NOT NULL UNIQUE,
-            portfolio_value DECIMAL(15,8) NOT NULL,
-            daily_pnl DECIMAL(15,8) NOT NULL,
-            daily_return DECIMAL(8,6) NOT NULL,
-            max_drawdown DECIMAL(8,6) NOT NULL,
-            current_drawdown DECIMAL(8,6) NOT NULL,
-            volatility DECIMAL(8,6) NOT NULL,
-            sharpe_ratio DECIMAL(8,6) NOT NULL,
-            var_1d DECIMAL(15,8) NOT NULL,
-            total_trades INTEGER NOT NULL,
-            winning_trades INTEGER NOT NULL,
-            risk_events_count INTEGER NOT NULL,
-            compliance_violations JSONB,
-            report_data JSONB,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Trailing stops table
-        CREATE TABLE IF NOT EXISTS risk.trailing_stops (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            symbol VARCHAR(20) NOT NULL UNIQUE,
-            enabled BOOLEAN DEFAULT TRUE,
-            trail_percentage DECIMAL(8,6) NOT NULL,
-            current_stop_price DECIMAL(15,8) NOT NULL,
-            highest_price DECIMAL(15,8) NOT NULL,
-            entry_price DECIMAL(15,8) NOT NULL,
-            last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
-
-        -- Create indexes for performance
-        CREATE INDEX IF NOT EXISTS idx_risk_events_timestamp ON risk.risk_events(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_risk_events_type_severity ON risk.risk_events(event_type, severity);
-        CREATE INDEX IF NOT EXISTS idx_risk_events_symbol ON risk.risk_events(symbol);
-
-        CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_timestamp ON risk.portfolio_snapshots(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_account ON risk.portfolio_snapshots(account_id, timestamp DESC);
-
-        CREATE INDEX IF NOT EXISTS idx_portfolio_metrics_timestamp ON risk.portfolio_metrics(timestamp DESC);
-
-        CREATE INDEX IF NOT EXISTS idx_position_risks_timestamp ON risk.position_risks(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_position_risks_symbol ON risk.position_risks(symbol, timestamp DESC);
-
-        CREATE INDEX IF NOT EXISTS idx_risk_alerts_timestamp ON risk.risk_alerts(timestamp DESC);
-        CREATE INDEX IF NOT EXISTS idx_risk_alerts_severity ON risk.risk_alerts(severity, acknowledged);
-
-        CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON risk.daily_reports(report_date DESC);
-
-        CREATE INDEX IF NOT EXISTS idx_trailing_stops_symbol ON risk.trailing_stops(symbol);
-        """
+        # Split SQL into individual statements for asyncpg compatibility
+        sql_statements = [
+            "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"",
+            "CREATE SCHEMA IF NOT EXISTS risk",
+            """CREATE TABLE IF NOT EXISTS risk.risk_events (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                event_type VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) NOT NULL,
+                symbol VARCHAR(20),
+                description TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                resolved_at TIMESTAMP WITH TIME ZONE,
+                action_taken VARCHAR(200),
+                metadata JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.portfolio_snapshots (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                account_id VARCHAR(50) NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                cash DECIMAL(15,8) NOT NULL,
+                buying_power DECIMAL(15,8) NOT NULL,
+                total_equity DECIMAL(15,8) NOT NULL,
+                total_market_value DECIMAL(15,8) NOT NULL,
+                total_unrealized_pnl DECIMAL(15,8) NOT NULL,
+                day_trades_count INTEGER DEFAULT 0,
+                pattern_day_trader BOOLEAN DEFAULT FALSE,
+                positions JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.portfolio_metrics (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                total_exposure DECIMAL(15,8) NOT NULL,
+                cash_percentage DECIMAL(8,6) NOT NULL,
+                position_count INTEGER NOT NULL,
+                concentration_risk DECIMAL(8,6) NOT NULL,
+                portfolio_beta DECIMAL(8,6) NOT NULL,
+                portfolio_correlation DECIMAL(8,6) NOT NULL,
+                value_at_risk_1d DECIMAL(15,8) NOT NULL,
+                value_at_risk_5d DECIMAL(15,8) NOT NULL,
+                expected_shortfall DECIMAL(15,8) NOT NULL,
+                sharpe_ratio DECIMAL(8,6) NOT NULL,
+                max_drawdown DECIMAL(8,6) NOT NULL,
+                current_drawdown DECIMAL(8,6) NOT NULL,
+                volatility DECIMAL(8,6) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.position_risks (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                symbol VARCHAR(20) NOT NULL,
+                position_size DECIMAL(15,8) NOT NULL,
+                portfolio_percentage DECIMAL(8,6) NOT NULL,
+                volatility DECIMAL(8,6) NOT NULL,
+                beta DECIMAL(8,6) NOT NULL,
+                var_1d DECIMAL(15,8) NOT NULL,
+                expected_return DECIMAL(8,6) NOT NULL,
+                sharpe_ratio DECIMAL(8,6) NOT NULL,
+                correlation_with_portfolio DECIMAL(8,6) NOT NULL,
+                sector VARCHAR(50),
+                risk_score DECIMAL(4,2) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.risk_alerts (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                alert_type VARCHAR(50) NOT NULL,
+                severity VARCHAR(20) NOT NULL,
+                symbol VARCHAR(20),
+                title VARCHAR(200) NOT NULL,
+                message TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                acknowledged BOOLEAN DEFAULT FALSE,
+                acknowledged_at TIMESTAMP WITH TIME ZONE,
+                acknowledged_by VARCHAR(100),
+                action_required BOOLEAN DEFAULT FALSE,
+                metadata JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.daily_reports (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                report_date DATE NOT NULL UNIQUE,
+                portfolio_value DECIMAL(15,8) NOT NULL,
+                daily_pnl DECIMAL(15,8) NOT NULL,
+                daily_return DECIMAL(8,6) NOT NULL,
+                max_drawdown DECIMAL(8,6) NOT NULL,
+                current_drawdown DECIMAL(8,6) NOT NULL,
+                volatility DECIMAL(8,6) NOT NULL,
+                sharpe_ratio DECIMAL(8,6) NOT NULL,
+                var_1d DECIMAL(15,8) NOT NULL,
+                total_trades INTEGER NOT NULL,
+                winning_trades INTEGER NOT NULL,
+                risk_events_count INTEGER NOT NULL,
+                compliance_violations JSONB,
+                report_data JSONB,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            """CREATE TABLE IF NOT EXISTS risk.trailing_stops (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                symbol VARCHAR(20) NOT NULL UNIQUE,
+                enabled BOOLEAN DEFAULT TRUE,
+                trail_percentage DECIMAL(8,6) NOT NULL,
+                current_stop_price DECIMAL(15,8) NOT NULL,
+                highest_price DECIMAL(15,8) NOT NULL,
+                entry_price DECIMAL(15,8) NOT NULL,
+                last_updated TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            )""",
+            "CREATE INDEX IF NOT EXISTS idx_risk_events_timestamp ON risk.risk_events(timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_risk_events_type_severity ON risk.risk_events(event_type, severity)",
+            "CREATE INDEX IF NOT EXISTS idx_risk_events_symbol ON risk.risk_events(symbol)",
+            "CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_timestamp ON risk.portfolio_snapshots(timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots_account ON risk.portfolio_snapshots(account_id, timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_portfolio_metrics_timestamp ON risk.portfolio_metrics(timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_position_risks_timestamp ON risk.position_risks(timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_position_risks_symbol ON risk.position_risks(symbol, timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_risk_alerts_timestamp ON risk.risk_alerts(timestamp DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_risk_alerts_severity ON risk.risk_alerts(severity, acknowledged)",
+            "CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON risk.daily_reports(report_date DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_trailing_stops_symbol ON risk.trailing_stops(symbol)"
+        ]
 
         try:
             if self.engine:
                 async with self.engine.begin() as conn:
-                    await conn.execute(text(create_tables_sql))
+                    for sql in sql_statements:
+                        await conn.execute(text(sql))
                 logger.info("Risk management tables created/verified successfully")
             else:
                 logger.error("Engine not initialized")

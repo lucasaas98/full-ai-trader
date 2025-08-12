@@ -19,15 +19,12 @@ Features:
 import asyncio
 import hashlib
 import json
-import logging
-import os
 import time
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
-from dataclasses import dataclass, asdict, field
-from contextlib import asynccontextmanager
+from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field
 
 import aiofiles
 import structlog
@@ -571,6 +568,39 @@ class AuditLogger:
         hash_string = json.dumps(hash_input, sort_keys=True)
         return hashlib.sha256(hash_string.encode()).hexdigest()
 
+    def _decrypt_audit_line(self, line: str) -> str:
+        """Decrypt audit line if encryption is enabled"""
+        line_data = line.strip()
+        if self.encryption_enabled and self.cipher:
+            line_data = self.cipher.decrypt(line_data.encode()).decode()
+        return line_data
+
+    def _matches_time_filter(self, record: Dict[str, Any], start_time: Optional[datetime], end_time: Optional[datetime]) -> bool:
+        """Check if record matches time filters"""
+        event_time = datetime.fromisoformat(record.get("timestamp", ""))
+
+        if start_time and event_time < start_time:
+            return False
+        if end_time and event_time > end_time:
+            return False
+        return True
+
+    def _matches_filters(self, record: Dict[str, Any], event_types: Optional[List[AuditEventType]],
+                        user_id: Optional[str], service_name: Optional[str],
+                        compliance_tags: Optional[List[str]]) -> bool:
+        """Check if record matches all filters"""
+        if event_types and record.get("event_type") not in [et.value for et in event_types]:
+            return False
+        if user_id and record.get("user_id") != user_id:
+            return False
+        if service_name and record.get("service_name") != service_name:
+            return False
+        if compliance_tags:
+            record_tags = record.get("compliance_tags", [])
+            if not any(tag in record_tags for tag in compliance_tags):
+                return False
+        return True
+
     async def search_audit_events(self,
                                   start_time: Optional[datetime] = None,
                                   end_time: Optional[datetime] = None,
@@ -595,30 +625,15 @@ class AuditLogger:
                         continue
 
                     try:
-                        # Decrypt if necessary
-                        line_data = line.strip()
-                        if self.encryption_enabled and self.cipher:
-                            line_data = self.cipher.decrypt(line_data.encode()).decode()
-
+                        line_data = self._decrypt_audit_line(line)
                         record = json.loads(line_data)
 
                         # Apply filters
-                        event_time = datetime.fromisoformat(record.get("timestamp", ""))
+                        if not self._matches_time_filter(record, start_time, end_time):
+                            continue
 
-                        if start_time and event_time < start_time:
+                        if not self._matches_filters(record, event_types, user_id, service_name, compliance_tags):
                             continue
-                        if end_time and event_time > end_time:
-                            continue
-                        if event_types and record.get("event_type") not in [et.value for et in event_types]:
-                            continue
-                        if user_id and record.get("user_id") != user_id:
-                            continue
-                        if service_name and record.get("service_name") != service_name:
-                            continue
-                        if compliance_tags:
-                            record_tags = record.get("compliance_tags", [])
-                            if not any(tag in record_tags for tag in compliance_tags):
-                                continue
 
                         results.append(record)
 
@@ -826,7 +841,6 @@ class AuditLogger:
             async with aiofiles.open(export_path, 'w', newline='') as f:
                 if flattened_events:
                     fieldnames = flattened_events[0].keys()
-                    writer = csv.DictWriter(io.StringIO(), fieldnames=fieldnames)
                     output = io.StringIO()
                     csv_writer = csv.DictWriter(output, fieldnames=fieldnames)
                     csv_writer.writeheader()

@@ -17,7 +17,7 @@ import json
 import logging
 import datetime as dt
 from datetime import timezone
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, cast
 
 # Explicit type aliases for clarity
 TypeAny = Any
@@ -28,6 +28,7 @@ from contextlib import asynccontextmanager
 import asyncpg
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
 import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
@@ -178,12 +179,12 @@ class AuditLogger:
 
         # Also store in Redis for real-time access
         try:
-            lpush_result = await self.redis.lpush(  # type: ignore
+            await cast(Any, self.redis.lpush)(
                 "audit:recent",
                 json.dumps(event.to_dict())
             )
             # Keep only last 1000 events in Redis
-            ltrim_result = await self.redis.ltrim("audit:recent", 0, 999)  # type: ignore
+            await cast(Any, self.redis.ltrim)("audit:recent", 0, 999)
         except Exception as e:
             logger.error(f"Failed to store audit event in Redis: {e}")
 
@@ -304,8 +305,12 @@ class AuditLogger:
     async def get_recent_events(self, count: int = 100) -> List[Dict[str, Any]]:
         """Get recent audit events from Redis cache"""
         try:
-            events_data = await self.redis.lrange("audit:recent", 0, count - 1)  # type: ignore
-            return [json.loads(event.decode('utf-8') if isinstance(event, bytes) else event) for event in events_data]
+            events_data = await cast(Any, self.redis.lrange)("audit:recent", 0, count - 1)
+            result = []
+            for event in events_data:
+                event_str = event.decode('utf-8') if isinstance(event, bytes) else str(event)
+                result.append(json.loads(event_str))
+            return result
         except Exception as e:
             logger.error(f"Failed to get recent events from Redis: {e}")
             return []
@@ -412,8 +417,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
         # Try to extract from Authorization header
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
-            # In a real implementation, decode JWT token here
-            # For now, return a placeholder
+            # Extract user ID from JWT token
+            user_id = extract_user_id_from_request_header(auth_header)
+            if user_id:
+                return user_id
+            # Fallback to generic api_user if JWT decode fails
             return "api_user"
 
         # Check for API key in headers

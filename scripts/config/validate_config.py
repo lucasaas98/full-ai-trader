@@ -242,16 +242,6 @@ class ConfigValidator:
                 validation_level=ValidationLevel.CRITICAL,
                 description="Paper mode must be disabled in production for live trading"
             ),
-
-            # Monitoring
-            ValidationRule(
-                key="SENTRY_DSN",
-                required=False,
-                pattern=r"^https://[a-f0-9]+@[a-f0-9]+\.ingest\.sentry\.io/\d+$",
-                env_specific=[Environment.STAGING, Environment.PRODUCTION],
-                validation_level=ValidationLevel.WARNING,
-                description="Sentry DSN should be configured for error tracking"
-            ),
         ]
 
     def load_config(self, config_path: Path) -> None:
@@ -412,7 +402,7 @@ class ConfigValidator:
             ))
 
         # Validate URL formats
-        url_keys = ["ALPACA_BASE_URL", "ALPACA_DATA_URL", "GRAFANA_ROOT_URL", "SENTRY_DSN"]
+        url_keys = ["ALPACA_BASE_URL", "ALPACA_DATA_URL", "GRAFANA_ROOT_URL"]
         url_pattern = re.compile(r'^https?://[^\s/$.?#].[^\s]*$')
 
         for url_key in url_keys:

@@ -26,6 +26,7 @@ from shared.models import TimeFrame
 from .data_collection_service import DataCollectionService, DataCollectionConfig
 from .scheduler_service import SchedulerService
 from .data_store import DataStore, DataStoreConfig
+from .http_server import DataCollectorHTTPServer
 
 
 # Configure logging
@@ -60,6 +61,7 @@ class DataCollectorApp:
         self.config = self._load_configuration()
         self.data_service: Optional[DataCollectionService] = None
         self.scheduler_service: Optional[SchedulerService] = None
+        self.http_server: Optional[DataCollectorHTTPServer] = None
         self._shutdown_event = asyncio.Event()
 
     def _load_configuration(self) -> DataCollectionConfig:
@@ -117,10 +119,21 @@ class DataCollectorApp:
             self.data_service = DataCollectionService(self.config)
             await self.data_service.start()
 
+            # Initialize and start HTTP server
+            import os
+            port = int(os.environ.get('SERVICE_PORT', 8001))
+            self.http_server = DataCollectorHTTPServer(
+                data_service=self.data_service,
+                port=port,
+                host="0.0.0.0"
+            )
+            await self.http_server.start()
+
             # Set up signal handlers for graceful shutdown
             self._setup_signal_handlers()
 
             self.logger.info("Data Collection Service started successfully")
+            self.logger.info(f"HTTP server running on port {port}")
             self.logger.info(f"Service configuration: {self.config.dict()}")
 
             # Log service status
@@ -141,6 +154,10 @@ class DataCollectorApp:
         try:
             # Signal shutdown
             self._shutdown_event.set()
+
+            # Stop HTTP server
+            if self.http_server:
+                await self.http_server.stop()
 
             # Stop services
             if self.data_service:

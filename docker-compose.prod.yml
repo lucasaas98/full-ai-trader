@@ -24,12 +24,16 @@ services:
             resources:
                 limits:
                     memory: 2G
-                    cpus: '1.0'
+                    cpus: "1.0"
                 reservations:
                     memory: 1G
-                    cpus: '0.5'
+                    cpus: "0.5"
         healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trading_system}"]
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${DB_USER:-trader} -d ${DB_NAME:-trading_system}",
+                ]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -59,13 +63,21 @@ services:
             resources:
                 limits:
                     memory: 512M
-                    cpus: '0.5'
+                    cpus: "0.5"
                 reservations:
                     memory: 256M
-                    cpus: '0.25'
+                    cpus: "0.25"
         command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
         healthcheck:
-            test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
+            test:
+                [
+                    "CMD",
+                    "redis-cli",
+                    "--no-auth-warning",
+                    "-a",
+                    "${REDIS_PASSWORD}",
+                    "ping",
+                ]
             interval: 10s
             timeout: 3s
             retries: 5
@@ -103,7 +115,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
@@ -123,10 +134,10 @@ services:
             resources:
                 limits:
                     memory: 1G
-                    cpus: '0.8'
+                    cpus: "0.8"
                 reservations:
                     memory: 512M
-                    cpus: '0.4'
+                    cpus: "0.4"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
             interval: 30s
@@ -163,7 +174,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
             - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-50}
@@ -187,10 +197,10 @@ services:
             resources:
                 limits:
                     memory: 2G
-                    cpus: '1.5'
+                    cpus: "1.5"
                 reservations:
                     memory: 1G
-                    cpus: '0.8'
+                    cpus: "0.8"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
             interval: 30s
@@ -227,7 +237,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
             - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
             - RISK_DRAWDOWN_LIMIT=${RISK_DRAWDOWN_LIMIT:-0.15}
@@ -251,10 +260,10 @@ services:
             resources:
                 limits:
                     memory: 1G
-                    cpus: '1.0'
+                    cpus: "1.0"
                 reservations:
                     memory: 512M
-                    cpus: '0.5'
+                    cpus: "0.5"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
             interval: 30s
@@ -295,7 +304,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-20}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
             - TRADING_DRY_RUN=${TRADING_DRY_RUN:-false}
@@ -318,10 +326,10 @@ services:
             resources:
                 limits:
                     memory: 1G
-                    cpus: '0.8'
+                    cpus: "0.8"
                 reservations:
                     memory: 512M
-                    cpus: '0.4'
+                    cpus: "0.4"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
             interval: 30s
@@ -358,7 +366,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - GOTIFY_URL=${GOTIFY_URL}
             - GOTIFY_TOKEN=${GOTIFY_TOKEN}
             - SCHEDULER_MARKET_DATA_INTERVAL=${SCHEDULER_MARKET_DATA_INTERVAL:-60}
@@ -393,10 +400,10 @@ services:
             resources:
                 limits:
                     memory: 1G
-                    cpus: '0.5'
+                    cpus: "0.5"
                 reservations:
                     memory: 512M
-                    cpus: '0.25'
+                    cpus: "0.25"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
             interval: 30s
@@ -436,12 +443,20 @@ services:
             resources:
                 limits:
                     memory: 256M
-                    cpus: '0.3'
+                    cpus: "0.3"
                 reservations:
                     memory: 128M
-                    cpus: '0.1'
+                    cpus: "0.1"
         healthcheck:
-            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost/health",
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -470,10 +485,10 @@ services:
             resources:
                 limits:
                     memory: 2G
-                    cpus: '1.0'
+                    cpus: "1.0"
                 reservations:
                     memory: 1G
-                    cpus: '0.5'
+                    cpus: "0.5"
         command:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
@@ -485,7 +500,15 @@ services:
             - "--web.enable-admin-api"
             - "--web.enable-remote-write-receiver"
         healthcheck:
-            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost:9090/-/healthy",
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -524,12 +547,20 @@ services:
             resources:
                 limits:
                     memory: 512M
-                    cpus: '0.5'
+                    cpus: "0.5"
                 reservations:
                     memory: 256M
-                    cpus: '0.25'
+                    cpus: "0.25"
         healthcheck:
-            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost:3000/api/health",
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -556,17 +587,25 @@ services:
             resources:
                 limits:
                     memory: 256M
-                    cpus: '0.3'
+                    cpus: "0.3"
                 reservations:
                     memory: 128M
-                    cpus: '0.1'
+                    cpus: "0.1"
         command:
             - "--config.file=/etc/alertmanager/alertmanager.yml"
             - "--storage.path=/alertmanager"
             - "--web.external-url=http://localhost:9093"
             - "--web.route-prefix=/"
         healthcheck:
-            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+            test:
+                [
+                    "CMD",
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--spider",
+                    "http://localhost:9093/-/healthy",
+                ]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -595,7 +634,7 @@ services:
             resources:
                 limits:
                     memory: 128M
-                    cpus: '0.2'
+                    cpus: "0.2"
         command:
             - "--path.procfs=/host/proc"
             - "--path.rootfs=/rootfs"
@@ -629,7 +668,7 @@ services:
             resources:
                 limits:
                     memory: 128M
-                    cpus: '0.2'
+                    cpus: "0.2"
         logging:
             driver: "json-file"
             options:
@@ -656,7 +695,7 @@ services:
             resources:
                 limits:
                     memory: 128M
-                    cpus: '0.2'
+                    cpus: "0.2"
         logging:
             driver: "json-file"
             options:
@@ -708,10 +747,10 @@ services:
             resources:
                 limits:
                     memory: 512M
-                    cpus: '0.5'
+                    cpus: "0.5"
                 reservations:
                     memory: 256M
-                    cpus: '0.25'
+                    cpus: "0.25"
         logging:
             driver: "json-file"
             options:
@@ -743,7 +782,6 @@ services:
             - REDIS_PASSWORD=${REDIS_PASSWORD}
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=production
-            - SENTRY_DSN=${SENTRY_DSN}
             - EXPORT_ENCRYPTION_KEY=${EXPORT_ENCRYPTION_KEY}
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-10}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
@@ -765,10 +803,10 @@ services:
             resources:
                 limits:
                     memory: 1G
-                    cpus: '0.5'
+                    cpus: "0.5"
                 reservations:
                     memory: 512M
-                    cpus: '0.25'
+                    cpus: "0.25"
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
             interval: 30s
@@ -822,10 +860,10 @@ services:
             resources:
                 limits:
                     memory: 256M
-                    cpus: '0.3'
+                    cpus: "0.3"
                 reservations:
                     memory: 128M
-                    cpus: '0.1'
+                    cpus: "0.1"
         profiles:
             - maintenance
         logging:

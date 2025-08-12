@@ -213,10 +213,10 @@ class SystemMonitor:
 
                 # Monitor each service
                 services = [
-                    ("data_collector", "http://data-collector:8001"),
-                    ("strategy_engine", "http://strategy-engine:8002"),
-                    ("risk_manager", "http://risk-manager:8003"),
-                    ("trade_executor", "http://trade-executor:8004")
+                    ("data_collector", "http://data_collector:9101"),
+                    ("strategy_engine", "http://strategy_engine:9102"),
+                    ("risk_manager", "http://risk_manager:9103"),
+                    ("trade_executor", "http://trade_executor:9104")
                 ]
 
                 for service_name, base_url in services:

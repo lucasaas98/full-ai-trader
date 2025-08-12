@@ -15,17 +15,17 @@ from uuid import UUID
 import json
 
 import asyncpg
-import aioredis
+import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 
 from shared.models import TradeSignal, OrderRequest, OrderSide, SignalType
 from shared.config import get_config
-from alpaca_client import AlpacaClient, AlpacaAPIError
-from order_manager import OrderManager
-from position_tracker import PositionTracker
-from performance_tracker import PerformanceTracker
+from .alpaca_client import AlpacaClient, AlpacaAPIError
+from .order_manager import OrderManager
+from .position_tracker import PositionTracker
+from .performance_tracker import PerformanceTracker
 
 
 logger = logging.getLogger(__name__)
@@ -78,14 +78,18 @@ class ExecutionEngine:
 
             # Initialize database pool
             self._db_pool = await asyncpg.create_pool(
-                self.config.database.url,
+                host=self.config.database.host,
+                port=self.config.database.port,
+                database=self.config.database.database,
+                user=self.config.database.username,
+                password=self.config.database.password,
                 min_size=10,
                 max_size=30,
                 command_timeout=60
             )
 
             # Initialize Redis
-            self._redis = aioredis.from_url(
+            self._redis = redis.from_url(
                 self.config.redis.url,
                 max_connections=20,
                 retry_on_timeout=True
@@ -530,7 +534,7 @@ class ExecutionEngine:
                         pattern_day_trader
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 """,
-                    getattr(account, 'id', 'unknown'), datetime.now(timezone.utc), Decimal(str(getattr(account, 'cash', 0))),
+                    str(getattr(account, 'id', 'unknown')), datetime.now(timezone.utc), Decimal(str(getattr(account, 'cash', 0))),
                     Decimal(str(getattr(account, 'buying_power', 0))), Decimal(str(getattr(account, 'equity', 0))),
                     Decimal(str(getattr(account, 'portfolio_value', 0))), Decimal(str(getattr(account, 'portfolio_value', 0))) - Decimal(str(getattr(account, 'cash', 0))),
                     int(getattr(account, 'daytrade_count', 0) or 0), bool(getattr(account, 'pattern_day_trader', False))
@@ -762,7 +766,7 @@ class ExecutionEngine:
                         AVG(execution_duration_seconds) as avg_execution_time,
                         COUNT(*) as total_executions
                     FROM trading.execution_metrics
-                    WHERE created_at >= NOW() - INTERVAL '%s days'
+                    WHERE created_at >= NOW() - INTERVAL '1 day' * $2
                     AND ($1 IS NULL OR symbol = $1)
                 """, days, symbol)
 

@@ -13,10 +13,10 @@ from typing import Dict, List, Optional, Any
 from uuid import UUID, uuid4
 
 import asyncpg
-import aioredis
+import redis.asyncio as redis
 # from shared.models import Position as PositionModel  # Not used
 from shared.config import get_config
-from alpaca_client import AlpacaClient
+from .alpaca_client import AlpacaClient
 
 
 logger = logging.getLogger(__name__)
@@ -63,14 +63,18 @@ class PositionTracker:
         try:
             # Initialize database connection pool
             self._db_pool = await asyncpg.create_pool(
-                self.config.database.url,
+                host=self.config.database.host,
+                port=self.config.database.port,
+                database=self.config.database.database,
+                user=self.config.database.username,
+                password=self.config.database.password,
                 min_size=3,
                 max_size=10,
                 command_timeout=30
             )
 
             # Initialize Redis connection
-            self._redis = aioredis.from_url(
+            self._redis = redis.from_url(
                 self.config.redis.url,
                 max_connections=10,
                 retry_on_timeout=True
@@ -643,14 +647,14 @@ class PositionTracker:
                 if symbol:
                     query = """
                         SELECT * FROM trading.positions
-                        WHERE ticker = $1 AND entry_time >= NOW() - INTERVAL '%s days'
+                        WHERE ticker = $1 AND entry_time >= NOW() - INTERVAL '1 day' * $2
                         ORDER BY entry_time DESC
                     """
                     rows = await conn.fetch(query, symbol, days)
                 else:
                     query = """
                         SELECT * FROM trading.positions
-                        WHERE entry_time >= NOW() - INTERVAL '%s days'
+                        WHERE entry_time >= NOW() - INTERVAL '1 day' * $1
                         ORDER BY entry_time DESC
                         LIMIT 1000
                     """
@@ -689,7 +693,7 @@ class PositionTracker:
                         AVG(EXTRACT(EPOCH FROM (exit_time - entry_time))/3600) as avg_holding_hours
                     FROM trading.positions
                     WHERE status = 'closed'
-                    AND entry_time >= NOW() - INTERVAL '%s days'
+                    AND entry_time >= NOW() - INTERVAL '1 day' * $1
                 """, days)
 
                 if summary and summary['total_positions'] > 0:

@@ -33,7 +33,7 @@ try:
         OrderSide as AlpacaOrderSide, OrderType as AlpacaOrderType, # type: ignore
         TimeInForce as AlpacaTimeInForce, OrderStatus as AlpacaOrderStatus # type: ignore
     )
-    from alpaca.trading.models import Order as AlpacaOrder, Position as AlpacaPosition, Account  # type: ignore
+    from alpaca.trading.models import Order as AlpacaOrder, Position as AlpacaPosition, TradeAccount  # type: ignore
     from alpaca.data.historical import StockHistoricalDataClient  # type: ignore
     from alpaca.data.live import StockDataStream  # type: ignore
     from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest  # type: ignore
@@ -99,7 +99,7 @@ except ImportError:
             self.unrealized_pl = 0
             self.cost_basis = 0
 
-    class Account:
+    class TradeAccount:
         def __init__(self):
             self.id = "mock_account"
             self.buying_power = 0
@@ -231,7 +231,7 @@ class AlpacaClient:
         self._stream_client = None
         self._session = None
         self._positions_cache: Dict[str, Position] = {}
-        self._account_cache: Optional[Account] = None
+        self._account_cache: Optional[TradeAccount] = None
         self._cache_expiry = datetime.now(timezone.utc)
         self._cache_ttl = timedelta(seconds=30)
 
@@ -308,7 +308,7 @@ class AlpacaClient:
             logger.error(f"Error during disconnect: {e}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def get_account(self, use_cache: bool = True) -> Account:
+    async def get_account(self, use_cache: bool = True) -> TradeAccount:
         """
         Get account information.
 

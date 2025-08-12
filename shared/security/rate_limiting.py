@@ -24,6 +24,7 @@ import hashlib
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 import redis.asyncio as redis
+from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
 
 # Explicit type alias for clarity
 TypeAny = Any
@@ -284,8 +285,12 @@ class RateLimiter:
         """Extract user ID from request"""
         auth_header = request.headers.get("authorization")
         if auth_header and auth_header.startswith("Bearer "):
-            # In production, decode JWT token to get user ID
-            return "api_user"  # Placeholder
+            # Extract user ID from JWT token
+            user_id = extract_user_id_from_request_header(auth_header)
+            if user_id:
+                return user_id
+            # Fallback to generic api_user if JWT decode fails
+            return "api_user"
 
         return None
 
