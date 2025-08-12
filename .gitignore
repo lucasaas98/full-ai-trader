@@ -148,5 +148,8 @@ strategies/custom/
 generated/
 auto_generated/
 
+# Configuration
+config/
+
 # Production data
 data/

@@ -1,5 +1,3 @@
-# version: '3.8'  # Removed obsolete version attribute
-
 services:
     # Database Services
     postgres:
