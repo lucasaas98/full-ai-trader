@@ -154,7 +154,7 @@ class PositionTracker:
 
             # Get account ID
             account = await self.alpaca.get_account()
-            account_id = account.id
+            account_id = str(account.id)
 
             if not self._db_pool:
                 return uuid4()
@@ -167,9 +167,9 @@ class PositionTracker:
                         current_price, market_value, unrealized_pnl
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                 """,
-                    position_id, symbol, datetime.now(timezone.utc), entry_price, quantity,
+                    str(position_id), symbol, datetime.now(timezone.utc), entry_price, quantity,
                     stop_loss, take_profit, PositionStatus.OPEN, strategy_type,
-                    signal_id, account_id, side, cost_basis,
+                    str(signal_id) if signal_id else None, account_id, side, cost_basis,
                     entry_price, cost_basis, Decimal("0")
                 )
 
@@ -283,7 +283,7 @@ class PositionTracker:
             async with self._db_pool.acquire() as conn:
                 await conn.execute("""
                     SELECT trading.update_position_snapshot($1, $2, $3, $4, $5)
-                """, position_id, current_price, bid_price, ask_price, volume)
+                """, str(position_id), current_price, bid_price, ask_price, volume)
 
         except Exception as e:
             logger.error(f"Failed to update position snapshot: {e}")
@@ -372,7 +372,7 @@ class PositionTracker:
             async with self._db_pool.acquire() as conn:
                 final_pnl = await conn.fetchval("""
                     SELECT trading.close_position($1, $2, $3)
-                """, position_id, exit_price, exit_time)
+                """, str(position_id), exit_price, exit_time)
 
             # Get position details for cache update
             position = await self._get_position_by_id(position_id)
@@ -811,7 +811,7 @@ class PositionTracker:
             async with self._db_pool.acquire() as conn:
                 row = await conn.fetchrow("""
                     SELECT * FROM trading.positions WHERE id = $1
-                """, position_id)
+                """, str(position_id))
 
                 if row:
                     return dict(row)
@@ -831,7 +831,7 @@ class PositionTracker:
                     UPDATE trading.positions
                     SET status = $2, updated_at = NOW()
                     WHERE id = $1
-                """, position_id, status)
+                """, str(position_id), status)
 
         except Exception as e:
             logger.error(f"Failed to update position status {position_id}: {e}")
@@ -846,7 +846,7 @@ class PositionTracker:
                     UPDATE trading.positions
                     SET quantity = $2, side = $3, updated_at = NOW()
                     WHERE id = $1
-                """, position_id, new_quantity, "long" if new_quantity > 0 else "short")
+                """, str(position_id), new_quantity, "long" if new_quantity > 0 else "short")
 
         except Exception as e:
             logger.error(f"Failed to update position quantity {position_id}: {e}")
@@ -887,7 +887,7 @@ class PositionTracker:
                     UPDATE trading.positions
                     SET stop_loss = $2, updated_at = NOW()
                     WHERE id = $1 AND status = 'open'
-                """, position_id, new_stop_loss)
+                """, str(position_id), new_stop_loss)
 
             # Update cache
             position = await self._get_position_by_id(position_id)
@@ -920,7 +920,7 @@ class PositionTracker:
                     UPDATE trading.positions
                     SET take_profit = $2, updated_at = NOW()
                     WHERE id = $1 AND status = 'open'
-                """, position_id, new_take_profit)
+                """, str(position_id), new_take_profit)
 
             # Update cache
             position = await self._get_position_by_id(position_id)
@@ -1002,7 +1002,7 @@ class PositionTracker:
                     WHERE position_id = $1
                     AND timestamp >= NOW() - INTERVAL '%s hours'
                     ORDER BY timestamp ASC
-                """, position_id, hours)
+                """, str(position_id), hours)
 
                 return [dict(row) for row in rows]
 

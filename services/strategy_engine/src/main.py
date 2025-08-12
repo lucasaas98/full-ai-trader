@@ -16,9 +16,10 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 import polars as pl
 
 # Add shared module to path
@@ -581,6 +582,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics (initialized lazily to avoid registration conflicts)
+strategies_count_gauge = None
+signals_generated_counter = None
+backtests_run_counter = None
+service_health_gauge = None
+
+def _initialize_metrics():
+    """Initialize Prometheus metrics if not already done."""
+    global strategies_count_gauge, signals_generated_counter, backtests_run_counter, service_health_gauge
+
+    if strategies_count_gauge is None:
+        strategies_count_gauge = Gauge('strategy_engine_strategies_total', 'Number of active strategies')
+        signals_generated_counter = Counter('strategy_engine_signals_total', 'Total signals generated', ['strategy_type'])
+        backtests_run_counter = Counter('strategy_engine_backtests_total', 'Total backtests run')
+        service_health_gauge = Gauge('strategy_engine_service_health', 'Health status of components', ['component'])
+
 
 # API Endpoints
 
@@ -723,9 +740,41 @@ async def get_signal_history(symbol: str, limit: int = 50):
 
 
 @app.get("/metrics")
-async def get_system_metrics():
-    """Get system performance metrics."""
+async def get_prometheus_metrics():
+    """Prometheus metrics endpoint."""
     try:
+        # Initialize metrics if not already done
+        _initialize_metrics()
+
+        # Update metrics before returning them
+        strategies_count_gauge.set(len(service.active_strategies))
+        service_health_gauge.labels(component='redis').set(1 if service.redis_engine else 0)
+        service_health_gauge.labels(component='service').set(1)
+
+        # Generate Prometheus format
+        metrics_output = generate_latest()
+
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate metrics: {e}")
+        return Response(
+            content=f"# Error generating metrics: {str(e)}\n",
+            media_type="text/plain; version=0.0.4",
+            status_code=500
+        )
+
+
+@app.get("/metrics/json")
+async def get_system_metrics():
+    """Get system performance metrics in JSON format."""
+    try:
+        # Initialize metrics if not already done
+        _initialize_metrics()
+
         metrics = {}
 
         # Strategy metrics
@@ -831,6 +880,6 @@ if __name__ == "__main__":
         "src.main:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
+        reload=False,
         log_level="info"
     )

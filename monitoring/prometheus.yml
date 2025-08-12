@@ -22,35 +22,35 @@ scrape_configs:
     # Trading system services
     - job_name: "data-collector"
       static_configs:
-          - targets: ["data_collector:8001"]
+          - targets: ["data_collector:9101"]
       metrics_path: "/metrics"
       scrape_interval: 30s
       scrape_timeout: 10s
 
     - job_name: "strategy-engine"
       static_configs:
-          - targets: ["strategy_engine:8002"]
+          - targets: ["strategy_engine:9102"]
       metrics_path: "/metrics"
       scrape_interval: 30s
       scrape_timeout: 10s
 
     - job_name: "risk-manager"
       static_configs:
-          - targets: ["risk_manager:8003"]
+          - targets: ["risk_manager:9103"]
       metrics_path: "/metrics"
       scrape_interval: 15s # More frequent for risk monitoring
       scrape_timeout: 10s
 
     - job_name: "trade-executor"
       static_configs:
-          - targets: ["trade_executor:8004"]
+          - targets: ["trade_executor:9104"]
       metrics_path: "/metrics"
       scrape_interval: 15s # More frequent for trade monitoring
       scrape_timeout: 10s
 
     - job_name: "scheduler"
       static_configs:
-          - targets: ["scheduler:8005"]
+          - targets: ["scheduler:9105"]
       metrics_path: "/metrics"
       scrape_interval: 30s
       scrape_timeout: 10s

@@ -1,42 +1,12 @@
 apiVersion: 1
 
 providers:
-  - name: 'Trading System Main'
-    orgId: 1
-    folder: 'Trading System'
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards
-
-  - name: 'Trading Performance'
-    orgId: 1
-    folder: 'Trading Performance'
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards/performance
-
-  - name: 'System Health'
-    orgId: 1
-    folder: 'System Health'
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards/system
-
-  - name: 'Risk Management'
-    orgId: 1
-    folder: 'Risk Management'
-    type: file
-    disableDeletion: false
-    updateIntervalSeconds: 10
-    allowUiUpdates: true
-    options:
-      path: /var/lib/grafana/dashboards/risk
+    - name: "Trading System Main"
+      orgId: 1
+      folder: "Trading System"
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+          path: /var/lib/grafana/dashboards

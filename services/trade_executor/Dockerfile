@@ -3,7 +3,7 @@ FROM trading-system-base:latest
 
 # Set service-specific environment variables
 ENV SERVICE_NAME=trade_executor \
-    SERVICE_PORT=8004
+    SERVICE_PORT=9104
 
 # Switch to root to install packages
 USER root
@@ -20,11 +20,11 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Expose service port
-EXPOSE 8004
+EXPOSE 9104
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8004/health || exit 1
+    CMD curl -f http://localhost:9104/health || exit 1
 
 # Run the trade executor service
 CMD ["python", "-m", "src.main"]

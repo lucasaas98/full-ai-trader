@@ -189,7 +189,7 @@ services:
         container_name: trading_trade_executor
         environment:
             - SERVICE_NAME=trade_executor
-            - SERVICE_PORT=8004
+            - SERVICE_PORT=9104
             - ALPACA_API_KEY=${ALPACA_API_KEY}
             - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
             - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
@@ -207,7 +207,7 @@ services:
             - GOTIFY_URL=${GOTIFY_URL}
             - GOTIFY_TOKEN=${GOTIFY_TOKEN}
         ports:
-            - "${TRADE_EXECUTOR_PORT:-9104}:8004"
+            - "${TRADE_EXECUTOR_PORT:-9104}:9104"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data
@@ -302,11 +302,11 @@ services:
         environment:
             - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
             - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-            - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+            - GF_SECURITY_ALLOW_EMBEDDING=true
+            - GF_AUTH_ANONYMOUS_ENABLED=false
         volumes:
             - grafana_data:/var/lib/grafana
-            - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/trading-dashboard.json:ro
-            - ./monitoring/grafana-provisioning:/etc/grafana/provisioning:ro
+            - ./monitoring/grafana-provisioning:/etc/grafana/provisioning
         networks:
             - trading_network
         depends_on:
@@ -326,6 +326,7 @@ services:
         restart: unless-stopped
         command:
             - "--config.file=/etc/alertmanager/alertmanager.yml"
+            - "--cluster.listen-address="
             - "--storage.path=/alertmanager"
             - "--web.external-url=http://localhost:9093"
 
@@ -380,7 +381,7 @@ services:
         image: gcr.io/cadvisor/cadvisor:latest
         container_name: trading_cadvisor
         ports:
-            - "8080:8080"
+            - "8081:8080"
         volumes:
             - /:/rootfs:ro
             - /var/run:/var/run:ro

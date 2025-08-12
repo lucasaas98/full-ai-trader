@@ -12,10 +12,11 @@ from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
 import httpx
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 import uvicorn
 import json
 
@@ -107,6 +108,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan management."""
     global scheduler_instance, api_instance
 
+    # Initialize Prometheus metrics
+    init_prometheus_metrics()
+
     # Startup
     logger.info("Starting scheduler service...")
 
@@ -149,6 +153,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics
+tasks_count_gauge = None
+services_count_gauge = None
+tasks_executed_counter = None
+service_health_gauge = None
+
 
 def get_scheduler() -> TradingScheduler:
     """Dependency to get scheduler instance."""
@@ -162,6 +172,74 @@ def get_api() -> SchedulerAPI:
     if api_instance is None:
         raise HTTPException(status_code=503, detail="API not initialized")
     return api_instance
+
+
+def init_prometheus_metrics():
+    """Initialize Prometheus metrics."""
+    global tasks_count_gauge, services_count_gauge, tasks_executed_counter, service_health_gauge
+
+    tasks_count_gauge = Gauge(
+        'scheduler_tasks_total',
+        'Number of scheduled tasks'
+    )
+
+    services_count_gauge = Gauge(
+        'scheduler_services_total',
+        'Number of registered services'
+    )
+
+    tasks_executed_counter = Counter(
+        'scheduler_tasks_executed_total',
+        'Total number of tasks executed',
+        ['task_id', 'status']
+    )
+
+    service_health_gauge = Gauge(
+        'scheduler_service_health',
+        'Health status of scheduler components',
+        ['component']
+    )
+
+
+async def update_prometheus_metrics():
+    """Update Prometheus metrics with current values."""
+    global tasks_count_gauge, services_count_gauge, service_health_gauge
+
+    try:
+        if scheduler_instance and tasks_count_gauge and services_count_gauge and service_health_gauge:
+            tasks_count_gauge.set(len(scheduler_instance.tasks))
+            services_count_gauge.set(len(scheduler_instance.services))
+
+            # Update component health
+            service_health_gauge.labels(component='scheduler').set(1 if scheduler_instance else 0)
+            service_health_gauge.labels(component='api').set(1 if api_instance else 0)
+
+    except Exception as e:
+        logger.error(f"Failed to update Prometheus metrics: {e}")
+
+
+@app.get("/metrics")
+async def get_prometheus_metrics():
+    """Prometheus metrics endpoint."""
+    try:
+        # Update metrics before returning them
+        await update_prometheus_metrics()
+
+        # Generate Prometheus format
+        metrics_output = generate_latest()
+
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate metrics: {e}")
+        return Response(
+            content=f"# Error generating metrics: {str(e)}\n",
+            media_type="text/plain; version=0.0.4",
+            status_code=500
+        )
 
 
 @app.get("/health", response_model=HealthResponse)

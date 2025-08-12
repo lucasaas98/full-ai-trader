@@ -1,0 +1,1099 @@
+{
+    "dashboard": {
+        "id": null,
+        "title": "AI Trading System - Comprehensive Monitoring",
+        "tags": ["trading", "ai", "monitoring", "real-time"],
+        "timezone": "browser",
+        "panels": [
+            {
+                "id": 1,
+                "title": "System Overview",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "up{job=\"trading-system\"}",
+                        "legendFormat": "Services Up"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "red", "value": 0 },
+                                { "color": "yellow", "value": 3 },
+                                { "color": "green", "value": 5 }
+                            ]
+                        },
+                        "unit": "short"
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }
+            },
+            {
+                "id": 2,
+                "title": "Portfolio Value (Real-time)",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "trading_portfolio_total_value",
+                        "legendFormat": "Total Portfolio Value"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "value"
+                        },
+                        "unit": "currencyUSD"
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }
+            },
+            {
+                "id": 3,
+                "title": "Trading Performance Metrics",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "rate(trading_trades_executed_total[5m])",
+                        "legendFormat": "Trades per minute"
+                    },
+                    {
+                        "expr": "trading_strategy_success_rate",
+                        "legendFormat": "Strategy Success Rate"
+                    },
+                    {
+                        "expr": "trading_portfolio_daily_pnl",
+                        "legendFormat": "Daily P&L"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "lineInterpolation": "linear",
+                            "barAlignment": 0,
+                            "lineWidth": 2,
+                            "fillOpacity": 10,
+                            "gradientMode": "none",
+                            "spanNulls": false,
+                            "insertNulls": false,
+                            "showPoints": "never",
+                            "pointSize": 5,
+                            "stacking": { "mode": "none", "group": "A" },
+                            "axisPlacement": "auto",
+                            "axisLabel": "",
+                            "scaleDistribution": { "type": "linear" },
+                            "hideFrom": {
+                                "legend": false,
+                                "tooltip": false,
+                                "vis": false
+                            },
+                            "thresholdsStyle": { "mode": "off" }
+                        },
+                        "color": { "mode": "palette-classic" },
+                        "unit": "short"
+                    }
+                },
+                "options": {
+                    "tooltip": { "mode": "single", "sort": "none" },
+                    "legend": {
+                        "displayMode": "table",
+                        "placement": "bottom",
+                        "calcs": ["lastNotNull", "mean", "max"]
+                    }
+                },
+                "gridPos": { "h": 9, "w": 24, "x": 0, "y": 8 }
+            },
+            {
+                "id": 4,
+                "title": "API Response Times",
+                "type": "heatmap",
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.95, rate(trading_api_request_duration_seconds_bucket[5m]))",
+                        "legendFormat": "95th percentile"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.50, rate(trading_api_request_duration_seconds_bucket[5m]))",
+                        "legendFormat": "50th percentile"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "hideFrom": {
+                                "legend": false,
+                                "tooltip": false,
+                                "vis": false
+                            }
+                        },
+                        "unit": "ms"
+                    }
+                },
+                "gridPos": { "h": 9, "w": 12, "x": 0, "y": 17 }
+            },
+            {
+                "id": 5,
+                "title": "Trade Execution Latency",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_trade_execution_latency_ms",
+                        "legendFormat": "Execution Latency"
+                    },
+                    {
+                        "expr": "trading_order_fill_time_ms",
+                        "legendFormat": "Order Fill Time"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "ms",
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 100 },
+                                { "color": "red", "value": 500 }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": { "h": 9, "w": 12, "x": 12, "y": 17 }
+            },
+            {
+                "id": 6,
+                "title": "Strategy Performance Comparison",
+                "type": "table",
+                "targets": [
+                    {
+                        "expr": "trading_strategy_pnl_total by (strategy_name)",
+                        "legendFormat": "{{strategy_name}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "align": "auto",
+                            "displayMode": "auto",
+                            "filterable": true
+                        },
+                        "mappings": [],
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "red", "value": -1000 }
+                            ]
+                        },
+                        "unit": "currencyUSD"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Strategy"
+                            },
+                            "properties": [
+                                { "id": "custom.width", "value": 150 }
+                            ]
+                        }
+                    ]
+                },
+                "options": {
+                    "showHeader": true,
+                    "sortBy": [{ "desc": true, "displayName": "Total P&L" }]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 }
+            },
+            {
+                "id": 7,
+                "title": "System Resource Usage",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_system_cpu_usage_percent",
+                        "legendFormat": "CPU Usage %"
+                    },
+                    {
+                        "expr": "trading_system_memory_usage_percent",
+                        "legendFormat": "Memory Usage %"
+                    },
+                    {
+                        "expr": "trading_system_disk_usage_percent",
+                        "legendFormat": "Disk Usage %"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "percent",
+                        "min": 0,
+                        "max": 100,
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 70 },
+                                { "color": "red", "value": 85 }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 }
+            },
+            {
+                "id": 8,
+                "title": "Error Rate by Service",
+                "type": "bargauge",
+                "targets": [
+                    {
+                        "expr": "rate(trading_errors_total[5m]) by (service)",
+                        "legendFormat": "{{service}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 0.01 },
+                                { "color": "red", "value": 0.05 }
+                            ]
+                        },
+                        "unit": "percent"
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 34 }
+            },
+            {
+                "id": 9,
+                "title": "Risk Metrics Dashboard",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_portfolio_var_95",
+                        "legendFormat": "Value at Risk (95%)"
+                    },
+                    {
+                        "expr": "trading_portfolio_sharpe_ratio",
+                        "legendFormat": "Sharpe Ratio"
+                    },
+                    {
+                        "expr": "trading_portfolio_max_drawdown",
+                        "legendFormat": "Max Drawdown %"
+                    },
+                    {
+                        "expr": "trading_portfolio_volatility",
+                        "legendFormat": "Portfolio Volatility"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "short"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Max Drawdown %"
+                            },
+                            "properties": [
+                                { "id": "unit", "value": "percent" },
+                                {
+                                    "id": "color",
+                                    "value": {
+                                        "mode": "fixed",
+                                        "fixedColor": "red"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Value at Risk (95%)"
+                            },
+                            "properties": [
+                                { "id": "unit", "value": "currencyUSD" }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 9, "w": 24, "x": 0, "y": 42 }
+            },
+            {
+                "id": 10,
+                "title": "Market Data Quality",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "trading_market_data_quality_score",
+                        "legendFormat": "Data Quality Score"
+                    },
+                    {
+                        "expr": "rate(trading_market_data_received_total[1m])",
+                        "legendFormat": "Data Updates/min"
+                    },
+                    {
+                        "expr": "trading_market_data_latency_ms",
+                        "legendFormat": "Data Latency (ms)"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "red", "value": null },
+                                { "color": "yellow", "value": 0.8 },
+                                { "color": "green", "value": 0.95 }
+                            ]
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Data Latency (ms)"
+                            },
+                            "properties": [
+                                { "id": "unit", "value": "ms" },
+                                {
+                                    "id": "thresholds",
+                                    "value": {
+                                        "steps": [
+                                            { "color": "green", "value": null },
+                                            { "color": "yellow", "value": 100 },
+                                            { "color": "red", "value": 500 }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 6, "w": 24, "x": 0, "y": 51 }
+            },
+            {
+                "id": 11,
+                "title": "Active Positions",
+                "type": "table",
+                "targets": [
+                    {
+                        "expr": "trading_position_market_value by (symbol)",
+                        "legendFormat": "{{symbol}}"
+                    }
+                ],
+                "transformations": [
+                    {
+                        "id": "organize",
+                        "options": {
+                            "excludeByName": {},
+                            "indexByName": {},
+                            "renameByName": {
+                                "symbol": "Symbol",
+                                "Value": "Market Value",
+                                "trading_position_quantity": "Quantity",
+                                "trading_position_unrealized_pnl": "Unrealized P&L"
+                            }
+                        }
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "align": "auto",
+                            "displayMode": "auto",
+                            "filterable": true
+                        },
+                        "unit": "currencyUSD"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Unrealized P&L"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.displayMode",
+                                    "value": "color-background"
+                                },
+                                {
+                                    "id": "thresholds",
+                                    "value": {
+                                        "steps": [
+                                            { "color": "red", "value": null },
+                                            {
+                                                "color": "yellow",
+                                                "value": -100
+                                            },
+                                            { "color": "green", "value": 0 }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 }
+            },
+            {
+                "id": 12,
+                "title": "Trading Volume by Symbol",
+                "type": "piechart",
+                "targets": [
+                    {
+                        "expr": "sum(trading_volume_total) by (symbol)",
+                        "legendFormat": "{{symbol}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "short"
+                    }
+                },
+                "options": {
+                    "reduceOptions": {
+                        "values": false,
+                        "calcs": ["lastNotNull"],
+                        "fields": ""
+                    },
+                    "pieType": "pie",
+                    "tooltip": { "mode": "single", "sort": "none" },
+                    "legend": {
+                        "displayMode": "table",
+                        "placement": "right",
+                        "values": ["value", "percent"]
+                    },
+                    "displayLabels": ["name", "percent"]
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 }
+            },
+            {
+                "id": 13,
+                "title": "Database Performance",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_db_query_duration_seconds",
+                        "legendFormat": "Query Duration"
+                    },
+                    {
+                        "expr": "trading_db_connections_active",
+                        "legendFormat": "Active Connections"
+                    },
+                    {
+                        "expr": "rate(trading_db_queries_total[1m])",
+                        "legendFormat": "Queries per minute"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "ms"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Active Connections"
+                            },
+                            "properties": [{ "id": "unit", "value": "short" }]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Queries per minute"
+                            },
+                            "properties": [{ "id": "unit", "value": "reqps" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 65 }
+            },
+            {
+                "id": 14,
+                "title": "Redis Performance",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_redis_operations_duration_seconds",
+                        "legendFormat": "Operation Duration"
+                    },
+                    {
+                        "expr": "trading_redis_memory_usage_bytes",
+                        "legendFormat": "Memory Usage"
+                    },
+                    {
+                        "expr": "rate(trading_redis_operations_total[1m])",
+                        "legendFormat": "Operations per minute"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "ms"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Memory Usage"
+                            },
+                            "properties": [{ "id": "unit", "value": "bytes" }]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Operations per minute"
+                            },
+                            "properties": [{ "id": "unit", "value": "ops" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 65 }
+            },
+            {
+                "id": 15,
+                "title": "Signal Generation Performance",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "rate(trading_signals_generated_total[5m]) by (strategy)",
+                        "legendFormat": "{{strategy}} - Signals/min"
+                    },
+                    {
+                        "expr": "trading_signal_generation_duration_ms by (strategy)",
+                        "legendFormat": "{{strategy}} - Generation Time"
+                    },
+                    {
+                        "expr": "trading_signal_accuracy_ratio by (strategy)",
+                        "legendFormat": "{{strategy}} - Accuracy"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "short"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Generation Time"
+                            },
+                            "properties": [{ "id": "unit", "value": "ms" }]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Accuracy"
+                            },
+                            "properties": [
+                                { "id": "unit", "value": "percentunit" }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 73 }
+            },
+            {
+                "id": 16,
+                "title": "Risk Management Alerts",
+                "type": "logs",
+                "targets": [
+                    {
+                        "expr": "{job=\"trading-risk-manager\"} |= \"risk\" |= \"alert\"",
+                        "legendFormat": ""
+                    }
+                ],
+                "options": {
+                    "showTime": true,
+                    "showLabels": true,
+                    "showCommonLabels": false,
+                    "wrapLogMessage": true,
+                    "prettifyLogMessage": false,
+                    "enableLogDetails": true,
+                    "dedupStrategy": "none",
+                    "sortOrder": "Descending"
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 81 }
+            },
+            {
+                "id": 17,
+                "title": "Security Events",
+                "type": "logs",
+                "targets": [
+                    {
+                        "expr": "{job=\"trading-system\"} |= \"security\" | json | level=\"WARNING\" or level=\"ERROR\"",
+                        "legendFormat": ""
+                    }
+                ],
+                "options": {
+                    "showTime": true,
+                    "showLabels": true,
+                    "showCommonLabels": false,
+                    "wrapLogMessage": true,
+                    "prettifyLogMessage": false,
+                    "enableLogDetails": true,
+                    "dedupStrategy": "exact",
+                    "sortOrder": "Descending"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 1 },
+                                { "color": "red", "value": 5 }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 81 }
+            },
+            {
+                "id": 18,
+                "title": "Network I/O and Throughput",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "rate(trading_network_bytes_received_total[1m])",
+                        "legendFormat": "Bytes Received/sec"
+                    },
+                    {
+                        "expr": "rate(trading_network_bytes_sent_total[1m])",
+                        "legendFormat": "Bytes Sent/sec"
+                    },
+                    {
+                        "expr": "trading_network_connections_active",
+                        "legendFormat": "Active Connections"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "Bps"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Active Connections"
+                            },
+                            "properties": [{ "id": "unit", "value": "short" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 89 }
+            },
+            {
+                "id": 19,
+                "title": "Backtesting Results",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_backtest_total_return by (strategy)",
+                        "legendFormat": "{{strategy}} - Total Return"
+                    },
+                    {
+                        "expr": "trading_backtest_sharpe_ratio by (strategy)",
+                        "legendFormat": "{{strategy}} - Sharpe Ratio"
+                    },
+                    {
+                        "expr": "trading_backtest_max_drawdown by (strategy)",
+                        "legendFormat": "{{strategy}} - Max Drawdown"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "percent"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Sharpe Ratio"
+                            },
+                            "properties": [{ "id": "unit", "value": "short" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 97 }
+            },
+            {
+                "id": 20,
+                "title": "External API Status",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "trading_external_api_status by (api_name)",
+                        "legendFormat": "{{api_name}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "red", "value": 0 },
+                                { "color": "yellow", "value": 0.8 },
+                                { "color": "green", "value": 0.95 }
+                            ]
+                        },
+                        "unit": "percentunit",
+                        "mappings": [
+                            {
+                                "options": {
+                                    "0": { "text": "Down", "color": "red" },
+                                    "1": { "text": "Up", "color": "green" }
+                                },
+                                "type": "value"
+                            }
+                        ]
+                    }
+                },
+                "gridPos": { "h": 6, "w": 12, "x": 0, "y": 105 }
+            },
+            {
+                "id": 21,
+                "title": "Order Book Depth",
+                "type": "bargauge",
+                "targets": [
+                    {
+                        "expr": "trading_order_book_bid_depth by (symbol)",
+                        "legendFormat": "{{symbol}} Bid Depth"
+                    },
+                    {
+                        "expr": "trading_order_book_ask_depth by (symbol)",
+                        "legendFormat": "{{symbol}} Ask Depth"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "continuous-GrYlRd" },
+                        "unit": "currencyUSD"
+                    }
+                },
+                "options": {
+                    "orientation": "horizontal",
+                    "reduceOptions": {
+                        "values": false,
+                        "calcs": ["lastNotNull"],
+                        "fields": ""
+                    },
+                    "displayMode": "gradient"
+                },
+                "gridPos": { "h": 6, "w": 12, "x": 12, "y": 105 }
+            },
+            {
+                "id": 22,
+                "title": "Strategy Drawdown Analysis",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_strategy_drawdown_percent by (strategy)",
+                        "legendFormat": "{{strategy}} Drawdown"
+                    },
+                    {
+                        "expr": "trading_strategy_underwater_periods by (strategy)",
+                        "legendFormat": "{{strategy}} Underwater Days"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "percent",
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": -5 },
+                                { "color": "red", "value": -10 }
+                            ]
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Underwater Days"
+                            },
+                            "properties": [{ "id": "unit", "value": "days" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 111 }
+            },
+            {
+                "id": 23,
+                "title": "Memory Usage by Service",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_service_memory_usage_bytes by (service)",
+                        "legendFormat": "{{service}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "bytes",
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 1073741824 },
+                                { "color": "red", "value": 2147483648 }
+                            ]
+                        }
+                    }
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 0, "y": 119 }
+            },
+            {
+                "id": 24,
+                "title": "Alert Summary",
+                "type": "table",
+                "targets": [
+                    {
+                        "expr": "ALERTS",
+                        "legendFormat": ""
+                    }
+                ],
+                "transformations": [
+                    {
+                        "id": "organize",
+                        "options": {
+                            "excludeByName": { "job": true, "instance": true },
+                            "indexByName": {},
+                            "renameByName": {
+                                "alertname": "Alert",
+                                "severity": "Severity",
+                                "alertstate": "State",
+                                "summary": "Summary"
+                            }
+                        }
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "align": "auto",
+                            "displayMode": "auto"
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Severity"
+                            },
+                            "properties": [
+                                {
+                                    "id": "custom.displayMode",
+                                    "value": "color-background"
+                                },
+                                {
+                                    "id": "mappings",
+                                    "value": [
+                                        {
+                                            "options": {
+                                                "critical": {
+                                                    "text": "Critical",
+                                                    "color": "red"
+                                                }
+                                            },
+                                            "type": "value"
+                                        },
+                                        {
+                                            "options": {
+                                                "warning": {
+                                                    "text": "Warning",
+                                                    "color": "yellow"
+                                                }
+                                            },
+                                            "type": "value"
+                                        },
+                                        {
+                                            "options": {
+                                                "info": {
+                                                    "text": "Info",
+                                                    "color": "blue"
+                                                }
+                                            },
+                                            "type": "value"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 12, "x": 12, "y": 119 }
+            },
+            {
+                "id": 25,
+                "title": "Scheduler Job Status",
+                "type": "stat",
+                "targets": [
+                    {
+                        "expr": "trading_scheduler_jobs_active",
+                        "legendFormat": "Active Jobs"
+                    },
+                    {
+                        "expr": "trading_scheduler_jobs_failed_total",
+                        "legendFormat": "Failed Jobs"
+                    },
+                    {
+                        "expr": "trading_scheduler_jobs_success_rate",
+                        "legendFormat": "Success Rate"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "steps": [
+                                { "color": "green", "value": null },
+                                { "color": "yellow", "value": 0.9 },
+                                { "color": "red", "value": 0.8 }
+                            ]
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byName",
+                                "options": "Success Rate"
+                            },
+                            "properties": [
+                                { "id": "unit", "value": "percentunit" }
+                            ]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 6, "w": 24, "x": 0, "y": 127 }
+            },
+            {
+                "id": 26,
+                "title": "Market Data Feed Status",
+                "type": "timeseries",
+                "targets": [
+                    {
+                        "expr": "trading_market_feed_status by (feed)",
+                        "legendFormat": "{{feed}} Status"
+                    },
+                    {
+                        "expr": "trading_market_feed_latency_ms by (feed)",
+                        "legendFormat": "{{feed}} Latency"
+                    },
+                    {
+                        "expr": "rate(trading_market_feed_messages_total[1m]) by (feed)",
+                        "legendFormat": "{{feed}} Messages/min"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": { "mode": "palette-classic" },
+                        "unit": "short"
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Latency"
+                            },
+                            "properties": [{ "id": "unit", "value": "ms" }]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byRegex",
+                                "options": ".*Messages/min"
+                            },
+                            "properties": [{ "id": "unit", "value": "reqps" }]
+                        }
+                    ]
+                },
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 133 }
+            },
+            {
+                "id": 27,
+                "title": "Trade Distribution Heatmap",
+                "type": "heatmap",
+                "targets": [
+                    {
+                        "expr": "sum(rate(trading_trades_total[1h])) by (symbol, hour)",
+                        "legendFormat": "{{symbol}}"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "hideFrom": {
+                                "legend": false,
+                                "tooltip": false,
+                                "vis": false
+                            },
+                            "scaleDistribution": { "type": "linear" }
+                        },
+                        "unit": "short"
+                    }
+                },
+                "options": {
+                    "calculate": false,
+                    "calculation": {},
+                    "cellGap": 2,
+                    "cellValues": {},
+                    "color": {
+                        "exponent": 0.5,
+                        "fill": "dark-orange",
+                        "mode": "spectrum",
+                        "reverse": false,
+                        "scale": "exponential",
+                        "scheme": "Oranges"
+                    },
+                    "tooltip": {
+                        "show": true,
+                        "showHistogram": false
+                    },
+                    "yAxis": {
+                        "axisPlacement": "left",
+                        "reverse": false,
+                        "unit": "short"
+                    }
+                },
+                "pluginVersion": "8.5.0"
+            }
+        ],
+        "schemaVersion": 27,
+        "style": "dark",
+        "templating": {
+            "list": []
+        },
+        "time": {
+            "from": "now-6h",
+            "to": "now"
+        },
+        "timepicker": {},
+        "uid": "trading-system-comprehensive",
+        "version": 1
+    }
+}

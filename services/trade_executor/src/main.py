@@ -16,9 +16,10 @@ import json
 
 import redis.asyncio as redis
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from prometheus_client import Counter, Gauge, generate_latest
 
 # Add parent directories to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -650,6 +651,43 @@ async def get_execution_metrics(symbol: Optional[str] = None, days: int = 30):
     except Exception as e:
         logger.error(f"Failed to get execution metrics: {e}")
         return {"error": str(e)}
+
+
+# Prometheus metrics (initialized lazily to avoid registration conflicts)
+orders_executed_counter = None
+orders_failed_counter = None
+execution_latency_gauge = None
+service_health_gauge = None
+
+def _initialize_metrics():
+    """Initialize Prometheus metrics if not already done."""
+    global orders_executed_counter, orders_failed_counter, execution_latency_gauge, service_health_gauge
+
+    if orders_executed_counter is None:
+        orders_executed_counter = Counter('trade_executor_orders_executed_total', 'Total orders executed', ['symbol', 'side'])
+        orders_failed_counter = Counter('trade_executor_orders_failed_total', 'Total orders failed', ['symbol', 'reason'])
+        execution_latency_gauge = Gauge('trade_executor_execution_latency_seconds', 'Order execution latency')
+        service_health_gauge = Gauge('trade_executor_service_health', 'Health status of components', ['component'])
+
+
+@app.get("/metrics")
+async def get_prometheus_metrics():
+    """Prometheus metrics endpoint."""
+    try:
+        # Initialize metrics if not already done
+        _initialize_metrics()
+
+        # Update metrics before returning them
+        service_health_gauge.labels(component='alpaca').set(1 if hasattr(app.state, 'service') else 0)
+        service_health_gauge.labels(component='service').set(1)
+
+        # Generate Prometheus format
+        metrics_output = generate_latest()
+        return Response(content=metrics_output, media_type="text/plain; version=0.0.4; charset=utf-8")
+
+    except Exception as e:
+        logger.error(f"Error generating metrics: {e}")
+        return Response(content="", media_type="text/plain")
 
 
 def setup_signal_handlers(service: TradeExecutorService):

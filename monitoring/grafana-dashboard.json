@@ -159,19 +159,19 @@
             },
             "targets": [
                 {
-                    "expr": "portfolio_total_value",
+                    "expr": "risk_manager_portfolio_value",
                     "interval": "",
                     "legendFormat": "Portfolio Value",
                     "refId": "A"
                 },
                 {
-                    "expr": "portfolio_cash",
+                    "expr": "risk_manager_portfolio_value{component=\"cash\"}",
                     "interval": "",
                     "legendFormat": "Cash",
                     "refId": "B"
                 },
                 {
-                    "expr": "portfolio_buying_power",
+                    "expr": "risk_manager_positions_total",
                     "interval": "",
                     "legendFormat": "Buying Power",
                     "refId": "C"
@@ -281,19 +281,19 @@
             },
             "targets": [
                 {
-                    "expr": "portfolio_daily_pnl",
+                    "expr": "increase(risk_manager_events_total[1d])",
                     "interval": "",
                     "legendFormat": "Daily P&L",
                     "refId": "A"
                 },
                 {
-                    "expr": "portfolio_cumulative_pnl",
+                    "expr": "risk_manager_events_total",
                     "interval": "",
                     "legendFormat": "Cumulative P&L",
                     "refId": "B"
                 }
             ],
-            "title": "P&L Performance",
+            "title": "Risk Events",
             "type": "timeseries"
         },
         {
@@ -347,13 +347,13 @@
             "pluginVersion": "8.5.0",
             "targets": [
                 {
-                    "expr": "portfolio_drawdown",
+                    "expr": "risk_manager_alerts_total",
                     "interval": "",
                     "legendFormat": "Current Drawdown",
                     "refId": "A"
                 }
             ],
-            "title": "Portfolio Drawdown",
+            "title": "Risk Alerts",
             "type": "gauge"
         },
         {
@@ -406,19 +406,19 @@
             "pluginVersion": "8.5.0",
             "targets": [
                 {
-                    "expr": "portfolio_sharpe_ratio",
+                    "expr": "strategy_engine_strategies_total",
                     "interval": "",
                     "legendFormat": "Sharpe Ratio",
                     "refId": "A"
                 },
                 {
-                    "expr": "portfolio_sortino_ratio",
+                    "expr": "data_collector_active_tickers_total",
                     "interval": "",
                     "legendFormat": "Sortino Ratio",
                     "refId": "B"
                 }
             ],
-            "title": "Risk-Adjusted Returns",
+            "title": "Active Components",
             "type": "stat"
         },
         {
@@ -507,13 +507,13 @@
             },
             "targets": [
                 {
-                    "expr": "increase(trades_executed_total[1h])",
+                    "expr": "increase(trade_executor_orders_executed_total[1h])",
                     "interval": "",
                     "legendFormat": "Trades per Hour",
                     "refId": "A"
                 }
             ],
-            "title": "Trade Volume",
+            "title": "Order Execution Rate",
             "type": "timeseries"
         },
         {
@@ -566,13 +566,13 @@
             "pluginVersion": "8.5.0",
             "targets": [
                 {
-                    "expr": "winning_trades_total / (winning_trades_total + losing_trades_total)",
+                    "expr": "trade_executor_orders_executed_total / (trade_executor_orders_executed_total + trade_executor_orders_failed_total)",
                     "interval": "",
                     "legendFormat": "Win Rate",
                     "refId": "A"
                 }
             ],
-            "title": "Win Rate",
+            "title": "Execution Success Rate",
             "type": "stat"
         },
         {
@@ -648,25 +648,25 @@
             },
             "targets": [
                 {
-                    "expr": "histogram_quantile(0.50, rate(trade_execution_latency_seconds_bucket[5m]))",
+                    "expr": "trade_executor_execution_latency_seconds",
                     "interval": "",
-                    "legendFormat": "50th percentile",
+                    "legendFormat": "Execution Latency",
                     "refId": "A"
                 },
                 {
-                    "expr": "histogram_quantile(0.95, rate(trade_execution_latency_seconds_bucket[5m]))",
+                    "expr": "scheduler_tasks_executed_total",
                     "interval": "",
-                    "legendFormat": "95th percentile",
+                    "legendFormat": "Tasks Executed",
                     "refId": "B"
                 },
                 {
-                    "expr": "histogram_quantile(0.99, rate(trade_execution_latency_seconds_bucket[5m]))",
+                    "expr": "data_collector_errors_total",
                     "interval": "",
-                    "legendFormat": "99th percentile",
+                    "legendFormat": "Collection Errors",
                     "refId": "C"
                 }
             ],
-            "title": "Trade Execution Latency",
+            "title": "Order Execution Latency",
             "type": "timeseries"
         },
         {
@@ -733,13 +733,13 @@
             "pluginVersion": "8.5.0",
             "targets": [
                 {
-                    "expr": "portfolio_risk_score",
+                    "expr": "risk_manager_service_health",
                     "interval": "",
-                    "legendFormat": "Risk Score",
+                    "legendFormat": "Risk Manager Health",
                     "refId": "A"
                 }
             ],
-            "title": "Portfolio Risk Score",
+            "title": "Risk Manager Health",
             "type": "gauge"
         },
         {
@@ -815,9 +815,9 @@
             },
             "targets": [
                 {
-                    "expr": "portfolio_var_95",
+                    "expr": "risk_manager_positions_total",
                     "interval": "",
-                    "legendFormat": "VaR 95%",
+                    "legendFormat": "Total Positions",
                     "refId": "A"
                 },
                 {
@@ -827,7 +827,7 @@
                     "refId": "B"
                 }
             ],
-            "title": "Value at Risk",
+            "title": "Portfolio Positions",
             "type": "timeseries"
         },
         {
@@ -880,13 +880,13 @@
             "pluginVersion": "8.5.0",
             "targets": [
                 {
-                    "expr": "portfolio_beta",
+                    "expr": "sum(up{job=~\"data-collector|strategy-engine|risk-manager|trade-executor|scheduler\"})",
                     "interval": "",
-                    "legendFormat": "Portfolio Beta",
+                    "legendFormat": "Services Up",
                     "refId": "A"
                 }
             ],
-            "title": "Portfolio Beta",
+            "title": "Service Health Status",
             "type": "stat"
         },
         {
@@ -975,31 +975,31 @@
             },
             "targets": [
                 {
-                    "expr": "rate(http_requests_total{job=\"data-collector\"}[5m])",
+                    "expr": "rate(data_collector_http_requests_total[5m])",
                     "interval": "",
                     "legendFormat": "Data Collector",
                     "refId": "A"
                 },
                 {
-                    "expr": "rate(http_requests_total{job=\"strategy-engine\"}[5m])",
+                    "expr": "strategy_engine_signals_total",
                     "interval": "",
                     "legendFormat": "Strategy Engine",
                     "refId": "B"
                 },
                 {
-                    "expr": "rate(http_requests_total{job=\"risk-manager\"}[5m])",
+                    "expr": "risk_manager_events_total",
                     "interval": "",
                     "legendFormat": "Risk Manager",
                     "refId": "C"
                 },
                 {
-                    "expr": "rate(http_requests_total{job=\"trade-executor\"}[5m])",
+                    "expr": "trade_executor_orders_executed_total",
                     "interval": "",
                     "legendFormat": "Trade Executor",
                     "refId": "D"
                 }
             ],
-            "title": "API Request Rate",
+            "title": "Service Activity",
             "type": "timeseries"
         },
         {
@@ -1182,7 +1182,7 @@
             },
             "id": 20,
             "panels": [],
-            "title": "Strategy Performance",
+            "title": "Scheduled Tasks",
             "type": "row"
         },
         {
@@ -1258,9 +1258,9 @@
             },
             "targets": [
                 {
-                    "expr": "strategy_profit_factor{strategy_name=~\".+\"}",
+                    "expr": "scheduler_tasks_total",
                     "interval": "",
-                    "legendFormat": "{{strategy_name}} Profit Factor",
+                    "legendFormat": "Scheduled Tasks",
                     "refId": "A"
                 }
             ],

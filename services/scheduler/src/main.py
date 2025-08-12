@@ -581,7 +581,7 @@ def run_dev_server():
         "main:create_dev_app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False,
         log_level=config.logging.level.lower()
     )
 

@@ -15,6 +15,7 @@ from typing import Dict, Any, Optional
 from aiohttp import web, web_response
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,9 @@ class DataCollectorHTTPServer:
         self.site: Optional[web.TCPSite] = None
         self.logger = logging.getLogger(__name__)
 
+        # Initialize Prometheus metrics
+        self._init_prometheus_metrics()
+
     async def create_app(self) -> web.Application:
         """Create and configure the web application."""
         app = web.Application()
@@ -48,7 +52,8 @@ class DataCollectorHTTPServer:
         app.router.add_get("/", self.index)
         app.router.add_get("/health", self.health_check)
         app.router.add_get("/status", self.status)
-        app.router.add_get("/metrics", self.metrics)
+        app.router.add_get("/metrics", self.prometheus_metrics)
+        app.router.add_get("/metrics/json", self.metrics)
         app.router.add_get("/info", self.info)
 
         # Add middleware for CORS and error handling
@@ -123,6 +128,7 @@ class DataCollectorHTTPServer:
                 "health": "/health",
                 "status": "/status",
                 "metrics": "/metrics",
+                "metrics_json": "/metrics/json",
                 "info": "/info"
             }
         })
@@ -188,8 +194,37 @@ class DataCollectorHTTPServer:
                 status=500
             )
 
+    async def prometheus_metrics(self, request: Request) -> Response:
+        """Prometheus-style metrics endpoint."""
+        try:
+            if not self.data_service:
+                return web.Response(
+                    text="# Data service not available\n",
+                    content_type="text/plain; version=0.0.4",
+                    status=503
+                )
+
+            # Update Prometheus metrics with current values
+            await self._update_prometheus_metrics()
+
+            # Generate Prometheus format
+            metrics_output = generate_latest()
+
+            return web.Response(
+                text=metrics_output.decode('utf-8'),
+                content_type="text/plain; version=0.0.4"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Prometheus metrics collection failed: {e}")
+            return web.Response(
+                text=f"# Error collecting metrics: {str(e)}\n",
+                content_type="text/plain; version=0.0.4",
+                status=500
+            )
+
     async def metrics(self, request: Request) -> Response:
-        """Metrics endpoint for monitoring systems."""
+        """JSON metrics endpoint for monitoring systems."""
         try:
             if not self.data_service:
                 return web.json_response(
@@ -329,3 +364,101 @@ class DataCollectorHTTPServer:
             health_info["errors"].append(f"Health check failed: {str(e)}")
 
         return health_info
+
+    def _init_prometheus_metrics(self):
+        """Initialize Prometheus metrics."""
+        # Service status metrics
+        self.active_tickers_gauge = Gauge(
+            'data_collector_active_tickers_total',
+            'Number of active tickers being tracked'
+        )
+
+        self.scheduled_jobs_gauge = Gauge(
+            'data_collector_scheduled_jobs_total',
+            'Number of scheduled jobs'
+        )
+
+        self.service_running_gauge = Gauge(
+            'data_collector_service_running',
+            'Whether the data collection service is running (1=running, 0=stopped)'
+        )
+
+        # Statistics metrics
+        self.screener_runs_counter = Counter(
+            'data_collector_screener_runs_total',
+            'Total number of screener runs'
+        )
+
+        self.data_updates_counter = Counter(
+            'data_collector_data_updates_total',
+            'Total number of data updates'
+        )
+
+        self.records_saved_counter = Counter(
+            'data_collector_records_saved_total',
+            'Total number of records saved'
+        )
+
+        self.errors_counter = Counter(
+            'data_collector_errors_total',
+            'Total number of errors encountered'
+        )
+
+        # Component health metrics
+        self.component_health_gauge = Gauge(
+            'data_collector_component_health',
+            'Health status of components (1=healthy, 0=unhealthy)',
+            ['component']
+        )
+
+        # HTTP request metrics
+        self.http_requests_counter = Counter(
+            'data_collector_http_requests_total',
+            'Total HTTP requests',
+            ['endpoint', 'method', 'status']
+        )
+
+        self.http_request_duration = Histogram(
+            'data_collector_http_request_duration_seconds',
+            'HTTP request duration in seconds',
+            ['endpoint', 'method']
+        )
+
+    async def _update_prometheus_metrics(self):
+        """Update Prometheus metrics with current values."""
+        if not self.data_service:
+            return
+
+        try:
+            # Get service status
+            status = await self.data_service.get_service_status()
+            statistics = status.get("statistics", {})
+
+            # Update basic metrics
+            self.active_tickers_gauge.set(status.get("active_tickers_count", 0))
+            self.scheduled_jobs_gauge.set(len(status.get("scheduler_jobs", [])))
+            self.service_running_gauge.set(1 if status.get("is_running", False) else 0)
+
+            # Update statistics (these are cumulative, so we set them directly)
+            screener_runs = statistics.get("screener_runs", 0)
+            data_updates = statistics.get("data_updates", 0)
+            records_saved = statistics.get("total_records_saved", 0)
+            errors = statistics.get("errors", 0)
+
+            # Set counter values (note: this is not ideal for counters, but needed for compatibility)
+            self.screener_runs_counter._value._value = screener_runs
+            self.data_updates_counter._value._value = data_updates
+            self.records_saved_counter._value._value = records_saved
+            self.errors_counter._value._value = errors
+
+            # Update component health
+            health_info = await self._get_health_info()
+            components = health_info.get("components", {})
+
+            for component_name, component_info in components.items():
+                if isinstance(component_info, dict) and "status" in component_info:
+                    health_value = 1 if component_info["status"] == "healthy" else 0
+                    self.component_health_gauge.labels(component=component_name).set(health_value)
+
+        except Exception as e:
+            self.logger.error(f"Failed to update Prometheus metrics: {e}")

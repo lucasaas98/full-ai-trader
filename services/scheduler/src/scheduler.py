@@ -28,6 +28,18 @@ from circuitbreaker import circuit
 
 logger = logging.getLogger(__name__)
 
+# Global scheduler instance reference for task execution
+_scheduler_instance = None
+
+async def execute_scheduled_task(task_id: str):
+    """Global function for executing scheduled tasks without scheduler serialization issues."""
+    global _scheduler_instance
+    if _scheduler_instance is None:
+        logger.error("No scheduler instance available for task execution")
+        return
+
+    await _scheduler_instance._execute_task_wrapper(task_id)
+
 
 class ServiceStatus(str, Enum):
     """Service status enumeration."""
@@ -499,9 +511,13 @@ class TradingScheduler:
 
     async def start(self):
         """Start the scheduler service."""
+        global _scheduler_instance
         logger.info("Starting trading scheduler...")
 
         try:
+            # Set global reference for task execution
+            _scheduler_instance = self
+
             # Start the scheduler
             self.scheduler.start()
             self.is_running = True
@@ -630,7 +646,7 @@ class TradingScheduler:
         for task in self.tasks.values():
             if task.enabled:
                 self.scheduler.add_job(
-                    func=self._execute_task_wrapper,
+                    func=execute_scheduled_task,
                     trigger=task.trigger,
                     args=[task.id],
                     id=task.id,

@@ -16,9 +16,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from prometheus_client import Counter, Gauge, Histogram, generate_latest
 
 # Add the parent directory to Python path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -76,6 +77,9 @@ database_manager: Optional[RiskDatabaseManager] = None
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     global risk_manager, position_sizer, portfolio_monitor, alert_manager, database_manager
+
+    # Initialize Prometheus metrics
+    init_prometheus_metrics()
 
     # Startup
     logger.info("Starting Risk Management Service...")
@@ -145,6 +149,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prometheus metrics
+risk_events_counter = None
+portfolio_value_gauge = None
+positions_count_gauge = None
+alerts_counter = None
+service_health_gauge = None
 
 
 # Request/Response Models
@@ -679,6 +690,65 @@ async def get_risk_limits():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def init_prometheus_metrics():
+    """Initialize Prometheus metrics."""
+    global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge
+
+    risk_events_counter = Counter(
+        'risk_manager_events_total',
+        'Total number of risk events',
+        ['event_type', 'severity']
+    )
+
+    portfolio_value_gauge = Gauge(
+        'risk_manager_portfolio_value',
+        'Current portfolio value'
+    )
+
+    positions_count_gauge = Gauge(
+        'risk_manager_positions_total',
+        'Number of active positions'
+    )
+
+    alerts_counter = Counter(
+        'risk_manager_alerts_total',
+        'Total number of alerts generated',
+        ['severity']
+    )
+
+    service_health_gauge = Gauge(
+        'risk_manager_service_health',
+        'Health status of risk manager components',
+        ['component']
+    )
+
+
+async def update_prometheus_metrics():
+    """Update Prometheus metrics with current values."""
+    global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge
+
+    try:
+        # Update service health metrics
+        if service_health_gauge:
+            service_health_gauge.labels(component='database').set(1 if database_manager else 0)
+            service_health_gauge.labels(component='risk_manager').set(1 if risk_manager else 0)
+            service_health_gauge.labels(component='portfolio_monitor').set(1 if portfolio_monitor else 0)
+            service_health_gauge.labels(component='alert_manager').set(1 if alert_manager else 0)
+
+        # Get latest portfolio metrics if available
+        if database_manager:
+            try:
+                latest_metrics = await database_manager.get_latest_portfolio_metrics()
+                if latest_metrics and portfolio_value_gauge and positions_count_gauge:
+                    portfolio_value_gauge.set(latest_metrics.get('total_exposure', 0))
+                    positions_count_gauge.set(latest_metrics.get('position_count', 0))
+            except Exception as e:
+                logger.debug(f"Could not update portfolio metrics: {e}")
+
+    except Exception as e:
+        logger.error(f"Failed to update Prometheus metrics: {e}")
+
+
 @app.put("/risk-limits")
 async def update_risk_limits(limits: Dict):
     """Update risk limits configuration."""
@@ -703,8 +773,32 @@ async def update_risk_limits(limits: Dict):
         }
 
     except Exception as e:
-        logger.error(f"Error updating risk limits: {e}")
+        logger.error(f"Error getting risk limits: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/metrics")
+async def get_metrics():
+    """Prometheus metrics endpoint."""
+    try:
+        # Update metrics before returning them
+        await update_prometheus_metrics()
+
+        # Generate Prometheus format
+        metrics_output = generate_latest()
+
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4"
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate metrics: {e}")
+        return Response(
+            content=f"# Error generating metrics: {str(e)}\n",
+            media_type="text/plain; version=0.0.4",
+            status_code=500
+        )
 
 
 # Testing and diagnostics endpoints
