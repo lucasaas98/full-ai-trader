@@ -26,8 +26,6 @@ import aiofiles
 import zipfile
 
 
-import sys
-sys.path.append('/home/repi/configuration/full-ai-trader')
 import asyncpg
 from contextlib import asynccontextmanager
 
@@ -821,3 +819,18 @@ async def export_tradenote(
     except Exception as e:
         logger.error(f"TradeNote export failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    port = int(os.getenv("SERVICE_PORT", "9106"))
+    host = "0.0.0.0"
+    
+    logger.info(f"Starting Export Service on {host}:{port}")
+    
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level="info"
+    )

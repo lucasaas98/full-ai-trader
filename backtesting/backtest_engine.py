@@ -1,9 +1,10 @@
 import logging
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+import polars as pl
 
 # Import shared models
 import sys
@@ -17,6 +18,9 @@ from shared.models import (
     TimeFrame
 )
 
+# Import data store for concrete implementation
+from services.data_collector.src.data_store import DataStore
+
 # Define DataSource interface
 class DataSource(ABC):
     """Abstract data source interface for backtesting"""
@@ -26,6 +30,60 @@ class DataSource(ABC):
                        end_date: datetime, timeframe: TimeFrame) -> Dict[str, List[MarketData]]:
         """Load market data for given symbols and date range"""
         pass
+
+
+class LocalDataStoreSource(DataSource):
+    """DataSource implementation using the existing DataStore infrastructure"""
+
+    def __init__(self, data_store: DataStore):
+        self.data_store = data_store
+        self.logger = logging.getLogger(__name__)
+
+    async def load_data(self, symbols: List[str], start_date: datetime,
+                       end_date: datetime, timeframe: TimeFrame) -> Dict[str, List[MarketData]]:
+        """Load market data from DataStore"""
+        result = {}
+
+        start_date_obj = start_date.date()
+        end_date_obj = end_date.date()
+
+        for symbol in symbols:
+            try:
+                # Load data using DataStore
+                df = await self.data_store.load_market_data(
+                    ticker=symbol,
+                    timeframe=timeframe,
+                    start_date=start_date_obj,
+                    end_date=end_date_obj
+                )
+
+                if df.is_empty():
+                    self.logger.warning(f"No data found for symbol {symbol}")
+                    continue
+
+                # Convert Polars DataFrame to MarketData objects
+                market_data = []
+                for row in df.iter_rows(named=True):
+                    data_point = MarketData(
+                        symbol=symbol,
+                        timestamp=row['timestamp'],
+                        open=Decimal(str(row['open'])),
+                        high=Decimal(str(row['high'])),
+                        low=Decimal(str(row['low'])),
+                        close=Decimal(str(row['close'])),
+                        volume=int(row['volume']),
+                        timeframe=timeframe
+                    )
+                    market_data.append(data_point)
+
+                result[symbol] = market_data
+                self.logger.info(f"Loaded {len(market_data)} data points for {symbol}")
+
+            except Exception as e:
+                self.logger.error(f"Error loading data for symbol {symbol}: {str(e)}")
+                continue
+
+        return result
 
 
 @dataclass
@@ -412,7 +470,7 @@ class BacktestEngine:
 
     async def _check_exit_conditions(self, market_data: Dict[str, List[MarketData]],
                                    current_time: datetime):
-        """Check stop loss and take profit conditions"""
+        """Check stop loss, take profit, and other exit conditions"""
         positions_to_close = []
 
         for symbol, position in self.current_positions.items():
@@ -420,16 +478,38 @@ class BacktestEngine:
                 continue
 
             current_price = market_data[symbol][-1].close
+            exit_reason = None
+            should_close = False
 
             # Check stop loss
             if position.stop_loss and current_price <= position.stop_loss:
-                trade = await self._close_position(position, float(current_price), current_time, "stop_loss")
-                positions_to_close.append(symbol)
-                self.completed_trades.append(trade)
+                exit_reason = "stop_loss"
+                should_close = True
 
             # Check take profit
             elif position.take_profit and current_price >= position.take_profit:
-                trade = await self._close_position(position, float(current_price), current_time, "take_profit")
+                exit_reason = "take_profit"
+                should_close = True
+
+            # Check for maximum holding period (90 days)
+            elif (current_time - position.entry_date).days > 90:
+                exit_reason = "max_holding_period"
+                should_close = True
+
+            # Check for trailing stop loss (5% below highest price since entry)
+            elif hasattr(position, 'highest_price'):
+                if not hasattr(position, 'highest_price'):
+                    position.highest_price = max(position.entry_price, float(current_price))
+                else:
+                    position.highest_price = max(position.highest_price, float(current_price))
+
+                trailing_stop = position.highest_price * 0.95  # 5% trailing stop
+                if current_price <= trailing_stop:
+                    exit_reason = "trailing_stop"
+                    should_close = True
+
+            if should_close:
+                trade = await self._close_position(position, float(current_price), current_time, exit_reason)
                 positions_to_close.append(symbol)
                 self.completed_trades.append(trade)
 
@@ -443,6 +523,11 @@ class BacktestEngine:
         symbol = signal.symbol
 
         if symbol not in market_data or not market_data[symbol]:
+            return
+
+        # Check portfolio risk limits before executing any trades
+        if not self._check_portfolio_risk_limits():
+            self.logger.warning(f"Skipping signal for {symbol} due to portfolio risk limits")
             return
 
         current_price = market_data[symbol][-1].close
@@ -467,6 +552,11 @@ class BacktestEngine:
         if symbol in self.current_positions:
             return
 
+        # Check if we've reached maximum number of positions
+        if len(self.current_positions) >= self.config.max_positions:
+            self.logger.debug(f"Cannot open position for {symbol}: max positions ({self.config.max_positions}) reached")
+            return
+
         # Calculate position size
         position_value = self._calculate_position_size(signal, execution_price)
 
@@ -479,6 +569,15 @@ class BacktestEngine:
 
         # Check if we have enough cash
         if cost + commission > self.current_cash:
+            self.logger.debug(f"Insufficient cash for {symbol}: need ${cost + commission:.2f}, have ${self.current_cash:.2f}")
+            return
+
+        # Additional risk check: ensure position doesn't exceed concentration limit
+        total_portfolio_value = self.current_cash + sum(pos.market_value for pos in self.current_positions.values())
+        position_weight = cost / total_portfolio_value if total_portfolio_value > 0 else 0
+
+        if position_weight > 0.15:  # 15% concentration limit
+            self.logger.debug(f"Position {symbol} would exceed 15% concentration limit ({position_weight:.2%})")
             return
 
         # Create position
@@ -561,11 +660,23 @@ class BacktestEngine:
             return base_allocation * confidence_multiplier
 
         elif self.config.position_sizing_method == "volatility_adjusted":
-            # Placeholder for volatility-based sizing
+            # Risk-adjusted position sizing based on volatility
             volatility = self._estimate_volatility(signal.symbol, price)
             target_risk = 0.02  # 2% portfolio risk
-            position_size = (total_portfolio_value * target_risk) / volatility
-            return min(position_size, total_portfolio_value * 0.1)
+
+            # Calculate position size based on volatility
+            if volatility > 0:
+                # Position size = (Portfolio Risk) / (Asset Volatility / Price)
+                position_size = (total_portfolio_value * target_risk) / (volatility / price)
+                # Cap at 10% of portfolio
+                max_position = total_portfolio_value * 0.1
+                min_position = total_portfolio_value * 0.01  # Minimum 1%
+                position_size = max(min_position, min(position_size, max_position))
+            else:
+                # Fallback to fixed percentage if volatility calculation fails
+                position_size = total_portfolio_value * 0.05
+
+            return position_size
 
         else:
             return total_portfolio_value * 0.05  # Default 5%
@@ -577,9 +688,39 @@ class BacktestEngine:
         return fixed_commission + percentage_commission
 
     def _estimate_volatility(self, symbol: str, current_price: float) -> float:
-        """Estimate asset volatility (placeholder implementation)"""
-        # In a real implementation, this would calculate historical volatility
-        return current_price * 0.02  # 2% default volatility
+        """Estimate asset volatility using historical price data"""
+        # Get historical data for the symbol from portfolio history
+        if not self.portfolio_history:
+            return current_price * 0.02  # Fallback to 2% default
+
+        # Look for price history for this symbol
+        price_history = []
+        for snapshot in self.portfolio_history[-60:]:  # Use last 60 periods
+            for position in snapshot.positions:
+                if position.symbol == symbol:
+                    price_history.append(position.current_price)
+                    break
+
+        # If we don't have enough price history, use a reasonable default
+        if len(price_history) < 10:
+            return current_price * 0.02
+
+        # Calculate returns
+        returns = []
+        for i in range(1, len(price_history)):
+            if price_history[i-1] > 0:
+                daily_return = (price_history[i] - price_history[i-1]) / price_history[i-1]
+                returns.append(daily_return)
+
+        if not returns:
+            return current_price * 0.02
+
+        # Calculate annualized volatility
+        daily_volatility = np.std(returns)
+        annualized_volatility = daily_volatility * np.sqrt(252)  # 252 trading days per year
+
+        # Return as absolute price volatility
+        return current_price * annualized_volatility
 
     async def _record_portfolio_snapshot(self, timestamp: datetime,
                                        market_data: Dict[str, List[MarketData]]):
@@ -621,6 +762,183 @@ class BacktestEngine:
 
         self.portfolio_history.append(snapshot)
 
+    def _check_portfolio_risk_limits(self) -> bool:
+        """Check if portfolio exceeds risk limits"""
+        if not self.portfolio_history:
+            return True
+
+        current_snapshot = self.portfolio_history[-1]
+
+        # Check maximum drawdown limit (stop trading if drawdown > 20%)
+        if current_snapshot.drawdown > 0.20:
+            self.logger.warning(f"Portfolio drawdown {current_snapshot.drawdown:.2%} exceeds 20% limit")
+            return False
+
+        # Check leverage limit
+        if current_snapshot.leverage > self.config.max_leverage:
+            self.logger.warning(f"Portfolio leverage {current_snapshot.leverage:.2f} exceeds limit {self.config.max_leverage}")
+            return False
+
+        # Check concentration risk (no single position > 15% of portfolio)
+        if current_snapshot.total_value > 0:
+            for position in current_snapshot.positions:
+                position_weight = position.market_value / current_snapshot.total_value
+                if position_weight > 0.15:
+                    self.logger.warning(f"Position {position.symbol} weight {position_weight:.2%} exceeds 15% limit")
+                    return False
+
+        return True
+
+    def _calculate_value_at_risk(self, confidence_level: float = 0.05) -> float:
+        """Calculate portfolio Value at Risk (VaR)"""
+        if len(self.portfolio_history) < 30:
+            return 0.0
+
+        # Get recent daily returns
+        returns = []
+        for i in range(1, min(len(self.portfolio_history), 252)):  # Last year of data
+            prev_value = self.portfolio_history[-(i+1)].total_value
+            curr_value = self.portfolio_history[-i].total_value
+            if prev_value > 0:
+                daily_return = (curr_value - prev_value) / prev_value
+                returns.append(daily_return)
+
+        if not returns:
+            return 0.0
+
+        # Calculate VaR at given confidence level
+        returns.sort()
+        var_index = int(len(returns) * confidence_level)
+        var_return = returns[var_index] if var_index < len(returns) else returns[0]
+
+        current_value = self.portfolio_history[-1].total_value
+        return abs(var_return * current_value)
+
+    def _validate_strategy_performance(self) -> Dict[str, Any]:
+        """Validate strategy performance and identify potential issues"""
+        validation_results = {
+            "is_valid": True,
+            "warnings": [],
+            "errors": [],
+            "metrics": {}
+        }
+
+        if not self.completed_trades:
+            validation_results["errors"].append("No completed trades found")
+            validation_results["is_valid"] = False
+            return validation_results
+
+        # Check for overfitting indicators
+        total_trades = len(self.completed_trades)
+        winning_trades = len([t for t in self.completed_trades if t.pnl > 0])
+
+        # Too few trades
+        if total_trades < 30:
+            validation_results["warnings"].append(f"Low trade count ({total_trades}). Results may not be statistically significant.")
+
+        # Suspiciously high win rate
+        win_rate = winning_trades / total_trades
+        if win_rate > 0.85:
+            validation_results["warnings"].append(f"Very high win rate ({win_rate:.2%}). May indicate overfitting or unrealistic assumptions.")
+
+        # Check for data snooping bias
+        recent_trades = [t for t in self.completed_trades if (self.config.end_date - t.exit_date).days < 30]
+        if len(recent_trades) > total_trades * 0.5:
+            validation_results["warnings"].append("More than 50% of trades occurred in last 30 days. Check for forward bias.")
+
+        # Calculate trade distribution metrics
+        trade_pnls = [float(t.pnl) for t in self.completed_trades]
+
+        # Check for outlier dependence
+        sorted_pnls = sorted(trade_pnls, reverse=True)
+        top_5_percent = int(max(1, len(sorted_pnls) * 0.05))
+        top_trades_contribution = sum(sorted_pnls[:top_5_percent]) / sum(trade_pnls) if sum(trade_pnls) != 0 else 0
+
+        if top_trades_contribution > 0.8:
+            validation_results["warnings"].append(f"Top 5% of trades contribute {top_trades_contribution:.2%} of total PnL. Strategy may be too dependent on outliers.")
+
+        # Check for consistency across time periods
+        if len(self.portfolio_history) > 60:
+            quarterly_returns = []
+            quarter_size = len(self.portfolio_history) // 4
+
+            for i in range(4):
+                start_idx = i * quarter_size
+                end_idx = (i + 1) * quarter_size if i < 3 else len(self.portfolio_history)
+
+                if start_idx < len(self.portfolio_history) and end_idx <= len(self.portfolio_history):
+                    start_value = self.portfolio_history[start_idx].total_value
+                    end_value = self.portfolio_history[end_idx - 1].total_value
+                    quarterly_return = (end_value - start_value) / start_value if start_value > 0 else 0
+                    quarterly_returns.append(quarterly_return)
+
+            if len(quarterly_returns) == 4:
+                negative_quarters = sum(1 for r in quarterly_returns if r < 0)
+                if negative_quarters >= 3:
+                    validation_results["warnings"].append(f"Strategy had negative returns in {negative_quarters}/4 quarters. Check for regime dependency.")
+
+        validation_results["metrics"] = {
+            "total_trades": total_trades,
+            "win_rate": win_rate,
+            "outlier_dependence": top_trades_contribution,
+            "recent_trade_ratio": len(recent_trades) / total_trades if total_trades > 0 else 0
+        }
+
+        return validation_results
+
+    def _calculate_advanced_metrics(self) -> Dict[str, float]:
+        """Calculate additional performance metrics for production use"""
+        if not self.portfolio_history or len(self.portfolio_history) < 2:
+            return {}
+
+        portfolio_values = [snapshot.total_value for snapshot in self.portfolio_history]
+        returns = [(portfolio_values[i] - portfolio_values[i-1]) / portfolio_values[i-1]
+                  for i in range(1, len(portfolio_values)) if portfolio_values[i-1] > 0]
+
+        if not returns:
+            return {}
+
+        metrics = {}
+
+        # Calmar Ratio (already implemented but add to advanced metrics)
+        total_return = (portfolio_values[-1] - self.config.initial_capital) / self.config.initial_capital
+        metrics['calmar_ratio'] = self._calculate_calmar_ratio(total_return, self.max_drawdown)
+
+        # Maximum Consecutive Losses
+        consecutive_losses = 0
+        max_consecutive_losses = 0
+        for r in returns:
+            if r < 0:
+                consecutive_losses += 1
+                max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
+            else:
+                consecutive_losses = 0
+        metrics['max_consecutive_losses'] = max_consecutive_losses
+
+        # Skewness and Kurtosis
+        if len(returns) > 3:
+            mean_return = np.mean(returns)
+            std_return = np.std(returns)
+            if std_return > 0:
+                skewness = np.mean([((r - mean_return) / std_return) ** 3 for r in returns])
+                kurtosis = np.mean([((r - mean_return) / std_return) ** 4 for r in returns]) - 3
+                metrics['skewness'] = float(skewness)
+                metrics['kurtosis'] = float(kurtosis)
+
+        # Tail Ratio (95th percentile / 5th percentile)
+        if len(returns) > 20:
+            sorted_returns = sorted(returns)
+            p95 = sorted_returns[int(0.95 * len(sorted_returns))]
+            p5 = sorted_returns[int(0.05 * len(sorted_returns))]
+            if p5 != 0:
+                metrics['tail_ratio'] = abs(p95 / p5)
+
+        # Recovery Factor (total return / max drawdown)
+        if self.max_drawdown > 0:
+            metrics['recovery_factor'] = float(total_return / self.max_drawdown)
+
+        return metrics
+
     def _calculate_performance_metrics(self, benchmark_data: Dict[str, List[MarketData]]) -> BacktestResult:
         """Calculate comprehensive performance metrics"""
         if not self.portfolio_history:
@@ -659,9 +977,21 @@ class BacktestEngine:
         avg_loss = np.mean([t.pnl for t in self.completed_trades if t.pnl < 0]) if losing_trades > 0 else 0.0
         profit_factor = abs(avg_win * winning_trades / (avg_loss * losing_trades)) if avg_loss != 0 else float('inf')
 
+        # Run strategy validation
+        validation_results = self._validate_strategy_performance()
+        if not validation_results["is_valid"]:
+            self.logger.error("Strategy validation failed:")
+            for error in validation_results["errors"]:
+                self.logger.error(f"  - {error}")
 
+        for warning in validation_results["warnings"]:
+            self.logger.warning(f"Strategy validation warning: {warning}")
 
-
+        # Calculate advanced metrics
+        advanced_metrics = self._calculate_advanced_metrics()
+        self.logger.info("Advanced performance metrics calculated")
+        for metric, value in advanced_metrics.items():
+            self.logger.info(f"  {metric}: {value:.4f}")
 
         return BacktestResult(
             strategy_name=self.completed_trades[0].strategy_name if self.completed_trades else "unknown",
@@ -816,3 +1146,134 @@ class WalkForwardAnalysis:
             'num_windows': len(results),
             'consistency': sum(1 for r in results if r.total_return > 0) / len(results)
         }
+
+
+# Example usage demonstrating the implemented features
+async def example_backtest():
+    """Example demonstrating how to use the backtest engine with existing data infrastructure"""
+    from services.data_collector.src.data_store import DataStore, DataStoreConfig
+
+    # Initialize the data store using existing infrastructure
+    config = DataStoreConfig(base_path="./data")
+    data_store = DataStore(config)
+
+    # Create data source using our LocalDataStoreSource
+    data_source = LocalDataStoreSource(data_store)
+
+    # Configure backtest parameters
+    backtest_config = BacktestConfig(
+        start_date=datetime(2023, 1, 1),
+        end_date=datetime(2023, 12, 31),
+        initial_capital=100000.0,
+        commission_per_trade=1.0,
+        commission_percentage=0.001,  # 0.1%
+        slippage_bps=5.0,
+        max_positions=10,
+        position_sizing_method="volatility_adjusted",  # Uses our improved implementation
+        risk_free_rate=0.02,
+        benchmark_symbol="SPY",
+        data_frequency=TimeFrame.ONE_DAY,
+        max_leverage=1.0
+    )
+
+    # Create strategy (using the existing RSI strategy as example)
+    strategy = RSIStrategy(period=14, oversold=30, overbought=70)
+
+    # Define symbols to test
+    symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "SPY"]
+
+    # Initialize and run backtest
+    engine = BacktestEngine(backtest_config)
+
+    try:
+        # Run the backtest with our improved features
+        result = await engine.run_backtest(strategy, symbols, data_source)
+
+        # Display results
+        print(f"\n=== Backtest Results ===")
+        print(f"Strategy: {result.strategy_name}")
+        print(f"Period: {result.start_date.date()} to {result.end_date.date()}")
+        print(f"Initial Capital: ${result.initial_capital:,.2f}")
+        print(f"Final Capital: ${result.final_capital:,.2f}")
+        print(f"Total Return: {result.total_return_pct:.2f}%")
+        print(f"Annualized Return: {result.annualized_return:.2f}%")
+        print(f"Max Drawdown: {result.max_drawdown_pct:.2f}%")
+        print(f"Sharpe Ratio: {result.sharpe_ratio:.2f}")
+        print(f"Sortino Ratio: {result.sortino_ratio:.2f}")
+        print(f"Win Rate: {result.win_rate:.2%}")
+        print(f"Total Trades: {result.total_trades}")
+        print(f"Profit Factor: {result.profit_factor:.2f}")
+
+        # Display VaR calculation using our new feature
+        var_5pct = engine._calculate_value_at_risk(0.05)
+        print(f"Value at Risk (5%): ${var_5pct:,.2f}")
+
+        # Show some portfolio snapshots
+        if engine.portfolio_history:
+            print(f"\n=== Portfolio Evolution ===")
+            for i in [0, len(engine.portfolio_history)//2, -1]:
+                snapshot = engine.portfolio_history[i]
+                print(f"Date: {snapshot.timestamp.date()}")
+                print(f"  Total Value: ${snapshot.total_value:,.2f}")
+                print(f"  Cash: ${snapshot.cash:,.2f}")
+                print(f"  Positions: {len(snapshot.positions)}")
+                print(f"  Leverage: {snapshot.leverage:.2f}")
+                print(f"  Drawdown: {snapshot.drawdown:.2%}")
+
+        return result
+
+    except Exception as e:
+        print(f"Backtest failed: {e}")
+        return None
+
+
+async def example_walk_forward_analysis():
+    """Example of walk-forward analysis using the implemented features"""
+    from services.data_collector.src.data_store import DataStore, DataStoreConfig
+
+    # Initialize data infrastructure
+    config = DataStoreConfig(base_path="./data")
+    data_store = DataStore(config)
+    data_source = LocalDataStoreSource(data_store)
+
+    # Create strategy
+    strategy = MovingAverageCrossoverStrategy(short_window=20, long_window=50)
+
+    # Define test parameters
+    symbols = ["AAPL", "MSFT", "GOOGL"]
+    start_date = datetime(2022, 1, 1)
+    end_date = datetime(2023, 12, 31)
+
+    # Run walk-forward analysis
+    wfa = WalkForwardAnalysis(window_size=252, step_size=21)  # 1 year training, 1 month testing
+
+    try:
+        results = await wfa.run_analysis(strategy, symbols, data_source, start_date, end_date)
+
+        print(f"\n=== Walk-Forward Analysis Results ===")
+        print(f"Strategy: {strategy.get_strategy_name()}")
+        print(f"Average Return: {results['average_return']:.2%}")
+        print(f"Average Sharpe: {results['average_sharpe']:.2f}")
+        print(f"Worst Drawdown: {results['worst_drawdown']:.2%}")
+        print(f"Number of Windows: {results['num_windows']}")
+        print(f"Consistency (% positive): {results['consistency']:.2%}")
+
+        return results
+
+    except Exception as e:
+        print(f"Walk-forward analysis failed: {e}")
+        return None
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    print("Running backtest engine example with implemented features...")
+
+    # Run the example backtest
+    asyncio.run(example_backtest())
+
+    print("\n" + "="*50)
+
+    # Run walk-forward analysis example
+    asyncio.run(example_walk_forward_analysis())

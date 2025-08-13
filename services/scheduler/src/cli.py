@@ -608,49 +608,46 @@ async def portfolio(
 
 
 @app.command()
-def export(
+@run_async
+async def export(
     format: str = typer.Option("json", "--format", "-f", help="Export format: json, csv, yaml"),
     output: str = typer.Option(None, "--output", "-o", help="Output file path"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
 ):
     """Export trading data for TradeNote or other analysis."""
+    try:
+        # Get trades data
+        async with httpx.AsyncClient() as http_client:
+            response = await http_client.get(f"{url.replace('8000', '8004')}/trades/export")
+            response.raise_for_status()
+            trades_data = response.json()
 
-    async def _export():
-        try:
-            # Get trades data
-            async with httpx.AsyncClient() as http_client:
-                response = await http_client.get(f"{url.replace('8000', '8004')}/trades/export")
-                response.raise_for_status()
-                trades_data = response.json()
+        if not trades_data.get("trades"):
+            console.print("[yellow]No trades to export[/yellow]")
+            return
 
-            if not trades_data.get("trades"):
-                console.print("[yellow]No trades to export[/yellow]")
-                return
+        # Format data based on requested format
+        if format.lower() == "json":
+            export_data = json.dumps(trades_data, indent=2)
+        elif format.lower() == "yaml":
+            export_data = yaml.dump(trades_data, default_flow_style=False)
+        elif format.lower() == "csv":
+            import pandas as pd
+            df = pd.DataFrame(trades_data.get("trades", []))
+            export_data = df.to_csv(index=False)
+        else:
+            console.print(f"[red]Unsupported format: {format}[/red]")
+            return
 
-            # Format data based on requested format
-            if format.lower() == "json":
-                export_data = json.dumps(trades_data, indent=2)
-            elif format.lower() == "yaml":
-                export_data = yaml.dump(trades_data, default_flow_style=False)
-            elif format.lower() == "csv":
-                import pandas as pd
-                df = pd.DataFrame(trades_data.get("trades", []))
-                export_data = df.to_csv(index=False)
-            else:
-                console.print(f"[red]Unsupported format: {format}[/red]")
-                return
+        if output:
+            with open(output, 'w') as f:
+                f.write(export_data)
+            console.print(f"[green]✓[/green] Data exported to {output}")
+        else:
+            console.print(export_data)
 
-            if output:
-                with open(output, 'w') as f:
-                    f.write(export_data)
-                console.print(f"[green]✓[/green] Data exported to {output}")
-            else:
-                console.print(export_data)
-
-        except Exception as e:
-            console.print(f"[red]Export failed: {e}[/red]")
-
-    asyncio.run(_export())
+    except Exception as e:
+        console.print(f"[red]Export failed: {e}[/red]")
 
 
 @app.command()
@@ -1112,10 +1109,380 @@ async def health(
 
 
 @app.command()
-def dashboard():
-    """Launch interactive dashboard (placeholder)."""
-    console.print("[yellow]Interactive dashboard not yet implemented[/yellow]")
-    console.print("Use 'monitor' command for real-time monitoring")
+def dashboard(
+    refresh: int = typer.Option(3, "--refresh", "-r", help="Refresh interval in seconds"),
+    url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
+):
+    """Launch comprehensive interactive dashboard."""
+
+    async def _run_dashboard():
+        """Internal async function to run the dashboard."""
+        try:
+            from rich.live import Live
+            from rich.layout import Layout
+            from rich.align import Align
+
+            console.print("[bold blue]🚀 Starting AI Trading System Dashboard[/bold blue]")
+            console.print("Press Ctrl+C to exit")
+            console.print()
+
+            client = SchedulerClient(url)
+
+            def create_dashboard_layout() -> Layout:
+                """Create the main dashboard layout."""
+                layout = Layout()
+
+                # Split into header, body, and footer
+                layout.split_column(
+                    Layout(name="header", size=3),
+                    Layout(name="body"),
+                    Layout(name="footer", size=5)
+                )
+
+                # Split body into left and right columns
+                layout["body"].split_row(
+                    Layout(name="left"),
+                    Layout(name="right")
+                )
+
+                # Split left column into system and services
+                layout["left"].split_column(
+                    Layout(name="system", size=12),
+                    Layout(name="services")
+                )
+
+                # Split right column into trading and portfolio
+                layout["right"].split_column(
+                    Layout(name="trading", size=15),
+                    Layout(name="portfolio")
+                )
+
+                return layout
+
+            async def get_dashboard_data():
+                """Fetch all dashboard data."""
+                try:
+                    # Core system data
+                    status_data = await client.get_status()
+                    performance_data = await client.get_performance()
+
+                    # Additional service data
+                    trading_metrics = {}
+                    portfolio_data = {}
+                    risk_data = {}
+
+                    # Try to get additional data from other services
+                    try:
+                        async with httpx.AsyncClient(timeout=2.0) as http_client:
+                            # Trading metrics from trade executor
+                            try:
+                                response = await http_client.get("http://localhost:8004/metrics")
+                                if response.status_code == 200:
+                                    trading_metrics = response.json()
+                            except:
+                                pass
+
+                            # Portfolio data
+                            try:
+                                response = await http_client.get("http://localhost:8004/portfolio")
+                                if response.status_code == 200:
+                                    portfolio_data = response.json()
+                            except:
+                                pass
+
+                            # Risk data
+                            try:
+                                response = await http_client.get("http://localhost:8003/risk/status")
+                                if response.status_code == 200:
+                                    risk_data = response.json()
+                            except:
+                                pass
+
+                    except:
+                        pass
+
+                    return {
+                        'status': status_data,
+                        'performance': performance_data,
+                        'trading': trading_metrics,
+                        'portfolio': portfolio_data,
+                        'risk': risk_data
+                    }
+                except Exception as e:
+                    return {
+                        'status': {'error': str(e)},
+                        'performance': {},
+                        'trading': {},
+                        'portfolio': {},
+                        'risk': {}
+                    }
+
+            def render_header(data: Dict[str, Any]) -> Panel:
+                """Render dashboard header."""
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                status_data = data.get('status', {})
+
+                # System status indicators
+                indicators = []
+                scheduler_info = status_data.get("scheduler", {})
+
+                if scheduler_info.get("running"):
+                    indicators.append("[green]●[/green] Running")
+                else:
+                    indicators.append("[red]●[/red] Stopped")
+
+                if scheduler_info.get("maintenance_mode"):
+                    indicators.append("[yellow]🔧[/yellow] Maintenance")
+
+                if scheduler_info.get("emergency_stop"):
+                    indicators.append("[red]🛑[/red] Emergency Stop")
+
+                market_info = status_data.get("market", {})
+                market_session = market_info.get('session', 'unknown').title()
+
+                header_text = f"[bold blue]🚀 AI Trading System Dashboard[/bold blue] | {' '.join(indicators)} | Market: [bold]{market_session}[/bold] | {timestamp}"
+
+                return Panel(
+                    Align.center(header_text),
+                    border_style="blue"
+                )
+
+            def render_system_panel(data: Dict[str, Any]) -> Panel:
+                """Render system metrics panel."""
+                status_data = data.get('status', {})
+                metrics = status_data.get('metrics', {})
+
+                content = []
+
+                # System resources
+                cpu_percent = metrics.get('cpu_percent', 0)
+                memory = metrics.get('memory', {})
+                disk = metrics.get('disk', {})
+
+                content.append(f"[bold]System Resources[/bold]")
+                content.append(f"CPU Usage: [{'red' if cpu_percent > 80 else 'yellow' if cpu_percent > 60 else 'green'}]{cpu_percent:.1f}%[/]")
+                content.append(f"Memory: [{'red' if memory.get('percent', 0) > 80 else 'yellow' if memory.get('percent', 0) > 60 else 'green'}]{memory.get('percent', 0):.1f}%[/]")
+                content.append(f"Disk: [{'red' if disk.get('percent', 0) > 80 else 'yellow' if disk.get('percent', 0) > 60 else 'green'}]{disk.get('percent', 0):.1f}%[/]")
+                content.append("")
+
+                # Uptime and load
+                uptime = status_data.get('uptime', 'Unknown')
+                content.append(f"Uptime: {uptime}")
+
+                if 'load_average' in metrics:
+                    load = metrics['load_average']
+                    content.append(f"Load Avg: {load[0]:.2f}, {load[1]:.2f}, {load[2]:.2f}")
+
+                return Panel(
+                    "\n".join(content),
+                    title="[bold cyan]System Status[/bold cyan]",
+                    border_style="cyan"
+                )
+
+            def render_services_panel(data: Dict[str, Any]) -> Panel:
+                """Render services status panel."""
+                status_data = data.get('status', {})
+                services = status_data.get('services', {})
+
+                if not services:
+                    return Panel("No service data available", title="[bold green]Services[/bold green]", border_style="green")
+
+                # Create services table
+                services_table = Table(show_header=True, header_style="bold green", box=None)
+                services_table.add_column("Service", style="cyan", width=15)
+                services_table.add_column("Status", width=8)
+                services_table.add_column("Errors", width=6)
+                services_table.add_column("Health", width=8)
+
+                for name, service in services.items():
+                    status = service.get("status", "unknown")
+                    error_count = service.get('error_count', 0)
+                    health = service.get('health', 'unknown')
+
+                    status_emoji = {
+                        "running": "[green]✓[/green]",
+                        "stopped": "[red]✗[/red]",
+                        "error": "[red]⚠[/red]",
+                        "starting": "[yellow]⟳[/yellow]",
+                        "stopping": "[yellow]⟳[/yellow]"
+                    }.get(status, "[dim]?[/dim]")
+
+                    health_emoji = {
+                        "healthy": "[green]●[/green]",
+                        "unhealthy": "[red]●[/red]",
+                        "degraded": "[yellow]●[/yellow]"
+                    }.get(health, "[dim]●[/dim]")
+
+                    error_style = "red" if error_count > 0 else "dim"
+
+                    services_table.add_row(
+                        name,
+                        status_emoji,
+                        f"[{error_style}]{error_count}[/{error_style}]",
+                        health_emoji
+                    )
+
+                return Panel(
+                    services_table,
+                    title="[bold green]Services[/bold green]",
+                    border_style="green"
+                )
+
+            def render_trading_panel(data: Dict[str, Any]) -> Panel:
+                """Render trading metrics panel."""
+                trading_data = data.get('trading', {})
+                portfolio_data = data.get('portfolio', {})
+                risk_data = data.get('risk', {})
+
+                content = []
+
+                # Trading metrics
+                content.append("[bold]Trading Metrics[/bold]")
+
+                if trading_data:
+                    total_trades = trading_data.get('total_trades', 0)
+                    successful_trades = trading_data.get('successful_trades', 0)
+                    win_rate = (successful_trades / total_trades * 100) if total_trades > 0 else 0
+
+                    content.append(f"Total Trades: {total_trades}")
+                    content.append(f"Win Rate: [{'green' if win_rate >= 60 else 'yellow' if win_rate >= 40 else 'red'}]{win_rate:.1f}%[/]")
+
+                    if 'daily_pnl' in trading_data:
+                        daily_pnl = trading_data['daily_pnl']
+                        pnl_color = 'green' if daily_pnl >= 0 else 'red'
+                        content.append(f"Daily P&L: [{pnl_color}]${daily_pnl:,.2f}[/{pnl_color}]")
+                else:
+                    content.append("[dim]No trading data available[/dim]")
+
+                content.append("")
+
+                # Risk metrics
+                content.append("[bold]Risk Status[/bold]")
+                if risk_data:
+                    risk_level = risk_data.get('risk_level', 'unknown')
+                    risk_color = {
+                        'low': 'green',
+                        'medium': 'yellow',
+                        'high': 'red',
+                        'critical': 'red bold'
+                    }.get(risk_level.lower(), 'dim')
+
+                    content.append(f"Risk Level: [{risk_color}]{risk_level.title()}[/{risk_color}]")
+
+                    if 'max_drawdown' in risk_data:
+                        drawdown = risk_data['max_drawdown']
+                        dd_color = 'red' if drawdown > 0.1 else 'yellow' if drawdown > 0.05 else 'green'
+                        content.append(f"Max Drawdown: [{dd_color}]{drawdown:.1%}[/{dd_color}]")
+                else:
+                    content.append("[dim]Risk data unavailable[/dim]")
+
+                return Panel(
+                    "\n".join(content),
+                    title="[bold yellow]Trading & Risk[/bold yellow]",
+                    border_style="yellow"
+                )
+
+            def render_portfolio_panel(data: Dict[str, Any]) -> Panel:
+                """Render portfolio information panel."""
+                portfolio_data = data.get('portfolio', {})
+
+                content = []
+
+                if portfolio_data:
+                    # Portfolio summary
+                    total_value = portfolio_data.get('total_value', 0)
+                    cash = portfolio_data.get('cash', 0)
+                    positions_value = portfolio_data.get('positions_value', 0)
+
+                    content.append("[bold]Portfolio Summary[/bold]")
+                    content.append(f"Total Value: [bold]${total_value:,.2f}[/bold]")
+                    content.append(f"Cash: ${cash:,.2f}")
+                    content.append(f"Positions: ${positions_value:,.2f}")
+                    content.append("")
+
+                    # Active positions
+                    positions = portfolio_data.get('positions', [])
+                    if positions:
+                        content.append("[bold]Top Positions[/bold]")
+                        for i, pos in enumerate(positions[:5]):  # Show top 5
+                            symbol = pos.get('symbol', 'Unknown')
+                            quantity = pos.get('quantity', 0)
+                            value = pos.get('market_value', 0)
+                            pnl = pos.get('unrealized_pnl', 0)
+                            pnl_color = 'green' if pnl >= 0 else 'red'
+
+                            content.append(f"{symbol}: {quantity} shares (${value:,.0f}) [{pnl_color}]{pnl:+.0f}[/{pnl_color}]")
+                    else:
+                        content.append("[dim]No active positions[/dim]")
+                else:
+                    content.append("[dim]Portfolio data unavailable[/dim]")
+
+                return Panel(
+                    "\n".join(content),
+                    title="[bold magenta]Portfolio[/bold magenta]",
+                    border_style="magenta"
+                )
+
+            def render_footer(data: Dict[str, Any]) -> Panel:
+                """Render dashboard footer with controls."""
+                controls = [
+                    "[bold blue]Controls:[/bold blue]",
+                    "[cyan]Ctrl+C[/cyan] Exit",
+                    "[cyan]Space[/cyan] Refresh",
+                    "[cyan]M[/cyan] Maintenance Mode",
+                    "[cyan]E[/cyan] Emergency Stop",
+                    "[cyan]R[/cyan] Resume Trading"
+                ]
+
+                footer_text = " | ".join(controls)
+                return Panel(
+                    Align.center(footer_text),
+                    border_style="white"
+                )
+
+            def render_dashboard(data: Dict[str, Any]) -> Layout:
+                """Render complete dashboard."""
+                layout = create_dashboard_layout()
+
+                layout["header"].update(render_header(data))
+                layout["system"].update(render_system_panel(data))
+                layout["services"].update(render_services_panel(data))
+                layout["trading"].update(render_trading_panel(data))
+                layout["portfolio"].update(render_portfolio_panel(data))
+                layout["footer"].update(render_footer(data))
+
+                return layout
+
+            # Initialize dashboard
+            try:
+                initial_data = await get_dashboard_data()
+            except Exception as e:
+                console.print(f"[red]Failed to initialize dashboard: {e}[/red]")
+                return
+
+            # Run live dashboard
+            with Live(render_dashboard(initial_data), refresh_per_second=1/refresh, screen=True) as live:
+                try:
+                    while True:
+                        await asyncio.sleep(refresh)
+                        try:
+                            updated_data = await get_dashboard_data()
+                            live.update(render_dashboard(updated_data))
+                        except Exception as e:
+                            # Continue with last known data on error
+                            pass
+
+                except KeyboardInterrupt:
+                    console.print("\n[yellow]Dashboard stopped by user[/yellow]")
+
+        except ImportError:
+            console.print("[red]Dashboard requires additional dependencies. Install with:[/red]")
+            console.print("pip install rich")
+        except Exception as e:
+            console.print(f"[red]Dashboard error: {e}[/red]")
+
+    # Run the async dashboard function
+    asyncio.run(_run_dashboard())
 
 
 @app.command()

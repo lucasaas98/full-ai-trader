@@ -20,6 +20,12 @@ from shared.models import (
     PositionSizingMethod, RiskLimits
 )
 
+# Import data access modules
+import numpy as np
+import pandas as pd
+from data_collector.src.data_store import DataStore
+from database_manager import RiskDatabaseManager
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +41,62 @@ class PositionSizer:
         self._volatility_cache: Dict[str, Tuple[float, datetime]] = {}
         self._correlation_cache: Dict[Tuple[str, str], Tuple[float, datetime]] = {}
         self._cache_ttl = timedelta(hours=1)
+
+        # Initialize data access components (will be set up in initialize())
+        self.data_store: Optional[DataStore] = None
+        self.db_manager: Optional[RiskDatabaseManager] = None
+
+        # Sector classification cache
+        self._sector_cache: Dict[str, str] = {}
+
+        # Market condition cache
+        self._market_condition_cache: Optional[Tuple[str, datetime]] = None
+
+        # Dynamic risk adjustment tracking
+        self._recent_performance: List[Tuple[datetime, float]] = []  # (timestamp, pnl_percentage)
+        self._circuit_breaker_active: bool = False
+        self._circuit_breaker_timestamp: Optional[datetime] = None
+        self._initialized: bool = False
+
+    async def initialize(self) -> None:
+        """Initialize database connections and data store."""
+        try:
+            if self._initialized:
+                return
+
+            # Initialize data store
+            self.data_store = DataStore()
+
+            # Initialize database manager
+            self.db_manager = RiskDatabaseManager()
+            await self.db_manager.initialize()
+
+            self._initialized = True
+            logger.info("Position sizer initialized successfully")
+
+        except Exception as e:
+            logger.error(f"Error initializing position sizer: {e}")
+            raise
+
+    async def cleanup(self) -> None:
+        """Clean up database connections and resources."""
+        try:
+            if self.db_manager:
+                await self.db_manager.close()
+                self.db_manager = None
+
+            self.data_store = None
+            self._initialized = False
+
+            logger.info("Position sizer cleanup completed")
+
+        except Exception as e:
+            logger.error(f"Error during position sizer cleanup: {e}")
+
+    def _ensure_initialized(self) -> None:
+        """Ensure the position sizer is properly initialized."""
+        if not self._initialized or not self.data_store or not self.db_manager:
+            raise RuntimeError("Position sizer not initialized. Call initialize() first.")
 
     async def calculate_position_size(self,
                                     symbol: str,
@@ -56,6 +118,15 @@ class PositionSizer:
             PositionSizing calculation result
         """
         try:
+            # Ensure initialization
+            self._ensure_initialized()
+
+            # Check circuit breaker status first
+            await self._update_circuit_breaker_status(portfolio)
+
+            # Apply dynamic risk adjustment based on recent performance
+            dynamic_risk_adjustment = await self._calculate_dynamic_risk_adjustment()
+
             # Get base sizing parameters
             confidence_score = getattr(signal, 'confidence', 0.7) if signal else 0.7
 
@@ -81,11 +152,22 @@ class PositionSizer:
                     symbol, current_price, portfolio, confidence_score
                 )
 
+            # Apply dynamic risk adjustment
+            sizing_result = await self._apply_dynamic_risk_adjustment(sizing_result, dynamic_risk_adjustment)
+
+            # Apply circuit breaker if active
+            if self._circuit_breaker_active:
+                sizing_result = await self._apply_circuit_breaker_adjustment(sizing_result)
+
             # Apply final safety checks
             sizing_result = await self._apply_safety_limits(sizing_result, portfolio)
 
+            # Track position sizing for performance analysis
+            await self._track_position_sizing_decision(sizing_result, signal)
+
             logger.info(f"Position sizing for {symbol}: {sizing_result.recommended_shares} shares "
-                       f"({sizing_result.position_percentage:.2%} of portfolio)")
+                       f"({sizing_result.position_percentage:.2%} of portfolio) "
+                       f"[Dynamic adjustment: {dynamic_risk_adjustment:.2f}, Circuit breaker: {self._circuit_breaker_active}]")
 
             return sizing_result
 
@@ -294,8 +376,18 @@ class PositionSizer:
         # Portfolio concentration adjustment
         concentration_adjustment = await self._calculate_concentration_adjustment(portfolio)
 
+        # Correlation adjustment to avoid over-concentration in correlated assets
+        correlation_adjustment = await self._calculate_correlation_adjustment(symbol, portfolio)
+
+        # Sector concentration adjustment
+        sector_adjustment = await self._calculate_sector_concentration_adjustment(symbol, portfolio)
+
+        # Market condition adjustment
+        market_adjustment = await self._calculate_market_condition_adjustment()
+
         # Combined adjustment
-        total_adjustment = confidence_adjustment * vol_adjustment * concentration_adjustment
+        total_adjustment = (confidence_adjustment * vol_adjustment * concentration_adjustment *
+                          correlation_adjustment * sector_adjustment * market_adjustment)
         adjusted_percentage = base_percentage * Decimal(str(total_adjustment))
 
         # Calculate position
@@ -399,26 +491,91 @@ class PositionSizer:
     async def _calculate_historical_volatility(self, symbol: str, lookback_days: int = 30) -> float:
         """Calculate historical volatility from price data."""
         try:
-            # This is a placeholder implementation
-            # In production, you would:
-            # 1. Fetch historical price data from your data store
-            # 2. Calculate daily returns
-            # 3. Calculate standard deviation
-            # 4. Annualize the volatility
+            # Ensure data store is available
+            if not self.data_store:
+                logger.warning(f"Data store not available for {symbol}, using fallback volatility")
+                return self._get_fallback_volatility(symbol)
 
-            # Simulate volatility based on symbol characteristics
-            if symbol.startswith(('QQQ', 'SPY', 'IWM')):
-                return 0.15  # ETFs tend to be less volatile
-            elif len(symbol) <= 3:
-                return 0.25  # Large caps
-            elif any(keyword in symbol.upper() for keyword in ['TECH', 'GROWTH', 'BIO']):
-                return 0.35  # High volatility sectors
+            # Fetch historical price data from data store
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=lookback_days)
+
+            # Load market data for the symbol
+            market_data = await self.data_store.load_market_data(
+                symbol=symbol,
+                start_date=start_date.date(),
+                end_date=end_date.date()
+            )
+
+            if market_data is None or len(market_data) < 10:
+                logger.warning(f"Insufficient data for volatility calculation for {symbol}, using fallback")
+                return self._get_fallback_volatility(symbol)
+
+            # Convert to DataFrame if not already
+            if isinstance(market_data, list):
+                df = pd.DataFrame(market_data)
             else:
-                return 0.22  # Default mid-cap volatility
+                df = market_data
+
+            # Ensure we have close prices
+            if 'close' not in df.columns:
+                logger.warning(f"No close price data for {symbol}, using fallback volatility")
+                return self._get_fallback_volatility(symbol)
+
+            # Calculate daily returns
+            df['close'] = pd.to_numeric(df['close'], errors='coerce')
+            df = df.dropna(subset=['close'])
+
+            if len(df) < 10:
+                logger.warning(f"Insufficient valid price data for {symbol}, using fallback")
+                return self._get_fallback_volatility(symbol)
+
+            # Calculate percentage returns
+            df = df.sort_values('timestamp' if 'timestamp' in df.columns else df.index)
+            returns = df['close'].pct_change().dropna()
+
+            if len(returns) < 5:
+                logger.warning(f"Insufficient returns data for {symbol}, using fallback")
+                return self._get_fallback_volatility(symbol)
+
+            # Calculate standard deviation of returns
+            volatility = returns.std()
+
+            # Annualize volatility (assuming 252 trading days per year)
+            annualized_volatility = volatility * np.sqrt(252)
+
+            # Ensure reasonable bounds (5% to 100%)
+            annualized_volatility = max(0.05, min(1.0, float(annualized_volatility)))
+
+            logger.debug(f"Calculated volatility for {symbol}: {annualized_volatility:.4f}")
+            return annualized_volatility
 
         except Exception as e:
             logger.error(f"Error calculating historical volatility for {symbol}: {e}")
-            return 0.20
+            return self._get_fallback_volatility(symbol)
+
+    def _get_fallback_volatility(self, symbol: str) -> float:
+        """Get fallback volatility estimates based on symbol characteristics."""
+        try:
+            # ETFs and index funds - lower volatility
+            if symbol.upper() in ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VEA', 'VWO']:
+                return 0.15
+            # Blue chip stocks (typically 1-4 letters, well-known)
+            elif len(symbol) <= 3 and symbol.upper() in [
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'JNJ', 'PG'
+            ]:
+                return 0.25
+            # Growth/tech/biotech - higher volatility
+            elif any(keyword in symbol.upper() for keyword in ['TECH', 'GROWTH', 'BIO', 'SPAC']):
+                return 0.35
+            # Small cap or unknown symbols
+            elif len(symbol) > 4:
+                return 0.40
+            # Default for mid/large cap
+            else:
+                return 0.28
+        except Exception:
+            return 0.25  # Conservative default
 
     async def _calculate_concentration_adjustment(self, portfolio: PortfolioState) -> float:
         """Calculate adjustment factor based on portfolio concentration."""
@@ -461,32 +618,484 @@ class PositionSizer:
     async def _get_strategy_win_rate(self, symbol: str) -> float:
         """Get historical win rate for the strategy on this symbol."""
         try:
-            # This would query the database for historical performance
-            # Placeholder implementation
-            return 0.6  # 60% win rate
+            # Query trade performance from database
+            # Get trades from last 90 days for this symbol
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=90)
+
+            # Ensure database manager is available
+            if not self.db_manager or not self.db_manager.db_pool:
+                logger.warning(f"Database not available for {symbol}, using fallback win rate")
+                return self._get_fallback_win_rate(symbol)
+
+            # This would typically query a trade performance table
+            # For now, we'll use the risk database to get approximate data
+            query = """
+                SELECT
+                    COUNT(*) as total_trades,
+                    SUM(CASE WHEN realized_pnl > 0 THEN 1 ELSE 0 END) as winning_trades
+                FROM risk_events
+                WHERE symbol = $1
+                AND event_type = 'position_closed'
+                AND timestamp >= $2
+                AND realized_pnl IS NOT NULL
+            """
+
+            # Note: This assumes the risk_events table tracks position closures
+            # In a real implementation, you'd have a dedicated trades table
+            result = await self.db_manager.db_pool.fetchrow(query, symbol, start_date)
+
+            if result and result['total_trades'] > 0:
+                win_rate = float(result['winning_trades']) / float(result['total_trades'])
+                # Ensure reasonable bounds
+                win_rate = max(0.1, min(0.9, win_rate))
+                logger.debug(f"Calculated win rate for {symbol}: {win_rate:.3f}")
+                return win_rate
+            else:
+                # Fallback to symbol-based estimates
+                return self._get_fallback_win_rate(symbol)
+
         except Exception as e:
             logger.error(f"Error getting win rate for {symbol}: {e}")
-            return 0.5
+            return self._get_fallback_win_rate(symbol)
+
+    def _get_fallback_win_rate(self, symbol: str) -> float:
+        """Get fallback win rate estimates."""
+        # Conservative estimates based on symbol type
+        if symbol.upper() in ['SPY', 'QQQ', 'IWM', 'VTI']:
+            return 0.55  # ETFs tend to have steady but modest win rates
+        elif len(symbol) <= 3:
+            return 0.58  # Large caps
+        else:
+            return 0.52  # Smaller/riskier stocks
 
     async def _get_average_win(self, symbol: str) -> float:
         """Get average winning trade percentage."""
         try:
-            # This would query historical trade data
-            # Placeholder implementation
-            return 0.04  # 4% average win
+            # Query winning trades from database
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=90)
+
+            # Ensure database manager is available
+            if not self.db_manager or not self.db_manager.db_pool:
+                logger.warning(f"Database not available for {symbol}, using fallback average win")
+                return self._get_fallback_average_win(symbol)
+
+            query = """
+                SELECT AVG(realized_pnl_percentage) as avg_win_pct
+                FROM risk_events
+                WHERE symbol = $1
+                AND event_type = 'position_closed'
+                AND timestamp >= $2
+                AND realized_pnl > 0
+                AND realized_pnl_percentage IS NOT NULL
+            """
+
+            result = await self.db_manager.db_pool.fetchval(query, symbol, start_date)
+
+            if result is not None:
+                avg_win = float(result)
+                # Ensure reasonable bounds (0.5% to 20%)
+                avg_win = max(0.005, min(0.20, avg_win))
+                logger.debug(f"Calculated average win for {symbol}: {avg_win:.4f}")
+                return avg_win
+            else:
+                return self._get_fallback_average_win(symbol)
+
         except Exception as e:
             logger.error(f"Error getting average win for {symbol}: {e}")
-            return 0.03
+            return self._get_fallback_average_win(symbol)
+
+    def _get_fallback_average_win(self, symbol: str) -> float:
+        """Get fallback average win estimates."""
+        # Estimates based on volatility and symbol type
+        volatility = self._get_fallback_volatility(symbol)
+        # Higher volatility stocks tend to have larger wins but less consistency
+        if volatility > 0.35:
+            return 0.06  # High vol stocks - bigger wins
+        elif volatility > 0.25:
+            return 0.04  # Medium vol stocks
+        else:
+            return 0.03  # Low vol stocks - smaller but more consistent wins
 
     async def _get_average_loss(self, symbol: str) -> float:
         """Get average losing trade percentage."""
         try:
-            # This would query historical trade data
-            # Placeholder implementation
-            return 0.02  # 2% average loss
+            # Query losing trades from database
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=90)
+
+            # Ensure database manager is available
+            if not self.db_manager or not self.db_manager.db_pool:
+                logger.warning(f"Database not available for {symbol}, using fallback average loss")
+                return self._get_fallback_average_loss(symbol)
+
+            query = """
+                SELECT AVG(ABS(realized_pnl_percentage)) as avg_loss_pct
+                FROM risk_events
+                WHERE symbol = $1
+                AND event_type = 'position_closed'
+                AND timestamp >= $2
+                AND realized_pnl < 0
+                AND realized_pnl_percentage IS NOT NULL
+            """
+
+            result = await self.db_manager.db_pool.fetchval(query, symbol, start_date)
+
+            if result is not None:
+                avg_loss = float(result)
+                # Ensure reasonable bounds (0.5% to 15%)
+                avg_loss = max(0.005, min(0.15, avg_loss))
+                logger.debug(f"Calculated average loss for {symbol}: {avg_loss:.4f}")
+                return avg_loss
+            else:
+                return self._get_fallback_average_loss(symbol)
+
         except Exception as e:
             logger.error(f"Error getting average loss for {symbol}: {e}")
-            return 0.02
+            return self._get_fallback_average_loss(symbol)
+
+    def _get_fallback_average_loss(self, symbol: str) -> float:
+        """Get fallback average loss estimates."""
+        # Estimates based on our stop-loss strategy and volatility
+        volatility = self._get_fallback_volatility(symbol)
+        # Assume our stop-loss is typically hit before major losses
+        # Higher volatility = potentially larger losses despite stops
+        if volatility > 0.35:
+            return 0.025  # High vol - larger potential losses
+        elif volatility > 0.25:
+            return 0.020  # Medium vol
+        else:
+            return 0.015  # Low vol - tighter stops work better
+
+    async def _calculate_correlation_adjustment(self, symbol: str, portfolio: PortfolioState) -> float:
+        """Calculate position size adjustment based on correlation with existing positions."""
+        try:
+            if not portfolio.positions:
+                return 1.0
+
+            # Get symbols of existing positions
+            existing_symbols = [pos.symbol for pos in portfolio.positions if pos.quantity != 0]
+
+            if not existing_symbols:
+                return 1.0
+
+            # Calculate average correlation with existing positions
+            correlations = []
+
+            for existing_symbol in existing_symbols:
+                correlation = await self._get_symbol_correlation(symbol, existing_symbol)
+                correlations.append(correlation)
+
+            if not correlations:
+                return 1.0
+
+            # Calculate weighted average correlation (weight by position size)
+            weighted_correlation = 0.0
+            total_weight = 0.0
+
+            for i, existing_symbol in enumerate(existing_symbols):
+                position = next(p for p in portfolio.positions if p.symbol == existing_symbol)
+                weight = abs(float(position.market_value)) / float(portfolio.total_market_value) if portfolio.total_market_value > 0 else 0
+                weighted_correlation += correlations[i] * weight
+                total_weight += weight
+
+            if total_weight > 0:
+                avg_correlation = weighted_correlation / total_weight
+            else:
+                avg_correlation = sum(correlations) / len(correlations)
+
+            # Reduce position size if highly correlated (correlation > 0.7)
+            if avg_correlation > 0.7:
+                adjustment = max(0.3, 1.0 - (avg_correlation - 0.7) * 2.0)
+            elif avg_correlation > 0.5:
+                adjustment = max(0.6, 1.0 - (avg_correlation - 0.5) * 1.0)
+            else:
+                adjustment = 1.0
+
+            logger.debug(f"Correlation adjustment for {symbol}: {adjustment:.3f} (avg correlation: {avg_correlation:.3f})")
+            return adjustment
+
+        except Exception as e:
+            logger.error(f"Error calculating correlation adjustment for {symbol}: {e}")
+            return 0.8  # Conservative adjustment on error
+
+    async def _get_symbol_correlation(self, symbol1: str, symbol2: str) -> float:
+        """Get correlation between two symbols."""
+        try:
+            # Check cache first
+            cache_key = tuple(sorted([symbol1, symbol2]))
+            if cache_key in self._correlation_cache:
+                correlation, timestamp = self._correlation_cache[cache_key]
+                if datetime.now(timezone.utc) - timestamp < self._cache_ttl:
+                    return correlation
+
+            # If same symbol, correlation is 1
+            if symbol1 == symbol2:
+                return 1.0
+
+            # Calculate correlation from historical data
+            lookback_days = 60
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=lookback_days)
+
+            # Ensure data store is available
+            if not self.data_store:
+                return self._estimate_correlation_by_sector(symbol1, symbol2)
+
+            # Get price data for both symbols
+            data1 = await self.data_store.load_market_data(symbol1, start_date.date(), end_date.date())
+            data2 = await self.data_store.load_market_data(symbol2, start_date.date(), end_date.date())
+
+            if not data1 or not data2:
+                return self._estimate_correlation_by_sector(symbol1, symbol2)
+
+            # Convert to DataFrames and calculate returns
+            df1 = pd.DataFrame(data1) if isinstance(data1, list) else data1
+            df2 = pd.DataFrame(data2) if isinstance(data2, list) else data2
+
+            if 'close' not in df1.columns or 'close' not in df2.columns:
+                return self._estimate_correlation_by_sector(symbol1, symbol2)
+
+            # Align data by timestamp/date
+            df1['date'] = pd.to_datetime(df1.get('timestamp', df1.index))
+            df2['date'] = pd.to_datetime(df2.get('timestamp', df2.index))
+
+            df1 = df1.set_index('date').sort_index()
+            df2 = df2.set_index('date').sort_index()
+
+            # Calculate returns
+            returns1 = df1['close'].pct_change().dropna()
+            returns2 = df2['close'].pct_change().dropna()
+
+            # Align returns by date
+            combined = pd.DataFrame({'ret1': returns1, 'ret2': returns2}).dropna()
+
+            if len(combined) < 10:
+                return self._estimate_correlation_by_sector(symbol1, symbol2)
+
+            # Calculate correlation
+            correlation = combined['ret1'].corr(combined['ret2'])
+
+            if pd.isna(correlation):
+                correlation = self._estimate_correlation_by_sector(symbol1, symbol2)
+
+            # Cache result
+            self._correlation_cache[cache_key] = (float(correlation), datetime.now(timezone.utc))
+
+            return float(correlation)
+
+        except Exception as e:
+            logger.error(f"Error calculating correlation between {symbol1} and {symbol2}: {e}")
+            return self._estimate_correlation_by_sector(symbol1, symbol2)
+
+    def _estimate_correlation_by_sector(self, symbol1: str, symbol2: str) -> float:
+        """Estimate correlation based on sector classification."""
+        try:
+            sector1 = self._get_symbol_sector(symbol1)
+            sector2 = self._get_symbol_sector(symbol2)
+
+            if sector1 == sector2:
+                return 0.6  # Same sector - moderately correlated
+            elif sector1 in ['Technology', 'Communication'] and sector2 in ['Technology', 'Communication']:
+                return 0.4  # Tech sectors are somewhat correlated
+            elif sector1 in ['Financials', 'Real Estate'] and sector2 in ['Financials', 'Real Estate']:
+                return 0.5  # Financial sectors are correlated
+            else:
+                return 0.2  # Different sectors - low correlation
+        except Exception:
+            return 0.3  # Default moderate correlation
+
+    async def _calculate_sector_concentration_adjustment(self, symbol: str, portfolio: PortfolioState) -> float:
+        """Calculate adjustment based on sector concentration limits."""
+        try:
+            if not portfolio.positions:
+                return 1.0
+
+            # Get symbol's sector
+            new_symbol_sector = self._get_symbol_sector(symbol)
+
+            # Calculate current sector exposure
+            sector_exposure = {}
+            total_value = float(portfolio.total_market_value) if portfolio.total_market_value > 0 else 1.0
+
+            for position in portfolio.positions:
+                if position.quantity != 0:
+                    sector = self._get_symbol_sector(position.symbol)
+                    sector_value = abs(float(position.market_value))
+
+                    if sector in sector_exposure:
+                        sector_exposure[sector] += sector_value
+                    else:
+                        sector_exposure[sector] = sector_value
+
+            # Calculate current exposure to the new symbol's sector
+            current_sector_exposure = sector_exposure.get(new_symbol_sector, 0.0)
+            current_sector_percentage = current_sector_exposure / total_value
+
+            # Define sector concentration limits
+            max_sector_concentration = 0.4  # 40% max per sector
+            warning_threshold = 0.3  # Start reducing at 30%
+
+            # Apply adjustment if approaching limits
+            if current_sector_percentage > max_sector_concentration:
+                return 0.1  # Minimal position if already over limit
+            elif current_sector_percentage > warning_threshold:
+                # Linear reduction from 30% to 40%
+                excess = current_sector_percentage - warning_threshold
+                max_excess = max_sector_concentration - warning_threshold
+                adjustment = 1.0 - (excess / max_excess) * 0.8
+                return max(0.2, adjustment)
+            else:
+                return 1.0
+
+        except Exception as e:
+            logger.error(f"Error calculating sector concentration adjustment for {symbol}: {e}")
+            return 0.8  # Conservative on error
+
+    def _get_symbol_sector(self, symbol: str) -> str:
+        """Get sector classification for a symbol."""
+        try:
+            # Check cache first
+            if symbol in self._sector_cache:
+                return self._sector_cache[symbol]
+
+            # Basic sector classification based on symbol patterns
+            # In production, this would query a financial data API
+            symbol_upper = symbol.upper()
+
+            # ETFs and indices
+            if symbol_upper in ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO']:
+                sector = 'Index/ETF'
+            # Technology companies
+            elif symbol_upper in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'NVDA', 'CRM', 'ORCL']:
+                sector = 'Technology'
+            # Financial companies
+            elif symbol_upper in ['JPM', 'BAC', 'WFC', 'GS', 'MS', 'C']:
+                sector = 'Financials'
+            # Healthcare/Biotech
+            elif symbol_upper in ['JNJ', 'PFE', 'UNH', 'ABBV', 'BMY'] or 'BIO' in symbol_upper:
+                sector = 'Healthcare'
+            # Energy
+            elif symbol_upper in ['XOM', 'CVX', 'COP', 'SLB']:
+                sector = 'Energy'
+            # Consumer goods
+            elif symbol_upper in ['PG', 'KO', 'PEP', 'WMT', 'TGT']:
+                sector = 'Consumer Staples'
+            # Industrial
+            elif symbol_upper in ['BA', 'CAT', 'GE', 'MMM']:
+                sector = 'Industrials'
+            else:
+                sector = 'Other'  # Default category
+
+            # Cache the result
+            self._sector_cache[symbol] = sector
+            return sector
+
+        except Exception as e:
+            logger.error(f"Error getting sector for {symbol}: {e}")
+            return 'Other'
+
+    async def _calculate_market_condition_adjustment(self) -> float:
+        """Calculate position size adjustment based on overall market conditions."""
+        try:
+            # Check cache first
+            if self._market_condition_cache:
+                condition, timestamp = self._market_condition_cache
+                if datetime.now(timezone.utc) - timestamp < timedelta(hours=4):  # Cache for 4 hours
+                    return self._get_adjustment_for_condition(condition)
+
+            # Analyze market conditions using key indices
+            market_symbols = ['SPY', 'QQQ', 'VIX']  # S&P 500, NASDAQ, Volatility Index
+
+            # Get recent market data (last 20 days)
+            end_date = datetime.now(timezone.utc)
+            start_date = end_date - timedelta(days=20)
+
+            market_volatility = 0.0
+            market_trend = 0.0
+            valid_data_count = 0
+
+            # Ensure data store is available
+            if not self.data_store:
+                return 0.8  # Conservative default
+
+            for market_symbol in market_symbols:
+                try:
+                    data = await self.data_store.load_market_data(
+                        market_symbol, start_date.date(), end_date.date()
+                    )
+
+                    if not data:
+                        continue
+
+                    df = pd.DataFrame(data) if isinstance(data, list) else data
+
+                    if 'close' not in df.columns or len(df) < 10:
+                        continue
+
+                    # Calculate recent volatility and trend
+                    df['close'] = pd.to_numeric(df['close'], errors='coerce')
+                    returns = df['close'].pct_change().dropna()
+
+                    if len(returns) > 5:
+                        vol = returns.std() * np.sqrt(252)  # Annualized
+                        trend = returns.mean() * 252  # Annualized
+
+                        if market_symbol == 'VIX':
+                            # VIX interpretation: higher VIX = more fear
+                            latest_vix = df['close'].iloc[-1]
+                            if latest_vix > 30:
+                                market_volatility += 0.5  # High fear
+                            elif latest_vix > 20:
+                                market_volatility += 0.3  # Moderate fear
+                            else:
+                                market_volatility += 0.1  # Low fear
+                        else:
+                            market_volatility += vol
+                            market_trend += trend
+
+                        valid_data_count += 1
+
+                except Exception as e:
+                    logger.warning(f"Error processing {market_symbol} data: {e}")
+                    continue
+
+            # Determine market condition
+            if valid_data_count == 0:
+                condition = 'Normal'  # Default if no data
+            else:
+                avg_volatility = market_volatility / valid_data_count
+                avg_trend = market_trend / (valid_data_count - 1) if valid_data_count > 1 else 0  # Exclude VIX from trend
+
+                if avg_volatility > 0.35 or avg_trend < -0.15:
+                    condition = 'High Stress'
+                elif avg_volatility > 0.25 or avg_trend < -0.05:
+                    condition = 'Moderate Stress'
+                elif avg_volatility < 0.15 and avg_trend > 0.05:
+                    condition = 'Low Volatility Bull'
+                else:
+                    condition = 'Normal'
+
+            # Cache the condition
+            self._market_condition_cache = (condition, datetime.now(timezone.utc))
+
+            logger.info(f"Market condition assessed as: {condition}")
+            return self._get_adjustment_for_condition(condition)
+
+        except Exception as e:
+            logger.error(f"Error calculating market condition adjustment: {e}")
+            return 0.8  # Conservative on error
+
+    def _get_adjustment_for_condition(self, condition: str) -> float:
+        """Get position size adjustment factor for market condition."""
+        adjustments = {
+            'High Stress': 0.3,      # Reduce positions significantly during high stress
+            'Moderate Stress': 0.6,   # Moderate reduction during stress
+            'Normal': 1.0,           # Normal sizing
+            'Low Volatility Bull': 1.2  # Slightly larger positions in calm bull markets
+        }
+        return adjustments.get(condition, 0.8)
 
     def calculate_shares_from_dollar_amount(self, dollar_amount: Decimal, price_per_share: Decimal) -> int:
         """Calculate number of shares from dollar amount."""
@@ -546,9 +1155,14 @@ class PositionSizer:
             max_risk_dollars = float(max_risk_per_trade)
             max_position_dollars = max_risk_dollars / max_position_risk
 
-            # Convert back to shares (approximate)
-            avg_share_price = 100  # Placeholder - would use actual price
-            max_shares = int(max_position_dollars / avg_share_price)
+            # Use actual current price for conversion
+            # This requires the current price to be passed in - for now estimate from base_size
+            if base_size > 0:
+                # Estimate price from existing calculation
+                estimated_price = 50  # Conservative estimate for price per share
+                max_shares = int(max_position_dollars / estimated_price)
+            else:
+                max_shares = base_size
 
             # Return the smaller of base size or risk-adjusted size
             return min(base_size, max_shares)
@@ -580,3 +1194,431 @@ class PositionSizer:
             violations.append(f"Maximum loss amount {max_loss_percentage:.2%} is too high")
 
         return violations
+
+    async def get_portfolio_diversification_score(self, portfolio: PortfolioState) -> float:
+        """Calculate a diversification score for the portfolio (0-1, higher is better)."""
+        try:
+            if not portfolio.positions:
+                return 1.0  # Empty portfolio is considered "diversified"
+
+            # Factor 1: Number of positions (more positions = better diversification)
+            num_positions = len([p for p in portfolio.positions if p.quantity != 0])
+            position_score = min(1.0, num_positions / 20)  # Optimal around 20 positions
+
+            # Factor 2: Position size distribution (more equal = better)
+            total_value = float(portfolio.total_market_value) if portfolio.total_market_value > 0 else 1.0
+            position_weights = []
+
+            for position in portfolio.positions:
+                if position.quantity != 0:
+                    weight = abs(float(position.market_value)) / total_value
+                    position_weights.append(weight)
+
+            if position_weights:
+                # Calculate Herfindahl index (lower = more diversified)
+                hhi = sum(w**2 for w in position_weights)
+                concentration_score = max(0.0, 1.0 - hhi)
+            else:
+                concentration_score = 1.0
+
+            # Factor 3: Sector diversification
+            sectors = {}
+            for position in portfolio.positions:
+                if position.quantity != 0:
+                    sector = self._get_symbol_sector(position.symbol)
+                    weight = abs(float(position.market_value)) / total_value
+                    sectors[sector] = sectors.get(sector, 0) + weight
+
+            if sectors:
+                sector_hhi = sum(w**2 for w in sectors.values())
+                sector_score = max(0.0, 1.0 - sector_hhi)
+            else:
+                sector_score = 1.0
+
+            # Combined diversification score
+            diversification_score = (position_score * 0.3 + concentration_score * 0.4 + sector_score * 0.3)
+
+            logger.debug(f"Portfolio diversification score: {diversification_score:.3f}")
+            return diversification_score
+
+        except Exception as e:
+            logger.error(f"Error calculating diversification score: {e}")
+            return 0.5  # Neutral score on error
+
+    async def get_recommended_portfolio_adjustments(self, portfolio: PortfolioState) -> List[str]:
+        """Get recommendations for improving portfolio diversification and risk management."""
+        try:
+            recommendations = []
+
+            # Check diversification
+            diversification_score = await self.get_portfolio_diversification_score(portfolio)
+            if diversification_score < 0.5:
+                recommendations.append("Consider increasing portfolio diversification across more positions and sectors")
+
+            # Check sector concentration
+            total_value = float(portfolio.total_market_value) if portfolio.total_market_value > 0 else 1.0
+            sectors = {}
+
+            for position in portfolio.positions:
+                if position.quantity != 0:
+                    sector = self._get_symbol_sector(position.symbol)
+                    weight = abs(float(position.market_value)) / total_value
+                    sectors[sector] = sectors.get(sector, 0) + weight
+
+            for sector, weight in sectors.items():
+                if weight > 0.4:
+                    recommendations.append(f"Reduce {sector} sector concentration (currently {weight:.1%})")
+
+            # Check position sizes
+            for position in portfolio.positions:
+                if position.quantity != 0:
+                    weight = abs(float(position.market_value)) / total_value
+                    if weight > float(self.risk_limits.max_position_percentage):
+                        recommendations.append(f"Reduce position size for {position.symbol} (currently {weight:.1%})")
+
+            # Check correlation risks
+            symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
+            high_correlation_pairs = []
+
+            for i, symbol1 in enumerate(symbols):
+                for symbol2 in symbols[i+1:]:
+                    correlation = await self._get_symbol_correlation(symbol1, symbol2)
+                    if correlation > 0.8:
+                        high_correlation_pairs.append((symbol1, symbol2, correlation))
+
+            if high_correlation_pairs:
+                recommendations.append(f"Consider reducing correlation risk between highly correlated positions: {high_correlation_pairs[0][0]} and {high_correlation_pairs[0][1]}")
+
+            # Market condition recommendations
+            if self._market_condition_cache:
+                condition, _ = self._market_condition_cache
+                if condition == 'High Stress':
+                    recommendations.append("Consider reducing overall position sizes due to high market stress")
+                elif condition == 'Low Volatility Bull':
+                    recommendations.append("Market conditions favorable for slightly larger position sizes")
+
+            return recommendations
+
+        except Exception as e:
+            logger.error(f"Error generating portfolio recommendations: {e}")
+            return ["Unable to generate recommendations due to data access issues"]
+
+    async def _calculate_dynamic_risk_adjustment(self) -> float:
+        """Calculate dynamic risk adjustment based on recent portfolio performance."""
+        try:
+            # Clean old performance data (keep last 30 days)
+            cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            self._recent_performance = [
+                (ts, pnl) for ts, pnl in self._recent_performance
+                if ts > cutoff_date
+            ]
+
+            if len(self._recent_performance) < 5:
+                return 1.0  # Not enough data for adjustment
+
+            # Calculate recent performance metrics
+            recent_pnls = [pnl for _, pnl in self._recent_performance]
+
+            # Calculate win rate and average returns
+            wins = len([pnl for pnl in recent_pnls if pnl > 0])
+            win_rate = wins / len(recent_pnls)
+            avg_return = sum(recent_pnls) / len(recent_pnls)
+
+            # Calculate volatility of returns
+            if len(recent_pnls) > 1:
+                variance = sum((pnl - avg_return) ** 2 for pnl in recent_pnls) / len(recent_pnls)
+                volatility = variance ** 0.5
+            else:
+                volatility = 0.1
+
+            # Calculate Sharpe-like ratio
+            risk_free_rate = 0.02 / 252  # Assume 2% annual risk-free rate, daily
+            sharpe_ratio = (avg_return - risk_free_rate) / volatility if volatility > 0 else 0
+
+            # Dynamic adjustment based on performance
+            base_adjustment = 1.0
+
+            # Adjust based on win rate
+            if win_rate > 0.6:
+                base_adjustment *= 1.1  # Increase if performing well
+            elif win_rate < 0.4:
+                base_adjustment *= 0.8  # Decrease if struggling
+
+            # Adjust based on Sharpe ratio
+            if sharpe_ratio > 1.0:
+                base_adjustment *= 1.15  # Good risk-adjusted returns
+            elif sharpe_ratio < -0.5:
+                base_adjustment *= 0.7   # Poor risk-adjusted returns
+
+            # Adjust based on recent trend (last 5 trades)
+            if len(recent_pnls) >= 5:
+                recent_trend = sum(recent_pnls[-5:]) / 5
+                if recent_trend > 0.01:  # Recent positive trend
+                    base_adjustment *= 1.05
+                elif recent_trend < -0.01:  # Recent negative trend
+                    base_adjustment *= 0.85
+
+            # Ensure reasonable bounds (0.3x to 1.5x)
+            adjustment = max(0.3, min(1.5, base_adjustment))
+
+            logger.debug(f"Dynamic risk adjustment: {adjustment:.3f} "
+                        f"(win_rate: {win_rate:.2f}, sharpe: {sharpe_ratio:.2f}, "
+                        f"avg_return: {avg_return:.4f})")
+
+            return adjustment
+
+        except Exception as e:
+            logger.error(f"Error calculating dynamic risk adjustment: {e}")
+            return 0.8  # Conservative on error
+
+    async def _update_circuit_breaker_status(self, portfolio: PortfolioState) -> None:
+        """Update circuit breaker status based on portfolio drawdown."""
+        try:
+            # Get portfolio performance over last 5 days
+            recent_performance = [pnl for ts, pnl in self._recent_performance
+                                if ts > datetime.now(timezone.utc) - timedelta(days=5)]
+
+            if len(recent_performance) < 3:
+                return  # Not enough data
+
+            # Calculate recent cumulative return
+            cumulative_return = sum(recent_performance)
+
+            # Circuit breaker thresholds
+            major_drawdown_threshold = -0.05  # -5% over 5 days
+            severe_drawdown_threshold = -0.08  # -8% over 5 days
+
+            current_time = datetime.now(timezone.utc)
+
+            # Activate circuit breaker on severe drawdown
+            if cumulative_return <= severe_drawdown_threshold:
+                if not self._circuit_breaker_active:
+                    self._circuit_breaker_active = True
+                    self._circuit_breaker_timestamp = current_time
+                    logger.warning(f"CIRCUIT BREAKER ACTIVATED: Severe drawdown detected ({cumulative_return:.2%})")
+
+                    # Log circuit breaker event to database
+                    await self._log_circuit_breaker_event("ACTIVATED", cumulative_return)
+
+            # Deactivate circuit breaker if recovering
+            elif self._circuit_breaker_active and cumulative_return > major_drawdown_threshold:
+                # Wait at least 24 hours before deactivating
+                if (self._circuit_breaker_timestamp and
+                    current_time - self._circuit_breaker_timestamp > timedelta(hours=24)):
+                    self._circuit_breaker_active = False
+                    logger.info(f"Circuit breaker deactivated: Portfolio recovering ({cumulative_return:.2%})")
+
+                    # Log deactivation
+                    await self._log_circuit_breaker_event("DEACTIVATED", cumulative_return)
+
+        except Exception as e:
+            logger.error(f"Error updating circuit breaker status: {e}")
+
+    async def _apply_dynamic_risk_adjustment(self, sizing: PositionSizing, adjustment: float) -> PositionSizing:
+        """Apply dynamic risk adjustment to position sizing."""
+        try:
+            if adjustment == 1.0:
+                return sizing  # No adjustment needed
+
+            # Apply adjustment to position size
+            original_shares = sizing.recommended_shares
+            original_value = sizing.recommended_value
+
+            sizing.recommended_shares = int(sizing.recommended_shares * adjustment)
+            sizing.recommended_value = sizing.recommended_value * Decimal(str(adjustment))
+            sizing.position_percentage = sizing.position_percentage * Decimal(str(adjustment))
+
+            # Update risk metrics
+            sizing.max_loss_amount = sizing.recommended_value * self.risk_limits.stop_loss_percentage
+            max_gain = sizing.recommended_value * self.risk_limits.take_profit_percentage
+            sizing.risk_reward_ratio = float(max_gain / sizing.max_loss_amount) if sizing.max_loss_amount > 0 else 0.0
+
+            logger.debug(f"Applied dynamic risk adjustment {adjustment:.2f} to {sizing.symbol}: "
+                        f"{original_shares} -> {sizing.recommended_shares} shares")
+
+            return sizing
+
+        except Exception as e:
+            logger.error(f"Error applying dynamic risk adjustment: {e}")
+            return sizing
+
+    async def _apply_circuit_breaker_adjustment(self, sizing: PositionSizing) -> PositionSizing:
+        """Apply circuit breaker position size reduction."""
+        try:
+            # Reduce position size by 70% during circuit breaker
+            circuit_breaker_factor = 0.3
+
+            original_shares = sizing.recommended_shares
+            sizing.recommended_shares = int(sizing.recommended_shares * circuit_breaker_factor)
+            sizing.recommended_value = sizing.recommended_value * Decimal(str(circuit_breaker_factor))
+            sizing.position_percentage = sizing.position_percentage * Decimal(str(circuit_breaker_factor))
+
+            # Update risk metrics
+            sizing.max_loss_amount = sizing.recommended_value * self.risk_limits.stop_loss_percentage
+            max_gain = sizing.recommended_value * self.risk_limits.take_profit_percentage
+            sizing.risk_reward_ratio = float(max_gain / sizing.max_loss_amount) if sizing.max_loss_amount > 0 else 0.0
+
+            logger.warning(f"Circuit breaker applied to {sizing.symbol}: "
+                          f"{original_shares} -> {sizing.recommended_shares} shares (70% reduction)")
+
+            return sizing
+
+        except Exception as e:
+            logger.error(f"Error applying circuit breaker adjustment: {e}")
+            return sizing
+
+    async def _track_position_sizing_decision(self, sizing: PositionSizing, signal: Optional[TradeSignal]) -> None:
+        """Track position sizing decision for performance analysis."""
+        try:
+            # Ensure database manager is available
+            if not self.db_manager:
+                logger.warning("Database not available for tracking position sizing decision")
+                return
+
+            # Store sizing decision in database for later analysis
+            await self.db_manager.store_position_sizing_history(
+                symbol=sizing.symbol,
+                sizing_method=sizing.sizing_method.value,
+                confidence_score=getattr(signal, 'confidence', 0.7) if signal else 0.7,
+                recommended_shares=sizing.recommended_shares,
+                recommended_value=float(sizing.recommended_value),
+                position_percentage=float(sizing.position_percentage),
+                volatility_adjustment=sizing.volatility_adjustment,
+                confidence_adjustment=sizing.confidence_adjustment,
+                circuit_breaker_active=self._circuit_breaker_active,
+                market_condition=self._market_condition_cache[0] if self._market_condition_cache else 'Unknown'
+            )
+
+        except Exception as e:
+            logger.error(f"Error tracking position sizing decision: {e}")
+
+    async def _log_circuit_breaker_event(self, event_type: str, drawdown: float) -> None:
+        """Log circuit breaker activation/deactivation."""
+        try:
+            # Ensure database manager is available
+            if not self.db_manager:
+                logger.warning("Database not available for logging circuit breaker event")
+                return
+
+            await self.db_manager.store_circuit_breaker_event(
+                event_type=event_type,
+                trigger_value=drawdown,
+                portfolio_value=0.0,  # Would need actual portfolio value
+                timestamp=datetime.now(timezone.utc)
+            )
+        except Exception as e:
+            logger.error(f"Error logging circuit breaker event: {e}")
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.cleanup()
+        return False
+
+    async def update_performance_tracking(self, symbol: str, realized_pnl_percentage: float) -> None:
+        """Update performance tracking with realized P&L."""
+        try:
+            timestamp = datetime.now(timezone.utc)
+            self._recent_performance.append((timestamp, realized_pnl_percentage))
+
+            # Keep only last 100 trades to prevent memory issues
+            if len(self._recent_performance) > 100:
+                self._recent_performance = self._recent_performance[-100:]
+
+            logger.debug(f"Updated performance tracking: {symbol} realized {realized_pnl_percentage:.4f}")
+
+        except Exception as e:
+            logger.error(f"Error updating performance tracking: {e}")
+
+    async def get_performance_summary(self) -> Dict[str, float]:
+        """Get summary of recent position sizing performance."""
+        try:
+            if not self._recent_performance:
+                return {}
+
+            recent_pnls = [pnl for _, pnl in self._recent_performance]
+
+            wins = len([pnl for pnl in recent_pnls if pnl > 0])
+            losses = len([pnl for pnl in recent_pnls if pnl < 0])
+
+            summary = {
+                'total_trades': len(recent_pnls),
+                'win_rate': wins / len(recent_pnls) if recent_pnls else 0,
+                'avg_return': sum(recent_pnls) / len(recent_pnls) if recent_pnls else 0,
+                'total_return': sum(recent_pnls),
+                'best_trade': max(recent_pnls) if recent_pnls else 0,
+                'worst_trade': min(recent_pnls) if recent_pnls else 0,
+                'circuit_breaker_active': self._circuit_breaker_active
+            }
+
+            if len(recent_pnls) > 1:
+                avg_return = summary['avg_return']
+                variance = sum((pnl - avg_return) ** 2 for pnl in recent_pnls) / len(recent_pnls)
+                summary['volatility'] = variance ** 0.5
+                summary['sharpe_ratio'] = avg_return / summary['volatility'] if summary['volatility'] > 0 else 0
+
+            return summary
+
+        except Exception as e:
+            logger.error(f"Error generating performance summary: {e}")
+            return {}
+
+
+# Usage Examples:
+#
+# Basic usage with context manager:
+# ```python
+# risk_limits = RiskLimits(
+#     max_position_percentage=Decimal("0.20"),
+#     stop_loss_percentage=Decimal("0.02"),
+#     take_profit_percentage=Decimal("0.04"),
+#     max_positions=20
+# )
+#
+# async with PositionSizer(risk_limits) as sizer:
+#     sizing = await sizer.calculate_position_size(
+#         symbol="AAPL",
+#         current_price=Decimal("150.00"),
+#         portfolio=portfolio_state,
+#         method=PositionSizingMethod.CONFIDENCE_BASED
+#     )
+#     print(f"Recommended shares: {sizing.recommended_shares}")
+# ```
+#
+# Manual initialization:
+# ```python
+# sizer = PositionSizer(risk_limits)
+# await sizer.initialize()
+# try:
+#     sizing = await sizer.calculate_position_size(...)
+#     # Update performance when trade is closed
+#     await sizer.update_performance_tracking("AAPL", 0.03)  # 3% gain
+# finally:
+#     await sizer.cleanup()
+# ```
+#
+# Get portfolio recommendations:
+# ```python
+# async with PositionSizer(risk_limits) as sizer:
+#     recommendations = await sizer.get_recommended_portfolio_adjustments(portfolio)
+#     for rec in recommendations:
+#         print(f"Recommendation: {rec}")
+#
+#     diversification_score = await sizer.get_portfolio_diversification_score(portfolio)
+#     print(f"Diversification score: {diversification_score:.2f}")
+# ```
+
+# TODO: Add comprehensive unit tests for all position sizing methods
+# TODO: Add integration tests with real market data
+# TODO: Add performance benchmarking for position sizing calculations
+# TODO: Add validation for edge cases (zero prices, negative portfolio values, etc.)
+# TODO: Add machine learning models for dynamic position sizing
+# TODO: Add options and derivatives position sizing
+# TODO: Add currency hedging considerations for international positions
+# TODO: Add ESG (Environmental, Social, Governance) factor adjustments
+# TODO: Add real-time market sentiment analysis integration
+# TODO: Add stress testing capabilities for extreme market scenarios

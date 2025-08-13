@@ -26,7 +26,46 @@ logger = logging.getLogger(__name__)
 
 
 class RiskCalculator:
-    """Advanced risk metrics calculator using real market data."""
+    """
+    Advanced risk metrics calculator using real market data.
+
+    This class provides comprehensive risk management capabilities including:
+
+    CORE RISK METRICS:
+    - Value at Risk (VaR) using historical, parametric, and Monte Carlo methods
+    - Expected Shortfall (Conditional VaR)
+    - Component VaR for individual positions
+    - Portfolio volatility using full covariance matrices
+    - Maximum drawdown calculations
+
+    PORTFOLIO ANALYTICS:
+    - Portfolio beta relative to benchmarks
+    - Tracking error calculations
+    - Correlation matrix analysis
+    - Factor exposures (sector, style, geography)
+    - Concentration risk metrics
+
+    ADVANCED FEATURES:
+    - Liquidity risk assessment with position scoring
+    - VaR model backtesting and validation
+    - Risk-adjusted returns (Sharpe, Sortino, Calmar, Information ratios)
+    - Options Greeks calculations (Delta, Gamma, Theta, Vega)
+    - Enhanced stress testing with predefined scenarios
+    - Risk attribution by factors and sectors
+
+    STRESS TESTING SCENARIOS:
+    - Market crash simulations (2008-style)
+    - Sector-specific crashes (tech bubble burst)
+    - Interest rate shock scenarios
+    - Volatility spike simulations
+    - Liquidity crisis scenarios
+
+    All calculations use real market data when available and include comprehensive
+    error handling with fallback methods. Results include detailed breakdowns
+    and position-level analytics for thorough risk management.
+
+    TODO: Add comprehensive test coverage for all new risk calculation features
+    """
 
     def __init__(self, alpaca_client=None):
         """Initialize risk calculator."""
@@ -238,6 +277,487 @@ class RiskCalculator:
         except Exception as e:
             logger.error(f"Error in stress testing: {e}")
             return {}
+
+    async def calculate_liquidity_risk(self, portfolio: PortfolioState) -> Dict:
+        """
+        Calculate liquidity risk metrics for the portfolio.
+
+        Returns:
+            Dictionary containing liquidity metrics
+        """
+        # TODO: Add comprehensive tests for liquidity risk calculations
+        try:
+            liquidity_metrics = {
+                "portfolio_liquidity_score": 0.0,
+                "position_liquidity": {},
+                "illiquid_positions": [],
+                "concentration_risk": 0.0
+            }
+
+            total_value = float(portfolio.total_equity)
+            if total_value <= 0:
+                return liquidity_metrics
+
+            illiquid_threshold = 0.05  # 5% of portfolio
+
+            for position in portfolio.positions:
+                if position.quantity == 0:
+                    continue
+
+                symbol = position.symbol
+                position_weight = float(abs(position.market_value)) / total_value
+
+                # Simple liquidity scoring based on symbol characteristics
+                # TODO: Integrate with real market data for bid-ask spreads, volume, etc.
+                liquidity_score = self._calculate_position_liquidity_score(symbol)
+
+                liquidity_metrics["position_liquidity"][symbol] = {
+                    "score": liquidity_score,
+                    "weight": position_weight,
+                    "market_value": float(position.market_value)
+                }
+
+                # Flag illiquid positions
+                if liquidity_score < 0.3 and position_weight > illiquid_threshold:
+                    liquidity_metrics["illiquid_positions"].append({
+                        "symbol": symbol,
+                        "weight": position_weight,
+                        "liquidity_score": liquidity_score
+                    })
+
+            # Calculate portfolio-weighted liquidity score
+            weighted_score = 0.0
+            for symbol, data in liquidity_metrics["position_liquidity"].items():
+                weighted_score += data["score"] * data["weight"]
+
+            liquidity_metrics["portfolio_liquidity_score"] = weighted_score
+            liquidity_metrics["concentration_risk"] = max(
+                [data["weight"] for data in liquidity_metrics["position_liquidity"].values()],
+                default=0.0
+            )
+
+            return liquidity_metrics
+
+        except Exception as e:
+            logger.error(f"Error calculating liquidity risk: {e}")
+            return {"error": str(e)}
+
+    def _calculate_position_liquidity_score(self, symbol: str) -> float:
+        """Calculate liquidity score for a position (0-1, higher is more liquid)."""
+        # TODO: Add comprehensive tests for position liquidity scoring
+        # Simple implementation - in production, use real market data
+        liquid_symbols = {'SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'}
+        moderate_liquid = {'JPM', 'BAC', 'WFC', 'GS', 'C'}
+
+        if symbol in liquid_symbols:
+            return 0.9
+        elif symbol in moderate_liquid:
+            return 0.7
+        else:
+            return 0.5  # Default moderate liquidity
+
+    async def backtest_var_model(self, portfolio_history: List[Dict], var_predictions: List[float], confidence_level: float = 0.95) -> Dict:
+        """
+        Backtest VaR model performance using historical data.
+
+        Args:
+            portfolio_history: List of historical portfolio snapshots
+            var_predictions: List of VaR predictions for each period
+            confidence_level: VaR confidence level
+
+        Returns:
+            Dictionary with backtesting results
+        """
+        # TODO: Add comprehensive tests for VaR backtesting
+        try:
+            if len(portfolio_history) != len(var_predictions) or len(portfolio_history) < 2:
+                return {"error": "Insufficient or mismatched data for backtesting"}
+
+            violations = 0
+            total_observations = len(portfolio_history) - 1
+            actual_returns = []
+
+            # Calculate actual portfolio returns
+            for i in range(1, len(portfolio_history)):
+                prev_value = portfolio_history[i-1].get("total_equity", 0)
+                curr_value = portfolio_history[i].get("total_equity", 0)
+
+                if prev_value > 0:
+                    actual_return = (curr_value - prev_value) / prev_value
+                    actual_returns.append(actual_return)
+
+                    # Check for VaR violations (losses exceeding VaR)
+                    if i-1 < len(var_predictions):
+                        var_threshold = var_predictions[i-1] / prev_value  # Convert to return
+                        if actual_return < -abs(var_threshold):
+                            violations += 1
+
+            # Calculate backtesting statistics
+            violation_rate = violations / total_observations if total_observations > 0 else 0
+            expected_violation_rate = 1 - confidence_level
+
+            # Kupiec test for coverage
+            kupiec_stat = -2 * np.log(
+                ((expected_violation_rate ** violations) *
+                 ((1 - expected_violation_rate) ** (total_observations - violations))) /
+                ((violation_rate ** violations) *
+                 ((1 - violation_rate) ** (total_observations - violations)))
+            ) if violation_rate > 0 and violation_rate < 1 else 0
+
+            return {
+                "total_observations": total_observations,
+                "violations": violations,
+                "violation_rate": violation_rate,
+                "expected_violation_rate": expected_violation_rate,
+                "kupiec_statistic": kupiec_stat,
+                "model_adequate": abs(violation_rate - expected_violation_rate) < 0.05,
+                "average_actual_return": np.mean(actual_returns) if actual_returns else 0,
+                "volatility": np.std(actual_returns) if actual_returns else 0
+            }
+
+        except Exception as e:
+            logger.error(f"Error in VaR backtesting: {e}")
+            return {"error": str(e)}
+
+    async def calculate_risk_adjusted_returns(self, portfolio: PortfolioState, benchmark_returns: List[float] = None, risk_free_rate: float = 0.02) -> Dict:
+        """
+        Calculate risk-adjusted return metrics.
+
+        Args:
+            portfolio: Current portfolio state
+            benchmark_returns: Optional benchmark return series
+            risk_free_rate: Risk-free rate (annual)
+
+        Returns:
+            Dictionary with risk-adjusted metrics
+        """
+        # TODO: Add comprehensive tests for risk-adjusted returns
+        try:
+            symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
+            if not symbols:
+                return {}
+
+            # Get portfolio returns (simplified - using recent performance)
+            portfolio_returns = await self._calculate_portfolio_returns(portfolio)
+
+            if not portfolio_returns or len(portfolio_returns) < 10:
+                return {"error": "Insufficient return data"}
+
+            returns_array = np.array(portfolio_returns)
+            daily_risk_free = risk_free_rate / 252  # Convert annual to daily
+
+            # Calculate metrics
+            mean_return = np.mean(returns_array)
+            volatility = np.std(returns_array)
+            downside_returns = returns_array[returns_array < 0]
+            downside_volatility = np.std(downside_returns) if len(downside_returns) > 0 else 0
+
+            # Sharpe Ratio
+            sharpe_ratio = (mean_return - daily_risk_free) / volatility if volatility > 0 else 0
+
+            # Sortino Ratio
+            sortino_ratio = (mean_return - daily_risk_free) / downside_volatility if downside_volatility > 0 else 0
+
+            # Calmar Ratio (return/max drawdown)
+            max_dd, _, _ = await self.calculate_maximum_drawdown(portfolio_returns)
+            calmar_ratio = (mean_return * 252) / abs(max_dd) if abs(max_dd) > 0.01 else 0
+
+            # Information Ratio (if benchmark provided)
+            information_ratio = 0
+            if benchmark_returns and len(benchmark_returns) >= len(returns_array):
+                benchmark_array = np.array(benchmark_returns[:len(returns_array)])
+                excess_returns = returns_array - benchmark_array
+                tracking_error = np.std(excess_returns)
+                information_ratio = np.mean(excess_returns) / tracking_error if tracking_error > 0 else 0
+
+            return {
+                "mean_return": float(mean_return * 252),  # Annualized
+                "volatility": float(volatility * np.sqrt(252)),  # Annualized
+                "sharpe_ratio": float(sharpe_ratio * np.sqrt(252)),  # Annualized
+                "sortino_ratio": float(sortino_ratio * np.sqrt(252)),  # Annualized
+                "calmar_ratio": float(calmar_ratio),
+                "information_ratio": float(information_ratio * np.sqrt(252)),  # Annualized
+                "max_drawdown": float(max_dd),
+                "downside_volatility": float(downside_volatility * np.sqrt(252))
+            }
+
+        except Exception as e:
+            logger.error(f"Error calculating risk-adjusted returns: {e}")
+            return {"error": str(e)}
+
+    async def calculate_options_greeks(self, options_positions: List[Dict]) -> Dict:
+        """
+        Calculate basic options Greeks for options positions.
+
+        Args:
+            options_positions: List of options position data
+
+        Returns:
+            Dictionary with Greeks calculations
+        """
+        # TODO: Add comprehensive tests for options Greeks calculations
+        try:
+            greeks_summary = {
+                "portfolio_delta": 0.0,
+                "portfolio_gamma": 0.0,
+                "portfolio_theta": 0.0,
+                "portfolio_vega": 0.0,
+                "position_greeks": {}
+            }
+
+            if not options_positions:
+                return greeks_summary
+
+            for position in options_positions:
+                symbol = position.get("symbol", "")
+                quantity = position.get("quantity", 0)
+                option_type = position.get("option_type", "call")  # call or put
+                strike = position.get("strike", 0)
+                underlying_price = position.get("underlying_price", 0)
+                time_to_expiry = position.get("days_to_expiry", 30) / 365.0
+                volatility = position.get("implied_volatility", 0.2)
+                risk_free_rate = position.get("risk_free_rate", 0.02)
+
+                if strike <= 0 or underlying_price <= 0:
+                    continue
+
+                # Calculate Greeks using Black-Scholes approximations
+                greeks = self._calculate_black_scholes_greeks(
+                    underlying_price, strike, time_to_expiry,
+                    risk_free_rate, volatility, option_type
+                )
+
+                # Scale by position size
+                position_greeks = {
+                    "delta": greeks["delta"] * quantity,
+                    "gamma": greeks["gamma"] * quantity,
+                    "theta": greeks["theta"] * quantity,
+                    "vega": greeks["vega"] * quantity
+                }
+
+                greeks_summary["position_greeks"][symbol] = position_greeks
+
+                # Add to portfolio totals
+                greeks_summary["portfolio_delta"] += position_greeks["delta"]
+                greeks_summary["portfolio_gamma"] += position_greeks["gamma"]
+                greeks_summary["portfolio_theta"] += position_greeks["theta"]
+                greeks_summary["portfolio_vega"] += position_greeks["vega"]
+
+            return greeks_summary
+
+        except Exception as e:
+            logger.error(f"Error calculating options Greeks: {e}")
+            return {"error": str(e)}
+
+    def _calculate_black_scholes_greeks(self, S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> Dict:
+        """Calculate Black-Scholes Greeks."""
+        # TODO: Add comprehensive tests for Black-Scholes Greeks
+        try:
+            if T <= 0 or sigma <= 0:
+                return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+
+            d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
+            d2 = d1 - sigma*np.sqrt(T)
+
+            if option_type.lower() == "call":
+                delta = stats.norm.cdf(d1)
+                theta = -(S*stats.norm.pdf(d1)*sigma/(2*np.sqrt(T)) + r*K*np.exp(-r*T)*stats.norm.cdf(d2))
+            else:  # put
+                delta = stats.norm.cdf(d1) - 1
+                theta = -(S*stats.norm.pdf(d1)*sigma/(2*np.sqrt(T)) - r*K*np.exp(-r*T)*stats.norm.cdf(-d2))
+
+            gamma = stats.norm.pdf(d1) / (S*sigma*np.sqrt(T))
+            vega = S*stats.norm.pdf(d1)*np.sqrt(T)
+
+            return {
+                "delta": delta,
+                "gamma": gamma,
+                "theta": theta / 365.0,  # Per day
+                "vega": vega / 100.0     # Per 1% volatility change
+            }
+
+        except Exception as e:
+            logger.error(f"Error in Black-Scholes Greeks calculation: {e}")
+            return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
+
+    async def enhanced_stress_test(self, portfolio: PortfolioState) -> Dict:
+        """
+        Perform enhanced stress testing with predefined scenarios.
+
+        Returns:
+            Dictionary with comprehensive stress test results
+        """
+        # TODO: Add comprehensive tests for enhanced stress testing
+        try:
+            # Define common stress scenarios
+            stress_scenarios = [
+                {
+                    "name": "market_crash_2008",
+                    "description": "2008-style market crash",
+                    "shocks": {"SPY": -0.37, "QQQ": -0.42, "IWM": -0.33},
+                    "correlation_shock": 0.8  # Correlations increase in crisis
+                },
+                {
+                    "name": "tech_bubble_burst",
+                    "description": "Technology sector crash",
+                    "shocks": {"AAPL": -0.5, "MSFT": -0.45, "GOOGL": -0.6, "TSLA": -0.7, "QQQ": -0.4}
+                },
+                {
+                    "name": "interest_rate_shock",
+                    "description": "Rapid interest rate increase",
+                    "shocks": {"SPY": -0.15, "bonds": -0.25, "real_estate": -0.3}
+                },
+                {
+                    "name": "volatility_spike",
+                    "description": "VIX spikes to 40+",
+                    "volatility_multiplier": 2.5
+                },
+                {
+                    "name": "liquidity_crisis",
+                    "description": "Liquidity dries up",
+                    "bid_ask_widening": 3.0,
+                    "general_shock": -0.2
+                }
+            ]
+
+            results = {}
+            base_portfolio_value = float(portfolio.total_equity)
+
+            for scenario in stress_scenarios:
+                scenario_name = scenario["name"]
+                scenario_pnl = 0.0
+                position_impacts = {}
+
+                # Apply shocks to individual positions
+                for position in portfolio.positions:
+                    if position.quantity == 0:
+                        continue
+
+                    symbol = position.symbol
+                    current_value = float(position.market_value)
+                    shock = 0.0
+
+                    # Apply specific symbol shocks
+                    if "shocks" in scenario:
+                        shock = scenario["shocks"].get(symbol, 0.0)
+
+                    # Apply general market shock
+                    if "general_shock" in scenario:
+                        shock += scenario["general_shock"]
+
+                    # Apply volatility shock
+                    if "volatility_multiplier" in scenario:
+                        # Simulate higher volatility impact
+                        daily_vol = 0.02  # Assume 2% daily vol
+                        vol_shock = daily_vol * (scenario["volatility_multiplier"] - 1) * np.random.normal(0, 1)
+                        shock += vol_shock
+
+                    # Calculate position P&L
+                    position_pnl = current_value * shock
+                    scenario_pnl += position_pnl
+
+                    position_impacts[symbol] = {
+                        "shock_applied": shock,
+                        "pnl": position_pnl,
+                        "pnl_percent": (position_pnl / current_value * 100) if current_value != 0 else 0
+                    }
+
+                # Calculate scenario metrics
+                scenario_return = (scenario_pnl / base_portfolio_value) if base_portfolio_value > 0 else 0
+
+                results[scenario_name] = {
+                    "description": scenario.get("description", ""),
+                    "total_pnl": scenario_pnl,
+                    "portfolio_return": scenario_return * 100,  # Percentage
+                    "position_impacts": position_impacts,
+                    "worst_position": max(position_impacts.items(), key=lambda x: abs(x[1]["pnl"]), default=("", {}))[0] if position_impacts else "",
+                    "positions_at_risk": len([p for p in position_impacts.values() if p["pnl"] < -1000])  # Positions losing >$1000
+                }
+
+            # Summary statistics
+            scenario_returns = [results[s]["portfolio_return"] for s in results]
+            results["summary"] = {
+                "worst_case_return": min(scenario_returns) if scenario_returns else 0,
+                "average_stress_return": np.mean(scenario_returns) if scenario_returns else 0,
+                "stress_scenarios_count": len(stress_scenarios)
+            }
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Error in enhanced stress testing: {e}")
+            return {"error": str(e)}
+
+    async def calculate_risk_attribution(self, portfolio: PortfolioState) -> Dict:
+        """
+        Calculate risk attribution by various factors.
+
+        Returns:
+            Dictionary with risk attribution breakdown
+        """
+        # TODO: Add comprehensive tests for risk attribution
+        try:
+            attribution = {
+                "factor_contributions": {},
+                "position_contributions": {},
+                "sector_risk": {},
+                "total_portfolio_risk": 0.0
+            }
+
+            # Calculate portfolio volatility
+            portfolio_vol = await self.calculate_portfolio_volatility(portfolio)
+            attribution["total_portfolio_risk"] = portfolio_vol
+
+            if portfolio_vol == 0:
+                return attribution
+
+            # Get position weights and characteristics
+            total_value = float(portfolio.total_equity)
+
+            for position in portfolio.positions:
+                if position.quantity == 0:
+                    continue
+
+                symbol = position.symbol
+                weight = float(abs(position.market_value)) / total_value
+                position_vol = await self._calculate_symbol_volatility(symbol)
+
+                # Position risk contribution
+                position_risk = weight * position_vol
+                attribution["position_contributions"][symbol] = {
+                    "weight": weight,
+                    "volatility": position_vol,
+                    "risk_contribution": position_risk,
+                    "risk_percentage": (position_risk / portfolio_vol * 100) if portfolio_vol > 0 else 0
+                }
+
+                # Get sector for risk attribution
+                characteristics = await self._get_position_characteristics(symbol)
+                sector = characteristics.get("sector", "Unknown")
+
+                if sector not in attribution["sector_risk"]:
+                    attribution["sector_risk"][sector] = {
+                        "total_weight": 0.0,
+                        "risk_contribution": 0.0,
+                        "positions": []
+                    }
+
+                attribution["sector_risk"][sector]["total_weight"] += weight
+                attribution["sector_risk"][sector]["risk_contribution"] += position_risk
+                attribution["sector_risk"][sector]["positions"].append(symbol)
+
+            # Calculate factor contributions (simplified)
+            attribution["factor_contributions"] = {
+                "market_beta": await self.calculate_portfolio_beta(portfolio),
+                "concentration_risk": max([data["weight"] for data in attribution["position_contributions"].values()], default=0),
+                "sector_concentration": max([data["total_weight"] for data in attribution["sector_risk"].values()], default=0)
+            }
+
+            return attribution
+
+        except Exception as e:
+            logger.error(f"Error calculating risk attribution: {e}")
+            return {"error": str(e)}
 
     async def calculate_concentration_metrics(self, portfolio: PortfolioState) -> Dict:
         """Calculate various concentration risk metrics."""
@@ -892,25 +1412,31 @@ class RiskCalculator:
 
     async def _get_position_characteristics(self, symbol: str) -> Dict:
         """Get position characteristics for factor analysis."""
-        # Placeholder implementation - in production, get from financial data provider
+        # Enhanced implementation with more comprehensive data
+        # TODO: Add comprehensive tests for position characteristics lookup
         characteristics_map = {
-            'AAPL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'MSFT': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'GOOGL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'AMZN': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'TSLA': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'JPM': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic"},
-            'BAC': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic"},
-            'SPY': {"sector": "ETF", "market_cap": "large", "style": "value", "geography": "domestic"},
-            'QQQ': {"sector": "ETF", "market_cap": "large", "style": "growth", "geography": "domestic"},
-            'IWM': {"sector": "ETF", "market_cap": "small", "style": "value", "geography": "domestic"}
+            'AAPL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.005},
+            'MSFT': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 0.9, "dividend_yield": 0.007},
+            'GOOGL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.0},
+            'AMZN': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.3, "dividend_yield": 0.0},
+            'TSLA': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 2.0, "dividend_yield": 0.0},
+            'JPM': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.025},
+            'BAC': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.021},
+            'WFC': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.3, "dividend_yield": 0.027},
+            'GS': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.4, "dividend_yield": 0.024},
+            'C': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.5, "dividend_yield": 0.036},
+            'SPY': {"sector": "ETF", "market_cap": "large", "style": "blend", "geography": "domestic", "beta": 1.0, "dividend_yield": 0.013},
+            'QQQ': {"sector": "ETF", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.007},
+            'IWM': {"sector": "ETF", "market_cap": "small", "style": "blend", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.017}
         }
 
         return characteristics_map.get(symbol, {
             "sector": "Unknown",
             "market_cap": "mid",
-            "style": "value",
-            "geography": "domestic"
+            "style": "blend",
+            "geography": "domestic",
+            "beta": 1.0,
+            "dividend_yield": 0.02
         })
 
     def _get_default_volatility(self, symbol: str) -> float:
@@ -947,6 +1473,166 @@ class RiskCalculator:
         except Exception as e:
             logger.error(f"Error in fallback VaR calculation: {e}")
             return Decimal("0"), Decimal("0")
+
+    async def generate_comprehensive_risk_report(self, portfolio: PortfolioState, benchmark: str = "SPY") -> Dict:
+        """
+        Generate a comprehensive risk assessment report combining all available metrics.
+
+        Args:
+            portfolio: Current portfolio state
+            benchmark: Benchmark symbol for relative risk calculations
+
+        Returns:
+            Dictionary containing comprehensive risk analysis
+        """
+        # TODO: Add comprehensive tests for risk report generation
+        try:
+            report = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "portfolio_summary": {
+                    "total_value": float(portfolio.total_equity),
+                    "num_positions": len([p for p in portfolio.positions if p.quantity != 0]),
+                    "cash_balance": float(portfolio.cash_balance)
+                },
+                "risk_metrics": {},
+                "performance_metrics": {},
+                "stress_tests": {},
+                "warnings": [],
+                "recommendations": []
+            }
+
+            # Core risk metrics
+            var_95, es_95 = await self.calculate_portfolio_var(portfolio, confidence_level=0.95)
+            var_99, es_99 = await self.calculate_portfolio_var(portfolio, confidence_level=0.99)
+
+            report["risk_metrics"]["var_analysis"] = {
+                "var_95_percent": float(var_95),
+                "expected_shortfall_95": float(es_95),
+                "var_99_percent": float(var_99),
+                "expected_shortfall_99": float(es_99),
+                "var_as_percent_of_portfolio": {
+                    "95_percent": float(var_95 / portfolio.total_equity * 100) if portfolio.total_equity > 0 else 0,
+                    "99_percent": float(var_99 / portfolio.total_equity * 100) if portfolio.total_equity > 0 else 0
+                }
+            }
+
+            # Portfolio volatility and beta
+            portfolio_vol = await self.calculate_portfolio_volatility(portfolio)
+            portfolio_beta = await self.calculate_portfolio_beta(portfolio, benchmark)
+            tracking_error = await self.calculate_tracking_error(portfolio, benchmark)
+
+            report["risk_metrics"]["portfolio_analytics"] = {
+                "volatility": portfolio_vol,
+                "beta": portfolio_beta,
+                "tracking_error": tracking_error
+            }
+
+            # Concentration and factor analysis
+            concentration_metrics = await self.calculate_concentration_metrics(portfolio)
+            factor_exposures = await self.calculate_factor_exposures(portfolio)
+
+            report["risk_metrics"]["concentration"] = concentration_metrics
+            report["risk_metrics"]["factor_exposures"] = factor_exposures
+
+            # Liquidity risk
+            liquidity_risk = await self.calculate_liquidity_risk(portfolio)
+            report["risk_metrics"]["liquidity"] = liquidity_risk
+
+            # Risk attribution
+            risk_attribution = await self.calculate_risk_attribution(portfolio)
+            report["risk_metrics"]["attribution"] = risk_attribution
+
+            # Performance metrics
+            risk_adjusted_returns = await self.calculate_risk_adjusted_returns(portfolio)
+            report["performance_metrics"] = risk_adjusted_returns
+
+            # Stress testing
+            enhanced_stress = await self.enhanced_stress_test(portfolio)
+            report["stress_tests"] = enhanced_stress
+
+            # Component VaR
+            component_var = await self.calculate_component_var(portfolio)
+            report["risk_metrics"]["component_var"] = {k: float(v) for k, v in component_var.items()}
+
+            # Generate warnings and recommendations
+            self._generate_risk_warnings_and_recommendations(report)
+
+            return report
+
+        except Exception as e:
+            logger.error(f"Error generating comprehensive risk report: {e}")
+            return {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "error": str(e),
+                "status": "failed"
+            }
+
+    def _generate_risk_warnings_and_recommendations(self, report: Dict) -> None:
+        """Generate risk warnings and recommendations based on calculated metrics."""
+        # TODO: Add comprehensive tests for warning and recommendation generation
+        warnings = []
+        recommendations = []
+
+        try:
+            # VaR warnings
+            var_95_percent = report.get("risk_metrics", {}).get("var_analysis", {}).get("var_as_percent_of_portfolio", {}).get("95_percent", 0)
+            if var_95_percent > 10:
+                warnings.append(f"High VaR exposure: 95% VaR represents {var_95_percent:.1f}% of portfolio value")
+                recommendations.append("Consider reducing position sizes or diversifying to lower VaR")
+
+            # Concentration warnings
+            concentration = report.get("risk_metrics", {}).get("concentration", {})
+            max_position_weight = concentration.get("max_position_weight", 0)
+            if max_position_weight > 0.2:
+                warnings.append(f"High concentration risk: largest position is {max_position_weight*100:.1f}% of portfolio")
+                recommendations.append("Consider reducing largest positions to improve diversification")
+
+            # Liquidity warnings
+            liquidity = report.get("risk_metrics", {}).get("liquidity", {})
+            portfolio_liquidity_score = liquidity.get("portfolio_liquidity_score", 1.0)
+            if portfolio_liquidity_score < 0.5:
+                warnings.append("Low portfolio liquidity detected")
+                recommendations.append("Consider increasing allocation to more liquid securities")
+
+            illiquid_positions = liquidity.get("illiquid_positions", [])
+            if len(illiquid_positions) > 0:
+                warnings.append(f"{len(illiquid_positions)} positions flagged as illiquid")
+
+            # Volatility warnings
+            portfolio_vol = report.get("risk_metrics", {}).get("portfolio_analytics", {}).get("volatility", 0)
+            if portfolio_vol > 0.25:
+                warnings.append(f"High portfolio volatility: {portfolio_vol*100:.1f}% annualized")
+                recommendations.append("Consider adding defensive positions or reducing overall leverage")
+
+            # Beta warnings
+            portfolio_beta = report.get("risk_metrics", {}).get("portfolio_analytics", {}).get("beta", 1.0)
+            if portfolio_beta > 1.5:
+                warnings.append(f"High market sensitivity: portfolio beta is {portfolio_beta:.2f}")
+                recommendations.append("Consider adding market-neutral or low-beta positions")
+
+            # Stress test warnings
+            stress_tests = report.get("stress_tests", {})
+            worst_case = stress_tests.get("summary", {}).get("worst_case_return", 0)
+            if worst_case < -25:
+                warnings.append(f"Severe stress test exposure: worst case scenario shows {worst_case:.1f}% loss")
+                recommendations.append("Consider stress-testing hedge strategies or position sizing adjustments")
+
+            # Factor exposure warnings
+            factor_exposures = report.get("risk_metrics", {}).get("factor_exposures", {})
+            sectors = factor_exposures.get("sectors", {})
+            max_sector_exposure = max(sectors.values()) if sectors else 0
+            if max_sector_exposure > 0.4:
+                max_sector = max(sectors.items(), key=lambda x: x[1])[0] if sectors else "Unknown"
+                warnings.append(f"High sector concentration: {max_sector_exposure*100:.1f}% in {max_sector}")
+                recommendations.append("Consider diversifying across sectors to reduce concentration risk")
+
+            report["warnings"] = warnings
+            report["recommendations"] = recommendations
+
+        except Exception as e:
+            logger.error(f"Error generating warnings and recommendations: {e}")
+            report["warnings"] = ["Error generating risk warnings"]
+            report["recommendations"] = ["Review risk metrics manually"]
 
     def get_calculation_info(self) -> Dict:
         """Get information about calculation parameters and cache status."""

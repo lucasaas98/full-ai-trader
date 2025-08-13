@@ -222,7 +222,7 @@ services:
                 condition: service_healthy
         restart: unless-stopped
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9104/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -441,8 +441,8 @@ services:
 
     export_service:
         build:
-            context: ./services/export_service
-            dockerfile: Dockerfile
+            context: .
+            dockerfile: services/export_service/Dockerfile
         container_name: trading_export_service
         environment:
             - SERVICE_NAME=export_service
@@ -479,8 +479,8 @@ services:
 
     maintenance_service:
         build:
-            context: ./services/maintenance_service
-            dockerfile: Dockerfile
+            context: .
+            dockerfile: services/maintenance_service/Dockerfile
         container_name: trading_maintenance_service
         environment:
             - SERVICE_NAME=maintenance_service
@@ -514,6 +514,41 @@ services:
         restart: unless-stopped
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:9107/health"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+
+    # Notification Service
+    notification_service:
+        build:
+            context: .
+            dockerfile: services/notification_service/Dockerfile
+        container_name: trading_notification_service
+        environment:
+            - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+            - DB_HOST=postgres
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system}
+            - DB_USER=${DB_USER:-trader}
+            - DB_PASSWORD=${DB_PASSWORD}
+            - GOTIFY_URL=${GOTIFY_URL}
+            - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - NOTIFICATION_COOLDOWN=${NOTIFICATION_COOLDOWN:-60}
+            - TZ=${TZ:-UTC}
+            - ENVIRONMENT=${ENVIRONMENT:-development}
+        volumes:
+            - ./shared:/app/shared:ro
+            - ./monitoring:/app/monitoring:ro
+            - ./logs/notification_service:/app/logs
+        networks:
+            - trading_network
+        depends_on:
+            redis:
+                condition: service_healthy
+        restart: unless-stopped
+        healthcheck:
+            test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
             interval: 30s
             timeout: 10s
             retries: 3

@@ -9,11 +9,58 @@ This module provides real-time portfolio monitoring capabilities including:
 - Performance tracking and analytics
 """
 
+# TODO: Comprehensive testing is required for all enhanced features:
+#
+# 1. Unit Tests Needed:
+#    - test_get_position_volatility() - Verify sector-based volatility calculations
+#    - test_get_position_beta() - Verify sector-based beta estimates
+#    - test_calculate_expected_return() - Verify CAPM and sector premium calculations
+#    - test_estimate_correlation() - Verify sector correlation matrix and special cases
+#    - test_get_position_sector() - Verify comprehensive sector mapping
+#    - test_is_tech_stock() - Verify enhanced tech stock detection
+#    - test_similar_market_cap() - Verify market cap similarity logic
+#
+# 2. Integration Tests Needed:
+#    - test_portfolio_risk_calculations() - End-to-end risk metric calculations
+#    - test_correlation_caching() - Verify caching behavior and TTL
+#    - test_volatility_caching() - Verify caching behavior and TTL
+#    - test_sector_risk_exposure() - Verify sector-based risk aggregation
+#
+# 3. Performance Tests Needed:
+#    - test_large_portfolio_performance() - Performance with 100+ positions
+#    - test_cache_effectiveness() - Memory usage and cache hit rates
+#    - test_correlation_matrix_performance() - N^2 correlation calculations
+#
+# 4. Market Data Integration Tests (Future):
+#    - test_real_volatility_calculation() - Historical price data integration
+#    - test_real_beta_calculation() - Market index correlation calculation
+#    - test_real_correlation_calculation() - Rolling correlation windows
+#    - test_risk_free_rate_integration() - Fed data integration
+#    - test_sector_data_integration() - Financial data provider integration
+#
+# 5. Edge Case Tests Needed:
+#    - test_unknown_symbols() - Behavior with unrecognized symbols
+#    - test_market_regime_changes() - Correlation adjustments during crises
+#    - test_extreme_volatility() - Bounds checking for volatility calculations
+#    - test_negative_correlations() - Handling of negative correlation scenarios
+#
+# 6. Enhanced Integration Tests Needed:
+#    - test_enhanced_portfolio_monitor.py - Run comprehensive test suite for new features
+#    - test_screener_data_integration() - Verify FinViz data loading and sector mapping
+#    - test_historical_price_correlation() - Verify real price correlation calculations
+#    - test_fallback_mechanisms() - Verify graceful degradation when data unavailable
+#    - test_cache_invalidation() - Verify TTL and cache refresh behavior
+#    - test_data_validation() - Verify handling of corrupted or invalid data files
+#
+
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 import numpy as np
+import polars as pl
+
 
 from shared.config import get_config
 from shared.models import (
@@ -51,6 +98,10 @@ class PortfolioMonitor:
         self._correlation_cache: Dict[Tuple[str, str], Tuple[float, datetime]] = {}
         self._volatility_cache: Dict[str, Tuple[float, datetime]] = {}
         self._cache_ttl = timedelta(hours=1)
+
+        # Data paths for accessing stored market data
+        self._data_path = Path(self.config.data.parquet_path)
+        self._sector_cache: Dict[str, Tuple[str, datetime]] = {}
 
     async def monitor_portfolio(self, portfolio: PortfolioState) -> Tuple[PortfolioMetrics, List[RiskAlert]]:
         """
@@ -167,17 +218,17 @@ class PortfolioMonitor:
         # Calculate VaR for position
         var_1d = position_size * Decimal(str(volatility)) * Decimal("1.645") / Decimal(str(np.sqrt(252)))
 
-        # Expected return (placeholder)
-        expected_return = 0.0001  # 0.01% daily
+        # Expected return calculation based on sector and market conditions
+        expected_return = await self._calculate_expected_return(position.symbol, beta, volatility)
 
-        # Sharpe ratio (placeholder)
-        risk_free_rate = 0.0001  # 0.01% daily risk-free rate
+        # Sharpe ratio calculation
+        risk_free_rate = 0.0001  # 0.01% daily risk-free rate (TODO: fetch from Fed data)
         sharpe_ratio = (expected_return - risk_free_rate) / volatility if volatility > 0 else 0.0
 
         # Correlation with portfolio
         correlation_with_portfolio = await self._get_portfolio_correlation(position.symbol, portfolio)
 
-        # Sector classification (placeholder)
+        # Sector classification from FinViz data
         sector = await self._get_position_sector(position.symbol)
 
         # Overall risk score (0-10 scale)
@@ -603,42 +654,269 @@ class PortfolioMonitor:
             self.portfolio_start_value = portfolio.total_equity
 
     async def _get_position_volatility(self, symbol: str) -> float:
-        """Get volatility for a specific position."""
-        try:
-            # In production, calculate from historical price data
-            # Placeholder implementation based on symbol characteristics
+        """
+        Get volatility for a specific position with sector-based and market cap estimates.
 
-            if symbol.startswith(('SPY', 'QQQ', 'IWM')):
-                return 0.12  # ETFs - lower volatility
-            elif len(symbol) <= 3:
-                return 0.18  # Large cap stocks
-            elif len(symbol) == 4:
-                return 0.25  # Mid cap stocks
+        TODO: Integrate with market data provider for real-time volatility calculations
+        based on historical price data (e.g., 30-day realized volatility).
+        """
+        try:
+            # Check cache first
+            if symbol in self._volatility_cache:
+                volatility, cached_time = self._volatility_cache[symbol]
+                if datetime.now(timezone.utc) - cached_time < self._cache_ttl:
+                    return volatility
+
+            # Get sector for sector-based volatility estimates
+            sector = await self._get_position_sector(symbol)
+
+            # Sector-based volatility estimates (annualized)
+            sector_volatility = {
+                'ETF-Broad Market': 0.12,      # Broad market ETFs
+                'ETF-Large Cap': 0.13,         # Large cap ETFs
+                'ETF-Small Cap': 0.18,         # Small cap ETFs
+                'ETF-Technology': 0.22,        # Tech sector ETFs
+                'ETF-Sector': 0.20,            # Sector-specific ETFs
+                'ETF-International': 0.16,     # International ETFs
+                'ETF-Emerging Markets': 0.25,  # Emerging market ETFs
+                'ETF-Commodities': 0.28,       # Commodity ETFs
+                'ETF-Innovation': 0.35,        # Innovation/growth ETFs
+                'ETF-Vanguard': 0.14,          # Vanguard ETFs (typically broad)
+                'ETF-iShares': 0.15,           # iShares ETFs
+                'ETF-SPDR': 0.15,              # SPDR ETFs
+                'ETF-Other': 0.18,             # Other ETFs
+
+                'Technology': 0.25,            # Technology stocks
+                'Healthcare': 0.18,            # Healthcare stocks
+                'Financials': 0.22,            # Financial stocks
+                'Consumer Discretionary': 0.20, # Consumer discretionary
+                'Consumer Staples': 0.14,      # Consumer staples
+                'Energy': 0.30,                # Energy stocks
+                'Industrials': 0.18,           # Industrial stocks
+                'Materials': 0.22,             # Materials stocks
+                'Real Estate': 0.20,           # REITs
+                'Utilities': 0.14,             # Utility stocks
+                'Communication Services': 0.20, # Communications
+                'Cryptocurrency': 0.45,        # Crypto-related stocks
+            }
+
+            # Get base volatility from sector
+            base_volatility = sector_volatility.get(sector or 'Unknown', 0.20)
+
+            # Market cap adjustments based on symbol characteristics
+            if sector and sector.startswith('ETF'):
+                # ETFs already have appropriate volatility
+                volatility = base_volatility
             else:
-                return 0.35  # Small cap or specialized stocks
+                # Apply market cap adjustments for individual stocks
+                market_cap_multiplier = self._get_market_cap_volatility_multiplier(symbol)
+                volatility = base_volatility * market_cap_multiplier
+
+                # Special adjustments for known high-volatility stocks
+                high_vol_stocks = ['TSLA', 'GME', 'AMC', 'PLTR', 'ARKK', 'RIOT', 'MARA']
+                if symbol in high_vol_stocks:
+                    volatility *= 1.5
+
+                # Special adjustments for known low-volatility stocks
+                low_vol_stocks = ['BRK.A', 'BRK.B', 'JNJ', 'PG', 'KO', 'WMT']
+                if symbol in low_vol_stocks:
+                    volatility *= 0.8
+
+            # Ensure reasonable bounds
+            volatility = max(0.08, min(volatility, 1.0))  # 8% to 100% annual volatility
+
+            # Cache the result
+            self._volatility_cache[symbol] = (volatility, datetime.now(timezone.utc))
+
+            return volatility
 
         except Exception as e:
             logger.error(f"Error getting volatility for {symbol}: {e}")
             return 0.20
 
-    async def _get_position_beta(self, symbol: str) -> float:
-        """Get beta for a specific position."""
-        try:
-            # In production, calculate from historical data vs market index
-            # Placeholder implementation
+    def _get_market_cap_volatility_multiplier(self, symbol: str) -> float:
+        """Get market cap-based volatility multiplier."""
+        # Mega cap stocks (typically 3 letters or less, well-known)
+        mega_cap_symbols = [
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA',
+            'BRK.A', 'BRK.B', 'UNH', 'JNJ', 'JPM', 'V', 'PG', 'MA', 'HD', 'CVX'
+        ]
 
-            if symbol.startswith('SPY'):
-                return 1.0  # Market ETF
-            elif symbol.startswith('QQQ'):
-                return 1.2  # Tech ETF - higher beta
-            elif symbol.startswith('IWM'):
-                return 1.1  # Small cap ETF
+        if symbol in mega_cap_symbols:
+            return 0.85  # Lower volatility for mega caps
+        elif len(symbol) <= 3 and symbol.isupper():
+            return 0.95  # Slightly lower for large caps
+        elif len(symbol) == 4 and symbol.isupper():
+            return 1.1   # Higher for mid caps
+        elif len(symbol) >= 5 or any(char.isdigit() for char in symbol):
+            return 1.3   # Higher for small caps and complex symbols
+        else:
+            return 1.0   # Default multiplier
+
+    async def _get_position_beta(self, symbol: str) -> float:
+        """
+        Get beta for a specific position with sector-based estimates.
+
+        TODO: Integrate with market data provider for real-time beta calculations
+        based on historical correlation with market index (e.g., SPY).
+        """
+        try:
+            # Get sector for sector-based beta estimates
+            sector = await self._get_position_sector(symbol)
+
+            # Sector-based beta estimates relative to S&P 500
+            sector_betas = {
+                'ETF-Broad Market': 1.0,        # Market beta
+                'ETF-Large Cap': 0.98,          # Slightly lower than market
+                'ETF-Small Cap': 1.15,          # Higher beta for small caps
+                'ETF-Technology': 1.25,         # Tech sector higher beta
+                'ETF-Sector': 1.1,              # Sector ETFs slightly higher
+                'ETF-International': 0.85,      # International lower correlation
+                'ETF-Emerging Markets': 1.2,    # Higher beta for emerging markets
+                'ETF-Commodities': 0.7,         # Lower correlation with stocks
+                'ETF-Innovation': 1.4,          # High beta for growth/innovation
+                'ETF-Vanguard': 0.95,           # Broad market focus
+                'ETF-iShares': 1.0,             # Market beta
+                'ETF-SPDR': 1.0,                # Market beta
+                'ETF-Other': 1.05,              # Slightly above market
+
+                'Technology': 1.3,              # High beta sector
+                'Healthcare': 0.9,              # Defensive sector
+                'Financials': 1.2,              # Cyclical, higher beta
+                'Consumer Discretionary': 1.15, # Cyclical
+                'Consumer Staples': 0.7,        # Defensive, low beta
+                'Energy': 1.25,                 # Cyclical, volatile
+                'Industrials': 1.1,             # Cyclical
+                'Materials': 1.15,              # Cyclical, commodity exposure
+                'Real Estate': 0.85,            # Different risk factors
+                'Utilities': 0.6,               # Defensive, low beta
+                'Communication Services': 1.0,  # Market beta
+                'Cryptocurrency': 1.8,          # Very high beta
+            }
+
+            # Get base beta from sector
+            base_beta = sector_betas.get(sector or 'Unknown', 1.0)
+
+            # Individual stock adjustments
+            high_beta_stocks = {
+                'TSLA': 2.0, 'NVDA': 1.8, 'AMD': 1.7, 'ARKK': 1.6,
+                'RIOT': 2.5, 'MARA': 2.3, 'GME': 2.8, 'AMC': 2.5,
+                'PLTR': 2.0, 'ZOOM': 1.5, 'ROKU': 1.8, 'UBER': 1.4
+            }
+
+            low_beta_stocks = {
+                'BRK.A': 0.8, 'BRK.B': 0.8, 'JNJ': 0.7, 'PG': 0.6,
+                'KO': 0.6, 'WMT': 0.5, 'UNH': 0.8, 'NEE': 0.6,
+                'D': 0.5, 'SO': 0.5, 'DUK': 0.5
+            }
+
+            if symbol in high_beta_stocks:
+                return high_beta_stocks[symbol]
+            elif symbol in low_beta_stocks:
+                return low_beta_stocks[symbol]
             else:
-                return 1.0  # Default beta
+                # Apply market cap adjustments
+                if len(symbol) <= 3 and symbol.isupper():
+                    # Large cap - slightly lower beta
+                    return base_beta * 0.95
+                elif len(symbol) >= 5:
+                    # Small cap - higher beta
+                    return base_beta * 1.15
+                else:
+                    return base_beta
 
         except Exception as e:
             logger.error(f"Error getting beta for {symbol}: {e}")
             return 1.0
+
+    async def _calculate_expected_return(self, symbol: str, beta: float, volatility: float) -> float:
+        """
+        Calculate expected return for a position based on sector, beta, and market conditions.
+
+        TODO: Integrate with market data for real-time risk-free rates and market risk premiums.
+        Consider using CAPM model with updated market data.
+        """
+        try:
+            # Get sector for sector-based return estimates
+            sector = await self._get_position_sector(symbol)
+
+            # Market risk premium (historical average ~6-8% annually)
+            market_risk_premium = 0.07 / 252  # Convert to daily (7% annual / 252 trading days)
+
+            # Risk-free rate (approximation - should fetch from Fed data)
+            risk_free_rate = 0.02 / 252  # 2% annual risk-free rate
+
+            # Sector-based expected return adjustments (annual basis, converted to daily)
+            sector_premiums = {
+                'ETF-Broad Market': 0.0,        # Market return
+                'ETF-Large Cap': -0.005,        # Slightly below market
+                'ETF-Small Cap': 0.015,         # Small cap premium
+                'ETF-Technology': 0.01,         # Tech growth premium
+                'ETF-Sector': 0.005,            # Sector concentration premium
+                'ETF-International': -0.01,     # Lower expected returns
+                'ETF-Emerging Markets': 0.02,   # Emerging market premium
+                'ETF-Commodities': 0.005,       # Commodity premium
+                'ETF-Innovation': 0.025,        # High growth premium
+                'ETF-Vanguard': -0.002,         # Low cost advantage
+                'ETF-iShares': 0.0,             # Market return
+                'ETF-SPDR': 0.0,                # Market return
+                'ETF-Other': 0.002,             # Slight premium
+
+                'Technology': 0.015,            # Growth sector premium
+                'Healthcare': 0.005,            # Stable growth
+                'Financials': 0.008,            # Economic sensitivity premium
+                'Consumer Discretionary': 0.01, # Economic growth exposure
+                'Consumer Staples': -0.005,     # Defensive discount
+                'Energy': 0.012,                # Volatility premium
+                'Industrials': 0.007,           # Economic cycle exposure
+                'Materials': 0.008,             # Commodity exposure
+                'Real Estate': 0.002,           # Different risk factors
+                'Utilities': -0.008,            # Low growth, defensive
+                'Communication Services': 0.005, # Mixed growth prospects
+                'Cryptocurrency': 0.05,         # Very high risk premium
+            }
+
+            # Get sector premium (convert annual to daily)
+            sector_premium = sector_premiums.get(sector or 'Unknown', 0.0) / 252
+
+            # CAPM-based expected return: Risk-free rate + Beta * Market risk premium
+            capm_return = risk_free_rate + (beta * market_risk_premium)
+
+            # Add sector-specific premium
+            expected_return = capm_return + sector_premium
+
+            # Quality/momentum adjustments for individual stocks
+            quality_adjustments = {
+                # High quality stocks (lower required return)
+                'AAPL': -0.001, 'MSFT': -0.001, 'JNJ': -0.0005, 'PG': -0.0005,
+                'BRK.A': -0.0008, 'BRK.B': -0.0008, 'UNH': -0.0005,
+
+                # High growth/momentum stocks (higher expected return)
+                'TSLA': 0.002, 'NVDA': 0.0015, 'AMD': 0.001, 'ARKK': 0.002,
+
+                # High risk stocks (higher required return)
+                'GME': 0.003, 'AMC': 0.003, 'RIOT': 0.004, 'MARA': 0.004,
+                'PLTR': 0.002,
+
+                # Defensive stocks (lower expected return)
+                'WMT': -0.0003, 'KO': -0.0003, 'NEE': -0.0003, 'D': -0.0003
+            }
+
+            if symbol in quality_adjustments:
+                expected_return += quality_adjustments[symbol]
+
+            # Volatility adjustment (higher volatility should demand higher return)
+            volatility_adjustment = max(0, (volatility - 0.15) * 0.1 / 252)  # Extra return for vol > 15%
+            expected_return += volatility_adjustment
+
+            # Ensure reasonable bounds (daily returns between -0.5% to 2%)
+            expected_return = max(-0.005, min(expected_return, 0.02))
+
+            return expected_return
+
+        except Exception as e:
+            logger.error(f"Error calculating expected return for {symbol}: {e}")
+            return 0.0003  # Default 0.03% daily return
 
     async def _get_portfolio_correlation(self, symbol: str, portfolio: PortfolioState) -> float:
         """Calculate correlation between symbol and rest of portfolio."""
@@ -690,9 +968,12 @@ class PortfolioMonitor:
                 return correlation
 
         try:
-            # In production, calculate from historical price data
-            # Placeholder implementation based on symbol similarity
-            correlation = await self._estimate_correlation(symbol1, symbol2)
+            # Calculate correlation from historical price data
+            correlation = await self._calculate_price_correlation(symbol1, symbol2)
+
+            # Fallback to estimation if no historical data available
+            if correlation is None:
+                correlation = await self._estimate_correlation(symbol1, symbol2)
 
             # Cache result
             self._correlation_cache[cache_key] = (correlation, datetime.now(timezone.utc))
@@ -704,54 +985,419 @@ class PortfolioMonitor:
             return 0.0
 
     async def _estimate_correlation(self, symbol1: str, symbol2: str) -> float:
-        """Estimate correlation between symbols (placeholder implementation)."""
+        """
+        Estimate correlation between symbols using sector correlation matrices and market regime analysis.
 
-        # This is a simplified estimation - in production you'd use historical data
+        TODO: Integrate with market data provider for real-time correlation calculations
+        based on rolling historical price data (e.g., 60-day rolling correlation).
+        """
 
-        # Same sector/industry correlation
-        if await self._same_sector(symbol1, symbol2):
-            return 0.6
+        # Same symbol always has correlation of 1
+        if symbol1 == symbol2:
+            return 1.0
 
-        # ETF correlations
-        if symbol1.startswith(('SPY', 'QQQ', 'IWM')) and symbol2.startswith(('SPY', 'QQQ', 'IWM')):
-            return 0.8
+        # Get sectors for both symbols
+        sector1 = await self._get_position_sector(symbol1)
+        sector2 = await self._get_position_sector(symbol2)
 
-        # Tech stocks correlation
-        if await self._is_tech_stock(symbol1) and await self._is_tech_stock(symbol2):
-            return 0.5
+        # Sector correlation matrix based on historical relationships
+        sector_correlations = {
+            # Technology sector correlations
+            ('Technology', 'Technology'): 0.75,
+            ('Technology', 'Consumer Discretionary'): 0.55,
+            ('Technology', 'Communication Services'): 0.65,
+            ('Technology', 'Healthcare'): 0.35,
+            ('Technology', 'Financials'): 0.45,
+            ('Technology', 'Industrials'): 0.40,
+            ('Technology', 'Materials'): 0.35,
+            ('Technology', 'Energy'): 0.25,
+            ('Technology', 'Utilities'): 0.15,
+            ('Technology', 'Consumer Staples'): 0.20,
+            ('Technology', 'Real Estate'): 0.25,
 
-        # Default low correlation
-        return 0.2
+            # Financial sector correlations
+            ('Financials', 'Financials'): 0.80,
+            ('Financials', 'Real Estate'): 0.45,
+            ('Financials', 'Industrials'): 0.55,
+            ('Financials', 'Materials'): 0.50,
+            ('Financials', 'Energy'): 0.45,
+            ('Financials', 'Consumer Discretionary'): 0.60,
+            ('Financials', 'Healthcare'): 0.35,
+            ('Financials', 'Utilities'): 0.30,
+            ('Financials', 'Consumer Staples'): 0.35,
+            ('Financials', 'Communication Services'): 0.40,
+
+            # Healthcare sector correlations
+            ('Healthcare', 'Healthcare'): 0.70,
+            ('Healthcare', 'Consumer Staples'): 0.45,
+            ('Healthcare', 'Utilities'): 0.35,
+            ('Healthcare', 'Real Estate'): 0.30,
+            ('Healthcare', 'Consumer Discretionary'): 0.40,
+            ('Healthcare', 'Industrials'): 0.35,
+            ('Healthcare', 'Materials'): 0.30,
+            ('Healthcare', 'Energy'): 0.25,
+            ('Healthcare', 'Communication Services'): 0.30,
+
+            # Energy sector correlations
+            ('Energy', 'Energy'): 0.85,
+            ('Energy', 'Materials'): 0.65,
+            ('Energy', 'Industrials'): 0.50,
+            ('Energy', 'Utilities'): 0.40,
+            ('Energy', 'Consumer Discretionary'): 0.40,
+            ('Energy', 'Consumer Staples'): 0.30,
+            ('Energy', 'Real Estate'): 0.35,
+            ('Energy', 'Communication Services'): 0.25,
+
+            # Consumer sectors
+            ('Consumer Discretionary', 'Consumer Discretionary'): 0.75,
+            ('Consumer Discretionary', 'Consumer Staples'): 0.40,
+            ('Consumer Discretionary', 'Industrials'): 0.55,
+            ('Consumer Discretionary', 'Materials'): 0.45,
+            ('Consumer Discretionary', 'Utilities'): 0.25,
+            ('Consumer Discretionary', 'Real Estate'): 0.35,
+            ('Consumer Discretionary', 'Communication Services'): 0.45,
+
+            ('Consumer Staples', 'Consumer Staples'): 0.65,
+            ('Consumer Staples', 'Utilities'): 0.50,
+            ('Consumer Staples', 'Real Estate'): 0.35,
+            ('Consumer Staples', 'Industrials'): 0.35,
+            ('Consumer Staples', 'Materials'): 0.30,
+            ('Consumer Staples', 'Communication Services'): 0.25,
+
+            # Industrial and Materials
+            ('Industrials', 'Industrials'): 0.70,
+            ('Industrials', 'Materials'): 0.60,
+            ('Industrials', 'Utilities'): 0.40,
+            ('Industrials', 'Real Estate'): 0.35,
+            ('Industrials', 'Communication Services'): 0.35,
+
+            ('Materials', 'Materials'): 0.75,
+            ('Materials', 'Utilities'): 0.35,
+            ('Materials', 'Real Estate'): 0.30,
+            ('Materials', 'Communication Services'): 0.25,
+
+            # Utilities and Real Estate
+            ('Utilities', 'Utilities'): 0.60,
+            ('Utilities', 'Real Estate'): 0.45,
+            ('Utilities', 'Communication Services'): 0.25,
+
+            ('Real Estate', 'Real Estate'): 0.65,
+            ('Real Estate', 'Communication Services'): 0.25,
+
+            # Communication Services
+            ('Communication Services', 'Communication Services'): 0.70,
+
+            # Special cases for ETFs
+            ('ETF-Broad Market', 'ETF-Broad Market'): 0.95,
+            ('ETF-Broad Market', 'ETF-Large Cap'): 0.98,
+            ('ETF-Broad Market', 'ETF-Small Cap'): 0.85,
+            ('ETF-Large Cap', 'ETF-Large Cap'): 0.95,
+            ('ETF-Large Cap', 'ETF-Small Cap'): 0.80,
+            ('ETF-Small Cap', 'ETF-Small Cap'): 0.90,
+
+            # Sector ETFs with their underlying sectors
+            ('ETF-Technology', 'Technology'): 0.95,
+            ('ETF-Sector', 'Financials'): 0.90,
+            ('ETF-Sector', 'Healthcare'): 0.90,
+            ('ETF-Sector', 'Energy'): 0.90,
+
+            # Cryptocurrency correlations
+            ('Cryptocurrency', 'Cryptocurrency'): 0.80,
+            ('Cryptocurrency', 'Technology'): 0.35,
+        }
+
+        # Look up correlation using both orders
+        correlation_key1 = (sector1, sector2)
+        correlation_key2 = (sector2, sector1)
+
+        if correlation_key1 in sector_correlations:
+            base_correlation = sector_correlations[correlation_key1]
+        elif correlation_key2 in sector_correlations:
+            base_correlation = sector_correlations[correlation_key2]
+        else:
+            # Default inter-sector correlation
+            base_correlation = 0.25
+
+        # Individual stock adjustments
+        correlation = base_correlation
+
+        # High correlation pairs (known to move together)
+        high_correlation_pairs = {
+            ('AAPL', 'MSFT'): 0.70,
+            ('GOOGL', 'GOOG'): 0.99,  # Same company
+            ('BRK.A', 'BRK.B'): 0.99,  # Same company
+            ('JPM', 'BAC'): 0.75,     # Major banks
+            ('XOM', 'CVX'): 0.80,     # Oil companies
+            ('KO', 'PEP'): 0.65,      # Beverage companies
+            ('WMT', 'COST'): 0.60,    # Retail
+            ('UNH', 'ANTM'): 0.70,    # Health insurers
+        }
+
+        # Check for specific high correlation pairs
+        pair_key1 = (symbol1, symbol2)
+        pair_key2 = (symbol2, symbol1)
+
+        if pair_key1 in high_correlation_pairs:
+            correlation = high_correlation_pairs[pair_key1]
+        elif pair_key2 in high_correlation_pairs:
+            correlation = high_correlation_pairs[pair_key2]
+
+        # Market regime adjustments
+        # TODO: Implement market regime detection (bull/bear/crisis)
+        # During crisis periods, correlations tend to increase
+        # market_regime = await self._detect_market_regime()
+        # if market_regime == 'crisis':
+        #     correlation = min(0.95, correlation * 1.3)
+
+        # Market cap similarity adjustment
+        if self._similar_market_cap(symbol1, symbol2):
+            correlation *= 1.1  # Similar sized companies tend to be more correlated
+
+        # ETF special handling
+        if sector1 and sector1.startswith('ETF') and sector2 and sector2.startswith('ETF'):
+            # ETFs generally have higher correlations
+            correlation = max(correlation, 0.6)
+        elif (sector1 and sector1.startswith('ETF')) or (sector2 and sector2.startswith('ETF')):
+            # ETF with individual stock
+            if sector1 and not sector1.startswith('ETF'):
+                # Check if ETF contains this sector
+                if sector2 == 'ETF-Technology' and sector1 == 'Technology':
+                    correlation = 0.85
+                elif sector2 == 'ETF-Broad Market':
+                    correlation = 0.70  # Broad market exposure
+            elif sector2 and not sector2.startswith('ETF'):
+                if sector1 == 'ETF-Technology' and sector2 == 'Technology':
+                    correlation = 0.85
+                elif sector1 == 'ETF-Broad Market':
+                    correlation = 0.70
+
+        # Ensure correlation is within valid bounds
+        correlation = max(-0.5, min(correlation, 0.99))
+
+        return correlation
+
+    def _similar_market_cap(self, symbol1: str, symbol2: str) -> bool:
+        """Check if two symbols have similar market capitalizations."""
+        # Mega cap symbols (>$500B)
+        mega_cap = {
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA',
+            'BRK.A', 'BRK.B', 'UNH', 'JNJ'
+        }
+
+        # Large cap symbols ($10B-$500B)
+        large_cap = {
+            'JPM', 'V', 'PG', 'MA', 'HD', 'CVX', 'XOM', 'PFE', 'ABBV', 'KO',
+            'MRK', 'TMO', 'ABT', 'COST', 'ADBE', 'NFLX', 'CRM', 'DHR', 'NKE',
+            'LIN', 'T', 'VZ', 'CMCSA', 'WFC', 'BAC', 'INTC', 'AMD', 'QCOM'
+        }
+
+        # Mid cap symbols ($2B-$10B) - typically 4 character symbols
+        mid_cap_patterns = lambda s: len(s) == 4 and s.isupper() and not any(c.isdigit() for c in s)
+
+        # Small cap symbols (<$2B) - typically longer symbols or with numbers
+        small_cap_patterns = lambda s: len(s) >= 5 or any(c.isdigit() for c in s)
+
+        # Check if both are in same category
+        if symbol1 in mega_cap and symbol2 in mega_cap:
+            return True
+        elif symbol1 in large_cap and symbol2 in large_cap:
+            return True
+        elif mid_cap_patterns(symbol1) and mid_cap_patterns(symbol2):
+            return True
+        elif small_cap_patterns(symbol1) and small_cap_patterns(symbol2):
+            return True
+
+        return False
 
     async def _same_sector(self, symbol1: str, symbol2: str) -> bool:
         """Check if two symbols are in the same sector."""
-        # Placeholder implementation
         sector1 = await self._get_position_sector(symbol1)
         sector2 = await self._get_position_sector(symbol2)
         return sector1 == sector2 and sector1 is not None
 
     async def _is_tech_stock(self, symbol: str) -> bool:
-        """Check if symbol is a tech stock."""
-        # Placeholder implementation
-        tech_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META']
-        return symbol in tech_symbols
+        """
+        Check if symbol is a technology stock with comprehensive detection.
 
-    async def _get_position_sector(self, symbol: str) -> Optional[str]:
-        """Get sector for a position."""
-        # Placeholder implementation - in production, fetch from financial data provider
-        sector_map = {
-            'AAPL': 'Technology',
-            'MSFT': 'Technology',
-            'GOOGL': 'Technology',
-            'AMZN': 'Consumer Discretionary',
-            'TSLA': 'Consumer Discretionary',
-            'JPM': 'Financials',
-            'BAC': 'Financials',
-            'SPY': 'ETF',
-            'QQQ': 'ETF',
-            'IWM': 'ETF'
+        TODO: Integrate with sector classification API for real-time sector data.
+        """
+        # Core technology companies
+        core_tech = {
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'META', 'NVDA', 'AMD', 'INTC',
+            'ORCL', 'IBM', 'CRM', 'ADBE', 'NFLX', 'PYPL', 'UBER', 'LYFT',
+            'ZOOM', 'ROKU', 'SQ', 'SHOP', 'SNOW', 'PLTR', 'CRWD', 'ZS',
+            'OKTA', 'TWLO', 'DOCU', 'WORK', 'TEAM', 'ATLX', 'NOW', 'SPLK'
         }
-        return sector_map.get(symbol, 'Unknown')
+
+        # Cloud and SaaS companies
+        cloud_saas = {
+            'AMZN', 'CRM', 'MSFT', 'GOOGL', 'ADBE', 'NOW', 'WDAY', 'VEEV',
+            'DDOG', 'NET', 'FSLY', 'MDB', 'ESTC', 'ZM', 'DOCN', 'GTLB'
+        }
+
+        # Semiconductor companies
+        semiconductors = {
+            'NVDA', 'AMD', 'INTC', 'TSM', 'ASML', 'QCOM', 'AVGO', 'TXN',
+            'ADI', 'MRVL', 'XLNX', 'LRCX', 'AMAT', 'KLAC', 'MCHP', 'SWKS'
+        }
+
+        # E-commerce and digital platforms
+        ecommerce = {
+            'AMZN', 'SHOP', 'EBAY', 'ETSY', 'BABA', 'JD', 'MELI', 'SE'
+        }
+
+        # Fintech companies
+        fintech = {
+            'PYPL', 'SQ', 'V', 'MA', 'COIN', 'HOOD', 'AFRM', 'SOFI', 'LC'
+        }
+
+        # Cybersecurity companies
+        cybersecurity = {
+            'CRWD', 'ZS', 'OKTA', 'PANW', 'FTNT', 'CHKP', 'CYBR', 'TENB'
+        }
+
+        # Check if symbol is in any tech category
+        if symbol in core_tech or symbol in cloud_saas or symbol in semiconductors:
+            return True
+        elif symbol in ecommerce or symbol in fintech or symbol in cybersecurity:
+            return True
+
+        # Pattern-based detection for newer tech companies
+        tech_patterns = [
+            'TECH', 'SOFT', 'DATA', 'CLOUD', 'CYBER', 'AI', 'ROBO', 'AUTO'
+        ]
+
+        if any(pattern in symbol.upper() for pattern in tech_patterns):
+            return True
+
+        # Check sector classification
+        sector = await self._get_position_sector(symbol)
+        return sector == 'Technology'
+
+    async def _get_position_sector(self, symbol: str) -> str:
+        """Get sector for a position with comprehensive sector mapping."""
+        # TODO: Add test_get_position_sector() - Verify sector lookup from screener data and fallback
+        # Check cache first
+        cache_key = symbol.upper()
+        if cache_key in self._sector_cache:
+            sector, timestamp = self._sector_cache[cache_key]
+            if datetime.now(timezone.utc) - timestamp < timedelta(hours=24):
+                return sector
+
+        # Try to get sector from screener data
+        try:
+            screener_df = await self._load_screener_data()
+            if screener_df is not None:
+                symbol_data = screener_df.filter(pl.col("symbol") == symbol.upper())
+                if len(symbol_data) > 0:
+                    sector = symbol_data.select("sector").item()
+                    if sector and sector != "Unknown" and sector.strip():
+                        # Cache the result
+                        self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
+                        logger.debug(f"Found sector '{sector}' for {symbol} from screener data")
+                        return sector
+        except Exception as e:
+            logger.warning(f"Failed to get sector from screener data for {symbol}: {e}")
+
+        # Fallback to comprehensive sector mapping
+        sector_map = {
+            # Technology
+            'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'GOOG': 'Technology',
+            'AMZN': 'Technology', 'META': 'Technology', 'NVDA': 'Technology', 'TSLA': 'Technology',
+            'NFLX': 'Technology', 'ADBE': 'Technology', 'CRM': 'Technology', 'ORCL': 'Technology',
+            'INTC': 'Technology', 'IBM': 'Technology', 'AMD': 'Technology', 'PYPL': 'Technology',
+            'UBER': 'Technology', 'LYFT': 'Technology', 'ZOOM': 'Technology', 'ROKU': 'Technology',
+            'SQ': 'Technology', 'SHOP': 'Technology', 'SNOW': 'Technology', 'PLTR': 'Technology',
+
+            # Healthcare & Pharmaceuticals
+            'JNJ': 'Healthcare', 'PFE': 'Healthcare', 'UNH': 'Healthcare', 'ABBV': 'Healthcare',
+            'MRK': 'Healthcare', 'TMO': 'Healthcare', 'ABT': 'Healthcare', 'DHR': 'Healthcare',
+            'BMY': 'Healthcare', 'AMGN': 'Healthcare', 'GILD': 'Healthcare', 'BIIB': 'Healthcare',
+            'CVS': 'Healthcare', 'ANTM': 'Healthcare', 'CI': 'Healthcare', 'HUM': 'Healthcare',
+
+            # Financials
+            'JPM': 'Financials', 'BAC': 'Financials', 'WFC': 'Financials', 'C': 'Financials',
+            'GS': 'Financials', 'MS': 'Financials', 'AXP': 'Financials', 'BLK': 'Financials',
+            'SCHW': 'Financials', 'USB': 'Financials', 'PNC': 'Financials', 'TFC': 'Financials',
+            'BRK.A': 'Financials', 'BRK.B': 'Financials', 'V': 'Financials', 'MA': 'Financials',
+
+            # Consumer Discretionary
+            'HD': 'Consumer Discretionary', 'NKE': 'Consumer Discretionary',
+            'MCD': 'Consumer Discretionary', 'SBUX': 'Consumer Discretionary', 'LOW': 'Consumer Discretionary',
+            'TJX': 'Consumer Discretionary', 'BKNG': 'Consumer Discretionary', 'CMG': 'Consumer Discretionary',
+            'F': 'Consumer Discretionary', 'GM': 'Consumer Discretionary', 'DIS': 'Consumer Discretionary',
+
+            # Consumer Staples
+            'PG': 'Consumer Staples', 'KO': 'Consumer Staples', 'PEP': 'Consumer Staples',
+            'WMT': 'Consumer Staples', 'COST': 'Consumer Staples', 'CL': 'Consumer Staples',
+            'KMB': 'Consumer Staples', 'GIS': 'Consumer Staples', 'K': 'Consumer Staples',
+
+            # Energy
+            'XOM': 'Energy', 'CVX': 'Energy', 'COP': 'Energy', 'SLB': 'Energy',
+            'EOG': 'Energy', 'PXD': 'Energy', 'KMI': 'Energy', 'OKE': 'Energy',
+
+            # Industrials
+            'BA': 'Industrials', 'CAT': 'Industrials', 'HON': 'Industrials', 'UPS': 'Industrials',
+            'RTX': 'Industrials', 'LMT': 'Industrials', 'GE': 'Industrials', 'MMM': 'Industrials',
+            'DE': 'Industrials', 'FDX': 'Industrials', 'UNP': 'Industrials', 'CSX': 'Industrials',
+
+            # Materials
+            'LIN': 'Materials', 'APD': 'Materials', 'SHW': 'Materials', 'FCX': 'Materials',
+            'NEM': 'Materials', 'DOW': 'Materials', 'DD': 'Materials', 'PPG': 'Materials',
+
+            # Real Estate
+            'AMT': 'Real Estate', 'PLD': 'Real Estate', 'CCI': 'Real Estate', 'EQIX': 'Real Estate',
+            'SPG': 'Real Estate', 'O': 'Real Estate', 'WELL': 'Real Estate', 'PSA': 'Real Estate',
+
+            # Utilities
+            'NEE': 'Utilities', 'DUK': 'Utilities', 'SO': 'Utilities', 'D': 'Utilities',
+            'AEP': 'Utilities', 'EXC': 'Utilities', 'XEL': 'Utilities', 'SRE': 'Utilities',
+
+            # Communications
+            'T': 'Communication Services', 'VZ': 'Communication Services', 'CMCSA': 'Communication Services',
+            'CHTR': 'Communication Services', 'TMUS': 'Communication Services', 'ATVI': 'Communication Services',
+
+            # ETFs and Index Funds
+            'SPY': 'ETF-Broad Market', 'QQQ': 'ETF-Technology', 'IWM': 'ETF-Small Cap',
+            'VTI': 'ETF-Broad Market', 'VOO': 'ETF-Large Cap', 'VEA': 'ETF-International',
+            'VWO': 'ETF-Emerging Markets', 'GLD': 'ETF-Commodities', 'SLV': 'ETF-Commodities',
+            'XLF': 'ETF-Sector', 'XLK': 'ETF-Sector', 'XLE': 'ETF-Sector', 'XLV': 'ETF-Sector',
+            'ARKK': 'ETF-Innovation', 'ARKQ': 'ETF-Innovation', 'ARKG': 'ETF-Innovation',
+
+            # Cryptocurrency-related
+            'COIN': 'Cryptocurrency', 'MSTR': 'Cryptocurrency', 'RIOT': 'Cryptocurrency',
+            'MARA': 'Cryptocurrency', 'HUT': 'Cryptocurrency', 'BITF': 'Cryptocurrency',
+        }
+
+        # Handle specific cases
+        sector = sector_map.get(symbol)
+
+        if sector:
+            # Cache and return
+            self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
+            return sector
+
+        # ETF detection by common patterns
+        if any(symbol.startswith(prefix) for prefix in ['VT', 'VO', 'VE', 'VB', 'VU', 'VI']):
+            sector = 'ETF-Vanguard'
+        elif any(symbol.startswith(prefix) for prefix in ['IVV', 'IWF', 'IWD', 'IJH', 'IJR']):
+            sector = 'ETF-iShares'
+        elif symbol.startswith('SPD'):
+            sector = 'ETF-SPDR'
+        elif symbol.endswith('ETF') or len(symbol) == 3 and symbol.isupper():
+            sector = 'ETF-Other'
+        # Cryptocurrency detection
+        elif any(crypto in symbol.upper() for crypto in ['BTC', 'ETH', 'CRYPTO', 'COIN', 'BLOCKCHAIN']):
+            sector = 'Cryptocurrency'
+        # Default classification based on symbol characteristics
+        elif len(symbol) <= 4 and symbol.isupper() and not any(char.isdigit() for char in symbol):
+            sector = 'Equity-Unknown'
+        else:
+            sector = 'Unknown'
+
+        # Cache the result
+        self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
+        return sector
 
     async def _calculate_position_risk_score(self,
                                            volatility: float,
@@ -895,7 +1541,7 @@ class PortfolioMonitor:
                 if position.quantity == 0:
                     continue
 
-                # Get sector (placeholder implementation)
+                # Get sector from cached data
                 sector = self._get_position_sector_sync(position.symbol)
                 exposure = abs(position.market_value) / portfolio.total_equity
 
@@ -912,19 +1558,64 @@ class PortfolioMonitor:
 
     def _get_position_sector_sync(self, symbol: str) -> str:
         """Synchronous version of sector lookup."""
+        # TODO: Add test_get_position_sector_sync() - Verify sync sector lookup and caching
+        # Check cache first
+        cache_key = symbol.upper()
+        if cache_key in self._sector_cache:
+            sector, timestamp = self._sector_cache[cache_key]
+            if datetime.now(timezone.utc) - timestamp < timedelta(hours=24):
+                return sector
+
+        # Try to load screener data synchronously (limited recent data)
+        try:
+            screener_dir = self._data_path / "screener_data" / "momentum"
+            if screener_dir.exists():
+                # Check only today's file for sync access (to avoid blocking)
+                today_file = screener_dir / f"{date.today().strftime('%Y-%m-%d')}.parquet"
+                if today_file.exists():
+                    df = pl.read_parquet(today_file)
+                    symbol_data = df.filter(pl.col("symbol") == symbol.upper())
+                    if len(symbol_data) > 0:
+                        sector = symbol_data.select("sector").item()
+                        if sector and sector != "Unknown" and sector.strip():
+                            # Cache the result
+                            self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
+                            logger.debug(f"Found sector '{sector}' for {symbol} from today's screener data (sync)")
+                            return sector
+        except Exception:
+            pass  # Fall through to hardcoded mapping
+
+        # Fallback to basic sector mapping
         sector_map = {
             'AAPL': 'Technology',
             'MSFT': 'Technology',
             'GOOGL': 'Technology',
+            'GOOG': 'Technology',
             'AMZN': 'Consumer Discretionary',
             'TSLA': 'Consumer Discretionary',
+            'NVDA': 'Technology',
+            'META': 'Technology',
             'JPM': 'Financials',
             'BAC': 'Financials',
+            'WFC': 'Financials',
+            'GS': 'Financials',
             'SPY': 'ETF',
             'QQQ': 'ETF',
-            'IWM': 'ETF'
+            'IWM': 'ETF',
+            'VTI': 'ETF',
+            'JNJ': 'Healthcare',
+            'PFE': 'Healthcare',
+            'UNH': 'Healthcare',
+            'XOM': 'Energy',
+            'CVX': 'Energy'
         }
-        return sector_map.get(symbol, 'Unknown')
+
+        sector = sector_map.get(symbol, 'Unknown')
+
+        # Cache the result
+        self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
+
+        return sector
 
     async def generate_risk_warnings(self, portfolio: PortfolioState) -> List[str]:
         """Generate list of current risk warnings."""
@@ -968,6 +1659,157 @@ class PortfolioMonitor:
         self.last_alert_times.clear()
 
         logger.info("Portfolio monitoring state reset")
+
+    async def _load_screener_data(self, days_back: int = 30) -> Optional[pl.DataFrame]:
+        """
+        Load recent screener data from stored Parquet files.
+
+        Args:
+            days_back: Number of days to look back for data
+
+        Returns:
+            DataFrame with screener data or None if not found
+        """
+        # TODO: Add test_load_screener_data() - Verify screener data loading and caching
+        try:
+            screener_dir = self._data_path / "screener_data" / "momentum"
+            if not screener_dir.exists():
+                logger.warning(f"Screener data directory not found: {screener_dir}")
+                return None
+
+            # Try to load recent files
+            current_date = date.today()
+            for i in range(days_back):
+                check_date = current_date - timedelta(days=i)
+                file_path = screener_dir / f"{check_date.strftime('%Y-%m-%d')}.parquet"
+
+                if file_path.exists():
+                    try:
+                        df = pl.read_parquet(file_path)
+                        logger.debug(f"Loaded screener data from {file_path} with {len(df)} records")
+                        return df
+                    except Exception as e:
+                        logger.warning(f"Failed to read screener file {file_path}: {e}")
+                        continue
+
+            logger.warning(f"No screener data found in last {days_back} days")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error loading screener data: {e}")
+            return None
+
+    async def _calculate_price_correlation(self, symbol1: str, symbol2: str) -> Optional[float]:
+        """
+        Calculate correlation between two symbols using historical price data.
+
+        Args:
+            symbol1: First symbol
+            symbol2: Second symbol
+
+        Returns:
+            Correlation coefficient or None if insufficient data
+        """
+        # TODO: Add test_calculate_price_correlation() - Verify price correlation calculation
+        # TODO: Add test_correlation_edge_cases() - Test insufficient data, identical symbols, invalid data
+        try:
+            # Load historical data for both symbols
+            data1 = await self._load_historical_prices(symbol1, days=60)
+            data2 = await self._load_historical_prices(symbol2, days=60)
+
+            if data1 is None or data2 is None:
+                return None
+
+            if len(data1) < 20 or len(data2) < 20:  # Need at least 20 data points
+                return None
+
+            # Align the data by timestamp and calculate returns
+            merged = data1.join(data2, on="timestamp", suffix="_2")
+            if len(merged) < 20:
+                return None
+
+            # Calculate daily returns
+            merged = merged.with_columns([
+                ((pl.col("close") - pl.col("close").shift(1)) / pl.col("close").shift(1)).alias("return1"),
+                ((pl.col("close_2") - pl.col("close_2").shift(1)) / pl.col("close_2").shift(1)).alias("return2")
+            ]).drop_nulls()
+
+            if len(merged) < 15:  # Need minimum data for correlation
+                return None
+
+            # Calculate correlation
+            correlation = merged.select(pl.corr("return1", "return2")).item()
+
+            # Ensure correlation is within valid range
+            if correlation is None or np.isnan(correlation):
+                logger.debug(f"Correlation calculation returned NaN for {symbol1}/{symbol2}")
+                return 0.0
+
+            final_correlation = max(-1.0, min(1.0, float(correlation)))
+            logger.debug(f"Calculated price correlation for {symbol1}/{symbol2}: {final_correlation:.3f} (from {len(merged)} data points)")
+            return final_correlation
+
+        except Exception as e:
+            logger.warning(f"Failed to calculate price correlation for {symbol1}/{symbol2}: {e}")
+            return None
+
+    async def _load_historical_prices(self, symbol: str, days: int = 60) -> Optional[pl.DataFrame]:
+        """
+        Load historical price data for a symbol.
+
+        Args:
+            symbol: Stock symbol
+            days: Number of days of data to load
+
+        Returns:
+            DataFrame with historical prices or None if not found
+        """
+        # TODO: Add test_load_historical_prices() - Verify historical data loading
+        try:
+            market_data_dir = self._data_path / "market_data" / symbol.upper()
+            if not market_data_dir.exists():
+                return None
+
+            # Try different timeframes, preferring daily data
+            timeframes = ["1day", "1hour", "15min"]
+
+            for tf in timeframes:
+                tf_dir = market_data_dir / tf
+                if not tf_dir.exists():
+                    continue
+
+                # Load recent files
+                end_date = date.today()
+                start_date = end_date - timedelta(days=days)
+
+                dfs = []
+                current_date = start_date
+                while current_date <= end_date:
+                    file_path = tf_dir / f"{current_date.strftime('%Y-%m-%d')}.parquet"
+                    if file_path.exists():
+                        try:
+                            df = pl.read_parquet(file_path)
+                            dfs.append(df)
+                        except Exception:
+                            pass
+                    current_date += timedelta(days=1)
+
+                if dfs:
+                    combined_df = pl.concat(dfs).sort("timestamp")
+                    # For intraday data, sample to daily closes
+                    if tf != "1day":
+                        combined_df = combined_df.group_by_dynamic(
+                            "timestamp", every="1d"
+                        ).agg(pl.col("close").last())
+
+                    logger.debug(f"Loaded {len(combined_df)} price records for {symbol} using {tf} timeframe")
+                    return combined_df.select(["timestamp", "close"])
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to load historical prices for {symbol}: {e}")
+            return None
 
     def get_monitoring_statistics(self) -> Dict:
         """Get monitoring statistics."""

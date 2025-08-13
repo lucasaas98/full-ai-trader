@@ -28,8 +28,25 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 from shared.config import Config
-from logging.logging_config import setup_logging
 from monitoring.metrics import MetricsCollector
+
+def setup_logging(service_name: str):
+    """Set up logging configuration."""
+    import logging
+
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler()
+        ]
+    )
+
+    logger = logging.getLogger(service_name)
+    logger.setLevel(logging.INFO)
+
+    return logger
 
 class DatabaseManager:
     """Simple database manager for maintenance service."""
@@ -62,8 +79,7 @@ class DatabaseManager:
             await self.pool.close()
 
 # Configure logging
-setup_logging("maintenance_service")
-logger = logging.getLogger(__name__)
+logger = setup_logging("maintenance_service")
 
 # Security
 security = HTTPBearer()
@@ -777,7 +793,7 @@ if __name__ == "__main__":
     port = int(os.getenv("SERVICE_PORT", 8007))
 
     uvicorn.run(
-        "main:app",
+        app,
         host="0.0.0.0",
         port=port,
         log_level="info",

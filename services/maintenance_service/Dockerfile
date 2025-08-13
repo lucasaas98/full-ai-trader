@@ -7,17 +7,13 @@ ENV PYTHONUNBUFFERED=1 \
     UV_NO_CACHE=1 \
     UV_COMPILE_BYTECODE=1 \
     SERVICE_NAME=maintenance_service \
-    SERVICE_PORT=8007
+    SERVICE_PORT=9107
+
 
 # Install system dependencies and uv
 RUN apt-get update && apt-get install -y \
     curl \
-    postgresql-client \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && rm -rf /var/lib/apt/lists/*
-
-# Add uv to PATH
-ENV PATH="/root/.cargo/bin:$PATH"
+    postgresql-client
 
 # Create non-root user
 RUN groupadd -r trader && useradd -r -g trader trader
@@ -26,28 +22,35 @@ RUN groupadd -r trader && useradd -r -g trader trader
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY services/maintenance_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared modules
-COPY --chown=trader:trader ../../shared ./shared
+COPY shared/ ./shared/
+
+# Copy logging module
+COPY logging/ ./logging/
+
+# Copy monitoring module
+COPY monitoring/ ./monitoring/
 
 # Copy service code
-COPY --chown=trader:trader src/ ./src/
+COPY services/maintenance_service/src/ ./src/
 
 # Create necessary directories
-RUN mkdir -p /app/data/maintenance /app/logs && \
-    chown -R trader:trader /app/data /app/logs
+RUN mkdir -p /app/data/maintenance /app/logs
+
+RUN chown -R trader:trader /app
 
 # Switch to non-root user
 USER trader
 
 # Expose port
-EXPOSE 8007
+EXPOSE 9107
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8007/health || exit 1
+    CMD curl -f http://localhost:9107/health || exit 1
 
 # Start the service
 CMD ["python", "-m", "src.main"]

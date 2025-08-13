@@ -14,12 +14,14 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
 import numpy as np
+import asyncio
+import polars as pl
 
 from shared.config import get_config
 from shared.models import (
     Position, PortfolioState, PortfolioMetrics, TradeSignal, OrderRequest, OrderSide,
     RiskEvent, RiskEventType, RiskSeverity, PositionSizing, PositionSizingMethod,
-    RiskFilter, TrailingStop, RiskLimits
+    RiskFilter, TrailingStop, RiskLimits, TimeFrame
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,17 @@ class RiskManager:
         self._portfolio_metrics_cache: Optional[PortfolioMetrics] = None
         self._cache_timestamp: Optional[datetime] = None
         self._cache_ttl = timedelta(minutes=1)
+
+        # Data access
+        self._data_store = None
+        self._data_client = None
+        self._price_cache: Dict[str, Tuple[datetime, float]] = {}
+        self._correlation_cache: Dict[str, Tuple[datetime, float]] = {}
+        self._volatility_cache: Dict[str, Tuple[datetime, float]] = {}
+        self._atr_cache: Dict[str, Tuple[datetime, float]] = {}
+
+        # Initialize data services
+        asyncio.create_task(self._initialize_data_services())
 
     async def validate_trade_request(self,
                                    order_request: OrderRequest,
@@ -816,20 +829,69 @@ class RiskManager:
     async def _calculate_portfolio_beta_correlation(self, portfolio: PortfolioState) -> Tuple[float, float]:
         """Calculate portfolio beta and average correlation."""
         try:
-            # This would typically require historical price data
-            # For now, return reasonable defaults
-            # In a real implementation, you'd calculate these from historical data
-
-            # Placeholder implementation
+            # Calculate portfolio beta and correlation using historical data
             beta_sum = 0.0
             correlation_sum = 0.0
             count = 0
 
+            # Get SPY data as market benchmark
+            spy_data = await self._get_historical_data("SPY", days=252)
+            spy_returns = None
+            if spy_data is not None:
+                spy_returns = await self._calculate_returns(spy_data)
+
             for position in portfolio.positions:
                 if position.quantity != 0:
-                    # In real implementation, fetch beta and correlation data
-                    beta_sum += 1.0  # Assume beta of 1.0
-                    correlation_sum += 0.3  # Assume moderate correlation
+                    # Calculate actual beta and correlation if we have market data
+                    if spy_returns is not None:
+                        # Get stock data and calculate beta
+                        stock_data = await self._get_historical_data(position.symbol, days=252)
+                        if stock_data is not None:
+                            stock_returns = await self._calculate_returns(stock_data)
+                            if stock_returns is not None and len(stock_returns) > 20:
+                                # Merge returns data on timestamp
+                                merged = stock_returns.select(["timestamp", "returns"]).join(
+                                    spy_returns.select(["timestamp", "returns"]),
+                                    on="timestamp",
+                                    how="inner",
+                                    suffix="_market"
+                                )
+
+                                if len(merged) > 20:
+                                    # Calculate beta = cov(stock, market) / var(market)
+                                    stock_rets = merged["returns"].to_numpy()
+                                    market_rets = merged["returns_market"].to_numpy()
+
+                                    if len(stock_rets) > 0 and len(market_rets) > 0:
+                                        covariance = np.cov(stock_rets, market_rets)[0, 1]
+                                        market_variance = np.var(market_rets)
+
+                                        if market_variance > 0:
+                                            beta = covariance / market_variance
+                                            beta_sum += max(0.1, min(3.0, beta))  # Clamp beta
+                                        else:
+                                            beta_sum += 1.0
+
+                                        # Correlation is already calculated
+                                        correlation = np.corrcoef(stock_rets, market_rets)[0, 1]
+                                        correlation_sum += abs(correlation) if not np.isnan(correlation) else 0.3
+                                    else:
+                                        beta_sum += 1.0
+                                        correlation_sum += 0.3
+                                else:
+                                    beta_sum += 1.0
+                                    correlation_sum += 0.3
+                            else:
+                                beta_sum += 1.0
+                                correlation_sum += 0.3
+                        else:
+                            beta_sum += 1.0
+                            correlation_sum += 0.3
+                    else:
+                        # Fallback to default values
+                        beta_sum += 1.0
+                        correlation_sum += 0.3
+
                     count += 1
 
             portfolio_beta = beta_sum / count if count > 0 else 1.0
@@ -864,31 +926,154 @@ class RiskManager:
             return Decimal("0"), Decimal("0"), Decimal("0")
 
     async def _calculate_sharpe_ratio(self, portfolio: PortfolioState) -> float:
-        """Calculate current Sharpe ratio."""
+        """Calculate portfolio Sharpe ratio."""
         try:
-            # This would require historical returns data
-            # Placeholder implementation
+            # Get portfolio historical performance
+            if not portfolio.positions:
+                return 0.0
+
+            # Calculate weighted returns for portfolio
+            total_returns = []
+            total_weights = 0.0
+
+            for position in portfolio.positions:
+                stock_data = await self._get_historical_data(position.symbol, days=252)
+                if stock_data is not None:
+                    returns_df = await self._calculate_returns(stock_data)
+                    if returns_df is not None and len(returns_df) > 20:
+                        weight = float(position.market_value / portfolio.total_market_value)
+                        returns_list = returns_df["returns"].to_list()
+
+                        if not total_returns:
+                            total_returns = [r * weight for r in returns_list]
+                        else:
+                            # Add weighted returns
+                            min_len = min(len(total_returns), len(returns_list))
+                            total_returns = [total_returns[i] + returns_list[i] * weight
+                                           for i in range(min_len)]
+
+                        total_weights += weight
+
+            if not total_returns or len(total_returns) < 20:
+                return 0.0
+
+            # Calculate Sharpe ratio
+            mean_return = np.mean(total_returns)
+            std_return = np.std(total_returns)
+
+            # Assume risk-free rate of 2% annually (0.02/252 daily)
+            risk_free_rate = 0.02 / 252
+
+            if std_return > 0:
+                sharpe_ratio = (mean_return - risk_free_rate) / std_return * np.sqrt(252)
+                return float(sharpe_ratio)
+
             return 0.0
+
         except Exception as e:
             logger.error(f"Error calculating Sharpe ratio: {e}")
             return 0.0
 
     async def _calculate_drawdown_metrics(self, portfolio: PortfolioState) -> Tuple[Decimal, Decimal]:
-        """Calculate maximum and current drawdown."""
+        """Calculate max drawdown and current drawdown."""
         try:
-            # This would require historical portfolio values
-            # Placeholder implementation
-            return Decimal("0"), Decimal("0")
+            # Calculate portfolio value series from historical data
+            portfolio_values = []
+
+            if not portfolio.positions:
+                return Decimal("0"), Decimal("0")
+
+            # Get the shortest data series among all positions
+            min_data_length = float('inf')
+            position_data = {}
+
+            for position in portfolio.positions:
+                stock_data = await self._get_historical_data(position.symbol, days=252)
+                if stock_data is not None and len(stock_data) > 20:
+                    position_data[position.symbol] = stock_data
+                    min_data_length = min(min_data_length, len(stock_data))
+
+            if not position_data or min_data_length == float('inf'):
+                return Decimal("0"), Decimal("0")
+
+            # Calculate portfolio values over time
+            for i in range(int(min_data_length)):
+                portfolio_value = 0.0
+                for position in portfolio.positions:
+                    if position.symbol in position_data:
+                        stock_df = position_data[position.symbol]
+                        if i < len(stock_df):
+                            price = float(stock_df[i]["close"])
+                            value = price * float(position.quantity)
+                            portfolio_value += value
+
+                portfolio_values.append(portfolio_value)
+
+            if len(portfolio_values) < 2:
+                return Decimal("0"), Decimal("0")
+
+            # Calculate drawdowns
+            peak = portfolio_values[0]
+            max_drawdown = 0.0
+            current_drawdown = 0.0
+
+            for value in portfolio_values:
+                if value > peak:
+                    peak = value
+
+                drawdown = (peak - value) / peak if peak > 0 else 0.0
+                max_drawdown = max(max_drawdown, drawdown)
+
+            # Current drawdown from current peak
+            current_value = portfolio_values[-1]
+            current_drawdown = (peak - current_value) / peak if peak > 0 else 0.0
+
+            return Decimal(str(max_drawdown)), Decimal(str(current_drawdown))
+
         except Exception as e:
             logger.error(f"Error calculating drawdown metrics: {e}")
             return Decimal("0"), Decimal("0")
 
     async def _calculate_portfolio_volatility(self, portfolio: PortfolioState) -> float:
-        """Calculate portfolio volatility."""
+        """Calculate portfolio volatility using correlation matrix."""
         try:
-            # This would require historical price data and correlation matrix
-            # Placeholder implementation
-            return 0.15  # 15% annualized volatility
+            if not portfolio.positions or len(portfolio.positions) == 1:
+                # Single asset or empty portfolio
+                if portfolio.positions:
+                    return await self._get_symbol_volatility(portfolio.positions[0].symbol)
+                return 0.15
+
+            # Get volatilities and weights for all positions
+            symbols = [pos.symbol for pos in portfolio.positions]
+            weights = []
+            volatilities = []
+
+            for position in portfolio.positions:
+                weight = float(position.market_value / portfolio.total_market_value)
+                volatility = await self._get_symbol_volatility(position.symbol)
+                weights.append(weight)
+                volatilities.append(volatility)
+
+            # Calculate portfolio variance using correlation matrix
+            portfolio_variance = 0.0
+
+            for i in range(len(symbols)):
+                for j in range(len(symbols)):
+                    if i == j:
+                        # Variance term
+                        portfolio_variance += (weights[i] ** 2) * (volatilities[i] ** 2)
+                    else:
+                        # Covariance term
+                        correlation = await self._get_symbol_correlation(symbols[i], symbols[j])
+                        covariance = correlation * volatilities[i] * volatilities[j]
+                        portfolio_variance += 2 * weights[i] * weights[j] * covariance
+
+            # Portfolio volatility is square root of variance
+            portfolio_volatility = np.sqrt(max(0, portfolio_variance))
+
+            # Clamp to reasonable bounds
+            return max(0.05, min(1.0, portfolio_volatility))
+
         except Exception as e:
             logger.error(f"Error calculating portfolio volatility: {e}")
             return 0.15
@@ -931,49 +1116,261 @@ class RiskManager:
     async def _get_symbol_correlation(self, symbol1: str, symbol2: str) -> float:
         """Get correlation between two symbols."""
         try:
-            # In production, this would fetch historical data and calculate correlation
-            # For now, return a placeholder value
             if symbol1 == symbol2:
                 return 1.0
 
-            # Simulate some correlation based on symbol similarity
-            # This is just a placeholder - real implementation would use price data
-            return 0.3 if len(set(symbol1) & set(symbol2)) > 1 else 0.1
+            # Check cache first
+            cache_key = f"{symbol1}_{symbol2}" if symbol1 < symbol2 else f"{symbol2}_{symbol1}"
+            if cache_key in self._correlation_cache:
+                cached_time, cached_value = self._correlation_cache[cache_key]
+                cache_age = datetime.now() - cached_time
+                if cache_age < timedelta(hours=1):
+                    return cached_value
+
+            # Get historical data for both symbols
+            df1 = await self._get_historical_data(symbol1, days=252)
+            df2 = await self._get_historical_data(symbol2, days=252)
+
+            if df1 is None or df2 is None:
+                # Fallback to placeholder logic
+                correlation = 0.3 if len(set(symbol1) & set(symbol2)) > 1 else 0.1
+            else:
+                # Calculate returns for both symbols
+                returns1 = await self._calculate_returns(df1)
+                returns2 = await self._calculate_returns(df2)
+
+                if returns1 is None or returns2 is None or len(returns1) < 10 or len(returns2) < 10:
+                    correlation = 0.1
+                else:
+                    # Merge on timestamp and calculate correlation
+                    merged = returns1.select(["timestamp", "returns"]).join(
+                        returns2.select(["timestamp", "returns"]),
+                        on="timestamp",
+                        how="inner",
+                        suffix="_2"
+                    )
+
+                    if len(merged) < 10:
+                        correlation = 0.1
+                    else:
+                        # Calculate Pearson correlation
+                        corr_matrix = merged.select(["returns", "returns_2"]).corr()
+                        correlation = float(corr_matrix[0, 1]) if corr_matrix[0, 1] is not None else 0.1
+
+                        # Clamp correlation to reasonable bounds
+                        correlation = max(-1.0, min(1.0, correlation))
+
+            # Cache the result
+            self._correlation_cache[cache_key] = (datetime.now(), correlation)
+            return correlation
 
         except Exception as e:
             logger.error(f"Error getting correlation between {symbol1} and {symbol2}: {e}")
             return 0.0
 
     async def _get_symbol_volatility(self, symbol: str) -> float:
-        """Get symbol volatility (annualized)."""
+        """Get volatility for a symbol."""
         try:
-            # In production, this would calculate from historical price data
-            # For now, return a reasonable default based on symbol characteristics
+            # Check cache first
+            if symbol in self._volatility_cache:
+                cached_time, cached_value = self._volatility_cache[symbol]
+                cache_age = datetime.now() - cached_time
+                if cache_age < timedelta(hours=1):
+                    return cached_value
 
-            # Simulate volatility based on symbol (placeholder)
-            if any(char.isdigit() for char in symbol):
-                return 0.35  # Higher volatility for symbols with numbers
-            elif len(symbol) <= 3:
-                return 0.25  # Medium volatility for short symbols
+            # Get historical data
+            df = await self._get_historical_data(symbol, days=252)
+
+            if df is None or len(df) < 20:
+                # Fallback to symbol-based estimation
+                if any(char.isdigit() for char in symbol):
+                    volatility = 0.35  # Higher volatility for symbols with numbers
+                elif len(symbol) <= 3:
+                    volatility = 0.25  # Medium volatility for short symbols
+                else:
+                    volatility = 0.20  # Lower volatility for longer symbols
             else:
-                return 0.20  # Lower volatility for longer symbols
+                # Calculate returns
+                returns_df = await self._calculate_returns(df)
+
+                if returns_df is None or len(returns_df) < 20:
+                    volatility = 0.25
+                else:
+                    # Calculate annualized volatility
+                    returns_std_val = returns_df["returns"].std()
+                    returns_std = float(returns_std_val) if returns_std_val is not None else 0.0
+                    volatility = returns_std * np.sqrt(252)  # Annualized
+
+                    # Clamp to reasonable bounds
+                    volatility = max(0.05, min(2.0, volatility))
+
+            # Cache the result
+            self._volatility_cache[symbol] = (datetime.now(), volatility)
+            return volatility
 
         except Exception as e:
             logger.error(f"Error getting volatility for {symbol}: {e}")
-            return 0.20  # Default volatility
+            return 0.25  # Default volatility
 
     async def _get_atr(self, symbol: str, period: int = 14) -> float:
-        """Get Average True Range for volatility-based stops."""
+        """Get Average True Range for a symbol."""
         try:
-            # In production, this would calculate ATR from OHLC data
-            # For now, return a placeholder based on current price estimation
+            # Check cache first
+            if symbol in self._atr_cache:
+                cached_time, cached_value = self._atr_cache[symbol]
+                cache_age = datetime.now() - cached_time
+                if cache_age < timedelta(hours=1):
+                    return cached_value
 
-            # Simulate ATR as percentage of price (placeholder)
-            return 0.02  # 2% ATR
+            # Get historical OHLC data
+            df = await self._get_historical_data(symbol, days=30)
+
+            if df is None or len(df) < period:
+                # Fallback to placeholder
+                atr = 0.02
+            else:
+                # Calculate True Range
+                df_with_tr = df.with_columns([
+                    # True Range = max(H-L, |H-C_prev|, |L-C_prev|)
+                    pl.max_horizontal([
+                        pl.col("high") - pl.col("low"),
+                        (pl.col("high") - pl.col("close").shift(1)).abs(),
+                        (pl.col("low") - pl.col("close").shift(1)).abs()
+                    ]).alias("true_range")
+                ]).drop_nulls()
+
+                if len(df_with_tr) < period:
+                    atr = 0.02
+                else:
+                    # Calculate period-ATR
+                    atr_mean_val = df_with_tr["true_range"].tail(period).mean()
+                    atr_value = float(atr_mean_val) if atr_mean_val is not None else 0.02
+                    price_val = df_with_tr["close"].tail(1).item()
+                    current_price = float(price_val) if price_val is not None else 1.0
+
+                    # Convert to percentage
+                    atr = atr_value / current_price if current_price > 0 else 0.02
+
+                    # Clamp to reasonable bounds
+                    atr = max(0.005, min(0.10, atr))
+
+            # Cache the result
+            self._atr_cache[symbol] = (datetime.now(), atr)
+            return atr
 
         except Exception as e:
             logger.error(f"Error getting ATR for {symbol}: {e}")
             return 0.02  # Default ATR
+
+    async def _initialize_data_services(self):
+        """Initialize data store and client connections."""
+        try:
+            # Import data services
+            from services.data_collector.src.data_store import DataStore, DataStoreConfig
+            from services.data_collector.src.twelvedata_client import TwelveDataClient, TwelveDataConfig
+
+            # Create data store config from main config
+            data_config = self.config.data
+            data_store_config = DataStoreConfig(
+                base_path=data_config.parquet_path,
+                max_workers=4,
+                retention_days=data_config.retention_days,
+                compression=data_config.compression,
+                batch_size=data_config.batch_size
+            )
+
+            # Create TwelveData config using values from main config
+            shared_twelvedata = self.config.twelvedata
+            twelvedata_config = TwelveDataConfig(
+                api_key=shared_twelvedata.api_key,
+                base_url=shared_twelvedata.base_url,
+                rate_limit_requests=shared_twelvedata.rate_limit_requests,
+                rate_limit_period=shared_twelvedata.rate_limit_period,
+                timeout=float(shared_twelvedata.timeout)
+            )
+
+            # Initialize data store
+            self._data_store = DataStore(data_store_config)
+
+            # Initialize TwelveData client
+            self._data_client = TwelveDataClient(twelvedata_config)
+
+            logger.info("Data services initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize data services: {e}")
+            # Continue without data services - will use fallback methods
+
+    async def _get_historical_data(self, symbol: str, days: int = 30) -> Optional[pl.DataFrame]:
+        """Get historical market data for a symbol."""
+        try:
+            if self._data_store is None:
+                return None
+
+            # Calculate date range
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=days)
+
+            # Try to load from data store first
+            df = await self._data_store.load_market_data(
+                ticker=symbol,
+                timeframe=TimeFrame.ONE_DAY,
+                start_date=start_date,
+                end_date=end_date
+            )
+
+            if df is not None and len(df) > 0:
+                return df
+
+            # If no local data and we have a client, try to fetch
+            if self._data_client is not None:
+                try:
+                    market_data_list = await self._data_client.get_historical_data(
+                        symbol=symbol,
+                        timeframe=TimeFrame.ONE_DAY,
+                        years=max(1, days // 365)
+                    )
+
+                    if market_data_list:
+                        # Convert to DataFrame
+                        data_dicts = []
+                        for md in market_data_list[-days:]:  # Get last N days
+                            data_dicts.append({
+                                'timestamp': md.timestamp,
+                                'open': float(md.open),
+                                'high': float(md.high),
+                                'low': float(md.low),
+                                'close': float(md.close),
+                                'volume': int(md.volume)
+                            })
+
+                        if data_dicts:
+                            return pl.DataFrame(data_dicts)
+
+                except Exception as e:
+                    logger.warning(f"Failed to fetch data for {symbol}: {e}")
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting historical data for {symbol}: {e}")
+            return None
+
+    async def _calculate_returns(self, df: pl.DataFrame) -> Optional[pl.DataFrame]:
+        """Calculate returns from price data."""
+        try:
+            if df is None or len(df) < 2:
+                return None
+
+            # Calculate daily returns
+            returns_df = df.with_columns([
+                pl.col("close").pct_change().alias("returns")
+            ]).drop_nulls()
+
+            return returns_df
+
+        except Exception as e:
+            logger.error(f"Error calculating returns: {e}")
+            return None
 
     def reset_daily_counters(self):
         """Reset daily trading counters (call at market open)."""

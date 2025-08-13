@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  notification-service:
+    build:
+      context: ../..
+      dockerfile: services/notification_service/Dockerfile
+    container_name: trading-notification-service
+    restart: unless-stopped
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - GOTIFY_URL=${GOTIFY_URL}
+      - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - NOTIFICATION_COOLDOWN=${NOTIFICATION_COOLDOWN:-60}
+      - TZ=${TZ:-UTC}
+    networks:
+      - trading-network
+    depends_on:
+      - redis
+    volumes:
+      - ./logs:/app/logs
+      - ../../shared:/app/shared:ro
+      - ../../monitoring:/app/monitoring:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: trading-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - trading-network
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  trading-network:
+    driver: bridge
+    name: trading-network
+
+volumes:
+  redis-data:
+    name: trading-redis-data

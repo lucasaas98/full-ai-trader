@@ -5,7 +5,7 @@ FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     SERVICE_NAME=export_service \
-    SERVICE_PORT=8006
+    SERVICE_PORT=9106
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -20,28 +20,35 @@ RUN groupadd -r trader && useradd -r -g trader trader
 WORKDIR /app
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY services/export_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy shared modules
-COPY --chown=trader:trader ../../shared ./shared
+COPY shared/ ./shared/
+
+# Copy logging module
+COPY logging/ ./logging/
+
+# Copy monitoring module
+COPY monitoring/ ./monitoring/
 
 # Copy service code
-COPY --chown=trader:trader src/ ./src/
+COPY services/export_service/src/ ./src/
 
 # Create necessary directories
-RUN mkdir -p /app/data/exports /app/logs && \
-    chown -R trader:trader /app/data /app/logs
+RUN mkdir -p /app/data/exports /app/logs
+
+RUN chown -R trader:trader /app
 
 # Switch to non-root user
 USER trader
 
 # Expose port
-EXPOSE 8006
+EXPOSE 9106
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8006/health || exit 1
+    CMD curl -f http://localhost:9106/health || exit 1
 
 # Start the service
-CMD ["python", "-m", "src.main"]
+CMD ["python", "/app/src/run.py"]

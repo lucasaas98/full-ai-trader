@@ -11,13 +11,35 @@ import logging
 import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 import yaml
 from pathlib import Path
+import os
+import sys
 
 import polars as pl
 import numpy as np
+
+# Add the data collector to the path for imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../data_collector/src'))
+
+try:
+    from redis_client import RedisClient
+    from twelvedata_client import TwelveDataClient
+    REDIS_AVAILABLE = True
+    TWELVEDATA_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    TWELVEDATA_AVAILABLE = False
+    class RedisClient:
+        def __init__(self, *args, **kwargs): pass
+        async def connect(self): pass
+        async def disconnect(self): pass
+        async def get_cached_market_data(self, *args, **kwargs): return None
+    class TwelveDataClient:
+        def __init__(self, *args, **kwargs): pass
+        async def get_real_time_price(self, *args, **kwargs): return None
 try:
     from anthropic import AsyncAnthropic
 except ImportError:
@@ -821,18 +843,18 @@ class AIStrategyEngine(BaseStrategy):
                     return cached_signal
 
             # Get FinViz data if available (would come from Redis in production)
-            finviz_data = None  # Placeholder
+            finviz_data = await self._get_finviz_data(symbol)
 
-            # Get market data (placeholder - would be implemented)
-            market_data = {}
+            # Get market data for context
+            market_data = await self._get_market_data()
 
             # Build context for AI
             context = self.context_builder.build_master_context(
                 symbol, data, finviz_data, market_data
             )
 
-            # Query multiple AI models (placeholder - would be implemented)
-            responses = []  # await self._query_multiple_models(context, symbol)
+            # Query multiple AI models
+            responses = await self._query_multiple_models(context, symbol)
 
             # Build consensus
             decision = await self.consensus_engine.build_consensus(responses)
@@ -888,11 +910,58 @@ class AIStrategyEngine(BaseStrategy):
     async def _update_market_context(self):
         """Update market regime context."""
         try:
-            # This would fetch real market data in production
-            # Placeholder implementation
+            # Fetch real market data for SPY (S&P 500), QQQ (NASDAQ), and VIX
+            market_data = await self._get_broad_market_data()
+
+            # Analyze market conditions
+            spy_change = market_data.get('SPY', {}).get('change_percent', 0)
+            vix_level = market_data.get('VIX', {}).get('price', 20)
+
+            # Determine market regime based on indicators
+            if spy_change > 1.0 and vix_level < 20:
+                regime = 'bullish'
+                strength = min(90.0, 50.0 + spy_change * 10)
+                risk_level = 'low'
+                position_multiplier = 1.2
+                confidence_adjustment = 0.1
+            elif spy_change < -1.0 or vix_level > 30:
+                regime = 'bearish'
+                strength = max(10.0, 50.0 + spy_change * 10)
+                risk_level = 'high'
+                position_multiplier = 0.7
+                confidence_adjustment = -0.1
+            else:
+                regime = 'neutral'
+                strength = 50.0 + spy_change * 5
+                risk_level = 'medium'
+                position_multiplier = 1.0
+                confidence_adjustment = 0.0
+
+            # Determine sectors to focus on based on market conditions
+            if regime == 'bullish':
+                sectors = ['Technology', 'Consumer Discretionary', 'Growth']
+            elif regime == 'bearish':
+                sectors = ['Utilities', 'Consumer Staples', 'Healthcare']
+            else:
+                sectors = ['Technology', 'Healthcare', 'Financial']
+
             self.market_context = MarketContext(
-                regime='bullish',
-                strength=70.0,
+                regime=regime,
+                strength=strength,
+                risk_level=risk_level,
+                position_size_multiplier=position_multiplier,
+                confidence_threshold_adjustment=confidence_adjustment,
+                sectors_to_focus=sectors,
+                timestamp=datetime.now()
+            )
+            self.last_market_update = datetime.now()
+
+        except Exception as e:
+            logger.error(f"Error updating market context: {e}")
+            # Fallback to neutral market context
+            self.market_context = MarketContext(
+                regime='neutral',
+                strength=50.0,
                 risk_level='medium',
                 position_size_multiplier=1.0,
                 confidence_threshold_adjustment=0.0,
@@ -900,5 +969,198 @@ class AIStrategyEngine(BaseStrategy):
                 timestamp=datetime.now()
             )
             self.last_market_update = datetime.now()
+
+    async def _get_finviz_data(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """Fetch FinViz data from Redis cache."""
+        try:
+            if not REDIS_AVAILABLE:
+                logger.debug("Redis not available, skipping FinViz data")
+                return None
+
+            redis_client = RedisClient()
+            await redis_client.connect()
+
+            # Try to get cached FinViz data
+            finviz_key = f"finviz:{symbol}"
+            cached_data = await redis_client.get_cached_market_data(finviz_key)
+
+            await redis_client.disconnect()
+
+            if cached_data:
+                logger.debug(f"Retrieved FinViz data for {symbol} from cache")
+                return cached_data
+            else:
+                logger.debug(f"No cached FinViz data found for {symbol}")
+                return None
+
         except Exception as e:
-            logger.error(f"Error updating market context: {e}")
+            logger.error(f"Error fetching FinViz data for {symbol}: {e}")
+            return None
+
+    async def _get_market_data(self) -> Dict[str, Any]:
+        """Fetch general market data for context."""
+        try:
+            market_data = {}
+
+            if TWELVEDATA_AVAILABLE:
+                client = TwelveDataClient()
+
+                # Get key market indicators
+                symbols = ['SPY', 'QQQ', 'VIX', 'DXY']  # S&P 500, NASDAQ, VIX, Dollar Index
+
+                for symbol in symbols:
+                    try:
+                        quote_data = await client.get_real_time_price(symbol)
+                        if quote_data:
+                            market_data[symbol] = {
+                                'price': quote_data.get('price', 0),
+                                'change_percent': quote_data.get('percent_change', 0)
+                            }
+                    except Exception as e:
+                        logger.warning(f"Could not fetch {symbol} data: {e}")
+
+            return market_data
+
+        except Exception as e:
+            logger.error(f"Error fetching market data: {e}")
+            return {}
+
+    async def _get_broad_market_data(self) -> Dict[str, Any]:
+        """Fetch broad market data for market regime analysis."""
+        try:
+            market_data = {}
+
+            if TWELVEDATA_AVAILABLE:
+                client = TwelveDataClient()
+
+                # Get major indices and volatility measures
+                symbols = {
+                    'SPY': 'S&P 500 ETF',
+                    'QQQ': 'NASDAQ ETF',
+                    'VIX': 'Volatility Index',
+                    'TLT': 'Long-term Treasury',
+                    'GLD': 'Gold ETF'
+                }
+
+                for symbol, description in symbols.items():
+                    try:
+                        quote_data = await client.get_real_time_price(symbol)
+                        if quote_data:
+                            market_data[symbol] = {
+                                'price': float(quote_data.get('price', 0)),
+                                'change_percent': float(quote_data.get('percent_change', 0)),
+                                'description': description
+                            }
+                        else:
+                            # Fallback data if real data not available
+                            market_data[symbol] = {
+                                'price': 400.0 if symbol == 'SPY' else 300.0,
+                                'change_percent': 0.0,
+                                'description': description
+                            }
+                    except Exception as e:
+                        logger.warning(f"Could not fetch {symbol} data: {e}")
+                        # Set neutral fallback
+                        market_data[symbol] = {
+                            'price': 400.0 if symbol == 'SPY' else 300.0,
+                            'change_percent': 0.0,
+                            'description': description
+                        }
+
+            return market_data
+
+        except Exception as e:
+            logger.error(f"Error fetching broad market data: {e}")
+            return {
+                'SPY': {'price': 400.0, 'change_percent': 0.0, 'description': 'S&P 500 ETF'},
+                'VIX': {'price': 20.0, 'change_percent': 0.0, 'description': 'Volatility Index'}
+            }
+
+    async def _query_multiple_models(self, context: Dict[str, Any], symbol: str) -> List[AIResponse]:
+        """Query multiple AI models and return their responses."""
+        try:
+            responses = []
+
+            # Define models to query based on configuration
+            models_to_query = [
+                AIModel.SONNET,  # Primary model - good balance of speed and capability
+                AIModel.HAIKU,   # Fast model for quick analysis
+            ]
+
+            # Add OPUS for high-value trades or complex situations
+            current_price = float(context.get('current_price', 0))
+            if current_price > 100 or abs(float(context.get('daily_change', 0))) > 5:
+                models_to_query.append(AIModel.OPUS)
+
+            # Query each model
+            for model in models_to_query:
+                try:
+                    # Build prompt for this model
+                    prompt = f"""
+Analyze the following stock data for {symbol} and provide a trading decision.
+
+Current Data:
+- Price: ${context.get('current_price', 'N/A')}
+- Daily Change: {context.get('daily_change', 'N/A')}%
+- Volume: {context.get('volume', 'N/A')}
+- RSI: {context.get('rsi', 'N/A')}
+- MACD Signal: {context.get('macd_signal', 'N/A')}
+- Price vs SMA20: {context.get('price_vs_sma20', 'N/A')}%
+- Market Context: {context.get('market_context', 'N/A')}
+
+Provide your analysis in the following JSON format:
+{{
+    "decision": "BUY/SELL/HOLD",
+    "confidence": 0-100,
+    "reasoning": "Brief explanation",
+    "entry_price": float or null,
+    "stop_loss": float or null,
+    "take_profit": float or null,
+    "position_size_suggestion": 0.01-0.1,
+    "risk_reward_ratio": float or null,
+    "key_risks": ["risk1", "risk2"]
+}}
+"""
+
+                    # Query the model
+                    response = await self.anthropic_client.query(
+                        prompt=prompt,
+                        model=model
+                    )
+
+
+                    if response:
+                        responses.append(response)
+                        logger.debug(f"Got response from {model.value} for {symbol}")
+
+                except Exception as e:
+                    logger.error(f"Error querying {model.value} for {symbol}: {e}")
+                    continue
+
+            if not responses:
+                logger.warning(f"No AI responses received for {symbol}")
+                # Create a fallback neutral response
+                fallback_response = AIResponse(
+                    model=AIModel.HAIKU,
+                    prompt_type="fallback",
+                    response={
+                        'decision': 'HOLD',
+                        'confidence': 50,
+                        'reasoning': 'No AI response available, defaulting to HOLD',
+                        'entry_price': current_price,
+                        'position_size_suggestion': 0.01
+                    },
+                    confidence=50.0,
+                    tokens_used=0,
+                    cost=0.0,
+                    timestamp=datetime.now(),
+                    cache_hit=False
+                )
+                responses.append(fallback_response)
+
+            return responses
+
+        except Exception as e:
+            logger.error(f"Error in multi-model query for {symbol}: {e}")
+            # Return empty list, consensus engine will handle
+            return []
