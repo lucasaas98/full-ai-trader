@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 *.env
+.secrets
 
 # Python
 __pycache__/
@@ -153,3 +154,8 @@ config/
 
 # Production data
 data/
+
+# Markdown files
+*.md
+!README.md
+!docs/*.md

@@ -9,65 +9,21 @@ import asyncio
 import json
 import logging
 import hashlib
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass
-from enum import Enum
-import yaml
-from pathlib import Path
 import os
 import sys
-
-import polars as pl
-import numpy as np
-
-# Add the data collector to the path for imports
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any, Tuple
+import yaml
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../data_collector/src'))
 
-try:
-    from redis_client import RedisClient
-    from twelvedata_client import TwelveDataClient
-    REDIS_AVAILABLE = True
-    TWELVEDATA_AVAILABLE = True
-except ImportError:
-    REDIS_AVAILABLE = False
-    TWELVEDATA_AVAILABLE = False
-    class RedisClient:
-        def __init__(self, *args, **kwargs): pass
-        async def connect(self): pass
-        async def disconnect(self): pass
-        async def get_cached_market_data(self, *args, **kwargs): return None
-    class TwelveDataClient:
-        def __init__(self, *args, **kwargs): pass
-        async def get_real_time_price(self, *args, **kwargs): return None
-try:
-    from anthropic import AsyncAnthropic
-except ImportError:
-    # Mock for when anthropic is not installed
-    class AsyncAnthropic:
-        def __init__(self, *args, **kwargs):
-            self.messages = MockMessages()
+from data_collector.src.redis_client import RedisClient
+from data_collector.src.twelvedata_client import TwelveDataClient
+from anthropic import AsyncAnthropic
 
-    class MockMessages:
-        async def create(self, **kwargs):
-            return MockResponse()
-
-    class MockResponse:
-        def __init__(self):
-            self.content = [MockContent()]
-            self.usage = MockUsage()
-
-    class MockContent:
-        def __init__(self):
-            self.text = '{"decision": "HOLD", "confidence": 50}'
-
-    class MockUsage:
-        def __init__(self):
-            self.input_tokens = 100
-            self.output_tokens = 50
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from base_strategy import BaseStrategy, Signal, StrategyConfig, StrategyMode
+from base_strategy import BaseStrategy, Signal, StrategyConfig
 from shared.models import SignalType
 
 

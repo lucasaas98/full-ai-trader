@@ -5,7 +5,6 @@ This module provides configuration management using environment variables
 with sensible defaults and validation.
 """
 
-import os
 from decimal import Decimal
 from typing import Optional, List
 from pydantic import Field

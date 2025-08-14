@@ -84,7 +84,7 @@ class AIDecisionRecord(Base):
     execution_time_ms = Column(Integer)  # Time to generate decision
 
     # Metadata
-    strategy_version = Column(String(20))
+    strategy_version = Column(String(2, 20))
     prompt_versions = Column(JSON)  # Version of each prompt used
 
     __table_args__ = (
@@ -343,22 +343,7 @@ def init_database(connection_string: str):
 
 def decision_to_dict(decision: AIDecisionRecord) -> Dict[str, Any]:
     """Convert AIDecisionRecord to dictionary."""
-    return {
-        'id': str(decision.id),
-        'timestamp': decision.timestamp.isoformat(),
-        'ticker': decision.ticker,
-        'decision': decision.decision,
-        'confidence': decision.confidence,
-        'entry_price': decision.entry_price,
-        'stop_loss': decision.stop_loss,
-        'take_profit': decision.take_profit,
-        'position_size': decision.position_size,
-        'risk_reward_ratio': decision.risk_reward_ratio,
-        'reasoning': decision.reasoning,
-        'key_risks': decision.key_risks,
-        'models_used': decision.models_used,
-        'total_cost': decision.total_cost
-    }
+    return asdict(decision)
 
 
 def create_performance_summary(
@@ -383,7 +368,7 @@ def create_performance_summary(
             accuracy_rate=0,
             win_rate=0,
             total_pnl=0,
-            sharpe_ratio=0,
+            sharpe_ratio=0.0,
             total_api_cost=0,
             cost_per_profitable_trade=0,
             best_performing_prompt="N/A",
@@ -393,12 +378,12 @@ def create_performance_summary(
         )
 
     # Calculate metrics
-    period_start = min((d.timestamp for d in decisions), default=datetime.now())
-    period_end = max((d.timestamp for d in decisions), default=datetime.now())
+    period_start = session.query(func.min(AIDecisionRecord.timestamp)).scalar()
+    period_end = session.query(func.max(AIDecisionRecord.timestamp)).scalar()
     total_decisions = len(decisions)
 
     # Calculate accuracy (decisions with positive outcomes)
-    accurate_decisions = [d for d in decisions if d.actual_outcome is not None and d.actual_outcome > 0]
+    accurate_decisions = [d for d in decisions if func.coalesce(d.actual_outcome, 0) > 0]
     accuracy_rate = len(accurate_decisions) / total_decisions if total_decisions > 0 else 0
 
     # Calculate win rate from executions
@@ -406,10 +391,10 @@ def create_performance_summary(
     win_rate = len(winning_trades) / len(executions) if executions else 0
 
     # Calculate total P&L
-    total_pnl = sum((e.realized_pnl for e in executions if e.realized_pnl is not None), default=0)
+    total_pnl = session.query(func.sum(AITradeExecution.realized_pnl)).scalar() or 0
 
     # Calculate API costs
-    total_api_cost = sum((d.total_cost for d in decisions if d.total_cost is not None), default=0)
+    total_api_cost = session.query(func.sum(AIDecisionRecord.total_cost)).scalar() or 0
 
     # Cost per profitable trade
     cost_per_profitable_trade = (
@@ -424,7 +409,7 @@ def create_performance_summary(
                 if model not in model_performance:
                     model_performance[model] = {'count': 0, 'success': 0}
                 model_performance[model]['count'] += 1
-                if decision.actual_outcome is not None and decision.actual_outcome > 0:
+                if func.coalesce(decision.actual_outcome, 0) > 0:
                     model_performance[model]['success'] += 1
 
     model_rankings = {

@@ -1,10 +1,9 @@
 import logging
 import numpy as np
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
-import polars as pl
 
 # Import shared models
 import sys
@@ -71,6 +70,7 @@ class LocalDataStoreSource(DataSource):
                         high=Decimal(str(row['high'])),
                         low=Decimal(str(row['low'])),
                         close=Decimal(str(row['close'])),
+                        adjusted_close=Decimal(str(row['adjusted_close'])),
                         volume=int(row['volume']),
                         timeframe=timeframe
                     )
@@ -498,10 +498,10 @@ class BacktestEngine:
 
             # Check for trailing stop loss (5% below highest price since entry)
             elif hasattr(position, 'highest_price'):
-                if not hasattr(position, 'highest_price'):
-                    position.highest_price = max(position.entry_price, float(current_price))
-                else:
-                    position.highest_price = max(position.highest_price, float(current_price))
+                # if not hasattr(position, 'highest_price'):
+                #     position.highest_price = max(position.entry_price, float(current_price))
+                # else:
+                position.highest_price = max(position.highest_price, float(current_price))
 
                 trailing_stop = position.highest_price * 0.95  # 5% trailing stop
                 if current_price <= trailing_stop:

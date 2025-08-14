@@ -19,7 +19,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 
 # Add the parent directory to Python path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -960,7 +960,7 @@ if __name__ == "__main__":
         "src.main:app",
         host="0.0.0.0",
         port=port,
-        reload=config.is_development,
+        reload=False,
         log_level=config.logging.level.lower(),
         access_log=True
     )
