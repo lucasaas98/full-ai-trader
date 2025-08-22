@@ -186,8 +186,8 @@ class SchedulerService:
         # Risk Manager Service
         risk_manager = ServiceConfiguration(
             name="risk_manager",
-            url="http://trading_risk_manager:8003",
-            port=8003,
+            url="http://trading_risk_manager:9103",
+            port=9103,
             health_check=HealthCheck(
                 endpoint="/health",
                 timeout=5.0,
@@ -209,8 +209,8 @@ class SchedulerService:
         # Trade Executor Service
         trade_executor = ServiceConfiguration(
             name="trade_executor",
-            url="http://trading_trade_executor:8004",
-            port=8004,
+            url="http://trading_trade_executor:9104",
+            port=9104,
             health_check=HealthCheck(
                 endpoint="/health",
                 timeout=5.0,

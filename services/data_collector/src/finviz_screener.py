@@ -9,15 +9,17 @@ import asyncio
 import csv
 import io
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Dict, Any
 
 import aiohttp
 from pydantic import BaseModel, Field
 
 from shared.models import FinVizData
+from shared.config import get_config
 
 
 logger = logging.getLogger(__name__)
@@ -150,11 +152,13 @@ class FinVizScreener:
     def __init__(
         self,
         base_url: str = "https://elite.finviz.com",
-        rate_limit_interval: float = 300.0,  # 5 minutes
-        timeout: float = 30.0,
+        timeout: int = 30,
         max_retries: int = 3,
-        session: Optional[aiohttp.ClientSession] = None
+        rate_limit_interval: float = 300.0,
+        session: Optional[aiohttp.ClientSession] = None,
+        api_key: Optional[str] = None
     ):
+        """Initialize FinViz screener."""
         self.base_url = base_url.rstrip('/')
         self.export_url = f"{self.base_url}/export.ashx"
         self.timeout = aiohttp.ClientTimeout(total=timeout)
@@ -162,16 +166,30 @@ class FinVizScreener:
         self._session = session
         self._rate_limiter = RateLimiter(rate_limit_interval)
 
-        # Default screener parameters for momentum trading
+        # Get API key from config or environment
+        if api_key:
+            self.api_key = api_key
+        else:
+            try:
+                config = get_config()
+                self.api_key = config.finviz.api_key
+            except:
+                # Fallback to environment variable
+                self.api_key = os.getenv('FINVIZ_API_KEY')
+
+        if not self.api_key:
+            logger.warning("No FinViz API key configured - screener will likely return no results")
+
+        # Default screener parameters for momentum trading (relaxed criteria)
         self.default_params = FinVizScreenerParams(
             market_cap_min="2M",
-            market_cap_max="2B",
-            avg_volume_min="1000K",
-            current_volume_min="400K",
-            price_min=5.0,
-            price_max=35.0,
+            market_cap_max="10B",  # Allow larger caps
+            avg_volume_min="500K",  # Reduced from 1000K
+            current_volume_min="200K",  # Reduced from 400K
+            price_min=3.0,  # Reduced from 5.0
+            price_max=50.0,  # Increased from 35.0
             above_sma20=True,
-            weekly_volatility_min=6.0
+            weekly_volatility_min=3.0  # Reduced from 6.0 to 3.0
         )
 
     async def __aenter__(self):
@@ -221,7 +239,14 @@ class FinVizScreener:
         # Build request parameters
         request_params = params.to_finviz_params()
 
+        # Add API authentication
+        if self.api_key:
+            request_params['auth'] = self.api_key
+            request_params['ft'] = '4'  # Filter type for authenticated requests
+
         logger.info(f"Fetching FinViz screener data with filters: {request_params['f']}")
+        logger.info(f"Request URL: {self.export_url}")
+        logger.info(f"Request params: {request_params}")
 
         session = await self._get_session()
 
@@ -242,6 +267,10 @@ class FinVizScreener:
                 ) as response:
                     response.raise_for_status()
                     content = await response.text()
+
+                    logger.info(f"Response status: {response.status}")
+                    logger.info(f"Response content length: {len(content)} chars")
+                    logger.info(f"Response first 500 chars: {content[:500]}")
 
                     # Parse CSV data
                     parsed_data = self._parse_csv_response(content, limit)
@@ -282,10 +311,17 @@ class FinVizScreener:
             # Read CSV content
             csv_reader = csv.DictReader(io.StringIO(content))
 
+            # Check if we have any rows
+            rows_list = list(csv_reader)
+            logger.info(f"Total rows in CSV: {len(rows_list)}")
+            if rows_list:
+                logger.info(f"CSV headers: {rows_list[0].keys()}")
+                logger.info(f"First row data: {rows_list[0]}")
+
             parsed_data = []
             timestamp = datetime.now(timezone.utc)
 
-            for i, row in enumerate(csv_reader):
+            for i, row in enumerate(rows_list):
                 if limit and i >= limit:
                     break
 
@@ -294,18 +330,23 @@ class FinVizScreener:
                     ticker_data = self._clean_row_data(row, timestamp)
                     if ticker_data:
                         parsed_data.append(ticker_data)
+                    else:
+                        logger.info(f"Row {i} returned None from _clean_row_data")
 
                 except Exception as e:
                     logger.warning(f"Failed to parse row {i}: {e}")
+                    logger.info(f"Row {i} data: {row}")
                     continue
 
             # Sort by volume (descending) to get most active stocks first
             parsed_data.sort(key=lambda x: x.volume or 0, reverse=True)
 
+            logger.info(f"Successfully parsed {len(parsed_data)} tickers from {len(rows_list)} rows")
             return parsed_data
 
         except Exception as e:
             logger.error(f"Failed to parse CSV response: {e}")
+            logger.info(f"Content preview: {content[:1000]}")
             raise ValueError(f"CSV parsing failed: {e}")
 
     def _clean_row_data(self, row: Dict[str, str], timestamp: datetime) -> Optional[FinVizData]:
@@ -527,7 +568,102 @@ class FinVizScreener:
 
         return await self.fetch_screener_data(params, limit)
 
-    def get_last_scan_time(self) -> Optional[datetime]:
+    async def get_stable_growth_stocks(
+        self,
+        limit: int = 15
+    ) -> FinVizScreenerResult:
+        """
+        Get stable growth stocks with consistent performance.
+        Conservative approach for steady returns.
+
+        Args:
+            limit: Maximum number of stocks to return
+
+        Returns:
+            FinVizScreenerResult with stable growth stocks
+        """
+        params = FinVizScreenerParams(
+            market_cap_min="100M",
+            market_cap_max=None,
+            avg_volume_min="200K",
+            current_volume_min="100K",
+            price_min=5.0,
+            price_max=200.0,
+            above_sma20=True,
+            weekly_volatility_min=1.0,  # Very low volatility requirement
+            custom_filters={
+                "earnings_growth": "fa_epsqoq_pos",  # Positive earnings growth
+                "revenue_growth": "fa_salesqoq_pos"  # Positive revenue growth
+            }
+        )
+
+        return await self.fetch_screener_data(params, limit)
+
+    async def get_value_stocks(
+        self,
+        limit: int = 15
+    ) -> FinVizScreenerResult:
+        """
+        Get undervalued stocks with good fundamentals.
+        Value investing approach.
+
+        Args:
+            limit: Maximum number of stocks to return
+
+        Returns:
+            FinVizScreenerResult with value stocks
+        """
+        params = FinVizScreenerParams(
+            market_cap_min="50M",
+            market_cap_max=None,
+            avg_volume_min="100K",
+            current_volume_min="50K",
+            price_min=2.0,
+            price_max=100.0,
+            above_sma20=False,  # Don't require above SMA for value plays
+            weekly_volatility_min=None,  # No volatility requirement
+            custom_filters={
+                "pe_low": "fa_pe_low",  # Low P/E ratio
+                "pb_low": "fa_pb_low",  # Low P/B ratio
+                "debt_low": "fa_debteq_low"  # Low debt-to-equity
+            }
+        )
+
+        return await self.fetch_screener_data(params, limit)
+
+    async def get_dividend_stocks(
+        self,
+        limit: int = 10,
+        min_yield: float = 2.0
+    ) -> FinVizScreenerResult:
+        """
+        Get dividend-paying stocks for income strategy.
+
+        Args:
+            limit: Maximum number of stocks to return
+            min_yield: Minimum dividend yield percentage
+
+        Returns:
+            FinVizScreenerResult with dividend stocks
+        """
+        params = FinVizScreenerParams(
+            market_cap_min="500M",  # Larger, more stable companies
+            market_cap_max=None,
+            avg_volume_min="100K",
+            current_volume_min="50K",
+            price_min=10.0,
+            price_max=500.0,
+            above_sma20=False,
+            weekly_volatility_min=None,
+            custom_filters={
+                "dividend_yield": f"fa_div_o{min_yield}",  # Dividend yield over min_yield%
+                "payout_ratio": "fa_payoutratio_low"  # Sustainable payout ratio
+            }
+        )
+
+        return await self.fetch_screener_data(params, limit)
+
+    def get_last_scan_time(self) -> datetime:
         """Get timestamp of last successful scan."""
         if hasattr(self._rate_limiter, 'last_call') and self._rate_limiter.last_call > 0:
             return datetime.fromtimestamp(self._rate_limiter.last_call)

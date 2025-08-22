@@ -101,7 +101,7 @@ class FinVizConfig(BaseSettings):
     """FinViz configuration."""
 
     api_key: Optional[str] = Field(None, alias="FINVIZ_API_KEY")
-    base_url: str = Field(default="https://finviz.com", alias="FINVIZ_BASE_URL")
+    base_url: str = Field(default="https://elite.finviz.com", alias="FINVIZ_BASE_URL")
     timeout: int = Field(default=30, alias="FINVIZ_TIMEOUT")
     rate_limit_delay: float = Field(default=1.0, alias="FINVIZ_RATE_LIMIT_DELAY")  # seconds between requests
 

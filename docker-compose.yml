@@ -64,6 +64,10 @@ services:
             - SERVICE_PORT=${DATA_COLLECTOR_PORT:-8001}
             - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
             - FINVIZ_API_KEY=${FINVIZ_API_KEY}
+            - ALPACA_API_KEY=${ALPACA_API_KEY}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+            - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+            - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -163,6 +167,10 @@ services:
             - RISK_DRAWDOWN_LIMIT=${RISK_DRAWDOWN_LIMIT:-0.15}
             - GOTIFY_URL=${GOTIFY_URL}
             - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+            - ALPACA_API_KEY=${ALPACA_API_KEY}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+            - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+            - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
         ports:
             - "${RISK_MANAGER_PORT:-8003}:${RISK_MANAGER_PORT:-8003}"
         volumes:

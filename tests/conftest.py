@@ -687,11 +687,11 @@ def load_test_config():
         'ramp_up_time': 30,  # seconds
         'test_duration': 300,  # seconds
         'target_endpoints': [
-            'http://localhost:8001/health',
-            'http://localhost:8002/health',
-            'http://localhost:8003/health',
-            'http://localhost:8004/health',
-            'http://localhost:8005/health'
+            'http://localhost:9101/health',
+            'http://localhost:9102/health',
+            'http://localhost:9103/health',
+            'http://localhost:9104/health',
+            'http://localhost:9105/health'
         ],
         'acceptable_response_time': 1.0,  # seconds
         'acceptable_error_rate': 0.01  # 1%

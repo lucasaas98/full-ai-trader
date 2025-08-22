@@ -4,6 +4,8 @@ Scheduler service for data collection with market hours awareness.
 This module provides intelligent scheduling for data collection tasks,
 taking into account market hours, holidays, weekends, and rate limiting
 requirements for optimal data collection timing.
+
+Enhanced with Alpaca API integration for accurate market hours detection.
 """
 
 import asyncio
@@ -22,6 +24,16 @@ from apscheduler.executors.asyncio import AsyncIOExecutor
 from pydantic import BaseModel, Field
 
 from shared.models import TimeFrame
+
+# Import Alpaca market hours functionality with fallback
+try:
+    from shared.market_hours import is_market_open as alpaca_is_market_open, get_market_status
+    ALPACA_MARKET_HOURS_AVAILABLE = True
+except ImportError:
+    logger.warning("Alpaca market hours functionality not available, using fallback logic")
+    ALPACA_MARKET_HOURS_AVAILABLE = False
+    alpaca_is_market_open = None
+    get_market_status = None
 
 
 logger = logging.getLogger(__name__)
@@ -55,7 +67,10 @@ class SchedulerConfig(BaseModel):
 
     # Weekend and holiday trading
     trade_weekends: bool = Field(default=False, description="Enable weekend data collection")
-    trade_holidays: bool = Field(default=False, description="Enable holiday data collection")
+    trade_holidays: bool = Field(default=False, description="Enable holiday trading")
+
+    # Enhanced market hours detection
+    use_alpaca_market_hours: bool = Field(default=True, description="Use Alpaca API for accurate market hours")
 
     # Scheduler settings
     max_workers: int = Field(default=10, description="Maximum concurrent tasks")
@@ -136,6 +151,13 @@ class MarketHoursManager:
         self.timezone = pytz.timezone(config.timezone)
         self._holiday_dates = set(datetime.strptime(h, "%Y-%m-%d").date() for h in config.holidays)
 
+        # Enable Alpaca-enhanced mode if available
+        self.use_alpaca_api = ALPACA_MARKET_HOURS_AVAILABLE and getattr(config, 'use_alpaca_market_hours', True)
+        if self.use_alpaca_api:
+            logger.info("MarketHoursManager: Using Alpaca API for enhanced market hours detection")
+        else:
+            logger.info("MarketHoursManager: Using fallback market hours logic")
+
     def get_current_session(self) -> MarketSession:
         """Get current market session."""
         now = datetime.now(self.timezone)
@@ -168,12 +190,55 @@ class MarketHoursManager:
 
     def is_market_open(self) -> bool:
         """Check if market is currently open (regular hours)."""
-        return self.get_current_session() == MarketSession.REGULAR
+        if self.use_alpaca_api:
+            try:
+                import asyncio
+                # Try to get current event loop, create new one if needed
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # We're in an async context, can't use run_until_complete
+                        # Fall back to traditional method
+                        return self.get_current_session() == MarketSession.REGULAR
+                    else:
+                        return loop.run_until_complete(alpaca_is_market_open())
+                except RuntimeError:
+                    # No event loop, create one
+                    return asyncio.run(alpaca_is_market_open())
+            except Exception as e:
+                logger.warning(f"Alpaca API market hours check failed, using fallback: {e}")
+                # Fall back to original logic
+                return self.get_current_session() == MarketSession.REGULAR
+        else:
+            return self.get_current_session() == MarketSession.REGULAR
 
     def is_trading_session(self) -> bool:
         """Check if any trading session is active (including pre/after market)."""
-        session = self.get_current_session()
-        return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+        if self.use_alpaca_api:
+            try:
+                import asyncio
+                # Get detailed market status from Alpaca
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Fall back to traditional method in async context
+                        session = self.get_current_session()
+                        return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+                    else:
+                        status = loop.run_until_complete(get_market_status())
+                        return status.is_trading_session
+                except RuntimeError:
+                    # No event loop, create one
+                    status = asyncio.run(get_market_status())
+                    return status.is_trading_session
+            except Exception as e:
+                logger.warning(f"Alpaca API trading session check failed, using fallback: {e}")
+                # Fall back to original logic
+                session = self.get_current_session()
+                return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+        else:
+            session = self.get_current_session()
+            return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
 
     def time_until_market_open(self) -> Optional[timedelta]:
         """Get time until next market open."""

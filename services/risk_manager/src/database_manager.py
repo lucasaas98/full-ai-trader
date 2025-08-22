@@ -252,17 +252,16 @@ class RiskDatabaseManager:
             insert_sql = """
             INSERT INTO portfolio_snapshots (
                 account_id, timestamp, cash, buying_power, total_equity,
-                total_market_value, total_unrealized_pnl, day_trades_count,
-                pattern_day_trader, positions_data
+                day_trades_count, pattern_day_trader, data
             ) VALUES (
-                :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8, :p9, :p10
+                :p1, :p2, :p3, :p4, :p5, :p6, :p7, :p8
             )
             """
 
             if not self.session_factory:
                 raise RuntimeError("Database session factory not initialized")
 
-            # Convert positions to JSON
+            # Convert positions to JSON and calculate additional metrics
             positions_data = [
                 {
                     'symbol': pos.symbol,
@@ -270,10 +269,22 @@ class RiskDatabaseManager:
                     'market_value': float(pos.market_value),
                     'unrealized_pnl': float(pos.unrealized_pnl or 0),
                     'cost_basis': float(pos.cost_basis or 0),
-                    'side': 'long' if pos.quantity > 0 else 'short'  # Calculate side from quantity
+                    'side': 'long' if pos.quantity > 0 else 'short'
                 }
                 for pos in portfolio.positions
             ]
+
+            # Calculate total market value and unrealized P&L
+            total_market_value = sum(float(pos.market_value) for pos in portfolio.positions)
+            total_unrealized_pnl = sum(float(pos.unrealized_pnl or 0) for pos in portfolio.positions)
+
+            # Store additional data in the JSON field
+            portfolio_data = {
+                'positions': positions_data,
+                'total_market_value': total_market_value,
+                'total_unrealized_pnl': total_unrealized_pnl,
+                'position_count': len(portfolio.positions)
+            }
 
             async with self.session_factory() as session:
                 await session.execute(text(insert_sql), {
@@ -282,11 +293,9 @@ class RiskDatabaseManager:
                     'p3': float(portfolio.cash),
                     'p4': float(portfolio.buying_power),
                     'p5': float(portfolio.total_equity),
-                    'p6': float(portfolio.total_market_value),
-                    'p7': float(portfolio.total_unrealized_pnl),
-                    'p8': portfolio.day_trades_count,
-                    'p9': portfolio.pattern_day_trader,
-                    'p10': json.dumps(positions_data)
+                    'p6': portfolio.day_trades_count,
+                    'p7': portfolio.pattern_day_trader,
+                    'p8': json.dumps(portfolio_data)
                 })
                 await session.commit()
                 return True

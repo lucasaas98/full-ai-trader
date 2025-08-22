@@ -1163,7 +1163,7 @@ async def get_positions():
     """Get current positions."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://trade-executor:8004/positions")
+            response = await client.get("http://trade-executor:9104/positions")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1176,7 +1176,7 @@ async def get_portfolio():
     """Get portfolio summary."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://trade-executor:8004/portfolio")
+            response = await client.get("http://trade-executor:9104/portfolio")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1190,7 +1190,7 @@ async def execute_manual_trade(request: TradeRequest):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://trade-executor:8004/trades/manual",
+                "http://trade-executor:9104/trades/manual",
                 json=request.dict()
             )
             response.raise_for_status()
@@ -1205,7 +1205,7 @@ async def get_recent_trades(limit: int = Query(default=50, description="Number o
     """Get recent trades."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"http://trade-executor:8004/trades/recent?limit={limit}")
+            response = await client.get(f"http://trade-executor:9104/trades/recent?limit={limit}")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1229,7 +1229,7 @@ async def export_trades(
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "http://trade-executor:8004/trades/export",
+                "http://trade-executor:9104/trades/export",
                 params=params
             )
             response.raise_for_status()
@@ -1245,7 +1245,7 @@ async def get_strategies():
     """Get all strategies and their status."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://strategy-engine:8002/strategies")
+            response = await client.get("http://strategy-engine:9102/strategies")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1259,7 +1259,7 @@ async def toggle_strategy(strategy_name: str, enabled: bool):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"http://strategy-engine:8002/strategies/{strategy_name}/toggle",
+                f"http://strategy-engine:9102/strategies/{strategy_name}/toggle",
                 json={"enabled": enabled}
             )
             response.raise_for_status()
@@ -1288,7 +1288,7 @@ async def run_strategy_backtest(
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://strategy-engine:8002/backtest",
+                "http://strategy-engine:9102/backtest",
                 json=params,
                 timeout=300.0
             )
@@ -1305,7 +1305,7 @@ async def get_risk_status():
     """Get current risk status."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://risk-manager:8003/risk/status")
+            response = await client.get("http://risk-manager:9103/risk/status")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1318,7 +1318,7 @@ async def get_risk_limits():
     """Get current risk limits."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://risk-manager:8003/risk/limits")
+            response = await client.get("http://risk-manager:9103/risk/limits")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1331,7 +1331,7 @@ async def get_risk_alerts():
     """Get current risk alerts."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("http://risk-manager:8003/risk/alerts")
+            response = await client.get("http://risk-manager:9103/risk/alerts")
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1353,7 +1353,7 @@ async def trigger_data_update(
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://data-collector:8001/market-data/update",
+                "http://data-collector:9101/market-data/update",
                 json=params
             )
             response.raise_for_status()
@@ -1368,7 +1368,7 @@ async def trigger_screener_scan():
     """Trigger FinViz screener scan."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("http://data-collector:8001/finviz/scan")
+            response = await client.post("http://data-collector:9101/finviz/scan")
             response.raise_for_status()
             return response.json()
     except Exception as e:

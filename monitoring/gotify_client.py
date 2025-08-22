@@ -16,11 +16,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from shared.models import RiskEvent, RiskSeverity, Notification
 from shared.config import Config
 
-# Import database manager for data collection
+# Import shared database manager for data collection
 try:
-    from services.risk_manager.src.database_manager import RiskDatabaseManager
+    from shared.database_manager import SharedDatabaseManager
 except ImportError:
-    RiskDatabaseManager = None
+    SharedDatabaseManager = None
+
+# Import simple database manager as fallback
+try:
+    from shared.simple_db_manager import SimpleDatabaseManager
+except ImportError:
+    SimpleDatabaseManager = None
 
 
 class NotificationPriority(Enum):
@@ -678,16 +684,24 @@ class NotificationManager:
             self.logger.info("Notification manager initialized without Gotify (logging only)")
 
         # Initialize database manager for data collection
-        if RiskDatabaseManager:
+        if SharedDatabaseManager:
             try:
-                self.db_manager = RiskDatabaseManager()
+                self.db_manager = SharedDatabaseManager(self.config)
                 await self.db_manager.initialize()
-                self.logger.info("Database manager initialized for notification data collection")
+                self.logger.info("SharedDatabaseManager initialized for notification data collection")
             except Exception as e:
-                self.logger.warning(f"Failed to initialize database manager: {e}")
+                self.logger.warning(f"Failed to initialize SharedDatabaseManager: {e}")
+                self.db_manager = None
+        elif SimpleDatabaseManager:
+            try:
+                self.db_manager = SimpleDatabaseManager(self.config)
+                await self.db_manager.initialize()
+                self.logger.info("SimpleDatabaseManager initialized for notification data collection")
+            except Exception as e:
+                self.logger.warning(f"Failed to initialize SimpleDatabaseManager: {e}")
                 self.db_manager = None
         else:
-            self.logger.warning("RiskDatabaseManager not available, daily summaries will use placeholder data")
+            self.logger.warning("No database manager available, daily summaries will use placeholder data")
 
     async def shutdown(self):
         """Cleanup notification manager"""
@@ -952,14 +966,17 @@ class NotificationManager:
         try:
             today = date.today()
 
-            # Try to get trade data from risk statistics
+            # Try to get trade data from shared database manager
             if self.db_manager:
-                risk_stats = await self.db_manager.get_risk_statistics(days=1)
-                if risk_stats:
-                    total_trades = risk_stats.get('total_trades', 0)
-                    winning_trades = risk_stats.get('winning_trades', 0)
-                    total_commission = risk_stats.get('total_commission', 0.0)
-                    total_slippage = risk_stats.get('total_slippage', 0.0)
+                # Get today's trades directly
+                daily_trades = await self.db_manager.get_daily_trades(today)
+
+                if daily_trades:
+                    total_trades = len(daily_trades)
+                    winning_trades = sum(1 for trade in daily_trades if trade.get('pnl', 0) > 0)
+                    total_commission = sum(trade.get('commission', 0) for trade in daily_trades)
+                    total_fees = sum(trade.get('fees', 0) for trade in daily_trades)
+                    total_slippage = total_fees  # Use fees as slippage estimate
 
                     win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
@@ -969,6 +986,17 @@ class NotificationManager:
                         "win_rate": win_rate,
                         "total_commission": float(total_commission),
                         "total_slippage": float(total_slippage)
+                    }
+
+                # If no trades today, try risk statistics as fallback
+                risk_stats = await self.db_manager.get_risk_statistics(days=1)
+                if risk_stats:
+                    return {
+                        "total_trades": risk_stats.get('total_trades', 0),
+                        "winning_trades": risk_stats.get('winning_trades', 0),
+                        "win_rate": risk_stats.get('win_rate', 0.0),
+                        "total_commission": 0.0,
+                        "total_slippage": 0.0
                     }
 
             # Fallback to estimated data

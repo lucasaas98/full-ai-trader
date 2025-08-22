@@ -5,6 +5,10 @@ httpx==0.25.2
 pydantic==2.5.2
 pydantic-settings==2.1.0
 
+# Database dependencies
+sqlalchemy[asyncio]==2.0.23
+asyncpg==0.29.0
+
 # Logging
 python-json-logger==2.0.7
 colorlog==6.8.0

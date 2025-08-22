@@ -150,22 +150,61 @@ class DataStore:
             return pl.DataFrame(schema=self.finviz_data_schema)
 
         records = []
-        for fv in data:
-            records.append({
-                "symbol": fv.symbol,
-                "company": fv.company,
-                "sector": fv.sector,
-                "industry": fv.industry,
-                "country": fv.country,
-                "market_cap": fv.market_cap or "",
-                "pe_ratio": fv.pe_ratio,
-                "price": float(fv.price) if fv.price else None,
-                "change": fv.change,
-                "volume": fv.volume,
-                "timestamp": fv.timestamp
-            })
+        for i, fv in enumerate(data):
+            try:
+                record = {
+                    "symbol": fv.symbol,
+                    "company": fv.company or "",
+                    "sector": fv.sector or "",
+                    "industry": fv.industry or "",
+                    "country": fv.country or "",
+                    "market_cap": str(fv.market_cap) if fv.market_cap is not None else "",
+                    "pe_ratio": float(fv.pe_ratio) if fv.pe_ratio is not None else None,
+                    "price": float(fv.price) if fv.price is not None else None,
+                    "change": float(fv.change) if fv.change is not None else None,
+                    "volume": int(fv.volume) if fv.volume is not None else None,
+                    "timestamp": fv.timestamp
+                }
+                records.append(record)
 
-        return pl.DataFrame(records, schema=self.finviz_data_schema)
+                # Log first record for debugging
+                if i == 0:
+                    logger.debug(f"First record data types: {[(k, type(v).__name__) for k, v in record.items()]}")
+                    logger.debug(f"First record values: {record}")
+
+            except Exception as e:
+                logger.error(f"Error processing FinVizData record {i}: {e}")
+                logger.error(f"Problem record: symbol={fv.symbol}, price={fv.price}, change={fv.change}, volume={fv.volume}")
+                continue
+
+        try:
+            logger.info(f"Creating DataFrame with {len(records)} records")
+            logger.debug(f"Schema: {self.finviz_data_schema}")
+
+            # Try creating without schema first to see what Polars infers
+            df_test = pl.DataFrame(records)
+            logger.debug(f"Inferred dtypes: {df_test.dtypes}")
+
+            # Now create with schema
+            df = pl.DataFrame(records, schema=self.finviz_data_schema)
+            logger.info(f"Successfully created DataFrame with shape {df.shape}")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to create Polars DataFrame: {e}")
+            logger.error(f"Number of records: {len(records)}")
+            if records:
+                logger.error(f"Sample record: {records[0]}")
+
+            # Try without schema as fallback
+            try:
+                logger.info("Attempting to create DataFrame without schema...")
+                df = pl.DataFrame(records)
+                logger.info(f"Successfully created DataFrame without schema, shape: {df.shape}")
+                return df
+            except Exception as e2:
+                logger.error(f"Also failed without schema: {e2}")
+                raise
 
     async def save_market_data(
         self,
@@ -271,17 +310,30 @@ class DataStore:
         if not data:
             return 0
 
-        # Convert to Polars DataFrame
-        df = self._finviz_data_to_dataframe(data)
+        try:
+            logger.info(f"Attempting to save {len(data)} {screener_type} screener records")
 
-        # Group by date
-        today = date.today()
-        file_path = self._get_screener_file_path(today, screener_type)
+            # Convert to Polars DataFrame
+            df = self._finviz_data_to_dataframe(data)
 
-        await self._save_dataframe_to_parquet(df, file_path, append)
+            if df is None or df.is_empty():
+                logger.warning(f"DataFrame is empty after conversion")
+                return 0
 
-        logger.info(f"Saved {len(data)} screener records to {file_path}")
-        return len(data)
+            # Group by date
+            today = date.today()
+            file_path = self._get_screener_file_path(today, screener_type)
+
+            await self._save_dataframe_to_parquet(df, file_path, append)
+
+            logger.info(f"Successfully saved {len(data)} screener records to {file_path}")
+            return len(data)
+
+        except Exception as e:
+            logger.error(f"Failed to save screener data: {e}")
+            logger.error(f"Data sample: {data[0] if data else 'No data'}")
+            # Don't crash the entire service, just skip saving
+            return 0
 
     async def _save_dataframe_to_file(
         self,

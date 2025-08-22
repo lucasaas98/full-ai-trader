@@ -1176,7 +1176,7 @@ def dashboard(
                         async with httpx.AsyncClient(timeout=2.0) as http_client:
                             # Trading metrics from trade executor
                             try:
-                                response = await http_client.get("http://localhost:8004/metrics")
+                                response = await http_client.get("http://localhost:9104/metrics")
                                 if response.status_code == 200:
                                     trading_metrics = response.json()
                             except:
@@ -1184,7 +1184,7 @@ def dashboard(
 
                             # Portfolio data
                             try:
-                                response = await http_client.get("http://localhost:8004/portfolio")
+                                response = await http_client.get("http://localhost:9104/portfolio")
                                 if response.status_code == 200:
                                     portfolio_data = response.json()
                             except:
@@ -1192,7 +1192,7 @@ def dashboard(
 
                             # Risk data
                             try:
-                                response = await http_client.get("http://localhost:8003/risk/status")
+                                response = await http_client.get("http://localhost:9103/risk/status")
                                 if response.status_code == 200:
                                     risk_data = response.json()
                             except:

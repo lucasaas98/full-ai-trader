@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 
 from shared.models import TimeFrame, FinVizData
 from shared.config import get_config
+from shared.market_hours import is_market_open
 
 from .finviz_screener import FinVizScreener, FinVizScreenerParams
 from .twelvedata_client import TwelveDataClient, TwelveDataConfig
@@ -246,32 +247,36 @@ class DataCollectionService:
         if self.config.enable_twelvedata:
             # 5-minute data updates
             self.scheduler.add_job(
-                lambda: self._update_price_data(TimeFrame.FIVE_MINUTES),
+                self._update_price_data,
                 IntervalTrigger(seconds=self.config.price_update_interval_5m),
+                args=[TimeFrame.FIVE_MINUTES],
                 id="price_update_5m",
                 max_instances=1
             )
 
             # 15-minute data updates
             self.scheduler.add_job(
-                lambda: self._update_price_data(TimeFrame.FIFTEEN_MINUTES),
+                self._update_price_data,
                 IntervalTrigger(seconds=self.config.price_update_interval_15m),
+                args=[TimeFrame.FIFTEEN_MINUTES],
                 id="price_update_15m",
                 max_instances=1
             )
 
             # Hourly data updates
             self.scheduler.add_job(
-                lambda: self._update_price_data(TimeFrame.ONE_HOUR),
+                self._update_price_data,
                 IntervalTrigger(seconds=self.config.price_update_interval_1h),
+                args=[TimeFrame.ONE_HOUR],
                 id="price_update_1h",
                 max_instances=1
             )
 
             # Daily data updates (at market close)
             self.scheduler.add_job(
-                lambda: self._update_price_data(TimeFrame.ONE_DAY),
+                self._update_price_data,
                 CronTrigger(hour=16, minute=30, timezone=self.config.timezone),
+                args=[TimeFrame.ONE_DAY],
                 id="price_update_daily",
                 max_instances=1
             )
@@ -337,24 +342,109 @@ class DataCollectionService:
                 logger.error(f"Failed to load tickers from data store: {e}")
 
     async def _run_finviz_scan(self):
-        """Run FinViz screener to discover new tickers."""
+        """Run multiple FinViz screeners to discover new tickers."""
         if not self.finviz_screener:
             return
 
         try:
-            logger.info("Running FinViz screener...")
+            logger.info("Running multiple FinViz screeners...")
 
-            # Get momentum stocks
-            result = await self.finviz_screener.get_top_momentum_stocks(
-                limit=self.config.screener_result_limit
-            )
+            # Define screening strategies - mix of aggressive and conservative approaches
+            screening_strategies = [
+                ("momentum", lambda: self.finviz_screener.get_top_momentum_stocks(
+                    limit=max(12, self.config.screener_result_limit // 5)
+                )),
+                ("breakouts", lambda: self.finviz_screener.get_high_volume_breakouts(
+                    limit=max(8, self.config.screener_result_limit // 6)
+                )),
+                ("gappers", lambda: self.finviz_screener.get_gappers(
+                    limit=max(8, self.config.screener_result_limit // 6)
+                )),
+                ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
+                    limit=max(10, self.config.screener_result_limit // 5)
+                )),
+                ("value_stocks", lambda: self.finviz_screener.get_value_stocks(
+                    limit=max(8, self.config.screener_result_limit // 6)
+                )),
+                ("dividend_stocks", lambda: self.finviz_screener.get_dividend_stocks(
+                    limit=max(6, self.config.screener_result_limit // 8)
+                ))
+            ]
 
-            if not result.data:
-                logger.warning("FinViz screener returned no results")
+            all_stocks = []
+            all_new_tickers = set()
+            successful_screeners = 0
+
+            # Run each screening strategy
+            for strategy_name, screener_func in screening_strategies:
+                try:
+                    logger.info(f"Running {strategy_name} screener...")
+                    result = await screener_func()
+                    logger.info(f"DEBUG: {strategy_name} screener returned result: {result is not None}")
+
+                    if result:
+                        logger.info(f"DEBUG: Result has data: {hasattr(result, 'data')}, data count: {len(result.data) if hasattr(result, 'data') and result.data else 0}")
+
+                    if result and result.data:
+                        data_count = len(result.data)
+                        logger.info(f"DEBUG: About to extend all_stocks with {data_count} items")
+                        all_stocks.extend(result.data)
+                        logger.info(f"DEBUG: Successfully extended all_stocks, now has {len(all_stocks)} items")
+                        logger.info(f"DEBUG: About to create strategy_tickers set")
+                        strategy_tickers = {stock.symbol for stock in result.data}
+                        logger.info(f"DEBUG: Created strategy_tickers with {len(strategy_tickers)} items")
+                        all_new_tickers.update(strategy_tickers)
+                        logger.info(f"DEBUG: Updated all_new_tickers")
+                        successful_screeners += 1
+                        logger.info(f"DEBUG: Incremented successful_screeners to {successful_screeners}")
+
+                        logger.info(f"{strategy_name} screener found {data_count} stocks")
+                        logger.info(f"DEBUG: About to continue loop iteration after {strategy_name}")
+                        # Save individual screener data with enhanced error handling
+                        if self.data_store:
+                            try:
+                                logger.info(f"DEBUG: Attempting to save screener data for {strategy_name}")
+                                logger.info(f"DEBUG: First few records: {result.data[:2] if result.data else 'No data'}")
+                                saved_count = await self.data_store.save_screener_data(result.data, strategy_name)
+                                logger.info(f"DEBUG: Successfully saved {saved_count} records for {strategy_name}")
+                            except Exception as e:
+                                logger.error(f"DEBUG: Failed to save screener data for {strategy_name}: {e}")
+                                logger.error(f"DEBUG: Exception type: {type(e).__name__}")
+                                import traceback
+                                logger.error(f"DEBUG: Traceback: {traceback.format_exc()}")
+                                # Continue processing even if save fails
+                                pass
+                        logger.info(f"DEBUG: Finished processing screener data for {strategy_name}")
+                    else:
+                        logger.warning(f"{strategy_name} screener returned no results")
+
+                except Exception as e:
+                    logger.error(f"{strategy_name} screener failed: {e}")
+                    continue
+
+            logger.info(f"DEBUG: Finished all screener strategies, total stocks: {len(all_stocks)}")
+
+            # If no stocks found from screeners, use fallback ticker lists
+            if not all_stocks:
+                logger.warning("All FinViz screeners returned no results, using fallback tickers")
+                await self._use_fallback_tickers()
                 return
 
-            # Extract new tickers
-            new_tickers = {stock.symbol for stock in result.data}
+            logger.info("DEBUG: Starting to remove duplicates from stocks")
+            # Remove duplicates while preserving the best stocks
+            unique_stocks = {}
+            for i, stock in enumerate(all_stocks):
+                logger.info(f"DEBUG: Processing stock {i}: {stock.symbol if hasattr(stock, 'symbol') else 'NO SYMBOL'}")
+                symbol = stock.symbol
+                if symbol not in unique_stocks:
+                    unique_stocks[symbol] = stock
+                else:
+                    # Keep the stock with higher volume
+                    if (stock.volume or 0) > (unique_stocks[symbol].volume or 0):
+                        unique_stocks[symbol] = stock
+
+            final_stocks = list(unique_stocks.values())
+            new_tickers = set(unique_stocks.keys())
 
             async with self._ticker_lock:
                 previously_active = self._active_tickers.copy()
@@ -365,7 +455,7 @@ class DataCollectionService:
                 # If we exceed max tickers, prioritize by volume
                 if len(combined_tickers) > self.config.max_active_tickers:
                     # Sort by volume and take top N
-                    sorted_stocks = sorted(result.data, key=lambda x: x.volume or 0, reverse=True)
+                    sorted_stocks = sorted(final_stocks, key=lambda x: x.volume or 0, reverse=True)
                     top_tickers = {stock.symbol for stock in sorted_stocks[:self.config.max_active_tickers]}
 
                     # Keep some existing tickers to maintain continuity
@@ -381,41 +471,86 @@ class DataCollectionService:
                 truly_new_tickers = combined_tickers - previously_active
                 self._active_tickers = combined_tickers
 
-            # Save screener data
-            if self.data_store:
-                await self.data_store.save_screener_data(result.data, "momentum")
-
             # Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
                 await self.redis_client.publish_new_tickers(
                     list(truly_new_tickers),
                     {
-                        "source": "finviz_momentum_screener",
-                        "total_screened": len(result.data),
-                        "execution_time": result.execution_time
+                        "source": "finviz_multi_screener",
+                        "strategies_used": successful_screeners,
+                        "total_screened": len(final_stocks),
+                        "unique_tickers": len(unique_stocks)
                     }
                 )
 
-            # Publish screener update
+            # Publish screener update with combined results
             if self.redis_client:
-                await self.redis_client.publish_screener_update(result.data, "momentum")
+                logger.info(f"DEBUG: About to publish screener update with {len(final_stocks)} stocks")
+                await self.redis_client.publish_screener_update(final_stocks, "multi_strategy")
+                logger.info("DEBUG: Successfully published screener update")
 
             self._stats["screener_runs"] += 1
             self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
 
-            logger.info(f"FinViz scan completed: {len(result.data)} stocks found, {len(truly_new_tickers)} new tickers")
+            logger.info(f"Multi-strategy FinViz scan completed: {len(final_stocks)} total stocks, "
+                       f"{len(truly_new_tickers)} new tickers from {successful_screeners} successful screeners")
 
         except Exception as e:
-            logger.error(f"FinViz scan failed: {e}")
+            logger.error(f"FinViz multi-screener scan failed: {e}")
             self._stats["errors"] += 1
 
             # Publish error alert
             if self.redis_client:
                 await self.redis_client.publish_data_validation_alert(
                     "FINVIZ_SCREENER",
-                    [f"Screener scan failed: {str(e)}"],
+                    [f"Multi-screener scan failed: {str(e)}"],
                     "error"
                 )
+
+    async def _use_fallback_tickers(self):
+        """Use fallback ticker lists when screeners return no results."""
+        try:
+            # Define popular, liquid stocks as fallbacks
+            fallback_tickers = [
+                # Large cap tech
+                "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+                # Financial
+                "JPM", "BAC", "WFC", "GS", "MS",
+                # Healthcare
+                "JNJ", "UNH", "PFE", "ABBV", "TMO",
+                # Consumer
+                "PG", "KO", "PEP", "WMT", "HD",
+                # ETFs for stability
+                "SPY", "QQQ", "IWM", "XLF", "XLK"
+            ]
+
+            # Limit to max active tickers
+            selected_tickers = fallback_tickers[:min(len(fallback_tickers), self.config.max_active_tickers)]
+
+            async with self._ticker_lock:
+                previously_active = self._active_tickers.copy()
+                self._active_tickers = set(selected_tickers)
+                truly_new_tickers = self._active_tickers - previously_active
+
+            # Publish new tickers to Redis
+            if truly_new_tickers and self.redis_client:
+                await self.redis_client.publish_new_tickers(
+                    list(truly_new_tickers),
+                    {
+                        "source": "fallback_tickers",
+                        "reason": "screeners_returned_no_results",
+                        "total_tickers": len(selected_tickers)
+                    }
+                )
+
+            self._stats["screener_runs"] += 1
+            self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
+
+            logger.info(f"Fallback tickers activated: {len(selected_tickers)} tickers, {len(truly_new_tickers)} new")
+
+        except Exception as e:
+            logger.error(f"Fallback ticker selection failed: {e}")
+            self._stats["errors"] += 1
 
     async def _update_price_data(self, timeframe: TimeFrame):
         """
@@ -428,7 +563,7 @@ class DataCollectionService:
             return
 
         # Check if we're in market hours for intraday data
-        if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and not self._is_market_hours():
+        if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and not await self._is_market_hours():
             logger.debug(f"Skipping {timeframe} update outside market hours")
             return
 
@@ -573,8 +708,17 @@ class DataCollectionService:
             except Exception as e:
                 logger.error(f"Historical data download failed for {ticker}: {e}")
 
-    def _is_market_hours(self) -> bool:
-        """Check if current time is within market hours."""
+    async def _is_market_hours(self) -> bool:
+        """Check if current time is within market hours using Alpaca API."""
+        try:
+            return await is_market_open()
+        except Exception as e:
+            logger.error(f"Failed to check market hours via Alpaca API: {e}")
+            # Fallback to simple time-based check
+            return self._is_market_hours_fallback()
+
+    def _is_market_hours_fallback(self) -> bool:
+        """Fallback market hours check when Alpaca API is unavailable."""
         try:
             now = datetime.now()
 
@@ -590,7 +734,7 @@ class DataCollectionService:
             return market_open <= current_time <= market_close
 
         except Exception as e:
-            logger.error(f"Failed to check market hours: {e}")
+            logger.error(f"Failed fallback market hours check: {e}")
             return True  # Default to True to avoid missing updates
 
     async def _cleanup_old_data(self):

@@ -9,7 +9,8 @@ and data pipeline coordination.
 import asyncio
 import logging
 import signal
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, time, timedelta
+from datetime import date as date_type
 from typing import Dict, List, Optional, Set, Callable, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -130,14 +131,14 @@ class MarketHoursManager:
         else:
             return MarketSession.CLOSED
 
-    def is_trading_day(self, date: datetime.date) -> bool:
+    def is_trading_day(self, check_date: date_type) -> bool:
         """Check if the given date is a trading day."""
         # Check if it's a weekend
-        if date.weekday() >= 5:  # Saturday = 5, Sunday = 6
+        if check_date.weekday() >= 5:  # Saturday = 5, Sunday = 6
             return False
 
         # Check NYSE calendar for holidays - temporarily disabled
-        # schedule = self.nyse.schedule(start_date=date, end_date=date)
+        # schedule = self.nyse.schedule(start_date=check_date, end_date=check_date)
         # return not schedule.empty
 
         # Fallback: assume weekdays are trading days (no holiday checking)
@@ -471,25 +472,25 @@ class TradingScheduler:
         services = [
             ServiceInfo(
                 name="data_collector",
-                url="http://data-collector:8001",
+                url="http://trading_data_collector:9101",
                 health_endpoint="/health",
                 dependencies=[]
             ),
             ServiceInfo(
                 name="strategy_engine",
-                url="http://strategy-engine:8002",
+                url="http://trading_strategy_engine:9102",
                 health_endpoint="/health",
                 dependencies=["data_collector"]
             ),
             ServiceInfo(
                 name="risk_manager",
-                url="http://risk-manager:8003",
+                url="http://trading_risk_manager:9103",
                 health_endpoint="/health",
                 dependencies=["data_collector", "strategy_engine"]
             ),
             ServiceInfo(
                 name="trade_executor",
-                url="http://trade-executor:8004",
+                url="http://trading_trade_executor:9104",
                 health_endpoint="/health",
                 dependencies=["risk_manager"]
             )
@@ -970,13 +971,14 @@ class TradingScheduler:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.services['risk_manager'].url}/check",
-                    timeout=60.0
+                    f"{self.services['risk_manager'].url}/monitor-portfolio",
+                    timeout=60.0,
+                    json={"positions": [], "cash": 10000, "total_value": 10000}
                 )
                 response.raise_for_status()
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
             logger.debug("Risk check completed successfully")
 
         except Exception as e:
@@ -1025,18 +1027,28 @@ class TradingScheduler:
             raise
 
     async def _run_portfolio_sync(self, task_id: str):
-        """Synchronize portfolio state."""
+        """Synchronize portfolio state from Alpaca and store in database."""
         try:
             async with httpx.AsyncClient() as client:
+                # Call risk manager to sync portfolio data from Alpaca
                 response = await client.post(
-                    f"{self.services['trade_executor'].url}/portfolio/sync",
+                    f"{self.services['risk_manager'].url}/sync-portfolio",
                     timeout=60.0
                 )
                 response.raise_for_status()
+                sync_result = response.json()
+
+                # Also get positions from trade executor for consistency
+                positions_response = await client.get(
+                    f"{self.services['trade_executor'].url}/positions",
+                    timeout=60.0
+                )
+                positions_response.raise_for_status()
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
-            logger.debug("Portfolio sync completed successfully")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+
+            logger.info(f"Portfolio sync completed successfully: {sync_result.get('message', 'Unknown status')}")
 
         except Exception as e:
             logger.error(f"Portfolio sync failed: {e}")

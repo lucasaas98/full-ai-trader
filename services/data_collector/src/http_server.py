@@ -56,6 +56,10 @@ class DataCollectorHTTPServer:
         app.router.add_get("/metrics/json", self.metrics)
         app.router.add_get("/info", self.info)
 
+        # Add data collection endpoints
+        app.router.add_post("/market-data/update", self.update_market_data)
+        app.router.add_post("/finviz/scan", self.trigger_finviz_scan)
+
         # Add middleware for CORS and error handling
         app.middlewares.append(self.cors_handler)
         app.middlewares.append(self.error_handler)
@@ -462,3 +466,75 @@ class DataCollectorHTTPServer:
 
         except Exception as e:
             self.logger.error(f"Failed to update Prometheus metrics: {e}")
+
+    async def update_market_data(self, request: web.Request) -> web.Response:
+        """
+        Trigger market data update.
+
+        Accepts JSON body with optional 'timeframe' parameter.
+        """
+        try:
+            data = await request.json() if request.body_exists else {}
+            timeframe_str = data.get("timeframe", "5m")
+
+            # Map timeframe string to TimeFrame enum
+            from shared.models import TimeFrame
+            timeframe_map = {
+                "1m": TimeFrame.ONE_MINUTE,
+                "5m": TimeFrame.FIVE_MINUTES,
+                "15m": TimeFrame.FIFTEEN_MINUTES,
+                "30m": TimeFrame.THIRTY_MINUTES,
+                "1h": TimeFrame.ONE_HOUR,
+                "1d": TimeFrame.ONE_DAY,
+            }
+
+            timeframe = timeframe_map.get(timeframe_str, TimeFrame.FIVE_MINUTES)
+
+            # Trigger the update
+            if hasattr(self.service, '_update_price_data'):
+                await self.service._update_price_data(timeframe)
+
+                return web.json_response({
+                    "status": "success",
+                    "message": f"Market data update triggered for {timeframe_str}",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            else:
+                return web.json_response(
+                    {"status": "error", "message": "Data collection service not available"},
+                    status=503
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error triggering market data update: {e}")
+            return web.json_response(
+                {"status": "error", "message": str(e)},
+                status=500
+            )
+
+    async def trigger_finviz_scan(self, request: web.Request) -> web.Response:
+        """
+        Trigger FinViz screener scan.
+        """
+        try:
+            # Trigger the scan
+            if hasattr(self.service, '_run_finviz_scan'):
+                await self.service._run_finviz_scan()
+
+                return web.json_response({
+                    "status": "success",
+                    "message": "FinViz scan triggered",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+            else:
+                return web.json_response(
+                    {"status": "error", "message": "FinViz screener not available"},
+                    status=503
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error triggering FinViz scan: {e}")
+            return web.json_response(
+                {"status": "error", "message": str(e)},
+                status=500
+            )

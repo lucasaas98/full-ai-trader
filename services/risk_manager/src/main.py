@@ -38,6 +38,7 @@ from .position_sizer import PositionSizer
 from .portfolio_monitor import PortfolioMonitor
 from .alert_manager import AlertManager
 from .database_manager import RiskDatabaseManager
+from .alpaca_client import AlpacaRiskClient
 
 # Configure logging
 def setup_logging():
@@ -71,6 +72,7 @@ position_sizer: Optional[PositionSizer] = None
 portfolio_monitor: Optional[PortfolioMonitor] = None
 alert_manager: Optional[AlertManager] = None
 database_manager: Optional[RiskDatabaseManager] = None
+alpaca_client: Optional[AlpacaRiskClient] = None
 
 
 @asynccontextmanager
@@ -89,6 +91,7 @@ async def lifespan(app: FastAPI):
         config = get_config()
 
         # Initialize database manager
+        global database_manager
         database_manager = RiskDatabaseManager()
         await database_manager.initialize()
 
@@ -104,10 +107,14 @@ async def lifespan(app: FastAPI):
         )
 
         # Initialize service components
+        global risk_manager, position_sizer, portfolio_monitor, alert_manager, alpaca_client
         risk_manager = RiskManager()
         position_sizer = PositionSizer(risk_limits)
         portfolio_monitor = PortfolioMonitor(risk_limits)
         alert_manager = AlertManager()
+
+        # Initialize Alpaca client
+        alpaca_client = AlpacaRiskClient()
 
         # Start background tasks
         asyncio.create_task(alert_manager.process_alert_queue())
@@ -863,14 +870,65 @@ async def periodic_portfolio_monitoring():
     """Periodic portfolio monitoring task."""
     while True:
         try:
-            await asyncio.sleep(60)  # Check every minute
+            await asyncio.sleep(300)  # Check every 5 minutes
 
-            # This would typically get portfolio from Alpaca API
-            # For now, we'll skip automatic monitoring and rely on explicit calls
+            # Fetch real portfolio data from Alpaca and store it
+            await sync_portfolio_data()
 
         except Exception as e:
             logger.error(f"Error in periodic monitoring: {e}")
-            await asyncio.sleep(60)
+            await asyncio.sleep(300)
+
+
+async def sync_portfolio_data():
+    """Fetch portfolio data from Alpaca and store in database."""
+    try:
+        if not alpaca_client:
+            logger.warning("Alpaca client not available for portfolio sync")
+            return False
+
+        # Get current portfolio state from Alpaca
+        portfolio = await alpaca_client.get_portfolio_state(force_refresh=True)
+        if not portfolio:
+            logger.error("Failed to fetch portfolio data from Alpaca")
+            return False
+
+        # Store portfolio snapshot in database
+        if database_manager:
+            await database_manager.store_portfolio_snapshot(portfolio)
+            logger.info(f"Portfolio snapshot stored: ${portfolio.total_equity} equity, {len(portfolio.positions)} positions")
+
+        # Calculate and store metrics if we have a portfolio monitor
+        if portfolio_monitor:
+            metrics = await portfolio_monitor.calculate_detailed_metrics(portfolio)
+            if database_manager:
+                await database_manager.store_portfolio_metrics(metrics)
+                logger.debug("Portfolio metrics calculated and stored")
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Error syncing portfolio data: {e}")
+        return False
+
+
+@app.post("/sync-portfolio")
+async def sync_portfolio_endpoint():
+    """Endpoint to manually trigger portfolio data sync from Alpaca."""
+    try:
+        success = await sync_portfolio_data()
+        if success:
+            return {
+                "status": "success",
+                "message": "Portfolio data synced successfully",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to sync portfolio data")
+
+    except Exception as e:
+        logger.error(f"Error in sync portfolio endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def daily_cleanup_task():

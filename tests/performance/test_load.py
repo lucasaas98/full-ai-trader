@@ -81,11 +81,11 @@ class LoadTestRunner:
     def __init__(self, base_url: str = "http://localhost"):
         self.base_url = base_url
         self.services = {
-            'data_collector': f"{base_url}:8001",
-            'strategy_engine': f"{base_url}:8002",
-            'risk_manager': f"{base_url}:8003",
-            'trade_executor': f"{base_url}:8004",
-            'scheduler': f"{base_url}:8005"
+            'data_collector': f"{base_url}:9101",
+            'strategy_engine': f"{base_url}:9102",
+            'risk_manager': f"{base_url}:9103",
+            'trade_executor': f"{base_url}:9104",
+            'scheduler': f"{base_url}:9105"
         }
         self.session = requests.Session()
         self.redis_client = None

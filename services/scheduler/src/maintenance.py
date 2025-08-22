@@ -1568,10 +1568,10 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
         """Check connectivity to all services."""
         try:
             services = [
-                "http://data-collector:8001/health",
-                "http://strategy-engine:8002/health",
-                "http://risk-manager:8003/health",
-                "http://trade-executor:8004/health"
+                "http://data-collector:9101/health",
+                "http://strategy-engine:9102/health",
+                "http://risk-manager:9103/health",
+                "http://trade-executor:9104/health"
             ]
 
             failed_services = 0

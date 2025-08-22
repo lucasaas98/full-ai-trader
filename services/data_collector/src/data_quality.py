@@ -15,6 +15,7 @@ import polars as pl
 from pydantic import BaseModel, Field
 
 from shared.models import MarketData, TimeFrame
+from shared.market_hours import is_market_open
 
 
 logger = logging.getLogger(__name__)
@@ -439,7 +440,7 @@ class DataQualityValidator:
             for row in zero_volume.iter_rows(named=True):
                 # Only flag as anomaly if during market hours
                 timestamp = row["timestamp"]
-                if self._is_market_hours(timestamp):
+                if await self._is_market_hours(timestamp):
                     anomaly = DataAnomaly(
                         symbol=row["symbol"],
                         anomaly_type=AnomalyType.ZERO_VOLUME,
@@ -509,7 +510,7 @@ class DataQualityValidator:
 
                     if gap > max_allowed_gap:
                         # Account for weekends and market hours
-                        if not self._is_reasonable_gap(timestamps[i-1], timestamps[i], tf_enum):
+                        if not await self._is_reasonable_gap(timestamps[i-1], timestamps[i], tf_enum):
                             anomaly = DataAnomaly(
                                 symbol=symbol_str,
                                 anomaly_type=AnomalyType.MISSING_DATA,
@@ -654,7 +655,7 @@ class DataQualityValidator:
                     # Only flag as stale if it should be fresh (market hours for intraday data)
                     timeframe = TimeFrame(row["timeframe"])
 
-                    if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and self._is_market_hours(current_time):
+                    if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and await self._is_market_hours(current_time):
                         anomaly = DataAnomaly(
                             symbol=row["symbol"],
                             anomaly_type=AnomalyType.STALE_DATA,
@@ -740,8 +741,17 @@ class DataQualityValidator:
 
         return pl.DataFrame(records)
 
-    def _is_market_hours(self, timestamp: datetime) -> bool:
-        """Check if timestamp is during market hours."""
+    async def _is_market_hours(self, timestamp: datetime) -> bool:
+        """Check if timestamp is during market hours using Alpaca API."""
+        try:
+            return await is_market_open(timestamp)
+        except Exception as e:
+            logger.error(f"Failed to check market hours via Alpaca API: {e}")
+            # Fallback to simple check
+            return self._is_market_hours_fallback(timestamp)
+
+    def _is_market_hours_fallback(self, timestamp: datetime) -> bool:
+        """Fallback market hours check when Alpaca API is unavailable."""
         # Simplified market hours check (9:30 AM - 4:00 PM ET, weekdays)
         if timestamp.weekday() >= 5:  # Weekend
             return False
@@ -749,11 +759,11 @@ class DataQualityValidator:
         market_time = timestamp.time()
         return dt_time(9, 30) <= market_time <= dt_time(16, 0)
 
-    def _is_reasonable_gap(
+    async def _is_reasonable_gap(
         self,
         start_time: datetime,
         end_time: datetime,
-        timeframe: TimeFrame
+        timeframe: TimeFrame,
     ) -> bool:
         """Check if a data gap is reasonable (weekends, holidays, etc.)."""
         gap = end_time - start_time
@@ -769,8 +779,13 @@ class DataQualityValidator:
         # For intraday data, gaps outside market hours are normal
         if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR]:
             # If gap spans non-market hours, it's reasonable
-            if not self._is_market_hours(start_time) or not self._is_market_hours(end_time):
-                return True
+            try:
+                if not await self._is_market_hours(start_time) or not await self._is_market_hours(end_time):
+                    return True
+            except Exception:
+                # Fallback to simple check if async call fails
+                if not self._is_market_hours_fallback(start_time) or not self._is_market_hours_fallback(end_time):
+                    return True
             # Weekend gaps are normal
             if start_time.weekday() >= 5 or end_time.weekday() >= 5:
                 return True

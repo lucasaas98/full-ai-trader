@@ -213,16 +213,16 @@ class RedisClient:
         for item in screener_data:
             data_list.append({
                 "symbol": item.symbol,
-                "company": item.company,
-                "sector": item.sector,
-                "industry": item.industry,
-                "country": item.country,
-                "market_cap": item.market_cap,
-                "pe_ratio": item.pe_ratio,
-                "price": float(item.price) if item.price else None,
-                "change": item.change,
-                "volume": item.volume,
-                "timestamp": item.timestamp.isoformat()
+                "company": item.company or "",
+                "sector": item.sector or "",
+                "industry": item.industry or "",
+                "country": item.country or "",
+                "market_cap": str(item.market_cap) if item.market_cap is not None else None,
+                "pe_ratio": float(item.pe_ratio) if item.pe_ratio is not None else None,
+                "price": float(item.price) if item.price is not None else None,
+                "change": float(item.change) if item.change is not None else None,
+                "volume": int(item.volume) if item.volume is not None else None,
+                "timestamp": item.timestamp.isoformat() if item.timestamp else datetime.now(timezone.utc).isoformat()
             })
 
         message = {

@@ -213,7 +213,7 @@ class TradingSystemLoadTests:
         # Test health endpoint under load
         health_results = await load_test_runner.run_concurrent_requests(
             method="GET",
-            endpoint=":8001/health",
+            endpoint=":9101/health",
             num_requests=1000,
             concurrency=50
         )
@@ -232,7 +232,7 @@ class TradingSystemLoadTests:
 
         market_data_results = await load_test_runner.run_concurrent_requests(
             method="POST",
-            endpoint=":8001/api/market-data",
+            endpoint=":9101/api/market-data",
             num_requests=500,
             concurrency=25,
             data_generator=market_data_generator
@@ -258,7 +258,7 @@ class TradingSystemLoadTests:
 
         signal_results = await load_test_runner.run_concurrent_requests(
             method="POST",
-            endpoint=":8002/api/generate-signals",
+            endpoint=":9102/api/generate-signals",
             num_requests=200,
             concurrency=20,
             data_generator=signal_generation_data
@@ -294,7 +294,7 @@ class TradingSystemLoadTests:
 
         risk_results = await load_test_runner.run_concurrent_requests(
             method="POST",
-            endpoint=":8003/api/check-risk",
+            endpoint=":9103/api/check-risk",
             num_requests=500,
             concurrency=30,
             data_generator=risk_check_data
@@ -324,7 +324,7 @@ class TradingSystemLoadTests:
 
         execution_results = await load_test_runner.run_concurrent_requests(
             method="POST",
-            endpoint=":8004/api/execute-order",
+            endpoint=":9104/api/execute-order",
             num_requests=100,  # Fewer requests for trade execution
             concurrency=10,
             data_generator=order_data
@@ -342,7 +342,7 @@ class TradingSystemLoadTests:
 
         scheduler_results = await load_test_runner.run_concurrent_requests(
             method="GET",
-            endpoint=":8005/health",
+            endpoint=":9105/health",
             num_requests=200,
             concurrency=20
         )
@@ -364,7 +364,7 @@ class TradingSystemLoadTests:
             try:
                 # 1. Request market data
                 market_data_start = time.time()
-                async with session.post(f"{load_test_runner.base_url}:8001/api/market-data",
+                async with session.post(f"{load_test_runner.base_url}:9101/api/market-data",
                                       json={"symbol": "AAPL"}) as response:
                     market_data = await response.json()
                     market_data_time = time.time() - market_data_start
@@ -374,14 +374,14 @@ class TradingSystemLoadTests:
 
                 # 2. Generate trading signal
                 signal_start = time.time()
-                async with session.post(f"{load_test_runner.base_url}:8002/api/generate-signals",
+                async with session.post(f"{load_test_runner.base_url}:9102/api/generate-signals",
                                       json={"symbol": "AAPL", "strategies": ["momentum"]}) as response:
                     signals = await response.json()
                     signal_time = time.time() - signal_start
 
                 # 3. Risk check
                 risk_start = time.time()
-                async with session.post(f"{load_test_runner.base_url}:8003/api/check-risk",
+                async with session.post(f"{load_test_runner.base_url}:9103/api/check-risk",
                                       json={
                                           "signal": signals[0] if signals else {},
                                           "portfolio": {"cash_balance": 50000}
@@ -393,7 +393,7 @@ class TradingSystemLoadTests:
                 execution_time = 0
                 if risk_result.get('approved', False):
                     execution_start = time.time()
-                    async with session.post(f"{load_test_runner.base_url}:8004/api/execute-order",
+                    async with session.post(f"{load_test_runner.base_url}:9104/api/execute-order",
                                           json={
                                               "order": {
                                                   "symbol": "AAPL",

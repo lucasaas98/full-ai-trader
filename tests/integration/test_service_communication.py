@@ -70,11 +70,11 @@ class TestServiceCommunication:
     def service_urls(self):
         """Service URLs for testing"""
         return {
-            "data_collector": "http://data_collector:8001",
-            "strategy_engine": "http://strategy_engine:8002",
-            "risk_manager": "http://risk_manager:8003",
-            "trade_executor": "http://trade_executor:8004",
-            "scheduler": "http://scheduler:8005"
+            "data_collector": "http://data_collector:9101",
+            "strategy_engine": "http://strategy_engine:9102",
+            "risk_manager": "http://risk_manager:9103",
+            "trade_executor": "http://trade_executor:9104",
+            "scheduler": "http://scheduler:9105"
         }
 
     @pytest.mark.asyncio

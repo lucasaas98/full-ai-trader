@@ -132,12 +132,12 @@ class MaintenanceManager:
 
         # Service endpoints for health checks
         self.service_endpoints = {
-            "data_collector": "http://data_collector:8001/health",
-            "strategy_engine": "http://strategy_engine:8002/health",
-            "risk_manager": "http://risk_manager:8003/health",
-            "trade_executor": "http://trade_executor:8004/health",
-            "scheduler": "http://scheduler:8005/health",
-            "export_service": "http://export_service:8006/health"
+            "data_collector": "http://data_collector:9101/health",
+            "strategy_engine": "http://strategy_engine:9102/health",
+            "risk_manager": "http://risk_manager:9103/health",
+            "trade_executor": "http://trade_executor:9104/health",
+            "scheduler": "http://scheduler:9105/health",
+            "export_service": "http://export_service:9106/health"
         }
 
         # Notification settings
