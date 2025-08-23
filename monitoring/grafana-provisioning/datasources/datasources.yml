@@ -8,11 +8,3 @@ datasources:
       isDefault: true
       editable: true
       uid: prometheus-main
-      jsonData:
-          timeInterval: "15s"
-          queryTimeout: "60s"
-          httpMethod: "POST"
-          manageAlerts: true
-          prometheusType: "Prometheus"
-          prometheusVersion: "2.40.0"
-      version: 1

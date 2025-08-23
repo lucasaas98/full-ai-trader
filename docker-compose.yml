@@ -312,14 +312,28 @@ services:
             - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
             - GF_SECURITY_ALLOW_EMBEDDING=true
             - GF_AUTH_ANONYMOUS_ENABLED=false
+            - GF_PLUGINS_ENABLE_ALPHA=false
+            - GF_PLUGIN_ADMIN_ENABLED=false
+            - GF_LOG_LEVEL=info
         volumes:
             - grafana_data:/var/lib/grafana
             - ./monitoring/grafana-provisioning:/etc/grafana/provisioning
+            - ./monitoring:/var/lib/grafana/dashboards
         networks:
             - trading_network
         depends_on:
-            - prometheus
+            prometheus:
+                condition: service_started
         restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
 
     alertmanager:
         image: prom/alertmanager:latest

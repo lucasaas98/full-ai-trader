@@ -491,8 +491,8 @@ class DataCollectorHTTPServer:
             timeframe = timeframe_map.get(timeframe_str, TimeFrame.FIVE_MINUTES)
 
             # Trigger the update
-            if hasattr(self.service, '_update_price_data'):
-                await self.service._update_price_data(timeframe)
+            if hasattr(self.data_service, '_update_price_data'):
+                await self.data_service._update_price_data(timeframe)
 
                 return web.json_response({
                     "status": "success",
@@ -518,8 +518,8 @@ class DataCollectorHTTPServer:
         """
         try:
             # Trigger the scan
-            if hasattr(self.service, '_run_finviz_scan'):
-                await self.service._run_finviz_scan()
+            if hasattr(self.data_service, '_run_finviz_scan'):
+                await self.data_service._run_finviz_scan()
 
                 return web.json_response({
                     "status": "success",

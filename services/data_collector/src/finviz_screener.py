@@ -122,7 +122,7 @@ class FinVizScreenerResult(BaseModel):
 class RateLimiter:
     """Rate limiter for API calls."""
 
-    def __init__(self, min_interval: float = 300.0):  # 5 minutes default
+    def __init__(self, min_interval: float = 30.0):  # 30 seconds default
         self.min_interval = min_interval
         self.last_call = 0.0
         self._lock = asyncio.Lock()
@@ -154,7 +154,7 @@ class FinVizScreener:
         base_url: str = "https://elite.finviz.com",
         timeout: int = 30,
         max_retries: int = 3,
-        rate_limit_interval: float = 300.0,
+        rate_limit_interval: float = 30.0,
         session: Optional[aiohttp.ClientSession] = None,
         api_key: Optional[str] = None
     ):

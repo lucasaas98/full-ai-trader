@@ -1085,7 +1085,7 @@ class MarketRegimeDetector:
 
         crossings = (recent_data
                     .with_columns([
-                        (pl.col("close") > pl.col("sma_20")).alias("above_ma")
+                        (pl.col("close") > pl.col("sma_20")).cast(pl.Int32).alias("above_ma")
                     ])
                     .with_columns([
                         pl.col("above_ma").diff().abs().alias("crossing")

@@ -130,7 +130,7 @@ class DataCollectionService:
             if self.config.enable_finviz:
                 self.finviz_screener = FinVizScreener(
                     base_url=get_config().finviz.base_url,
-                    rate_limit_interval=300.0,  # 5 minutes
+                    rate_limit_interval=30.0,  # 30 seconds
                     timeout=get_config().finviz.timeout
                 )
 
@@ -182,8 +182,8 @@ class DataCollectionService:
 
             logger.info("Data collection service started successfully")
 
-            # Run initial data collection
-            await self._run_initial_collection()
+            # Run initial data collection in background to avoid blocking startup
+            asyncio.create_task(self._run_initial_collection())
 
         except Exception as e:
             logger.error(f"Failed to start data collection service: {e}")
@@ -349,15 +349,9 @@ class DataCollectionService:
         try:
             logger.info("Running multiple FinViz screeners...")
 
-            # Define screening strategies - mix of aggressive and conservative approaches
+            # Define screening strategies - conservative approaches only
             screening_strategies = [
-                ("momentum", lambda: self.finviz_screener.get_top_momentum_stocks(
-                    limit=max(12, self.config.screener_result_limit // 5)
-                )),
                 ("breakouts", lambda: self.finviz_screener.get_high_volume_breakouts(
-                    limit=max(8, self.config.screener_result_limit // 6)
-                )),
-                ("gappers", lambda: self.finviz_screener.get_gappers(
                     limit=max(8, self.config.screener_result_limit // 6)
                 )),
                 ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
@@ -578,15 +572,17 @@ class DataCollectionService:
                 end_date = datetime.now(timezone.utc)
                 start_date = end_date - timedelta(days=5)
             else:
-                # For intraday data, get last few hours based on timeframe
-                hours_map = {
-                    TimeFrame.FIVE_MINUTES: 2,
-                    TimeFrame.FIFTEEN_MINUTES: 6,
-                    TimeFrame.ONE_HOUR: 24
-                }
-                hours_back = hours_map.get(timeframe, 2)
+                # For intraday data, ensure we span at least 2 days for TwelveData API
                 end_date = datetime.now(timezone.utc)
-                start_date = end_date - timedelta(hours=hours_back)
+
+                # Calculate days back based on timeframe, minimum 2 days
+                days_map = {
+                    TimeFrame.FIVE_MINUTES: 2,    # Last 2 days
+                    TimeFrame.FIFTEEN_MINUTES: 3,  # Last 3 days
+                    TimeFrame.ONE_HOUR: 5         # Last 5 days
+                }
+                days_back = days_map.get(timeframe, 2)
+                start_date = end_date - timedelta(days=days_back)
 
             # Fetch data in batches to respect API limits
             batch_size = min(self.config.batch_size, len(tickers_list))

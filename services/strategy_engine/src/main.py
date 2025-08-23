@@ -37,7 +37,7 @@ from .backtesting_engine import BacktestingEngine, BacktestConfig, BacktestMode
 from .redis_integration import RedisStrategyEngine
 
 # Import shared models
-from shared.models import FinVizData
+from shared.models import FinVizData, TechnicalIndicators
 
 
 # Configure logging
@@ -431,15 +431,56 @@ class StrategyEngineService:
             raise HTTPException(status_code=400, detail=str(e))
 
     async def _get_market_data(self, symbol: str, periods: int) -> Optional[pl.DataFrame]:
-        """Get market data for analysis (placeholder - would connect to database)."""
+        """Get market data for analysis by loading from parquet files."""
         try:
-            # This is a placeholder - in real implementation, this would:
-            # 1. Query the PostgreSQL database for historical data
-            # 2. Format as Polars DataFrame
-            # 3. Return the data
+            from pathlib import Path
 
-            self.logger.warning(f"Market data retrieval not implemented - returning None for {symbol}")
-            return None
+            # Direct file access approach - assume default data path
+            base_path = Path("/app/data/parquet/market_data") / symbol
+
+            if not base_path.exists():
+                self.logger.warning(f"No market data directory found for {symbol} at {base_path}")
+                return None
+
+            # Collect data from available timeframes (prefer daily, then hourly, then minutes)
+            timeframes_to_try = ["1day", "1h", "15min", "5min", "1min"]
+            combined_data = []
+
+            for tf in timeframes_to_try:
+                tf_path = base_path / tf
+                if tf_path.exists():
+                    # Load recent parquet files (last 6 months for better indicators)
+                    parquet_files = list(tf_path.glob("*.parquet"))
+                    parquet_files.sort()  # Sort by filename (date)
+
+                    # Take the most recent files (up to 60 files for 2 months of daily data)
+                    recent_files = parquet_files[-60:] if len(parquet_files) > 60 else parquet_files
+
+                    for file_path in recent_files:
+                        try:
+                            df = pl.read_parquet(file_path)
+                            if not df.is_empty():
+                                combined_data.append(df)
+                        except Exception as e:
+                            self.logger.warning(f"Error reading {file_path}: {e}")
+                            continue
+
+                    # If we found data, use this timeframe
+                    if combined_data:
+                        break
+
+            if not combined_data:
+                self.logger.warning(f"No readable market data found for {symbol}")
+                return None
+
+            # Combine all dataframes
+            full_data = pl.concat(combined_data)
+
+            # Sort by timestamp and take most recent periods
+            full_data = full_data.sort("timestamp").tail(periods)
+
+            self.logger.info(f"Loaded {full_data.height} data points for {symbol}")
+            return full_data
 
         except Exception as e:
             self.logger.error(f"Error getting market data for {symbol}: {e}")
@@ -658,6 +699,143 @@ async def run_backtest(request: BacktestRequest, background_tasks: BackgroundTas
 async def optimize_parameters(request: ParameterOptimizationRequest):
     """Optimize strategy parameters."""
     return await service.optimize_parameters(request)
+
+
+@app.post("/analyze")
+async def analyze_market_data():
+    """Analyze market data and calculate technical indicators for all tracked symbols."""
+    try:
+        # Get tracked symbols from active strategies or default list
+        symbols = set()
+
+        # Collect symbols from active strategies
+        for strategy in service.active_strategies.values():
+            if hasattr(strategy, 'symbols') and getattr(strategy, 'symbols', None):
+                symbols.update(getattr(strategy, 'symbols'))
+
+        # Fallback to common symbols if no strategies are active
+        if not symbols:
+            symbols = {
+                'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA',
+                'JPM', 'BAC', 'GS', 'MS', 'WFC', 'SPY', 'QQQ', 'IWM',
+                'XLK', 'XLF', 'HD', 'WMT', 'KO', 'PEP', 'JNJ', 'PFE',
+                'UNH', 'TMO', 'PG', 'ABBV'
+            }
+
+        analysis_results = []
+        indicators_to_save = []
+
+        for symbol in symbols:
+            try:
+                # Get market data for the symbol
+                market_data = await service._get_market_data(symbol, periods=200)
+
+                if market_data is None or market_data.is_empty():
+                    logger.warning(f"No market data available for {symbol}")
+                    continue
+
+                # Ensure we have minimum required columns for technical analysis
+                required_columns = ['open', 'high', 'low', 'close', 'volume']
+                if not all(col in market_data.columns for col in required_columns):
+                    logger.warning(f"Missing required columns for {symbol}")
+                    continue
+
+                # Perform technical analysis with error handling
+                try:
+                    tech_analysis = service.technical_engine.full_analysis(symbol, market_data)
+                except Exception as analysis_error:
+                    logger.error(f"Technical analysis failed for {symbol}: {analysis_error}")
+                    continue
+
+                if tech_analysis and 'indicators' in tech_analysis:
+                    # Extract current indicators for saving
+                    current_indicators = tech_analysis['indicators']
+
+                    # Create TechnicalIndicators object for storage
+                    indicator_data = {
+                        'symbol': symbol,
+                        'timestamp': tech_analysis.get('timestamp', datetime.now(timezone.utc)),
+                        'timeframe': '1day',  # Default timeframe
+                        'sma_20': current_indicators.get('sma_20'),
+                        'sma_50': current_indicators.get('sma_50'),
+                        'sma_200': current_indicators.get('sma_200'),
+                        'ema_12': current_indicators.get('ema_10'),  # Use ema_10 as closest to ema_12
+                        'ema_26': current_indicators.get('ema_20'),  # Use ema_20 as closest to ema_26
+                        'rsi': current_indicators.get('rsi_14'),
+                        'macd': current_indicators.get('macd_line'),
+                        'macd_signal': current_indicators.get('macd_signal'),
+                        'macd_histogram': current_indicators.get('macd_histogram'),
+                        'bollinger_upper': current_indicators.get('bb_upper'),
+                        'bollinger_middle': current_indicators.get('bb_middle'),
+                        'bollinger_lower': current_indicators.get('bb_lower'),
+                        'atr': current_indicators.get('atr_14'),
+                        'volume_sma': current_indicators.get('obv')  # Use OBV as volume indicator
+                    }
+
+                    indicators_to_save.append(indicator_data)
+
+                    analysis_results.append({
+                        'symbol': symbol,
+                        'technical_score': tech_analysis.get('technical_score', 50.0),
+                        'regime': tech_analysis.get('regime', {}),
+                        'patterns': tech_analysis.get('patterns', []),
+                        'data_points': tech_analysis.get('data_points', 0)
+                    })
+
+            except Exception as e:
+                logger.error(f"Error analyzing {symbol}: {e}")
+                continue
+
+        # Save technical indicators if any were calculated
+        saved_count = 0
+        if indicators_to_save:
+            try:
+                # Direct file saving approach
+                from pathlib import Path
+                from datetime import date
+
+                base_path = Path("/app/data/parquet/technical_indicators")
+                base_path.mkdir(parents=True, exist_ok=True)
+
+                # Group indicators by symbol and save
+                grouped_indicators = {}
+                for indicator in indicators_to_save:
+                    symbol = indicator['symbol']
+                    if symbol not in grouped_indicators:
+                        grouped_indicators[symbol] = []
+                    grouped_indicators[symbol].append(indicator)
+
+                for symbol, symbol_indicators in grouped_indicators.items():
+                    # Create symbol directory
+                    symbol_dir = base_path / symbol / "1day"
+                    symbol_dir.mkdir(parents=True, exist_ok=True)
+
+                    # Create filename with current date
+                    today = date.today()
+                    file_path = symbol_dir / f"{today.isoformat()}.parquet"
+
+                    # Convert to DataFrame and save
+                    df = pl.DataFrame(symbol_indicators)
+                    df.write_parquet(file_path)
+                    saved_count += len(symbol_indicators)
+
+                logger.info(f"Saved {saved_count} technical indicators to {base_path}")
+
+            except Exception as e:
+                logger.error(f"Error saving technical indicators: {e}")
+
+        return {
+            "status": "success",
+            "message": f"Analysis completed for {len(analysis_results)} symbols",
+            "symbols_analyzed": len(analysis_results),
+            "indicators_saved": saved_count,
+            "results": analysis_results,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error in market data analysis: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 @app.get("/regime/{symbol}")

@@ -20,7 +20,7 @@ import threading
 import polars as pl
 from pydantic import BaseModel, Field
 
-from shared.models import MarketData, TimeFrame, FinVizData, AssetType
+from shared.models import MarketData, TimeFrame, FinVizData, AssetType, TechnicalIndicators
 
 
 logger = logging.getLogger(__name__)
@@ -78,6 +78,26 @@ class DataStore:
             "change": pl.Float64,
             "volume": pl.Int64,
             "timestamp": pl.Datetime("us")
+        }
+
+        self.technical_indicators_schema = {
+            "symbol": pl.Utf8,
+            "timestamp": pl.Datetime("us"),
+            "timeframe": pl.Utf8,
+            "sma_20": pl.Float64,
+            "sma_50": pl.Float64,
+            "sma_200": pl.Float64,
+            "ema_12": pl.Float64,
+            "ema_26": pl.Float64,
+            "rsi": pl.Float64,
+            "macd": pl.Float64,
+            "macd_signal": pl.Float64,
+            "macd_histogram": pl.Float64,
+            "bollinger_upper": pl.Float64,
+            "bollinger_middle": pl.Float64,
+            "bollinger_lower": pl.Float64,
+            "atr": pl.Float64,
+            "volume_sma": pl.Float64
         }
 
     def _ensure_base_directory(self):
@@ -201,6 +221,68 @@ class DataStore:
                 logger.info("Attempting to create DataFrame without schema...")
                 df = pl.DataFrame(records)
                 logger.info(f"Successfully created DataFrame without schema, shape: {df.shape}")
+                return df
+            except Exception as e2:
+                logger.error(f"Also failed without schema: {e2}")
+                raise
+
+    def _technical_indicators_to_dataframe(self, indicators_list: List) -> pl.DataFrame:
+        """Convert TechnicalIndicators list to Polars DataFrame."""
+        if not indicators_list:
+            return pl.DataFrame(schema=self.technical_indicators_schema)
+
+        records = []
+        for indicator in indicators_list:
+            try:
+                # Handle both dict and object formats
+                if hasattr(indicator, '__dict__'):
+                    # Pydantic model or object
+                    data = indicator.dict() if hasattr(indicator, 'dict') else indicator.__dict__
+                else:
+                    # Dictionary
+                    data = indicator
+
+                record = {
+                    "symbol": data.get("symbol", ""),
+                    "timestamp": data.get("timestamp"),
+                    "timeframe": data.get("timeframe", "1d"),
+                    "sma_20": float(data.get("sma_20")) if data.get("sma_20") is not None else None,
+                    "sma_50": float(data.get("sma_50")) if data.get("sma_50") is not None else None,
+                    "sma_200": float(data.get("sma_200")) if data.get("sma_200") is not None else None,
+                    "ema_12": float(data.get("ema_12")) if data.get("ema_12") is not None else None,
+                    "ema_26": float(data.get("ema_26")) if data.get("ema_26") is not None else None,
+                    "rsi": float(data.get("rsi")) if data.get("rsi") is not None else None,
+                    "macd": float(data.get("macd")) if data.get("macd") is not None else None,
+                    "macd_signal": float(data.get("macd_signal")) if data.get("macd_signal") is not None else None,
+                    "macd_histogram": float(data.get("macd_histogram")) if data.get("macd_histogram") is not None else None,
+                    "bollinger_upper": float(data.get("bollinger_upper")) if data.get("bollinger_upper") is not None else None,
+                    "bollinger_middle": float(data.get("bollinger_middle")) if data.get("bollinger_middle") is not None else None,
+                    "bollinger_lower": float(data.get("bollinger_lower")) if data.get("bollinger_lower") is not None else None,
+                    "atr": float(data.get("atr")) if data.get("atr") is not None else None,
+                    "volume_sma": float(data.get("volume_sma")) if data.get("volume_sma") is not None else None
+                }
+                records.append(record)
+
+            except Exception as e:
+                logger.error(f"Error processing TechnicalIndicators record: {e}")
+                logger.error(f"Problem record: {indicator}")
+                continue
+
+        try:
+            df = pl.DataFrame(records, schema=self.technical_indicators_schema)
+            logger.debug(f"Successfully created technical indicators DataFrame with shape {df.shape}")
+            return df
+
+        except Exception as e:
+            logger.error(f"Failed to create technical indicators DataFrame: {e}")
+            logger.error(f"Number of records: {len(records)}")
+            if records:
+                logger.error(f"Sample record: {records[0]}")
+
+            # Try without schema as fallback
+            try:
+                df = pl.DataFrame(records)
+                logger.info(f"Created technical indicators DataFrame without schema, shape: {df.shape}")
                 return df
             except Exception as e2:
                 logger.error(f"Also failed without schema: {e2}")
@@ -334,6 +416,91 @@ class DataStore:
             logger.error(f"Data sample: {data[0] if data else 'No data'}")
             # Don't crash the entire service, just skip saving
             return 0
+
+    async def save_technical_indicators(
+        self,
+        indicators_list: List,
+        timeframe: str = "1d",
+        append: bool = True
+    ) -> int:
+        """
+        Save technical indicators to Parquet files organized by symbol/timeframe/date.
+
+        Args:
+            indicators_list: List of TechnicalIndicators objects or dicts
+            timeframe: Timeframe for the indicators
+            append: Whether to append to existing files
+
+        Returns:
+            Number of records saved
+        """
+        if not indicators_list:
+            return 0
+
+        try:
+            logger.info(f"Attempting to save {len(indicators_list)} technical indicators records")
+
+            # Convert to Polars DataFrame
+            df = self._technical_indicators_to_dataframe(indicators_list)
+
+            if df is None or df.is_empty():
+                logger.warning(f"DataFrame is empty after conversion")
+                return 0
+
+            # Add timeframe if not present
+            if "timeframe" not in df.columns or df["timeframe"].is_null().all():
+                df = df.with_columns(pl.lit(timeframe).alias("timeframe"))
+
+            # Group by symbol and date
+            df_with_date = df.with_columns(pl.col("timestamp").dt.date().alias("date"))
+
+            # Group by symbol, timeframe, and date
+            grouped_data = {}
+            for row in df_with_date.iter_rows(named=True):
+                key = (row["symbol"], row["timeframe"], row["date"])
+                if key not in grouped_data:
+                    grouped_data[key] = []
+                grouped_data[key].append(row)
+
+            total_saved = 0
+
+            # Process each group
+            for (symbol, tf_str, date_obj), group_rows in grouped_data.items():
+                try:
+                    # Create DataFrame for this group (without date column)
+                    group_data = []
+                    for row in group_rows:
+                        group_data.append({k: v for k, v in row.items() if k != "date"})
+
+                    group_df = pl.DataFrame(group_data, schema=self.technical_indicators_schema)
+
+                    # Get file path for technical indicators
+                    file_path = self._get_technical_indicators_file_path(symbol, tf_str, date_obj)
+
+                    # Save to file
+                    await self._save_dataframe_to_parquet(group_df, file_path, append)
+                    total_saved += len(group_data)
+
+                    logger.debug(f"Saved {len(group_data)} indicators for {symbol} {tf_str} {date_obj}")
+
+                except Exception as e:
+                    logger.error(f"Failed to save indicators group {symbol} {tf_str} {date_obj}: {e}")
+                    continue
+
+            logger.info(f"Successfully saved {total_saved} technical indicators records")
+            return total_saved
+
+        except Exception as e:
+            logger.error(f"Failed to save technical indicators: {e}")
+            return 0
+
+    def _get_technical_indicators_file_path(self, symbol: str, timeframe: str, date_obj: date) -> Path:
+        """Get file path for technical indicators data."""
+        indicators_dir = self.base_path / "technical_indicators" / symbol / timeframe
+        indicators_dir.mkdir(parents=True, exist_ok=True)
+
+        filename = f"{date_obj.isoformat()}.parquet"
+        return indicators_dir / filename
 
     async def _save_dataframe_to_file(
         self,
