@@ -11,11 +11,10 @@ This module handles Redis integration for the strategy engine, including:
 import logging
 import json
 import asyncio
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Awaitable
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-import redis.asyncio as aioredis
-import redis
+import redis.asyncio as redis
 from dataclasses import asdict
 
 from .hybrid_strategy import HybridStrategy, HybridSignal, HybridSignalGenerator
@@ -29,7 +28,7 @@ class RedisChannels:
     # Input channels (subscribe)
     PRICE_UPDATES = "price_updates"
     MARKET_DATA = "market_data:{symbol}"
-    FINVIZ_UPDATES = "finviz_updates"
+    SCREENER_UPDATES = "screener:updates"
     SYSTEM_EVENTS = "system_events"
 
     # Output channels (publish)
@@ -48,7 +47,7 @@ class RedisChannels:
 class RedisSignalPublisher:
     """Publish trading signals to Redis channels."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """
         Initialize signal publisher.
 
@@ -187,7 +186,7 @@ class RedisSignalPublisher:
 class RedisDataSubscriber:
     """Subscribe to market data updates from Redis."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """
         Initialize data subscriber.
 
@@ -228,25 +227,26 @@ class RedisDataSubscriber:
         except Exception as e:
             self.logger.error(f"Error subscribing to price updates: {e}")
 
-    async def subscribe_to_finviz_updates(self, callback: Callable[[Dict], None]) -> None:
+    async def subscribe_to_screener_updates(self, callback: Callable[[Dict], None]) -> None:
         """
-        Subscribe to FinViz fundamental data updates.
+        Subscribe to screener data updates.
 
         Args:
-            callback: Callback function for FinViz updates
+            callback: Callback function for screener updates
         """
         try:
-            self._callbacks["finviz_updates"] = callback
+            self._callbacks["screener_updates"] = callback
 
             pubsub = self.redis.pubsub()
-            await pubsub.subscribe(RedisChannels.FINVIZ_UPDATES)
+            await pubsub.subscribe(RedisChannels.SCREENER_UPDATES)
 
-            self._subscriptions["finviz_updates"] = pubsub
+            self._subscriptions["screener_updates"] = pubsub
 
-            self.logger.info("Subscribed to FinViz updates")
+            self.logger.info("Subscribed to screener updates")
 
         except Exception as e:
-            self.logger.error(f"Error subscribing to FinViz updates: {e}")
+            self.logger.error(f"Error subscribing to screener updates: {e}")
+            raise
 
     async def start_listening(self) -> None:
         """Start listening for Redis messages."""
@@ -287,7 +287,7 @@ class RedisDataSubscriber:
                         if sub_type == "price_updates":
                             symbol = data.get("symbol", "")
                             callback(symbol, data)
-                        elif sub_type == "finviz_updates":
+                        elif sub_type == "screener_updates":
                             callback(data)
 
                     except Exception as e:
@@ -317,7 +317,7 @@ class RedisDataSubscriber:
 class RedisStrategyCache:
     """Cache strategy states and analysis results in Redis."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """
         Initialize strategy cache.
 
@@ -472,7 +472,7 @@ class RedisStrategyCache:
 class RedisMarketDataHandler:
     """Handle market data from Redis streams."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """
         Initialize market data handler.
 
@@ -496,16 +496,16 @@ class RedisMarketDataHandler:
             self._price_callbacks[symbol] = []
         self._price_callbacks[symbol].append(callback)
 
-    def register_finviz_callback(self, callback: Callable[[FinVizData], None]) -> None:
+    def register_screener_callback(self, callback: Callable[[Dict], Awaitable[None]]) -> None:
         """
-        Register callback for FinViz updates.
+        Register callback for screener data updates.
 
         Args:
-            callback: Callback function
+            callback: Async callback function
         """
-        if "finviz" not in self._finviz_callbacks:
-            self._finviz_callbacks["finviz"] = []
-        self._finviz_callbacks["finviz"].append(callback)
+        if "screener" not in self._finviz_callbacks:
+            self._finviz_callbacks["screener"] = []
+        self._finviz_callbacks["screener"].append(callback)
 
     async def process_price_update(self, symbol: str, price_data: Dict[str, Any]) -> None:
         """
@@ -540,26 +540,35 @@ class RedisMarketDataHandler:
         except Exception as e:
             self.logger.error(f"Error processing price update for {symbol}: {e}")
 
-    async def process_finviz_update(self, finviz_data: Dict[str, Any]) -> None:
+    async def process_screener_update(self, screener_data: Dict[str, Any]) -> None:
         """
-        Process incoming FinViz update.
+        Process incoming screener update.
 
         Args:
-            finviz_data: FinViz update data
+            screener_data: Screener update data
         """
         try:
-            # Convert to FinVizData model if needed
-            # This would depend on the exact structure of FinVizData
+            # Process screener data from data collector
+            # screener_data contains: screener_type, data (list of stocks), timestamp, count
 
-            callbacks = self._finviz_callbacks.get("finviz", [])
+            screener_type = screener_data.get("screener_type", "unknown")
+            stocks_data = screener_data.get("data", [])
+
+            self.logger.info(f"Processing screener update: {screener_type} with {len(stocks_data)} stocks")
+
+            # Extract symbols for strategy processing
+            symbols = [stock.get("symbol") for stock in stocks_data if stock.get("symbol")]
+
+            # Notify all registered screener callbacks
+            callbacks = self._finviz_callbacks.get("screener", [])
             for callback in callbacks:
                 try:
-                    await callback(finviz_data)
+                    await callback(screener_data)
                 except Exception as e:
-                    self.logger.error(f"Error in FinViz callback: {e}")
+                    self.logger.error(f"Error in screener callback: {e}")
 
         except Exception as e:
-            self.logger.error(f"Error processing FinViz update: {e}")
+            self.logger.error(f"Error processing screener update: {e}")
 
 
 class RedisStrategyEngine:
@@ -604,14 +613,14 @@ class RedisStrategyEngine:
         """Initialize Redis connections and components."""
         try:
             # Initialize Redis clients
-            self.redis_async = aioredis.from_url(
+            self.redis_async = redis.from_url(
                 self.redis_url,
                 decode_responses=True,
                 retry_on_timeout=True,
                 health_check_interval=30
             )
 
-            self.redis_sync = redis.from_url(self.redis_url, decode_responses=True)
+            # Remove sync redis client - not needed for async operations
 
             # Set redis attribute for compatibility
             self.redis = self.redis_async
@@ -674,11 +683,11 @@ class RedisStrategyEngine:
 
             # Register FinViz callback if strategy supports it
             if isinstance(strategy, HybridStrategy) and self.data_handler:
-                def make_finviz_callback(strat):
-                    def callback(data):
-                        asyncio.create_task(self._handle_finviz_update(strat, data))
+                def make_screener_callback(strat):
+                    async def callback(data):
+                        await self._handle_screener_update(strat, data)
                     return callback
-                self.data_handler.register_finviz_callback(make_finviz_callback(strategy))
+                self.data_handler.register_screener_callback(make_screener_callback(strategy))
 
             self.logger.info(f"Registered strategy {strategy_id} for {len(symbols)} symbols")
             return True
@@ -758,30 +767,40 @@ class RedisStrategyEngine:
         except Exception as e:
             self.logger.error(f"Error handling price update: {e}")
 
-    async def _handle_finviz_update(self, strategy: BaseStrategy, finviz_data: Dict[str, Any]) -> None:
-        """Handle FinViz data update for hybrid strategies."""
+    async def _handle_screener_update(self, strategy: BaseStrategy, screener_data: Dict) -> None:
+        """Handle screener data update for hybrid strategies."""
         try:
-            symbol = finviz_data.get("symbol")
-            if not symbol:
+            screener_type = screener_data.get("screener_type", "unknown")
+            stocks_data = screener_data.get("data", [])
+
+            if not stocks_data:
                 return
 
             strategy_id = strategy.name
             if strategy_id not in self.active_strategies:
                 return
 
-            # Update FinViz cache
-            finviz_key = f"finviz_data:{symbol}"
-            if self.redis:
-                await self.redis.setex(
-                    finviz_key,
-                    3600,  # 1 hour TTL
-                    json.dumps(finviz_data, default=str)
-                )
+            self.logger.info(f"Processing {len(stocks_data)} screener stocks for strategy {strategy_id}")
 
-            self.logger.debug(f"Updated FinViz cache for {symbol}")
+            # Process each stock from the screener
+            for stock in stocks_data:
+                symbol = stock.get("symbol")
+                if not symbol:
+                    continue
+
+                # Update screener cache
+                screener_key = f"screener_data:{symbol}"
+                if self.redis:
+                    await self.redis.setex(
+                        screener_key,
+                        3600,  # 1 hour TTL
+                        json.dumps(stock, default=str)
+                    )
+
+            self.logger.debug(f"Updated screener cache for {len(stocks_data)} symbols")
 
         except Exception as e:
-            self.logger.error(f"Error handling FinViz update: {e}")
+            self.logger.error(f"Error handling screener update: {e}")
 
     async def _publish_strategy_signal(self, strategy: BaseStrategy, symbol: str, signal: Signal) -> None:
         """Publish strategy signal to Redis."""
@@ -943,12 +962,12 @@ class RedisStrategyEngine:
 
                 await self.subscriber.subscribe_to_price_updates(symbols, price_callback)
 
-                # Subscribe to FinViz updates
-                def finviz_callback(finviz_data: Dict[str, Any]):
+                # Subscribe to screener updates
+                def screener_callback(screener_data: Dict[str, Any]):
                     if self.data_handler:
-                        asyncio.create_task(self.data_handler.process_finviz_update(finviz_data))
+                        asyncio.create_task(self.data_handler.process_screener_update(screener_data))
 
-                await self.subscriber.subscribe_to_finviz_updates(finviz_callback)
+                await self.subscriber.subscribe_to_screener_updates(screener_callback)
 
             # Start heartbeat task
             asyncio.create_task(self._heartbeat_loop())
@@ -1187,7 +1206,7 @@ class RedisSignalConsumer:
     async def initialize(self) -> bool:
         """Initialize Redis connection."""
         try:
-            self.redis = aioredis.from_url(self.redis_url, decode_responses=True)
+            self.redis = redis.from_url(self.redis_url, decode_responses=True)
             await self.redis.ping()
             self.logger.info("Redis signal consumer initialized")
             return True
@@ -1266,7 +1285,7 @@ class RedisSignalConsumer:
 class RedisBacktestResultsManager:
     """Manage backtest results in Redis."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """
         Initialize backtest results manager.
 

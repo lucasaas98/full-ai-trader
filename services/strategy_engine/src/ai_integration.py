@@ -118,8 +118,8 @@ class AIStrategyIntegration:
         # Register data callbacks
         if self.data_subscriber and hasattr(self.data_subscriber, 'register_price_callback'):
             self.data_subscriber.register_price_callback(self._handle_price_update)
-        if self.data_subscriber and hasattr(self.data_subscriber, 'register_finviz_callback'):
-            self.data_subscriber.register_finviz_callback(self._handle_finviz_update)
+        if self.data_subscriber and hasattr(self.data_subscriber, 'register_screener_callback'):
+            self.data_subscriber.register_screener_callback(self._handle_screener_update)
 
         # Start background tasks
         asyncio.create_task(self._market_regime_monitor())
@@ -169,20 +169,28 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error handling price update: {e}")
 
-    async def _handle_finviz_update(self, data: Dict[str, Any]):
+    async def _handle_screener_update(self, data: Dict[str, Any]):
         """
-        Handle incoming FinViz data updates.
+        Handle incoming screener data updates.
 
         Args:
-            data: FinViz data
+            data: Screener data containing stocks and metadata
         """
         try:
-            ticker = data.get('ticker')
-            if ticker:
-                self.finviz_data_buffer[ticker] = data
-                logger.debug(f"Updated FinViz data for {ticker}")
+            # Extract screener data format: {screener_type, data: [stocks], timestamp, count}
+            screener_type = data.get('screener_type', 'unknown')
+            stocks_data = data.get('data', [])
+
+            logger.info(f"Received screener update: {screener_type} with {len(stocks_data)} stocks")
+
+            # Process each stock in the screener results
+            for stock in stocks_data:
+                symbol = stock.get('symbol')
+                if symbol:
+                    self.finviz_data_buffer[symbol] = stock
+                    logger.debug(f"Updated screener data for {symbol}")
         except Exception as e:
-            logger.error(f"Error handling FinViz update: {e}")
+            logger.error(f"Error handling screener update: {e}")
 
     async def _analyze_ticker(self, ticker: str):
         """

@@ -1,0 +1,329 @@
+{
+  "description": "Trading System Parameter Optimization Configuration",
+  "version": "1.0.0",
+  "optimization_settings": {
+    "symbols": [
+      "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "NFLX", "CRM", "ORCL"
+    ],
+    "backtest_period": {
+      "start_date": "2023-01-01",
+      "end_date": "2023-12-31",
+      "description": "Full year 2023 for comprehensive testing"
+    },
+    "initial_capital": 100000,
+    "optimization_metric": "sharpe_ratio",
+    "parallel_jobs": 4,
+    "max_iterations": 500,
+    "validation_split": 0.3
+  },
+
+  "parameter_ranges": {
+    "strategy_parameters": {
+      "min_confidence": {
+        "min": 35.0,
+        "max": 85.0,
+        "step": 2.5,
+        "description": "Minimum confidence threshold for signal generation",
+        "impact": "Higher values = fewer but higher quality signals"
+      },
+      "lookback_period": {
+        "min": 14,
+        "max": 252,
+        "step": 7,
+        "description": "Historical data lookback period in trading days",
+        "impact": "Longer periods = more stable but slower signals"
+      },
+      "risk_reward_ratio": {
+        "min": 1.0,
+        "max": 5.0,
+        "step": 0.25,
+        "description": "Minimum acceptable risk/reward ratio",
+        "impact": "Higher ratios filter out marginal opportunities"
+      }
+    },
+
+    "risk_parameters": {
+      "max_position_size": {
+        "min": 0.01,
+        "max": 0.25,
+        "step": 0.005,
+        "description": "Maximum position size as percentage of portfolio",
+        "impact": "Higher = more concentrated risk, potentially higher returns"
+      },
+      "stop_loss_percentage": {
+        "min": 0.005,
+        "max": 0.08,
+        "step": 0.0025,
+        "description": "Stop loss as percentage of entry price",
+        "impact": "Tighter stops = less risk per trade, more false exits"
+      },
+      "take_profit_percentage": {
+        "min": 0.01,
+        "max": 0.15,
+        "step": 0.005,
+        "description": "Take profit as percentage of entry price",
+        "impact": "Higher targets = larger gains but lower hit rate"
+      },
+      "max_portfolio_risk": {
+        "min": 0.005,
+        "max": 0.1,
+        "step": 0.0025,
+        "description": "Maximum total portfolio risk exposure",
+        "impact": "Controls overall portfolio volatility and drawdown"
+      },
+      "drawdown_limit": {
+        "min": 0.05,
+        "max": 0.35,
+        "step": 0.025,
+        "description": "Maximum allowed portfolio drawdown",
+        "impact": "Stricter limits = early exit during market stress"
+      },
+      "correlation_limit": {
+        "min": 0.3,
+        "max": 0.9,
+        "step": 0.05,
+        "description": "Maximum correlation between positions",
+        "impact": "Lower limits = better diversification but fewer opportunities"
+      }
+    },
+
+    "execution_parameters": {
+      "execution_strategy": {
+        "values": ["immediate", "market", "twap", "vwap", "iceberg", "adaptive"],
+        "description": "Order execution strategy",
+        "impact": "Affects slippage, market impact, and fill probability"
+      },
+      "position_sizing_method": {
+        "values": ["fixed_percentage", "volatility_adjusted", "kelly_criterion", "equal_weight", "confidence_based"],
+        "description": "Method for calculating position sizes",
+        "impact": "Determines risk allocation across positions"
+      }
+    },
+
+    "timing_parameters": {
+      "strategy_execution_interval": {
+        "min": 30,
+        "max": 1800,
+        "step": 30,
+        "description": "How often strategies run (seconds)",
+        "impact": "Shorter = more responsive but higher costs/complexity"
+      },
+      "risk_check_interval": {
+        "min": 15,
+        "max": 300,
+        "step": 15,
+        "description": "Risk monitoring frequency (seconds)",
+        "impact": "More frequent = better risk control but higher overhead"
+      },
+      "portfolio_sync_interval": {
+        "min": 60,
+        "max": 900,
+        "step": 60,
+        "description": "Portfolio synchronization frequency (seconds)",
+        "impact": "Affects accuracy of position tracking and risk calculations"
+      }
+    }
+  },
+
+  "test_scenarios": {
+    "conservative_growth": {
+      "description": "Low risk, steady growth focused",
+      "parameters": {
+        "min_confidence": 75.0,
+        "max_position_size": 0.025,
+        "stop_loss_percentage": 0.015,
+        "take_profit_percentage": 0.035,
+        "risk_reward_ratio": 2.5,
+        "max_portfolio_risk": 0.01,
+        "drawdown_limit": 0.08
+      },
+      "expected_metrics": {
+        "sharpe_ratio": "> 0.8",
+        "max_drawdown": "< 10%",
+        "win_rate": "> 65%",
+        "volatility": "< 15%"
+      }
+    },
+
+    "aggressive_growth": {
+      "description": "Higher risk, growth-oriented approach",
+      "parameters": {
+        "min_confidence": 55.0,
+        "max_position_size": 0.12,
+        "stop_loss_percentage": 0.025,
+        "take_profit_percentage": 0.06,
+        "risk_reward_ratio": 2.0,
+        "max_portfolio_risk": 0.04,
+        "drawdown_limit": 0.20
+      },
+      "expected_metrics": {
+        "total_return": "> 15%",
+        "max_drawdown": "< 25%",
+        "win_rate": "> 55%",
+        "volatility": "< 25%"
+      }
+    },
+
+    "market_neutral": {
+      "description": "Balanced long/short approach",
+      "parameters": {
+        "min_confidence": 65.0,
+        "max_position_size": 0.06,
+        "stop_loss_percentage": 0.02,
+        "take_profit_percentage": 0.04,
+        "risk_reward_ratio": 2.0,
+        "enable_short_selling": true,
+        "correlation_limit": 0.4
+      },
+      "expected_metrics": {
+        "sharpe_ratio": "> 1.0",
+        "max_drawdown": "< 12%",
+        "correlation_to_spy": "< 0.3"
+      }
+    },
+
+    "high_frequency": {
+      "description": "Short-term, high-turnover strategy",
+      "parameters": {
+        "min_confidence": 45.0,
+        "max_position_size": 0.08,
+        "stop_loss_percentage": 0.008,
+        "take_profit_percentage": 0.016,
+        "strategy_execution_interval": 60,
+        "risk_reward_ratio": 1.5,
+        "lookback_period": 21
+      },
+      "expected_metrics": {
+        "trade_frequency": "> 2 per day",
+        "win_rate": "> 60%",
+        "avg_holding_period": "< 2 hours"
+      }
+    },
+
+    "volatility_adaptive": {
+      "description": "Strategy that adapts to market volatility",
+      "parameters": {
+        "min_confidence": 60.0,
+        "position_sizing_method": "volatility_adjusted",
+        "stop_loss_percentage": "atr_based",
+        "atr_multiplier": 1.5,
+        "max_position_size": 0.10,
+        "volatility_lookback": 20
+      },
+      "expected_metrics": {
+        "sharpe_ratio": "> 0.9",
+        "calmar_ratio": "> 1.2",
+        "downside_deviation": "< 12%"
+      }
+    }
+  },
+
+  "optimization_constraints": {
+    "minimum_trade_count": 50,
+    "minimum_backtest_days": 180,
+    "maximum_correlation": 0.95,
+    "minimum_sharpe_ratio": 0.3,
+    "maximum_drawdown": 0.4,
+    "minimum_win_rate": 0.4
+  },
+
+  "analysis_settings": {
+    "monte_carlo_runs": 1000,
+    "bootstrap_samples": 500,
+    "confidence_intervals": [0.05, 0.95],
+    "rolling_window_analysis": true,
+    "regime_analysis": {
+      "bull_market_filter": "spy_return > 0.15",
+      "bear_market_filter": "spy_return < -0.10",
+      "sideways_market_filter": "abs(spy_return) <= 0.15"
+    }
+  },
+
+  "reporting_settings": {
+    "generate_html_report": true,
+    "generate_json_export": true,
+    "generate_csv_summary": true,
+    "include_parameter_heatmaps": true,
+    "include_performance_charts": true,
+    "include_risk_analysis": true,
+    "email_results": false,
+    "slack_notification": false
+  },
+
+  "advanced_settings": {
+    "walk_forward_analysis": {
+      "enabled": true,
+      "training_periods": 6,
+      "testing_periods": 1,
+      "rebalance_frequency": "monthly"
+    },
+    "regime_aware_optimization": {
+      "enabled": true,
+      "regimes": ["bull", "bear", "sideways", "high_vol", "low_vol"],
+      "separate_parameters_per_regime": false
+    },
+    "multi_objective_optimization": {
+      "enabled": false,
+      "objectives": [
+        {"name": "sharpe_ratio", "weight": 0.4, "maximize": true},
+        {"name": "max_drawdown", "weight": 0.3, "maximize": false},
+        {"name": "total_return", "weight": 0.3, "maximize": true}
+      ]
+    },
+    "genetic_algorithm": {
+      "enabled": false,
+      "population_size": 50,
+      "generations": 100,
+      "mutation_rate": 0.1,
+      "crossover_rate": 0.7
+    }
+  },
+
+  "data_requirements": {
+    "price_data": {
+      "frequency": "1min",
+      "fields": ["open", "high", "low", "close", "volume"],
+      "adjustment": "split_and_dividend"
+    },
+    "fundamental_data": {
+      "required": false,
+      "fields": ["pe_ratio", "price_to_book", "debt_to_equity", "roe"]
+    },
+    "alternative_data": {
+      "sentiment": false,
+      "options_flow": false,
+      "insider_trading": false
+    }
+  },
+
+  "risk_management_testing": {
+    "stress_scenarios": [
+      {
+        "name": "market_crash_2008",
+        "description": "Simulate 2008-style market crash",
+        "market_drop": 0.4,
+        "volatility_spike": 3.0,
+        "correlation_increase": 0.2
+      },
+      {
+        "name": "flash_crash",
+        "description": "Rapid intraday market drop",
+        "market_drop": 0.15,
+        "duration_minutes": 30,
+        "recovery_hours": 4
+      },
+      {
+        "name": "extended_bear_market",
+        "description": "Prolonged downtrend",
+        "monthly_decline": -0.05,
+        "duration_months": 18,
+        "volatility_increase": 1.5
+      }
+    ],
+    "circuit_breaker_tests": {
+      "daily_loss_limits": [0.02, 0.03, 0.05, 0.08],
+      "drawdown_triggers": [0.10, 0.15, 0.20, 0.25],
+      "position_risk_limits": [0.015, 0.02, 0.025, 0.03]
+    }
+  }
+}

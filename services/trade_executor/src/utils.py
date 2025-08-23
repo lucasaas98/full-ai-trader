@@ -17,7 +17,7 @@ import functools
 import time
 
 import asyncpg
-import aioredis
+import redis.asyncio as redis
 
 import math
 
@@ -45,7 +45,7 @@ class AuditLogger:
     with detailed context for compliance and debugging.
     """
 
-    def __init__(self, db_pool: Optional[asyncpg.Pool], redis_client: Optional[aioredis.Redis]):
+    def __init__(self, db_pool: Optional[asyncpg.Pool], redis_client: Optional[redis.Redis]):
         """Initialize audit logger."""
         self.db_pool = db_pool
         self.redis = redis_client
@@ -201,7 +201,7 @@ class RetryManager:
     circuit breaker patterns, and dead letter queue.
     """
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """Initialize retry manager."""
         self.redis = redis_client
         self.config = get_config()
@@ -771,7 +771,7 @@ class TimeUtils:
 class NotificationUtils:
     """Utilities for sending notifications and alerts."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """Initialize notification utilities."""
         self.redis = redis_client
         self.config = get_config()
@@ -863,7 +863,7 @@ class NotificationUtils:
 class CacheManager:
     """Redis-based cache manager for execution data."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """Initialize cache manager."""
         self.redis = redis_client
 
@@ -1089,7 +1089,7 @@ class ErrorHandler:
 class HealthChecker:
     """System health monitoring utilities."""
 
-    def __init__(self, db_pool: asyncpg.Pool, redis_client: aioredis.Redis):
+    def __init__(self, db_pool: asyncpg.Pool, redis_client: redis.Redis):
         """Initialize health checker."""
         self.db_pool = db_pool
         self.redis = redis_client
@@ -1266,7 +1266,7 @@ class ConfigValidator:
 class MetricsCollector:
     """Collect and publish execution metrics."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """Initialize metrics collector."""
         self.redis = redis_client
         self._metrics_buffer = {}
@@ -1614,7 +1614,7 @@ async def wait_for_market_open(max_wait_hours: int = 24):
 class ExecutionQueue:
     """Queue manager for execution tasks."""
 
-    def __init__(self, redis_client: aioredis.Redis):
+    def __init__(self, redis_client: redis.Redis):
         """Initialize execution queue."""
         self.redis = redis_client
         self._processors = {}

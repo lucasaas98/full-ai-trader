@@ -10,7 +10,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from uuid import UUID
 import json
 
@@ -589,12 +589,12 @@ class ExecutionEngine:
                 logger.error(f"Error in daily cleanup: {e}")
                 await asyncio.sleep(3600)
 
-    async def execute_signal(self, signal: TradeSignal) -> Dict[str, Any]:
+    async def execute_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Main signal execution method.
+        Execute a trading signal.
 
         Args:
-            signal: Trade signal to execute
+            signal: Trading signal data
 
         Returns:
             Execution result
@@ -604,6 +604,34 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Signal execution failed: {e}")
             raise
+
+    async def update_watchlist(self, symbols: List[str]) -> None:
+        """
+        Update the watchlist with new symbols from screener updates.
+
+        Args:
+            symbols: List of symbols to add to watchlist
+        """
+        try:
+            if not symbols:
+                return
+
+            # Add symbols to internal tracking
+            if not hasattr(self, '_watchlist'):
+                self._watchlist = set()
+
+            new_symbols = set(symbols) - self._watchlist
+            if new_symbols:
+                self._watchlist.update(new_symbols)
+                logger.info(f"Added {len(new_symbols)} new symbols to watchlist: {new_symbols}")
+
+                # Optionally trigger position tracking initialization for new symbols
+                if hasattr(self, 'position_tracker') and self.position_tracker:
+                    for symbol in new_symbols:
+                        await self.position_tracker.initialize_symbol_tracking(symbol)
+
+        except Exception as e:
+            logger.error(f"Error updating watchlist: {e}")
 
     async def place_bracket_order(
         self,

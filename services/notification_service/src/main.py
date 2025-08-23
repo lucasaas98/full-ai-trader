@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.config import get_config, Config
+from shared.models import Notification
 from monitoring.gotify_client import NotificationManager
 
 # Setup logging
@@ -59,7 +60,8 @@ class NotificationService:
             "risk:alerts",              # Risk management alerts
             "portfolio:updates",        # Portfolio updates
             "system:status",            # System status updates
-            "market:alerts"             # Market condition alerts
+            "market:alerts",            # Market condition alerts
+            "screener:updates"          # Screener data updates
         ]
 
         # Track notification rate limiting
@@ -210,6 +212,8 @@ class NotificationService:
                 await self._handle_market_alert(data)
             elif channel.startswith("signals:"):
                 await self._handle_signal(data)
+            elif channel == "screener:updates":
+                await self._handle_screener_update(data)
             else:
                 logger.debug(f"Unhandled channel: {channel}")
 
@@ -452,6 +456,67 @@ Strategy: {data.get('strategy_name', 'Unknown')}
 
         except Exception as e:
             logger.error(f"Failed to handle signal: {e}")
+
+    async def _handle_screener_update(self, data: Dict[str, Any]):
+        """Handle screener update notifications."""
+        try:
+            screener_type = data.get("screener_type", "unknown")
+            stocks_data = data.get("data", [])
+            timestamp = data.get("timestamp")
+            count = data.get("count", len(stocks_data))
+
+            # Rate limiting check
+            rate_key = f"screener_update_{screener_type}"
+            if self._is_rate_limited(rate_key):
+                return
+
+            # Create notification message
+            title = f"🔍 Screener Update: {screener_type.replace('_', ' ').title()}"
+
+            # Build message with top symbols
+            message_parts = [f"Found {count} stocks in {screener_type} screener"]
+
+            if stocks_data:
+                # Show top 5 symbols as examples
+                top_symbols = []
+                for i, stock in enumerate(stocks_data[:5]):
+                    symbol = stock.get("symbol", "N/A")
+                    price = stock.get("price")
+                    change = stock.get("change")
+
+                    if price and change:
+                        change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
+                        top_symbols.append(f"{symbol}: ${price:.2f} ({change_str})")
+                    else:
+                        top_symbols.append(symbol)
+
+                if top_symbols:
+                    message_parts.append(f"\nTop symbols: {', '.join(top_symbols)}")
+
+                if count > 5:
+                    message_parts.append(f"\n... and {count - 5} more")
+
+            message = "\n".join(message_parts)
+
+            # Send notification
+            if self.notification_manager:
+                notification = Notification(
+                    title=title,
+                    message=message.strip(),
+                    service="screener",
+                    priority=5,  # Normal priority
+                    tags=["screener", screener_type],
+                    metadata={
+                        "screener_type": screener_type,
+                        "stock_count": count,
+                        "timestamp": str(timestamp) if timestamp else str(datetime.now(timezone.utc))
+                    }
+                )
+                await self.notification_manager.send_notification(notification)
+                logger.info(f"Sent screener update notification: {screener_type} with {count} stocks")
+
+        except Exception as e:
+            logger.error(f"Failed to handle screener update: {e}")
 
     def _is_rate_limited(self, key: str) -> bool:
         """Check if notification should be rate limited."""

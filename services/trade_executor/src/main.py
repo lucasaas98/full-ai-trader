@@ -61,6 +61,7 @@ class TradeExecutorService:
             'failed_executions': 0,
             'last_signal_time': None
         }
+        self._screener_watchlist = set()
 
     async def initialize(self):
         """Initialize all service components."""
@@ -122,15 +123,16 @@ class TradeExecutorService:
             self._running = True
             logger.info("Starting signal processing...")
 
-            # Subscribe to signal channels
+            # Subscribe to signal channels and screener updates
             if self._redis:
                 pubsub = self._redis.pubsub()
                 await pubsub.subscribe("signals:*")
+                await pubsub.subscribe("screener:updates")
             else:
                 logger.error("Redis connection not available for signal processing")
                 return
 
-            logger.info("Subscribed to signals:* channels")
+            logger.info("Subscribed to signals:* and screener:updates channels")
 
             # Process messages
             async for message in pubsub.listen():
@@ -139,9 +141,13 @@ class TradeExecutorService:
 
                 if message["type"] == "message":
                     try:
-                        await self._process_signal_message(message)
+                        channel = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
+                        if channel.startswith("signals:"):
+                            await self._process_signal_message(message)
+                        elif channel == "screener:updates":
+                            await self._process_screener_message(message)
                     except Exception as e:
-                        logger.error(f"Error processing signal message: {e}")
+                        logger.error(f"Error processing signal: {e}")
 
         except Exception as e:
             logger.error(f"Signal processing error: {e}")
@@ -149,6 +155,41 @@ class TradeExecutorService:
                 # Restart after delay
                 await asyncio.sleep(10)
                 asyncio.create_task(self.start_signal_processing())
+
+    async def _process_screener_message(self, message: Dict) -> None:
+        """
+        Process screener update message.
+
+        Args:
+            message: Redis message with screener data
+        """
+        try:
+            # Parse screener data
+            data = json.loads(message["data"])
+            screener_type = data.get("screener_type", "unknown")
+            stocks_data = data.get("data", [])
+
+            logger.info(f"Processing screener update: {screener_type} with {len(stocks_data)} stocks")
+
+            # Update watchlist with new symbols
+            new_symbols = set()
+            for stock in stocks_data:
+                symbol = stock.get("symbol")
+                if symbol:
+                    new_symbols.add(symbol)
+
+            # Update internal watchlist
+            previous_count = len(self._screener_watchlist)
+            self._screener_watchlist.update(new_symbols)
+
+            logger.info(f"Watchlist updated: {previous_count} -> {len(self._screener_watchlist)} symbols")
+
+            # Notify execution engine about new symbols
+            if self.execution_engine and hasattr(self.execution_engine, 'update_watchlist'):
+                await self.execution_engine.update_watchlist(list(new_symbols))
+
+        except Exception as e:
+            logger.error(f"Error processing screener message: {e}")
 
     async def _process_signal_message(self, message):
         """Process individual signal message."""

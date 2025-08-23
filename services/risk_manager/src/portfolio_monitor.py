@@ -53,10 +53,14 @@ This module provides real-time portfolio monitoring capabilities including:
 #    - test_data_validation() - Verify handling of corrupted or invalid data files
 #
 
+import asyncio
+import json
 import logging
+import os
+import redis.asyncio as redis
 from datetime import datetime, timedelta, timezone, date
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Callable, Awaitable, Set
 from pathlib import Path
 import numpy as np
 import polars as pl
@@ -98,6 +102,16 @@ class PortfolioMonitor:
         self._correlation_cache: Dict[Tuple[str, str], Tuple[float, datetime]] = {}
         self._volatility_cache: Dict[str, Tuple[float, datetime]] = {}
         self._cache_ttl = timedelta(hours=1)
+
+        # Redis integration for screener updates
+        self._redis = None
+        self._pubsub = None
+        self._screener_subscriber_task = None
+        self._screener_callbacks: List[Callable[[Dict], Awaitable[None]]] = []
+        self._previous_portfolio = None
+
+        # Initialize Redis connection in background
+        asyncio.create_task(self._initialize_redis())
 
         # Data paths for accessing stored market data
         self._data_path = Path(self.config.data.parquet_path)
@@ -1698,6 +1712,149 @@ class PortfolioMonitor:
         except Exception as e:
             logger.error(f"Error loading screener data: {e}")
             return None
+
+    async def _initialize_redis(self) -> None:
+        """Initialize Redis connection for screener updates."""
+        try:
+            # Build Redis URL with password from environment
+            redis_password = os.getenv('REDIS_PASSWORD', '')
+            if redis_password:
+                redis_url = f"redis://:{redis_password}@redis:6379"
+            else:
+                redis_url = "redis://redis:6379"
+
+            self._redis = redis.from_url(redis_url, decode_responses=True)
+            await self._redis.ping()
+
+            # Start screener update subscription
+            await self._start_screener_subscription()
+            logger.info("Redis connection initialized for portfolio monitor")
+
+        except Exception as e:
+            logger.warning(f"Failed to initialize Redis connection: {e}")
+            self._redis = None
+
+    async def _start_screener_subscription(self) -> None:
+        """Start subscribing to screener updates."""
+        if not self._redis:
+            return
+
+        try:
+            self._pubsub = self._redis.pubsub()
+            await self._pubsub.subscribe("screener:updates")
+
+            # Start background task to listen for messages
+            self._screener_subscriber_task = asyncio.create_task(self._screener_listener())
+            logger.info("Started screener update subscription")
+
+        except Exception as e:
+            logger.error(f"Failed to start screener subscription: {e}")
+
+    async def _screener_listener(self) -> None:
+        """Listen for screener update messages."""
+        if not self._pubsub:
+            return
+
+        try:
+            async for message in self._pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        await self._handle_screener_update(message)
+                    except Exception as e:
+                        logger.error(f"Error handling screener update: {e}")
+        except Exception as e:
+            logger.error(f"Error in screener listener: {e}")
+
+    async def _handle_screener_update(self, message: Dict) -> None:
+        """
+        Handle incoming screener update messages.
+
+        Args:
+            message: Redis message with screener data
+        """
+        try:
+            # Parse screener data
+            data = json.loads(message["data"])
+            screener_type = data.get("screener_type", "unknown")
+            stocks_data = data.get("data", [])
+
+            logger.info(f"Received screener update: {screener_type} with {len(stocks_data)} stocks")
+
+            # Update sector cache with new screener data
+            updated_symbols = set()
+            for stock in stocks_data:
+                symbol = stock.get("symbol")
+                sector = stock.get("sector")
+                if symbol and sector and sector != "Unknown":
+                    self._sector_cache[symbol.upper()] = (sector, datetime.now(timezone.utc))
+                    updated_symbols.add(symbol.upper())
+
+            if updated_symbols:
+                logger.info(f"Updated sector cache for {len(updated_symbols)} symbols from screener")
+
+            # Trigger portfolio re-analysis if we have cached portfolio
+            if self._previous_portfolio and updated_symbols:
+                await self._trigger_portfolio_reanalysis(updated_symbols)
+
+            # Call registered callbacks
+            for callback in self._screener_callbacks:
+                try:
+                    await callback(data)
+                except Exception as e:
+                    logger.error(f"Error in screener callback: {e}")
+
+        except Exception as e:
+            logger.error(f"Error processing screener update: {e}")
+
+    async def _trigger_portfolio_reanalysis(self, updated_symbols: Set[str]) -> None:
+        """
+        Trigger portfolio re-analysis when screener data updates affect current positions.
+
+        Args:
+            updated_symbols: Set of symbols that were updated
+        """
+        if not self._previous_portfolio:
+            return
+
+        try:
+            # Check if any updated symbols are in current portfolio
+            portfolio_symbols = {pos.symbol.upper() for pos in self._previous_portfolio.positions}
+            affected_symbols = updated_symbols.intersection(portfolio_symbols)
+
+            if affected_symbols:
+                logger.info(f"Re-analyzing portfolio due to screener updates affecting: {affected_symbols}")
+
+                # Log that we would recalculate diversification metrics
+                logger.info("Portfolio re-analysis triggered by screener update")
+
+        except Exception as e:
+            logger.error(f"Error in portfolio re-analysis: {e}")
+
+    def register_screener_callback(self, callback: Callable[[Dict], Awaitable[None]]) -> None:
+        """
+        Register a callback for screener updates.
+
+        Args:
+            callback: Async callback function
+        """
+        self._screener_callbacks.append(callback)
+
+    async def shutdown_redis(self) -> None:
+        """Shutdown Redis connection and background tasks."""
+        try:
+            if self._screener_subscriber_task:
+                self._screener_subscriber_task.cancel()
+
+            if self._pubsub:
+                await self._pubsub.close()
+
+            if self._redis:
+                await self._redis.close()
+
+            logger.info("Redis connection closed for portfolio monitor")
+
+        except Exception as e:
+            logger.error(f"Error shutting down Redis: {e}")
 
     async def _calculate_price_correlation(self, symbol1: str, symbol2: str) -> Optional[float]:
         """

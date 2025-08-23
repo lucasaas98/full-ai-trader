@@ -18,6 +18,8 @@ from .base_strategy import BaseStrategy, StrategyConfig, Signal, StrategyMode
 from .technical_analysis import TechnicalStrategy, TechnicalAnalysisEngine
 from .fundamental_analysis import FundamentalStrategy, FundamentalAnalysisEngine
 from .market_regime import RegimeAwareStrategyManager, MarketRegime, VolatilityRegime, RegimeState, MarketRegimeDetector
+from .multi_timeframe_analyzer import create_multi_timeframe_analyzer, MultiTimeFrameConfirmation
+from .multi_timeframe_data import create_multi_timeframe_fetcher
 from shared.models import SignalType, FinVizData
 
 
@@ -78,6 +80,11 @@ class HybridStrategy(BaseStrategy):
         self.fundamental_engine = FundamentalAnalysisEngine()
         self.regime_manager = RegimeAwareStrategyManager()
 
+        # Multi-timeframe confirmation
+        self.mtf_analyzer, self.mtf_enhancer = create_multi_timeframe_analyzer(config.mode)
+        self.mtf_data_fetcher = create_multi_timeframe_fetcher()
+        self.enable_mtf_confirmation = True
+
         # Default hybrid parameters
         self.default_params = {
             # Weighting parameters
@@ -98,6 +105,12 @@ class HybridStrategy(BaseStrategy):
 
             # Risk management
             "max_signal_strength_position": 0.25,  # Max position for very strong signals
+
+            # Multi-timeframe parameters
+            "enable_mtf_confirmation": True,
+            "mtf_min_timeframes": 3,
+            "mtf_confidence_boost": 10.0,  # Boost for strong MTF confirmation
+            "mtf_confidence_penalty": 20.0,  # Penalty for weak MTF confirmation
             "min_signal_strength_position": 0.05,  # Min position for weak signals
             "regime_filter_enabled": True,
 
@@ -254,6 +267,12 @@ class HybridStrategy(BaseStrategy):
                 hybrid_signal.regime_adjusted = True
                 hybrid_signal.metadata.update({"regime_info": regime_info})
 
+            # Apply multi-timeframe confirmation if enabled
+            if self.params.get("enable_mtf_confirmation", True) and self.enable_mtf_confirmation:
+                hybrid_signal = await self._apply_multi_timeframe_confirmation(
+                    symbol, hybrid_signal, data
+                )
+
             return hybrid_signal
 
         except Exception as e:
@@ -264,6 +283,148 @@ class HybridStrategy(BaseStrategy):
                 position_size=0.0,
                 reasoning=f"Analysis error: {str(e)}"
             )
+
+    async def _apply_multi_timeframe_confirmation(
+        self,
+        symbol: str,
+        primary_signal: HybridSignal,
+        primary_data: pl.DataFrame
+    ) -> HybridSignal:
+        """
+        Apply multi-timeframe confirmation to enhance signal reliability.
+
+        Args:
+            symbol: Trading symbol
+            primary_signal: Primary hybrid signal to confirm
+            primary_data: Primary timeframe data
+
+        Returns:
+            Enhanced signal with multi-timeframe confirmation
+        """
+        try:
+            # Only apply MTF confirmation for entry signals
+            if primary_signal.action == SignalType.HOLD:
+                return primary_signal
+
+            self.logger.info(f"Applying multi-timeframe confirmation for {symbol}")
+
+            # Fetch multi-timeframe data
+            mtf_data_result = await self.mtf_data_fetcher.fetch_multi_timeframe_data(
+                symbol=symbol,
+                strategy_mode=self.config.mode,
+                periods=min(self.config.lookback_period, 100)
+            )
+
+            # Check if we have sufficient timeframes
+            min_timeframes = self.params.get("mtf_min_timeframes", 3)
+            if len(mtf_data_result.available_timeframes) < min_timeframes:
+                self.logger.warning(
+                    f"Insufficient timeframes for MTF confirmation: "
+                    f"{len(mtf_data_result.available_timeframes)} < {min_timeframes}"
+                )
+                # Return signal with reduced confidence
+                primary_signal.confidence *= 0.8
+                primary_signal.reasoning += " | MTF: Insufficient timeframe data"
+                return primary_signal
+
+            # Apply multi-timeframe confirmation
+            enhanced_signal, mtf_confirmation = await self.mtf_enhancer.enhance_signal_with_confirmation(
+                symbol=symbol,
+                primary_signal=primary_signal,
+                multi_timeframe_data=mtf_data_result.data,
+                strategy_instance=self
+            )
+
+            # Apply confidence adjustments based on MTF results
+            enhanced_signal = self._apply_mtf_confidence_adjustments(
+                enhanced_signal, mtf_confirmation
+            )
+
+            # Add MTF metadata to hybrid signal
+            if isinstance(enhanced_signal, HybridSignal):
+                enhanced_signal.metadata.update({
+                    "mtf_confirmation": {
+                        "applied": True,
+                        "data_quality_score": mtf_data_result.data_quality_score,
+                        "available_timeframes": mtf_data_result.available_timeframes,
+                        "missing_timeframes": mtf_data_result.missing_timeframes
+                    }
+                })
+            else:
+                # Convert to HybridSignal if needed
+                enhanced_signal = self._convert_to_hybrid_signal(enhanced_signal, primary_signal)
+
+            self.logger.info(
+                f"MTF confirmation for {symbol}: "
+                f"{mtf_confirmation.confirmation_strength.value} "
+                f"({enhanced_signal.confidence:.1f}% confidence)"
+            )
+
+            return enhanced_signal
+
+        except Exception as e:
+            self.logger.error(f"Error applying multi-timeframe confirmation for {symbol}: {e}")
+            # Return original signal with error note
+            primary_signal.reasoning += f" | MTF Error: {str(e)}"
+            return primary_signal
+
+    def _apply_mtf_confidence_adjustments(
+        self,
+        signal: Signal,
+        mtf_confirmation: MultiTimeFrameConfirmation
+    ) -> Signal:
+        """Apply confidence adjustments based on MTF confirmation results."""
+        try:
+            original_confidence = signal.confidence
+
+            # Apply confidence boost for strong confirmations
+            confidence_boost = self.params.get("mtf_confidence_boost", 10.0)
+            confidence_penalty = self.params.get("mtf_confidence_penalty", 20.0)
+
+            if mtf_confirmation.confirmation_strength.value in ["very_strong", "strong"]:
+                signal.confidence = min(signal.confidence + confidence_boost, 100.0)
+            elif mtf_confirmation.confirmation_strength.value in ["weak", "very_weak"]:
+                signal.confidence = max(signal.confidence - confidence_penalty, 0.0)
+
+            # Log confidence adjustment
+            if signal.confidence != original_confidence:
+                self.logger.debug(
+                    f"MTF confidence adjustment: {original_confidence:.1f}% -> {signal.confidence:.1f}% "
+                    f"(strength: {mtf_confirmation.confirmation_strength.value})"
+                )
+
+            return signal
+
+        except Exception as e:
+            self.logger.error(f"Error applying MTF confidence adjustments: {e}")
+            return signal
+
+    def _convert_to_hybrid_signal(self, signal: Signal, original_hybrid: HybridSignal) -> HybridSignal:
+        """Convert a regular Signal to HybridSignal preserving hybrid-specific attributes."""
+        try:
+            return HybridSignal(
+                action=signal.action,
+                confidence=signal.confidence,
+                entry_price=signal.entry_price,
+                stop_loss=signal.stop_loss,
+                take_profit=signal.take_profit,
+                position_size=signal.position_size,
+                reasoning=signal.reasoning,
+                metadata=signal.metadata,
+                timestamp=signal.timestamp,
+                # Preserve hybrid-specific attributes
+                technical_score=original_hybrid.technical_score,
+                fundamental_score=original_hybrid.fundamental_score,
+                combined_score=original_hybrid.combined_score,
+                ta_weight=original_hybrid.ta_weight,
+                fa_weight=original_hybrid.fa_weight,
+                signal_strength=original_hybrid.signal_strength,
+                regime_adjusted=original_hybrid.regime_adjusted,
+                strategy_components=original_hybrid.strategy_components
+            )
+        except Exception as e:
+            self.logger.error(f"Error converting to HybridSignal: {e}")
+            return original_hybrid
 
     async def _perform_technical_analysis(self, symbol: str, data: pl.DataFrame) -> Dict[str, Any]:
         """Perform technical analysis component."""
