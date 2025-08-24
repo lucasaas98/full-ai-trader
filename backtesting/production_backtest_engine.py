@@ -29,22 +29,32 @@ import json
 import time
 
 # Add paths for strategy imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '../services/strategy_engine/src'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../services/data_collector/src'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../shared'))
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+strategy_path = os.path.join(project_root, 'services', 'strategy_engine', 'src')
+data_collector_path = os.path.join(project_root, 'services', 'data_collector', 'src')
+shared_path = os.path.join(project_root, 'shared')
+
+# Add all necessary paths
+for path in [strategy_path, data_collector_path, shared_path, project_root]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 from backtest_models import TimeFrame, SignalType, MarketData
 from simple_data_store import SimpleDataStore
 
 try:
-    # Import production strategies
-    from hybrid_strategy import HybridStrategy, HybridStrategyFactory, HybridMode
-    from base_strategy import BaseStrategy, Signal, StrategyConfig, StrategyMode, BacktestMetrics
-    from technical_analysis import TechnicalAnalysis
-    from fundamental_analysis import FundamentalAnalysis
-    PRODUCTION_STRATEGIES_AVAILABLE = True
-except ImportError as e:
-    logging.warning(f"Production strategies not available: {e}")
+    # Use the production strategy adapter
+    from production_strategy_adapter import (
+        ProductionStrategyAdapter,
+        ProductionStrategyFactory,
+        StrategyMode as AdapterStrategyMode,
+        ProductionSignal,
+        PRODUCTION_STRATEGIES_AVAILABLE
+    )
+    logging.info("Production strategy adapter loaded successfully")
+
+except Exception as e:
+    logging.warning(f"Production strategy adapter not available: {e}")
     PRODUCTION_STRATEGIES_AVAILABLE = False
 
 
@@ -504,23 +514,18 @@ class ProductionBacktestEngine:
             raise RuntimeError("Production strategies not available - check imports")
 
         try:
-            if self.config.strategy_type == "day_trading":
-                self.strategy = HybridStrategyFactory.create_day_trading_strategy("backtest_day_trader")
-            elif self.config.strategy_type == "swing_trading":
-                self.strategy = HybridStrategyFactory.create_swing_trading_strategy("backtest_swing_trader")
-            elif self.config.strategy_type == "position_trading":
-                self.strategy = HybridStrategyFactory.create_position_trading_strategy("backtest_position_trader")
-            else:
+            # Map strategy types to adapter modes
+            strategy_mode_map = {
+                "day_trading": AdapterStrategyMode.DAY_TRADING,
+                "swing_trading": AdapterStrategyMode.SWING_TRADING,
+                "position_trading": AdapterStrategyMode.POSITION_TRADING
+            }
+
+            if self.config.strategy_type not in strategy_mode_map:
                 raise ValueError(f"Unknown strategy type: {self.config.strategy_type}")
 
-            # Apply custom configuration if provided
-            if self.config.custom_strategy_config:
-                for key, value in self.config.custom_strategy_config.items():
-                    if hasattr(self.strategy.config, key):
-                        setattr(self.strategy.config, key, value)
-
-            # Initialize strategy
-            await self.strategy.initialize()
+            strategy_mode = strategy_mode_map[self.config.strategy_type]
+            self.strategy = ProductionStrategyAdapter(strategy_mode)
 
             self.logger.info(f"Initialized {self.config.strategy_type} strategy: {self.strategy.name}")
 
@@ -596,8 +601,12 @@ class ProductionBacktestEngine:
             if not date_range[0] or not date_range[1]:
                 continue
 
+            # Allow symbols if they have data that overlaps with our desired period
+            # and extends at least 7 days into the backtest period
+            min_required_end = self.config.start_date.date() + timedelta(days=7)
+
             if (date_range[0] > self.config.start_date.date() or
-                date_range[1] < self.config.end_date.date()):
+                date_range[1] < min_required_end):
                 continue
 
             filtered_symbols.append(symbol)
@@ -609,7 +618,25 @@ class ProductionBacktestEngine:
         trading_days = []
         current_date = self.config.start_date
 
-        while current_date <= self.config.end_date:
+        # Adjust end date to match available data
+        adjusted_end_date = self.config.end_date
+
+        # Check if we have any symbols and adjust end date based on data availability
+        available_symbols = self.data_store.get_available_symbols()
+        if available_symbols:
+            # Find the latest available data date across all symbols
+            latest_data_date = None
+            for symbol in available_symbols[:10]:  # Check first 10 symbols
+                date_range = self.data_store.get_date_range_for_symbol(symbol, self.config.timeframe)
+                if date_range[1]:
+                    if latest_data_date is None or date_range[1] > latest_data_date:
+                        latest_data_date = date_range[1]
+
+            if latest_data_date:
+                adjusted_end_date = min(self.config.end_date,
+                                      datetime.combine(latest_data_date, datetime.min.time()).replace(tzinfo=timezone.utc))
+
+        while current_date <= adjusted_end_date:
             # Skip weekends for daily timeframes
             if self.config.timeframe == TimeFrame.ONE_DAY and current_date.weekday() < 5:
                 trading_days.append(current_date)
@@ -726,10 +753,10 @@ class ProductionBacktestEngine:
                     symbol=symbol,
                     current_data=current_data,
                     historical_data=historical_data[-50:],  # Last 50 days
-                    market_data=self._get_market_context(date)
+                    market_context=self._get_market_context(date)
                 )
 
-                if analysis_result and analysis_result.signal_type != SignalType.HOLD:
+                if analysis_result and analysis_result.action != SignalType.HOLD:
                     self.strategy_stats["signals_generated"] += 1
                     self.total_signals += 1
 
@@ -799,7 +826,7 @@ class ProductionBacktestEngine:
             "strategy_type": self.config.strategy_type
         }
 
-    async def _should_execute_signal(self, analysis_result: Any, current_data: MarketData) -> bool:
+    async def _should_execute_signal(self, analysis_result: ProductionSignal, current_data: MarketData) -> bool:
         """Determine if a signal should be executed based on risk management."""
         try:
             # Check if we have enough cash
@@ -810,7 +837,7 @@ class ProductionBacktestEngine:
                 return False
 
             # Check confidence threshold
-            if hasattr(analysis_result, 'confidence') and analysis_result.confidence < 60.0:
+            if analysis_result.confidence < 60.0:
                 return False
 
             # Check price reasonableness
@@ -827,15 +854,15 @@ class ProductionBacktestEngine:
             self.logger.error(f"Error in signal execution check: {e}")
             return False
 
-    async def _execute_signal(self, analysis_result: Any, current_data: MarketData, date: datetime) -> None:
+    async def _execute_signal(self, analysis_result: ProductionSignal, current_data: MarketData, date: datetime) -> None:
         """Execute a trading signal."""
         try:
             symbol = current_data.symbol
             entry_price = current_data.close
 
-            # Calculate position size
+            # Calculate position size using signal's recommended size
             portfolio_value = await self._calculate_portfolio_value()
-            position_value = portfolio_value * self.config.max_position_size * Decimal('0.95')  # Leave buffer for commission
+            position_value = portfolio_value * Decimal(str(analysis_result.position_size)) * Decimal('0.95')  # Leave buffer for commission
 
             quantity = int(position_value / entry_price)
             if quantity <= 0:
@@ -853,21 +880,17 @@ class ProductionBacktestEngine:
                 quantity=quantity,
                 entry_price=entry_price,
                 entry_date=date,
-                entry_reason=f"strategy_signal_{analysis_result.signal_type.value}",
+                entry_reason=f"strategy_signal_{analysis_result.action.value}",
                 strategy_name=self.strategy.name if self.strategy else "unknown",
                 current_price=entry_price,
                 max_price_seen=entry_price
             )
 
-            # Set risk management levels
-            if hasattr(analysis_result, 'stop_loss') and analysis_result.stop_loss:
+            # Set risk management levels from signal
+            if analysis_result.stop_loss:
                 position.stop_loss = analysis_result.stop_loss
-            else:
-                # Default stop loss based on strategy type
-                stop_pct = Decimal('0.02') if self.config.strategy_type == "day_trading" else Decimal('0.03')
-                position.stop_loss = entry_price * (Decimal('1') - stop_pct)
 
-            if hasattr(analysis_result, 'take_profit') and analysis_result.take_profit:
+            if analysis_result.take_profit:
                 position.take_profit = analysis_result.take_profit
 
             # Update portfolio
@@ -875,7 +898,7 @@ class ProductionBacktestEngine:
             self.cash -= (entry_price * Decimal(str(quantity)) + commission)
             self.executed_signals += 1
 
-            self.logger.info(f"Opened {analysis_result.signal_type.value} position: {symbol} x{quantity} @ ${entry_price}")
+            self.logger.info(f"Opened {analysis_result.action.value} position: {symbol} x{quantity} @ ${entry_price}")
 
         except Exception as e:
             self.logger.error(f"Error executing signal for {current_data.symbol}: {e}")

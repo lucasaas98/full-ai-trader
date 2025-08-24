@@ -39,6 +39,14 @@ class DataCollectionConfig(BaseModel):
     enable_finviz: bool = Field(default=True, description="Enable FinViz screener")
     enable_twelvedata: bool = Field(default=True, description="Enable TwelveData API")
     enable_redis: bool = Field(default=True, description="Enable Redis integration")
+    respect_market_hours: bool = Field(default=False, description="Skip intraday data updates outside market hours")
+
+    # Smart FinViz scheduling based on market proximity
+    enable_smart_finviz_scheduling: bool = Field(default=True, description="Enable smart FinViz scheduling based on market hours")
+    premarket_hours_before: int = Field(default=2, description="Hours before market open to start frequent scanning")
+    aftermarket_hours_after: int = Field(default=1, description="Hours after market close to continue frequent scanning")
+    off_hours_scan_interval: int = Field(default=3600, description="FinViz scan interval during off hours (seconds)")
+    weekend_scanning: bool = Field(default=False, description="Enable FinViz scanning on weekends")
 
     # Scheduling intervals (in seconds)
     finviz_scan_interval: int = Field(default=300, description="FinViz scan interval")
@@ -233,17 +241,38 @@ class DataCollectionService:
         """Set up scheduled jobs."""
         logger.info("Setting up scheduled jobs...")
 
-        # FinViz screener job (every 5 minutes)
+        # FinViz screener job with smart scheduling
         if self.config.enable_finviz:
-            self.scheduler.add_job(
-                self._run_finviz_scan,
-                IntervalTrigger(seconds=self.config.finviz_scan_interval),
-                id="finviz_scan",
-                max_instances=1,
-                coalesce=True
-            )
+            if self.config.enable_smart_finviz_scheduling:
+                # Use smart scheduling that adjusts frequency based on market proximity
+                logger.info(f"Smart FinViz scheduling enabled:")
+                logger.info(f"  - Normal interval: {self.config.finviz_scan_interval}s")
+                logger.info(f"  - Off-hours interval: {self.config.off_hours_scan_interval}s")
+                logger.info(f"  - Premarket window: {self.config.premarket_hours_before}h before open")
+                logger.info(f"  - Aftermarket window: {self.config.aftermarket_hours_after}h after close")
+                logger.info(f"  - Weekend scanning: {self.config.weekend_scanning}")
+
+                self.scheduler.add_job(
+                    self._smart_finviz_scan,
+                    IntervalTrigger(seconds=60),  # Check every minute to adjust scheduling
+                    id="smart_finviz_scan",
+                    max_instances=1,
+                    coalesce=True
+                )
+            else:
+                # Traditional fixed interval scanning
+                logger.info(f"Traditional FinViz scheduling: {self.config.finviz_scan_interval}s interval")
+                self.scheduler.add_job(
+                    self._run_finviz_scan,
+                    IntervalTrigger(seconds=self.config.finviz_scan_interval),
+                    id="finviz_scan",
+                    max_instances=1,
+                    coalesce=True
+                )
 
         # Price update jobs for different timeframes
+        # Note: Market hours check has been removed to allow historical data fetching anytime
+        # since FinViz provides premarket data and historical data is always available
         if self.config.enable_twelvedata:
             # 5-minute data updates
             self.scheduler.add_job(
@@ -465,6 +494,12 @@ class DataCollectionService:
                 truly_new_tickers = combined_tickers - previously_active
                 self._active_tickers = combined_tickers
 
+            # Immediately fetch historical data for new tickers discovered by FinViz
+            # This ensures we have data ready when market opens, even for premarket discoveries
+            if truly_new_tickers:
+                logger.info(f"Fetching historical data for {len(truly_new_tickers)} new tickers")
+                await self._download_historical_data_for_new_tickers(list(truly_new_tickers))
+
             # Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
                 await self.redis_client.publish_new_tickers(
@@ -526,6 +561,11 @@ class DataCollectionService:
                 self._active_tickers = set(selected_tickers)
                 truly_new_tickers = self._active_tickers - previously_active
 
+            # Immediately fetch historical data for new tickers
+            if truly_new_tickers:
+                logger.info(f"Fetching historical data for {len(truly_new_tickers)} fallback tickers")
+                await self._download_historical_data_for_new_tickers(list(truly_new_tickers))
+
             # Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
                 await self.redis_client.publish_new_tickers(
@@ -556,9 +596,15 @@ class DataCollectionService:
         if not self.twelvedata_client or not self._active_tickers:
             return
 
-        # Check if we're in market hours for intraday data
-        if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and not await self._is_market_hours():
-            logger.debug(f"Skipping {timeframe} update outside market hours")
+        # Market hours check (configurable behavior):
+        # - By default (respect_market_hours=False), we allow historical data fetching anytime
+        #   since FinViz provides premarket data and TwelveData historical data is always available
+        # - When respect_market_hours=True, we skip intraday updates outside market hours (legacy behavior)
+        # This allows us to prepare data for market open when new tickers are discovered premarket
+        if (self.config.respect_market_hours and
+            timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and
+            not await self._is_market_hours()):
+            logger.debug(f"Skipping {timeframe} update outside market hours (respect_market_hours=True)")
             return
 
         try:
@@ -663,23 +709,60 @@ class DataCollectionService:
 
         timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
 
-        for ticker in list(self._active_tickers):
+        try:
+            for ticker in list(self._active_tickers):
+                try:
+                    # Check if we already have recent data
+                    has_recent_data = False
+                    for tf in timeframes:
+                        date_range = await self.data_store.get_available_data_range(ticker, tf)
+                        if date_range:
+                            _, latest_date = date_range
+                            if latest_date >= datetime.now().date() - timedelta(days=7):
+                                has_recent_data = True
+                                break
+
+                    if has_recent_data:
+                        logger.debug(f"Skipping historical download for {ticker} - recent data exists")
+                        continue
+
+                    logger.info(f"Downloading historical data for {ticker}")
+
+                    # Download data for each timeframe
+                    for timeframe in timeframes:
+                        try:
+                            historical_data = await self.twelvedata_client.get_historical_data(
+                                ticker, timeframe, self.config.historical_data_years
+                            )
+
+                            if historical_data:
+                                await self.data_store.save_market_data(historical_data, append=True)
+                                logger.info(f"Downloaded {len(historical_data)} {timeframe} records for {ticker}")
+
+                            # Small delay between timeframes
+                            await asyncio.sleep(1.0)
+
+                        except Exception as e:
+                            logger.error(f"Failed to download historical data for {ticker}: {e}")
+
+                except Exception as e:
+                    logger.error(f"Failed to download historical data for ticker {ticker}: {e}")
+
+        except Exception as e:
+            logger.error(f"Historical data download failed: {e}")
+
+    async def _download_historical_data_for_new_tickers(self, new_tickers: List[str]):
+        """Download historical data specifically for new tickers without checking existing data."""
+        if not self.twelvedata_client or not self.data_store or not new_tickers:
+            return
+
+        logger.info(f"Downloading historical data for {len(new_tickers)} new tickers...")
+
+        timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+
+        for ticker in new_tickers:
             try:
-                # Check if we already have recent data
-                has_recent_data = False
-                for tf in timeframes:
-                    date_range = await self.data_store.get_available_data_range(ticker, tf)
-                    if date_range:
-                        _, latest_date = date_range
-                        if latest_date >= datetime.now().date() - timedelta(days=7):
-                            has_recent_data = True
-                            break
-
-                if has_recent_data:
-                    logger.debug(f"Skipping historical download for {ticker} - recent data exists")
-                    continue
-
-                logger.info(f"Downloading historical data for {ticker}")
+                logger.info(f"Downloading historical data for new ticker: {ticker}")
 
                 # Download data for each timeframe
                 for timeframe in timeframes:
@@ -696,13 +779,135 @@ class DataCollectionService:
                         await asyncio.sleep(1.0)
 
                     except Exception as e:
-                        logger.error(f"Failed to download {timeframe} data for {ticker}: {e}")
+                        logger.error(f"Failed to download historical data for {ticker}: {e}")
 
                 # Delay between tickers to respect rate limits
-                await asyncio.sleep(5.0)
+                await asyncio.sleep(2.0)
 
             except Exception as e:
-                logger.error(f"Historical data download failed for {ticker}: {e}")
+                logger.error(f"Failed to download historical data for ticker {ticker}: {e}")
+
+        logger.info(f"Completed historical data download for {len(new_tickers)} new tickers")
+
+    async def _smart_finviz_scan(self):
+        """Smart FinViz scanning that adjusts frequency based on market proximity."""
+        if not self.config.enable_smart_finviz_scheduling:
+            await self._run_finviz_scan()
+            return
+
+        try:
+            # Get market status and next open/close times
+            from shared.market_hours import get_market_status
+            market_status = await get_market_status()
+
+            current_time = datetime.now(timezone.utc)
+            should_scan = False
+            scan_reason = ""
+
+            # Check if it's weekend and weekend scanning is disabled
+            if current_time.weekday() >= 5 and not self.config.weekend_scanning:
+                logger.debug("Skipping FinViz scan - weekend scanning disabled")
+                return
+
+            if market_status.is_open:
+                # Market is open - always scan at normal frequency
+                should_scan = True
+                scan_reason = "market_open"
+
+            elif market_status.next_open:
+                # Calculate time until market opens
+                time_until_open = (market_status.next_open - current_time).total_seconds() / 3600  # hours
+
+                if time_until_open <= self.config.premarket_hours_before:
+                    # Within premarket window - scan at normal frequency
+                    should_scan = True
+                    scan_reason = f"premarket_window_{time_until_open:.1f}h_until_open"
+                else:
+                    # Outside premarket window - use reduced frequency
+                    should_scan = self._should_scan_off_hours()
+                    scan_reason = f"off_hours_{time_until_open:.1f}h_until_open"
+
+            elif market_status.next_close:
+                # Check if we're in after-hours window
+                time_since_close = self._get_time_since_market_close(current_time)
+
+                if (time_since_close is not None and
+                    0 <= time_since_close <= self.config.aftermarket_hours_after):
+                    should_scan = True
+                    scan_reason = f"aftermarket_window_{time_since_close:.1f}h_since_close"
+                else:
+                    should_scan = self._should_scan_off_hours()
+                    scan_reason = "off_hours_after_close"
+
+            else:
+                # Fallback - use off-hours logic
+                should_scan = self._should_scan_off_hours()
+                scan_reason = "fallback_off_hours"
+
+            if should_scan:
+                # Track last scan time to avoid too frequent scans during normal hours
+                if not hasattr(self, '_last_finviz_scan'):
+                    self._last_finviz_scan = datetime.min.replace(tzinfo=timezone.utc)
+
+                if scan_reason.startswith(("market_open", "premarket_window", "aftermarket_window")):
+                    # Normal frequency during active periods
+                    time_since_last = (current_time - self._last_finviz_scan).total_seconds()
+                    if time_since_last >= self.config.finviz_scan_interval:
+                        await self._run_finviz_scan()
+                        self._last_finviz_scan = current_time
+                        logger.info(f"FinViz scan completed - reason: {scan_reason}")
+                    else:
+                        logger.debug(f"FinViz scan skipped - too soon since last scan ({time_since_last:.0f}s ago)")
+                else:
+                    # Reduced frequency during off hours
+                    time_since_last = (current_time - self._last_finviz_scan).total_seconds()
+                    if time_since_last >= self.config.off_hours_scan_interval:
+                        await self._run_finviz_scan()
+                        self._last_finviz_scan = current_time
+                        logger.info(f"FinViz off-hours scan completed - reason: {scan_reason}")
+                    else:
+                        logger.debug(f"FinViz off-hours scan skipped - too soon since last scan ({time_since_last:.0f}s ago)")
+            else:
+                logger.debug(f"FinViz scan skipped - reason: {scan_reason}")
+
+        except Exception as e:
+            logger.error(f"Error in smart FinViz scheduling: {e}")
+            # Fallback to regular scan on error
+            await self._run_finviz_scan()
+
+    def _should_scan_off_hours(self) -> bool:
+        """Determine if we should scan during off-hours based on last scan time."""
+        if not hasattr(self, '_last_finviz_scan'):
+            return True  # First scan
+
+        current_time = datetime.now(timezone.utc)
+        time_since_last = (current_time - self._last_finviz_scan).total_seconds()
+
+        return time_since_last >= self.config.off_hours_scan_interval
+
+    def _get_time_since_market_close(self, current_time: datetime) -> Optional[float]:
+        """Get hours since market close, or None if unable to determine."""
+        try:
+            # Convert to ET for market hours calculation
+            et_time = current_time - timedelta(hours=5)  # Rough EST conversion (doesn't handle DST)
+
+            # Market typically closes at 4 PM ET on weekdays
+            if et_time.weekday() >= 5:  # Weekend
+                return None
+
+            market_close_today = et_time.replace(hour=16, minute=0, second=0, microsecond=0)
+
+            # If current time is before 4 PM today, market hasn't closed yet today
+            if et_time < market_close_today:
+                return None
+
+            # Calculate hours since close
+            time_diff = et_time - market_close_today
+            return time_diff.total_seconds() / 3600
+
+        except Exception as e:
+            logger.error(f"Error calculating time since market close: {e}")
+            return None
 
     async def _is_market_hours(self) -> bool:
         """Check if current time is within market hours using Alpaca API."""
@@ -1028,9 +1233,17 @@ class DataCollectionService:
                 if add_to_tracking:
                     new_tickers = [stock.symbol for stock in result.data]
                     async with self._ticker_lock:
+                        actually_new = []
                         for ticker in new_tickers:
                             if len(self._active_tickers) < self.config.max_active_tickers:
-                                self._active_tickers.add(ticker)
+                                if ticker not in self._active_tickers:
+                                    self._active_tickers.add(ticker)
+                                    actually_new.append(ticker)
+
+                    # Fetch historical data for truly new tickers
+                    if actually_new:
+                        logger.info(f"Fetching historical data for {len(actually_new)} custom screener tickers")
+                        await self._download_historical_data_for_new_tickers(actually_new)
 
                     if self.redis_client:
                         await self.redis_client.publish_new_tickers(

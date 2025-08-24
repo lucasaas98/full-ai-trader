@@ -1,0 +1,108 @@
+{
+  "strategy_type": "day_trading",
+  "optimization_timestamp": "20250823_164650",
+  "periods_tested": 3,
+  "parameter_combinations_tested": 3,
+  "best_parameters": {
+    "parameter_set": {
+      "name": "Conservative",
+      "stop_loss_pct": 0.01,
+      "take_profit_pct": 0.015,
+      "min_confidence": 75.0,
+      "max_position_size": 0.1,
+      "ta_weight": 0.7,
+      "fa_weight": 0.3,
+      "volume_threshold": 2.0,
+      "min_technical_score": 65.0,
+      "min_fundamental_score": 35.0
+    },
+    "avg_return": -0.009581445414900833,
+    "std_return": 0.01631542451531364,
+    "avg_max_drawdown": 0.012253371466093026,
+    "avg_sharpe_ratio": 0.0,
+    "avg_win_rate": 0.39173789173789175,
+    "total_trades": 24,
+    "avg_profit_factor": 0.6766719710731747,
+    "consistency_score": 0,
+    "risk_adjusted_score": -0.0,
+    "periods_tested": 3,
+    "periods_profitable": 1
+  },
+  "all_summaries": [
+    {
+      "parameter_set": {
+        "name": "Conservative",
+        "stop_loss_pct": 0.01,
+        "take_profit_pct": 0.015,
+        "min_confidence": 75.0,
+        "max_position_size": 0.1,
+        "ta_weight": 0.7,
+        "fa_weight": 0.3,
+        "volume_threshold": 2.0,
+        "min_technical_score": 65.0,
+        "min_fundamental_score": 35.0
+      },
+      "avg_return": -0.009581445414900833,
+      "std_return": 0.01631542451531364,
+      "avg_max_drawdown": 0.012253371466093026,
+      "avg_sharpe_ratio": 0.0,
+      "avg_win_rate": 0.39173789173789175,
+      "total_trades": 24,
+      "avg_profit_factor": 0.6766719710731747,
+      "consistency_score": 0,
+      "risk_adjusted_score": -0.0,
+      "periods_tested": 3,
+      "periods_profitable": 1
+    },
+    {
+      "parameter_set": {
+        "name": "Moderate",
+        "stop_loss_pct": 0.015,
+        "take_profit_pct": 0.02,
+        "min_confidence": 70.0,
+        "max_position_size": 0.15,
+        "ta_weight": 0.7,
+        "fa_weight": 0.3,
+        "volume_threshold": 2.0,
+        "min_technical_score": 60.0,
+        "min_fundamental_score": 30.0
+      },
+      "avg_return": -0.009581445414900833,
+      "std_return": 0.01631542451531364,
+      "avg_max_drawdown": 0.012253371466093026,
+      "avg_sharpe_ratio": 0.0,
+      "avg_win_rate": 0.39173789173789175,
+      "total_trades": 24,
+      "avg_profit_factor": 0.6766719710731747,
+      "consistency_score": 0,
+      "risk_adjusted_score": -0.0,
+      "periods_tested": 3,
+      "periods_profitable": 1
+    },
+    {
+      "parameter_set": {
+        "name": "Aggressive",
+        "stop_loss_pct": 0.02,
+        "take_profit_pct": 0.025,
+        "min_confidence": 65.0,
+        "max_position_size": 0.2,
+        "ta_weight": 0.7,
+        "fa_weight": 0.3,
+        "volume_threshold": 1.5,
+        "min_technical_score": 55.0,
+        "min_fundamental_score": 25.0
+      },
+      "avg_return": -0.009581445414900833,
+      "std_return": 0.01631542451531364,
+      "avg_max_drawdown": 0.012253371466093026,
+      "avg_sharpe_ratio": 0.0,
+      "avg_win_rate": 0.39173789173789175,
+      "total_trades": 24,
+      "avg_profit_factor": 0.6766719710731747,
+      "consistency_score": 0,
+      "risk_adjusted_score": -0.0,
+      "periods_tested": 3,
+      "periods_profitable": 1
+    }
+  ]
+}

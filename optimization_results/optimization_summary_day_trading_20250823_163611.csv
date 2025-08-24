@@ -1,0 +1,4 @@
+param_name,stop_loss_pct,take_profit_pct,min_confidence,max_position_size,ta_weight,fa_weight,volume_threshold,min_technical_score,min_fundamental_score,avg_return,std_return,avg_max_drawdown,avg_sharpe_ratio,avg_win_rate,total_trades,avg_profit_factor,consistency_score,risk_adjusted_score,periods_tested,periods_profitable
+Conservative,0.01,0.015,75.0,0.1,0.7,0.3,2.0,65.0,35.0,-0.009720513359219666,0.016325136435651234,0.012251536338155575,0.0,0.3660968660968661,24,0.6665644897590653,0,-0.0,3,0
+Moderate,0.015,0.02,70.0,0.15,0.7,0.3,2.0,60.0,30.0,-0.009720513359219666,0.016325136435651234,0.012251536338155575,0.0,0.3660968660968661,24,0.6665644897590653,0,-0.0,3,0
+Aggressive,0.02,0.025,65.0,0.2,0.7,0.3,1.5,55.0,25.0,-0.009720513359219666,0.016325136435651234,0.012251536338155575,0.0,0.3660968660968661,24,0.6665644897590653,0,-0.0,3,0

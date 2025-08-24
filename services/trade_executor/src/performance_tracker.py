@@ -121,7 +121,7 @@ class PerformanceTracker:
                     return self._empty_daily_metrics(target_date)
 
                 # Calculate derived metrics
-                win_rate = daily_stats['winning_trades'] / daily_stats['total_trades']
+                win_rate = Decimal(daily_stats['winning_trades']) / Decimal(daily_stats['total_trades'])
 
                 # Calculate profit factor
                 gross_profit = await conn.fetchval("""
@@ -137,9 +137,9 @@ class PerformanceTracker:
                 profit_factor = gross_profit / gross_loss if gross_loss > 0 else None
 
                 # Calculate expectancy
-                avg_win = gross_profit / daily_stats['winning_trades'] if daily_stats['winning_trades'] > 0 else Decimal("0")
-                avg_loss = gross_loss / daily_stats['losing_trades'] if daily_stats['losing_trades'] > 0 else Decimal("0")
-                expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+                avg_win = gross_profit / Decimal(daily_stats['winning_trades']) if daily_stats['winning_trades'] > 0 else Decimal("0")
+                avg_loss = gross_loss / Decimal(daily_stats['losing_trades']) if daily_stats['losing_trades'] > 0 else Decimal("0")
+                expectancy = (win_rate * avg_win) - ((Decimal("1") - win_rate) * avg_loss)
 
                 # Get portfolio value for the day
                 portfolio_value = await self._get_portfolio_value_for_date(target_date)
@@ -147,9 +147,9 @@ class PerformanceTracker:
                 # Calculate Sharpe ratio (simplified daily)
                 sharpe_ratio = None
                 if daily_stats['pnl_stddev'] and daily_stats['pnl_stddev'] > 0:
-                    risk_free_rate = Decimal("0.02") / 365  # Assume 2% annual risk-free rate
-                    excess_return = daily_stats['avg_pnl'] - risk_free_rate
-                    sharpe_ratio = excess_return / daily_stats['pnl_stddev']
+                    risk_free_rate = Decimal("0.02") / Decimal("365")  # Assume 2% annual risk-free rate
+                    excess_return = Decimal(str(daily_stats['avg_pnl'])) - risk_free_rate
+                    sharpe_ratio = excess_return / Decimal(str(daily_stats['pnl_stddev']))
 
                 metrics = {
                     'date': target_date,
@@ -168,7 +168,7 @@ class PerformanceTracker:
                     'avg_win': float(avg_win),
                     'avg_loss': float(avg_loss),
                     'portfolio_value': float(portfolio_value),
-                    'return_pct': float(daily_stats['net_pnl'] / portfolio_value * 100) if portfolio_value > 0 else 0
+                    'return_pct': float(Decimal(str(daily_stats['net_pnl'])) / Decimal(str(portfolio_value)) * Decimal("100")) if portfolio_value > 0 else 0
                 }
 
                 # Store in daily performance table

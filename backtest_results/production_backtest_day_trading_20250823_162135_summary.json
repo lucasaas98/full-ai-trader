@@ -1,0 +1,44 @@
+{
+  "config": {
+    "strategy_type": "day_trading",
+    "start_date": "2025-08-09T00:00:00+00:00",
+    "end_date": "2025-08-23T00:00:00+00:00",
+    "initial_capital": "50000.0",
+    "timeframe": "1day",
+    "max_positions": 10,
+    "screener_enabled": true
+  },
+  "performance": {
+    "total_return": -0.0094135351,
+    "annualized_return": 0.0,
+    "max_drawdown": 0.009238957100999978,
+    "sharpe_ratio": 0.0,
+    "sortino_ratio": 0.0,
+    "calmar_ratio": 0.0,
+    "profit_factor": 0.0,
+    "win_rate": 0.0
+  },
+  "trading": {
+    "total_trades": 5,
+    "winning_trades": 0,
+    "losing_trades": 5,
+    "avg_win_amount": "0",
+    "avg_loss_amount": "-91.198618990",
+    "largest_win": "0",
+    "largest_loss": "-218.775400"
+  },
+  "strategy": {
+    "signals_generated": 5,
+    "signals_executed": 5,
+    "signal_execution_rate": 1.0,
+    "avg_signal_confidence": 74.96196881802135,
+    "strategy_name": "Production_DayTrading_Strategy"
+  },
+  "screener": {
+    "alerts_simulated": 190,
+    "unique_symbols_traded": 5
+  },
+  "execution": {
+    "execution_time_seconds": 11.591632843017578
+  }
+}
