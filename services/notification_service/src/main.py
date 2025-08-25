@@ -479,7 +479,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
             if stocks_data:
                 # Show top 5 symbols as examples
                 top_symbols = []
-                for i, stock in enumerate(stocks_data[:5]):
+                for i, stock in enumerate(stocks_data):
                     symbol = stock.get("symbol", "N/A")
                     price = stock.get("price")
                     change = stock.get("change")
@@ -491,10 +491,9 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                         top_symbols.append(symbol)
 
                 if top_symbols:
-                    message_parts.append(f"\nTop symbols: {', '.join(top_symbols)}")
-
-                if count > 5:
-                    message_parts.append(f"\n... and {count - 5} more")
+                    separator = ",\n\t "
+                    symbols_text = separator.join(top_symbols)
+                    message_parts.append(f"\nTop symbols:\n\t {symbols_text}")
 
             message = "\n".join(message_parts)
 

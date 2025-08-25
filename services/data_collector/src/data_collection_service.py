@@ -381,17 +381,23 @@ class DataCollectionService:
             # Define screening strategies - conservative approaches only
             screening_strategies = [
                 ("breakouts", lambda: self.finviz_screener.get_high_volume_breakouts(
-                    limit=max(8, self.config.screener_result_limit // 6)
+                    limit=max(10, self.config.screener_result_limit // 10)
                 )),
-                ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
-                    limit=max(10, self.config.screener_result_limit // 5)
+                ("gappers", lambda: self.finviz_screener.get_gappers(
+                    limit=max(10, self.config.screener_result_limit // 10)
                 )),
-                ("value_stocks", lambda: self.finviz_screener.get_value_stocks(
-                    limit=max(8, self.config.screener_result_limit // 6)
-                )),
-                ("dividend_stocks", lambda: self.finviz_screener.get_dividend_stocks(
-                    limit=max(6, self.config.screener_result_limit // 8)
+                ("low_floaters", lambda: self.finviz_screener.get_low_float_moving_stocks(
+                    limit=max(10, self.config.screener_result_limit // 10)
                 ))
+                # ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
+                #     limit=max(10, self.config.screener_result_limit // 5)
+                # )),
+                # ("value_stocks", lambda: self.finviz_screener.get_value_stocks(
+                #     limit=max(8, self.config.screener_result_limit // 6)
+                # )),
+                # ("dividend_stocks", lambda: self.finviz_screener.get_dividend_stocks(
+                #     limit=max(6, self.config.screener_result_limit // 8)
+                # ))
             ]
 
             all_stocks = []
@@ -403,41 +409,22 @@ class DataCollectionService:
                 try:
                     logger.info(f"Running {strategy_name} screener...")
                     result = await screener_func()
-                    logger.info(f"DEBUG: {strategy_name} screener returned result: {result is not None}")
-
-                    if result:
-                        logger.info(f"DEBUG: Result has data: {hasattr(result, 'data')}, data count: {len(result.data) if hasattr(result, 'data') and result.data else 0}")
 
                     if result and result.data:
                         data_count = len(result.data)
-                        logger.info(f"DEBUG: About to extend all_stocks with {data_count} items")
                         all_stocks.extend(result.data)
-                        logger.info(f"DEBUG: Successfully extended all_stocks, now has {len(all_stocks)} items")
-                        logger.info(f"DEBUG: About to create strategy_tickers set")
                         strategy_tickers = {stock.symbol for stock in result.data}
-                        logger.info(f"DEBUG: Created strategy_tickers with {len(strategy_tickers)} items")
                         all_new_tickers.update(strategy_tickers)
-                        logger.info(f"DEBUG: Updated all_new_tickers")
                         successful_screeners += 1
-                        logger.info(f"DEBUG: Incremented successful_screeners to {successful_screeners}")
 
                         logger.info(f"{strategy_name} screener found {data_count} stocks")
-                        logger.info(f"DEBUG: About to continue loop iteration after {strategy_name}")
                         # Save individual screener data with enhanced error handling
                         if self.data_store:
                             try:
-                                logger.info(f"DEBUG: Attempting to save screener data for {strategy_name}")
-                                logger.info(f"DEBUG: First few records: {result.data[:2] if result.data else 'No data'}")
                                 saved_count = await self.data_store.save_screener_data(result.data, strategy_name)
-                                logger.info(f"DEBUG: Successfully saved {saved_count} records for {strategy_name}")
                             except Exception as e:
-                                logger.error(f"DEBUG: Failed to save screener data for {strategy_name}: {e}")
-                                logger.error(f"DEBUG: Exception type: {type(e).__name__}")
-                                import traceback
-                                logger.error(f"DEBUG: Traceback: {traceback.format_exc()}")
                                 # Continue processing even if save fails
                                 pass
-                        logger.info(f"DEBUG: Finished processing screener data for {strategy_name}")
                     else:
                         logger.warning(f"{strategy_name} screener returned no results")
 
@@ -445,19 +432,15 @@ class DataCollectionService:
                     logger.error(f"{strategy_name} screener failed: {e}")
                     continue
 
-            logger.info(f"DEBUG: Finished all screener strategies, total stocks: {len(all_stocks)}")
-
             # If no stocks found from screeners, use fallback ticker lists
             if not all_stocks:
                 logger.warning("All FinViz screeners returned no results, using fallback tickers")
                 await self._use_fallback_tickers()
                 return
 
-            logger.info("DEBUG: Starting to remove duplicates from stocks")
             # Remove duplicates while preserving the best stocks
             unique_stocks = {}
             for i, stock in enumerate(all_stocks):
-                logger.info(f"DEBUG: Processing stock {i}: {stock.symbol if hasattr(stock, 'symbol') else 'NO SYMBOL'}")
                 symbol = stock.symbol
                 if symbol not in unique_stocks:
                     unique_stocks[symbol] = stock
@@ -514,9 +497,8 @@ class DataCollectionService:
 
             # Publish screener update with combined results
             if self.redis_client:
-                logger.info(f"DEBUG: About to publish screener update with {len(final_stocks)} stocks")
                 await self.redis_client.publish_screener_update(final_stocks, "multi_strategy")
-                logger.info("DEBUG: Successfully published screener update")
+                logger.info("Successfully published screener update")
 
             self._stats["screener_runs"] += 1
             self._stats["last_finviz_scan"] = datetime.now(timezone.utc)

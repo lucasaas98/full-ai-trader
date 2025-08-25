@@ -521,16 +521,22 @@ class FinVizScreener:
             FinVizScreenerResult with breakout candidates
         """
         params = FinVizScreenerParams(
-            market_cap_min="50M",
+            market_cap_min=None,
             market_cap_max=None,
-            avg_volume_min="500K",
-            current_volume_min="1000K",
-            price_min=3.0,
-            price_max=100.0,
-            above_sma20=True,
-            weekly_volatility_min=8.0,
+            avg_volume_min=None,
+            current_volume_min=None,
+            price_min=None,
+            price_max=None,
+            above_sma20=False,
+            weekly_volatility_min=None,
             custom_filters={
-                "volume_ratio": f"sh_relvol_o{min_volume_ratio}"
+                "market_cap": "cap_0.3to",
+                "average_volume": "sh_avgvol_500to",
+                "current_volume": "sh_curvol_o1000",
+                "price": "sh_price_3to100",
+                "relative_volume": f"sh_relvol_o{min_volume_ratio}",
+                "sma20": "ta_sma20_pa",
+                "volatility": "ta_volatility_wo8",
             }
         )
 
@@ -552,7 +558,7 @@ class FinVizScreener:
             FinVizScreenerResult with gap stocks
         """
         params = FinVizScreenerParams(
-            market_cap_min="10M",
+            market_cap_min="100M",
             market_cap_max=None,
             avg_volume_min="200K",
             current_volume_min="500K",
@@ -658,6 +664,39 @@ class FinVizScreener:
             custom_filters={
                 "dividend_yield": f"fa_div_o{min_yield}",  # Dividend yield over min_yield%
                 "payout_ratio": "fa_payoutratio_low"  # Sustainable payout ratio
+            }
+        )
+
+        return await self.fetch_screener_data(params, limit)
+
+    async def get_low_float_moving_stocks(
+        self,
+        limit: int = 10,
+    ) -> FinVizScreenerResult:
+        """
+        Get low float stocks that are moving.
+
+        Args:
+            limit: Maximum number of stocks to return
+
+        Returns:
+            FinVizScreenerResult with low float stocks
+        """
+        params = FinVizScreenerParams(
+            market_cap_min=None,  # Larger, more stable companies
+            market_cap_max=None,
+            avg_volume_min=None,
+            current_volume_min=None,
+            price_min=None,
+            price_max=None,
+            above_sma20=False,
+            weekly_volatility_min=None,
+            custom_filters={
+                "news_today": "news_date_today",
+                "float": "sh_float_u20",
+                "price": "sh_price_2to20",
+                "relative_volume": "sh_relvol_o5",
+                "performance": "ta_perf_d10o",
             }
         )
 
