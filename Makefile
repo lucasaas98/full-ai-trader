@@ -2,6 +2,7 @@
 # Provides commands for building, testing, and managing the trading system
 
 .PHONY: help build build-base build-services test test-unit test-integration \
+		test-real-integration test-integration-quick test-integration-clean \
 		start stop restart status logs clean clean-volumes clean-images \
 		setup init-db migrate lint format check-env health backup restore \
 		dev prod debug shell deploy deploy-zero-downtime maintenance security \
@@ -140,10 +141,56 @@ test-unit: ## Run unit tests
 	@docker-compose exec scheduler python -m pytest tests/ -v
 	@echo "✓ Unit tests completed"
 
-test-integration: ## Run integration tests
+test-integration: ## Run integration tests (mocked)
 	@echo "Running integration tests..."
 	@python -m pytest tests/integration/ -v
 	@echo "✓ Integration tests completed"
+
+test-real-integration: ## Run real system integration tests with actual services
+	@echo "Running real system integration tests..."
+	@COMPOSE_PROJECT_NAME=trading_system_integration venv/bin/python scripts/run_integration_tests.py
+	@echo "✓ Real integration tests completed"
+
+test-integration-quick: ## Run quick real integration tests (faster, limited scope)
+	@echo "Running quick real integration tests..."
+	@COMPOSE_PROJECT_NAME=trading_system_integration venv/bin/python scripts/run_integration_tests.py --quick
+	@echo "✓ Quick integration tests completed"
+
+test-integration-setup: ## Setup environment for integration tests
+	@echo "Setting up integration test environment..."
+	@cp .env.integration.example .env.integration || cp .env .env.integration
+	@echo "⚠️  Please edit .env.integration with test credentials"
+	@mkdir -p integration_test_data/logs integration_test_data/data integration_test_data/backups
+	@echo "✓ Integration test environment setup completed"
+
+test-integration-infrastructure: ## Start only integration test infrastructure
+	@echo "Starting integration test infrastructure..."
+	@COMPOSE_PROJECT_NAME=trading_system_integration docker compose -f docker-compose.integration.yml up -d postgres_integration redis_integration
+	@echo "✓ Integration test infrastructure started"
+
+test-integration-stop: ## Stop integration test infrastructure
+	@echo "Stopping integration test infrastructure..."
+	@COMPOSE_PROJECT_NAME=trading_system_integration docker compose -f docker-compose.integration.yml down
+	@echo "✓ Integration test infrastructure stopped"
+
+test-integration-clean: ## Clean integration test environment
+	@echo "Cleaning integration test environment..."
+	@COMPOSE_PROJECT_NAME=trading_system_integration docker compose -f docker-compose.integration.yml down --volumes --remove-orphans
+	@rm -rf integration_test_data/
+	@echo "✓ Integration test environment cleaned"
+
+test-integration-logs: ## Show integration test logs
+	@echo "Integration test logs:"
+	@echo "======================"
+	@docker-compose -f docker-compose.integration.yml logs -f
+
+test-integration-monitor: ## Monitor integration test Redis messages
+	@echo "Monitoring integration test Redis messages..."
+	@docker-compose -f docker-compose.integration.yml up integration_monitor
+
+test-integration-validate: ## Validate integration test credentials
+	@echo "Validating integration test credentials..."
+	@venv/bin/python scripts/validate_integration_credentials.py
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."

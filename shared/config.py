@@ -359,7 +359,7 @@ class Config(BaseSettings):
     @classmethod
     def validate_environment(cls, v):
         """Validate environment."""
-        valid_envs = ["development", "testing", "staging", "production"]
+        valid_envs = ["development", "testing", "staging", "production", "integration_test"]
         if v not in valid_envs:
             raise ValueError(f"Invalid environment. Must be one of: {valid_envs}")
         return v

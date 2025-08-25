@@ -31,12 +31,19 @@ from .execution_engine import ExecutionEngine
 
 
 # Configure logging
+import os
+from pathlib import Path
+
+log_file_path = os.getenv('LOG_FILE_PATH', 'data/logs/trade_executor.log')
+log_path = Path(log_file_path).parent
+log_path.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('data/logs/trade_executor.log', mode='a')
+        logging.FileHandler(log_file_path, mode='a')
     ]
 )
 
@@ -801,6 +808,39 @@ async def main():
                 await service.cleanup()
         except Exception as cleanup_error:
             logger.error(f"Error during cleanup: {cleanup_error}")
+
+
+class TradeExecutorApp:
+    """Application wrapper for Trade Executor service for integration testing."""
+
+    def __init__(self):
+        """Initialize the Trade Executor application."""
+        self.service = None
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the application."""
+        if not self._initialized:
+            self.service = TradeExecutorService()
+            await self.service.initialize()
+            self._initialized = True
+
+    async def start(self):
+        """Start the Trade Executor service."""
+        await self.initialize()
+        # Start background tasks
+        asyncio.create_task(self.service.start_signal_processing())
+        asyncio.create_task(self.service.start_status_broadcaster())
+
+    async def stop(self):
+        """Stop the Trade Executor service."""
+        if self.service:
+            await self.service.cleanup()
+        self._initialized = False
+
+    def get_service(self):
+        """Get the underlying service instance."""
+        return self.service
 
 
 if __name__ == "__main__":

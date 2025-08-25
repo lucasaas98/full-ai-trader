@@ -1051,6 +1051,41 @@ async def get_service_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class StrategyEngineApp:
+    """Application wrapper for Strategy Engine service for integration testing."""
+
+    def __init__(self):
+        """Initialize the Strategy Engine application."""
+        self.service = service
+        self.app = app
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the application."""
+        if not self._initialized:
+            await self.service.initialize()
+            self._initialized = True
+
+    async def start(self):
+        """Start the Strategy Engine service."""
+        await self.initialize()
+        if self.service.config.get("enable_real_time", False):
+            asyncio.create_task(self.service.start_real_time_processing())
+
+    async def stop(self):
+        """Stop the Strategy Engine service."""
+        await self.service.shutdown()
+        self._initialized = False
+
+    def get_service(self):
+        """Get the underlying service instance."""
+        return self.service
+
+    def get_app(self):
+        """Get the FastAPI application instance."""
+        return self.app
+
+
 if __name__ == "__main__":
     # Development server
     port = int(os.environ.get('SERVICE_PORT', 8002))

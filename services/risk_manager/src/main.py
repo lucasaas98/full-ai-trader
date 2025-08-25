@@ -1003,6 +1003,39 @@ def signal_handler(signum, frame):
     # The lifespan context manager will handle cleanup
 
 
+class RiskManagerApp:
+    """Application wrapper for Risk Manager service for integration testing."""
+
+    def __init__(self):
+        """Initialize the Risk Manager application."""
+        self.app = app
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the application."""
+        if not self._initialized:
+            # Initialize database if needed
+            global database_manager
+            if database_manager is None:
+                database_manager = DatabaseManager()
+                await database_manager.initialize()
+            self._initialized = True
+
+    async def start(self):
+        """Start the Risk Manager service."""
+        await self.initialize()
+
+    async def stop(self):
+        """Stop the Risk Manager service."""
+        if database_manager:
+            await database_manager.close()
+        self._initialized = False
+
+    def get_app(self):
+        """Get the FastAPI application instance."""
+        return self.app
+
+
 if __name__ == "__main__":
     # Register signal handlers
     signal.signal(signal.SIGINT, signal_handler)

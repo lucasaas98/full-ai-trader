@@ -591,6 +591,38 @@ def create_dev_app():
     return create_app()
 
 
+class SchedulerApp:
+    """Application wrapper for Scheduler service for integration testing."""
+
+    def __init__(self):
+        """Initialize the Scheduler application."""
+        self.service = None
+        self._initialized = False
+
+    async def initialize(self):
+        """Initialize the application."""
+        if not self._initialized:
+            config = get_config()
+            self.service = SchedulerService(config)
+            await self.service.initialize()
+            self._initialized = True
+
+    async def start(self):
+        """Start the Scheduler service."""
+        await self.initialize()
+        asyncio.create_task(self.service.run())
+
+    async def stop(self):
+        """Stop the Scheduler service."""
+        if self.service:
+            await self.service.shutdown()
+        self._initialized = False
+
+    def get_service(self):
+        """Get the underlying service instance."""
+        return self.service
+
+
 if __name__ == "__main__":
     # Check if running as CLI
     if len(sys.argv) > 1 and sys.argv[1] in ["status", "tasks", "trigger", "pause", "resume",

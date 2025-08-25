@@ -1,0 +1,228 @@
+services:
+    # PostgreSQL Database for Integration Testing
+    postgres_integration:
+        image: postgres:15-alpine
+        container_name: trading_postgres_integration
+        environment:
+            POSTGRES_DB: ${DB_NAME:-trading_system_integration_test}
+            POSTGRES_USER: ${DB_USER:-trader_integration}
+            POSTGRES_PASSWORD: ${DB_PASSWORD:-integration_test_password_2024}
+            POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+        ports:
+            - "${DB_PORT:-5434}:5432"
+        volumes:
+            - postgres_integration_data:/var/lib/postgresql/data
+            - ./scripts/init_integration_db.sql:/docker-entrypoint-initdb.d/init_integration_db.sql:ro
+        networks:
+            - integration_network
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${DB_USER:-trader_integration} -d ${DB_NAME:-trading_system_integration_test}",
+                ]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+        command: >
+            postgres -c log_statement=all
+                     -c log_destination=stderr
+                     -c logging_collector=off
+                     -c max_connections=100
+                     -c shared_preload_libraries=''
+
+    # Redis for Integration Testing
+    redis_integration:
+        image: redis:7-alpine
+        container_name: trading_redis_integration
+        environment:
+            REDIS_PASSWORD: ${REDIS_PASSWORD:-integration_redis_password_2024}
+        ports:
+            - "${REDIS_PORT:-6381}:6379"
+        volumes:
+            - redis_integration_data:/data
+            - ./config/redis-integration.conf:/usr/local/etc/redis/redis.conf:ro
+        networks:
+            - integration_network
+        restart: unless-stopped
+        command: >
+            redis-server
+            --requirepass ${REDIS_PASSWORD:-integration_redis_password_2024}
+            --maxmemory 256mb
+            --maxmemory-policy allkeys-lru
+            --save 60 1
+            --loglevel notice
+        healthcheck:
+            test:
+                [
+                    "CMD",
+                    "redis-cli",
+                    "--no-auth-warning",
+                    "-a",
+                    "${REDIS_PASSWORD:-integration_redis_password_2024}",
+                    "ping",
+                ]
+            interval: 5s
+            timeout: 3s
+            retries: 10
+
+    # Integration Test Runner
+    integration_test_runner:
+        build:
+            context: .
+            dockerfile: Dockerfile.integration
+        container_name: trading_integration_test_runner
+        environment:
+            # Load integration environment
+            - ENVIRONMENT=integration_test
+            - TESTING=true
+            - INTEGRATION_TEST_MODE=true
+            - LOG_LEVEL=DEBUG
+
+            # Database configuration
+            - DB_HOST=postgres_integration
+            - DB_PORT=5432
+            - DB_NAME=${DB_NAME:-trading_system_integration_test}
+            - DB_USER=${DB_USER:-trader_integration}
+            - DB_PASSWORD=${DB_PASSWORD:-integration_test_password_2024}
+            - DATABASE_URL=postgresql://${DB_USER:-trader_integration}:${DB_PASSWORD:-integration_test_password_2024}@postgres_integration:5432/${DB_NAME:-trading_system_integration_test}
+
+            # Redis configuration
+            - REDIS_HOST=redis_integration
+            - REDIS_PORT=6379
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-integration_redis_password_2024}
+            - REDIS_DB=0
+            - REDIS_URL=redis://:${REDIS_PASSWORD:-integration_redis_password_2024}@redis_integration:6379/0
+
+            # Integration test specific
+            - USE_MOCK_DATA_COLLECTOR=true
+            - USE_HISTORICAL_DATA=true
+            - MOCK_EXTERNAL_APIS=true
+            - HISTORICAL_DATA_PATH=/app/data/parquet
+            - MAX_TEST_SYMBOLS=5
+            - TEST_SYMBOLS=AAPL,SPY,QQQ,MSFT,TSLA
+            - FAST_MODE=true
+
+            # API credentials (different from production)
+            - ALPACA_API_KEY=${ALPACA_API_KEY:-PKT_INTEGRATION_TEST_KEY_123456}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-integration_test_secret_key_789012}
+            - ALPACA_BASE_URL=https://paper-api.alpaca.markets
+
+            # Trading settings
+            - TRADING_DRY_RUN=true
+            - TRADING_PAPER_MODE=true
+            - TRADING_MAX_ORDERS_PER_DAY=10
+
+            # AI settings
+            - AI_TESTING_MODE=true
+            - AI_USE_OLLAMA=true
+            - AI_CONSENSUS_ENABLED=false
+
+            # Paths
+            - DATA_ROOT=/app/integration_test_data/data
+            - LOG_ROOT=/app/integration_test_data/logs
+            - BACKUP_ROOT=/app/integration_test_data/backups
+
+            # Override logging paths for integration tests
+            - LOG_FILE_PATH=/app/integration_test_data/logs/trading_system.log
+            - LOG_ERROR_FILE_PATH=/app/integration_test_data/logs/error.log
+        volumes:
+            - .:/app
+            - ./data:/app/data:ro
+            - ./integration_test_data:/app/integration_test_data
+            - integration_test_logs:/app/integration_test_data/logs
+            - integration_test_data:/app/integration_test_data/data
+        networks:
+            - integration_network
+        depends_on:
+            postgres_integration:
+                condition: service_healthy
+            redis_integration:
+                condition: service_healthy
+        working_dir: /app
+        profiles: ["integration"]
+        command: >
+            sh -c "
+            echo '🚀 Starting Integration Test Suite...' &&
+            echo '📊 Waiting for infrastructure to be ready...' &&
+            sleep 5 &&
+
+            echo '🔧 Running integration test setup...' &&
+            echo '🧪 Running comprehensive integration tests...' &&
+            python -m pytest tests/integration/test_real_system_integration.py
+            --tb=short
+            --durations=20
+            --maxfail=3
+            --junitxml=/app/integration_test_data/logs/junit_integration.xml
+            -v
+            --capture=no
+            "
+
+    # Integration Test Monitor (optional - for monitoring during tests)
+    integration_monitor:
+        build:
+            context: .
+            dockerfile: Dockerfile.integration
+        container_name: trading_integration_monitor
+        environment:
+            - ENVIRONMENT=integration_test
+            - REDIS_HOST=redis_integration
+            - REDIS_PASSWORD=${REDIS_PASSWORD:-integration_redis_password_2024}
+            - LOG_LEVEL=INFO
+        volumes:
+            - ./integration_test_data:/app/integration_test_data
+        networks:
+            - integration_network
+        depends_on:
+            redis_integration:
+                condition: service_healthy
+        profiles: ["monitor"]
+        command: >
+            python -c "
+            import asyncio
+            import json
+            import redis.asyncio as redis
+            import os
+            from datetime import datetime
+
+            async def monitor_redis():
+                r = redis.Redis(
+                    host='redis_integration',
+                    port=6379,
+                    password=os.getenv('REDIS_PASSWORD', 'integration_redis_password_2024'),
+                    decode_responses=True
+                )
+
+                pubsub = r.pubsub()
+                await pubsub.psubscribe('*')
+
+                print('🔍 Integration Test Monitor - Listening to Redis channels...')
+
+                async for message in pubsub.listen():
+                    if message['type'] == 'pmessage':
+                        timestamp = datetime.now().strftime('%H:%M:%S')
+                        channel = message['channel']
+                        data = message['data']
+                        print(f'[{timestamp}] 📡 {channel}: {data}')
+
+            asyncio.run(monitor_redis())
+            "
+
+volumes:
+    postgres_integration_data:
+        driver: local
+    redis_integration_data:
+        driver: local
+    integration_test_logs:
+        driver: local
+    integration_test_data:
+        driver: local
+
+networks:
+    integration_network:
+        driver: bridge
+        ipam:
+            config:
+                - subnet: 10.200.0.0/16
+                  gateway: 10.200.0.1

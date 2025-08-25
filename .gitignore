@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+.env.integration
 *.env
 .secrets
 
@@ -159,3 +160,5 @@ data/
 *.md
 !README.md
 !docs/*.md
+
+integration_test_data/

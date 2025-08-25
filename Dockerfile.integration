@@ -1,0 +1,118 @@
+# Integration Test Dockerfile
+# This dockerfile is specifically designed for running integration tests
+# with real services and infrastructure
+
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    git \
+    postgresql-client \
+    redis-tools \
+    procps \
+    htop \
+    netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt requirements-unified.txt ./
+COPY tests/requirements-test.txt ./tests/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements-unified.txt && \
+    pip install --no-cache-dir -r tests/requirements-test.txt && \
+    pip install --no-cache-dir pytest-asyncio pytest-xdist pytest-timeout
+
+# Copy application code
+COPY . .
+
+# Create directories for integration test data and logs
+RUN mkdir -p integration_test_data/logs \
+             integration_test_data/data \
+             integration_test_data/backups \
+             integration_test_data/postgres \
+             integration_test_data/redis \
+             data/logs \
+             logs
+
+# Set proper permissions
+RUN chmod -R 755 integration_test_data/ data/ logs/ && \
+    chmod +x scripts/*.sh || true
+
+# Package installation not needed - running tests directly
+
+# Health check script
+COPY <<EOF /app/healthcheck.py
+#!/usr/bin/env python3
+import asyncio
+import sys
+import os
+import redis.asyncio as redis
+import asyncpg
+
+async def check_redis():
+    try:
+        r = redis.Redis(
+            host=os.getenv('REDIS_HOST', 'redis_integration'),
+            port=int(os.getenv('REDIS_PORT', 6379)),
+            password=os.getenv('REDIS_PASSWORD', 'integration_redis_password_2024'),
+            decode_responses=True
+        )
+        await r.ping()
+        print("✅ Redis connection successful")
+        await r.close()
+        return True
+    except Exception as e:
+        print(f"❌ Redis connection failed: {e}")
+        return False
+
+async def check_postgres():
+    try:
+        conn = await asyncpg.connect(
+            host=os.getenv('DB_HOST', 'postgres_integration'),
+            port=int(os.getenv('DB_PORT', 5432)),
+            database=os.getenv('DB_NAME', 'trading_system_integration_test'),
+            user=os.getenv('DB_USER', 'trader_integration'),
+            password=os.getenv('DB_PASSWORD', 'integration_test_password_2024')
+        )
+        await conn.execute('SELECT 1')
+        print("✅ PostgreSQL connection successful")
+        await conn.close()
+        return True
+    except Exception as e:
+        print(f"❌ PostgreSQL connection failed: {e}")
+        return False
+
+async def main():
+    print("🔍 Running integration test health checks...")
+
+    redis_ok = await check_redis()
+    postgres_ok = await check_postgres()
+
+    if redis_ok and postgres_ok:
+        print("🎉 All infrastructure health checks passed!")
+        sys.exit(0)
+    else:
+        print("💥 Some health checks failed!")
+        sys.exit(1)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+EOF
+
+RUN chmod +x /app/healthcheck.py
+
+# Default command
+CMD ["python", "-m", "pytest", "tests/integration/test_real_system_integration.py", "-v", "--tb=short"]

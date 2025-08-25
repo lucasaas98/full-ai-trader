@@ -1,0 +1,30 @@
+## QUICK START
+# Setup
+make test-integration-setup
+vim .env.integration  # Add YOUR test Alpaca credentials
+
+# Validate safety
+python scripts/validate_integration_credentials.py
+
+# Run tests
+make test-integration-quick  # Fast tests (~10 min)
+make test-real-integration   # Full suite (~30 min)
+
+
+
+## MONITORING
+# Watch Redis messages in real-time
+make test-integration-monitor
+
+# View logs
+make test-integration-logs
+
+# Service status
+docker-compose -f docker-compose.integration.yml ps
+
+
+make test-real-integration          # Full integration tests
+make test-integration-quick         # Quick integration tests (what we just tested)
+make test-integration-infrastructure # Start just infrastructure
+make test-integration-stop          # Stop infrastructure
+make test-integration-clean         # Clean everything
