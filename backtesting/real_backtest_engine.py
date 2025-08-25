@@ -246,6 +246,11 @@ class RealBacktestEngine:
 
     async def initialize_ai_strategy(self) -> None:
         """Initialize the AI strategy with backtesting configuration."""
+        # If an AI strategy is already set (e.g., Ollama), don't override it
+        if self.ai_strategy is not None:
+            self.logger.info(f"Using existing AI strategy: {type(self.ai_strategy).__name__}")
+            return
+
         try:
             # Try to import and initialize AI strategy
             sys.path.append(os.path.join(os.path.dirname(__file__), '../services/strategy_engine/src'))
@@ -294,6 +299,45 @@ class RealBacktestEngine:
                 if self.config.mode == BacktestMode.DEBUG:
                     self.logger.debug(f"Day {i+1}/{len(trading_days)}: Portfolio value = ${portfolio_value:,.2f}")
 
+            # Close all remaining positions at end of backtest
+            if self.positions:
+                self.logger.info(f"Closing {len(self.positions)} remaining positions at end of backtest")
+                end_date = trading_days[-1] if trading_days else self.config.end_date
+
+                # Use last available market data for position closing
+                final_market_data = {}
+                for symbol in self.positions.keys():
+                    try:
+                        # Use the position's current price as approximation
+                        position = self.positions[symbol]
+                        # Create a simple market data object for closing
+                        from backtest_models import MarketData
+                        entry_price_float = float(position.entry_price)
+                        final_market_data[symbol] = MarketData(
+                            symbol=symbol,
+                            timestamp=end_date,
+                            open=Decimal(str(entry_price_float)),
+                            high=Decimal(str(entry_price_float * 1.01)),
+                            low=Decimal(str(entry_price_float * 0.99)),
+                            close=Decimal(str(entry_price_float)),
+                            adjusted_close=Decimal(str(entry_price_float)),
+                            volume=1000,
+                            timeframe=TimeFrame.ONE_DAY
+                        )
+                    except Exception as e:
+                        self.logger.warning(f"Could not create final data for {symbol}: {e}")
+
+                # Close each remaining position
+                positions_to_close = list(self.positions.keys())
+                for symbol in positions_to_close:
+                    if symbol in final_market_data:
+                        await self._close_position(symbol, final_market_data[symbol], end_date, "end_of_backtest")
+                    else:
+                        # Force close without market data if needed
+                        self.logger.warning(f"Force closing {symbol} without final market data")
+                        if symbol in self.positions:
+                            del self.positions[symbol]
+
             # Generate results
             execution_time = time.time() - start_time
             results = await self._generate_results(execution_time)
@@ -301,6 +345,27 @@ class RealBacktestEngine:
             self.logger.info(f"Backtest completed in {execution_time:.2f}s")
             self.logger.info(f"Total return: {results.total_return:.2%}")
             self.logger.info(f"Total trades: {results.total_trades}")
+
+            # Show trade summary if we have completed trades
+            if self.trades:
+                self.logger.info(f"=== TRADE SUMMARY ===")
+                total_pnl = sum(trade.pnl for trade in self.trades)
+                winning_trades = [t for t in self.trades if t.pnl > 0]
+                losing_trades = [t for t in self.trades if t.pnl < 0]
+
+                self.logger.info(f"Completed trades: {len(self.trades)}")
+                self.logger.info(f"Winning trades: {len(winning_trades)} ({len(winning_trades)/len(self.trades)*100:.1f}%)")
+                self.logger.info(f"Total P&L: ${total_pnl:.2f}")
+
+                if winning_trades:
+                    avg_win = sum(t.pnl for t in winning_trades) / len(winning_trades)
+                    self.logger.info(f"Average win: ${avg_win:.2f}")
+
+                if losing_trades:
+                    avg_loss = sum(t.pnl for t in losing_trades) / len(losing_trades)
+                    self.logger.info(f"Average loss: ${avg_loss:.2f}")
+
+                self.logger.info(f"=== END TRADE SUMMARY ===")
 
             return results
 
@@ -521,7 +586,11 @@ class RealBacktestEngine:
             self.total_commissions += commission
             self.signals_executed += 1
 
-            self.logger.info(f"Opened {signal.action.value} position: {symbol} x{quantity} @ ${entry_price}")
+            # Enhanced position opening logging
+            direction = "LONG" if signal.action == SignalType.BUY else "SHORT"
+            position_value = abs(quantity) * entry_price
+            self.logger.info(f"🔵 Opened {direction} {symbol}: {abs(quantity)} shares @ ${entry_price:.4f} "
+                           f"| Value: ${position_value:,.2f} | Confidence: {signal.confidence}%")
 
         except Exception as e:
             self.logger.error(f"Error executing signal for {symbol}: {e}")
@@ -573,7 +642,13 @@ class RealBacktestEngine:
 
             del self.positions[symbol]
 
-            self.logger.info(f"Closed position: {symbol} for {reason}, P&L: ${pnl:.2f} ({pnl_percentage:.2%})")
+            # Enhanced trade result logging
+            days_held = (date - position.entry_date).days
+            result_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚫"
+            direction = "LONG" if position.is_long else "SHORT"
+
+            self.logger.info(f"{result_emoji} Closed {direction} {symbol}: ${pnl:.2f} ({pnl_percentage:+.2%}) "
+                           f"| {days_held}d | {reason} | Entry: ${position.entry_price:.2f} → Exit: ${exit_price:.2f}")
 
         except Exception as e:
             self.logger.error(f"Error closing position {symbol}: {e}")
