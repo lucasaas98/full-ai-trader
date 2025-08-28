@@ -13,13 +13,7 @@ from datetime import datetime, timedelta, date, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 import json
-from uuid import UUID, uuid4
 
-# import asyncpg  # Not currently used
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy import text
-
-from shared.config import get_config
 from shared.models import (
     RiskEvent, PortfolioState, PortfolioMetrics,
     PositionRisk, RiskAlert, DailyRiskReport
@@ -1090,10 +1084,6 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                for query in cleanup_queries:
-                    await session.execute(text(query), {'p1': cutoff_date})
-                    # Note: Row count tracking not available with this SQLAlchemy version
-                    total_deleted += 1
 
                 await session.commit()
 

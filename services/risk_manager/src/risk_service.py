@@ -8,11 +8,7 @@ components into a cohesive system for portfolio protection and risk monitoring.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import Dict, List, Optional, Tuple, Any
-import numpy as np
 
-from shared.config import get_config
 from shared.models import (
     PortfolioState, TradeSignal, OrderRequest, OrderSide,
     RiskEvent, RiskEventType, RiskSeverity, RiskAlert, PositionSizing,

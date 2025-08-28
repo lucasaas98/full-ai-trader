@@ -242,13 +242,13 @@ check_service_health() {
 get_service_port() {
     local service=$1
     case $service in
-        "data_collector") echo "8001" ;;
-        "strategy_engine") echo "8002" ;;
-        "risk_manager") echo "8003" ;;
-        "trade_executor") echo "8004" ;;
-        "scheduler") echo "8005" ;;
-        "export_service") echo "8006" ;;
-        "maintenance_service") echo "8007" ;;
+        "data_collector") echo "9101" ;;
+        "strategy_engine") echo "9102" ;;
+        "risk_manager") echo "9103" ;;
+        "trade_executor") echo "9104" ;;
+        "scheduler") echo "9105" ;;
+        "export_service") echo "9106" ;;
+        "maintenance_service") echo "9107" ;;
         *) echo "" ;;
     esac
 }
@@ -457,7 +457,7 @@ check_trading_status() {
     print_status "INFO" "Checking trading system status"
 
     # Check if trading is enabled
-    local trading_status=$(curl -s http://localhost:8004/trading/status | jq -r '.trading_enabled' 2>/dev/null || echo "unknown")
+    local trading_status=$(curl -s http://localhost:9104/trading/status | jq -r '.trading_enabled' 2>/dev/null || echo "unknown")
 
     if [ "$trading_status" = "true" ]; then
         print_status "SUCCESS" "Trading is enabled and active"
@@ -476,7 +476,7 @@ pause_trading() {
     print_status "INFO" "Pausing trading operations for deployment"
 
     # Set trading to read-only mode
-    curl -X POST http://localhost:8007/maintenance/enter \
+    curl -X POST http://localhost:9107/maintenance/enter \
         -H "Content-Type: application/json" \
         -d "{\"mode\": \"read_only\", \"reason\": \"Zero-downtime deployment in progress\", \"estimated_minutes\": 30}" \
         > /dev/null 2>&1 || {
@@ -489,7 +489,7 @@ pause_trading() {
     local waited=0
 
     while [ $waited -lt $max_wait ]; do
-        local pending_trades=$(curl -s http://localhost:8004/trades/pending/count 2>/dev/null || echo "0")
+        local pending_trades=$(curl -s http://localhost:9104/trades/pending/count 2>/dev/null || echo "0")
 
         if [ "$pending_trades" = "0" ]; then
             print_status "SUCCESS" "No pending trades, safe to proceed"
@@ -511,7 +511,7 @@ resume_trading() {
     print_status "INFO" "Resuming normal trading operations"
 
     # Exit maintenance mode
-    curl -X POST http://localhost:8007/maintenance/exit \
+    curl -X POST http://localhost:9107/maintenance/exit \
         > /dev/null 2>&1 || {
         print_status "WARNING" "Failed to exit maintenance mode automatically"
     }
@@ -555,7 +555,7 @@ validate_deployment() {
     fi
 
     # Check inter-service communication
-    if ! curl -f -s http://localhost:8002/health > /dev/null; then
+    if ! curl -f -s http://localhost:9102/health > /dev/null; then
         print_status "ERROR" "Inter-service communication validation failed"
         validation_failed=true
     fi

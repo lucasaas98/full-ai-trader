@@ -459,12 +459,12 @@ validate_deployment() {
     local services=(
         "postgres:5432"
         "redis:6379"
-        "data_collector:8001"
-        "strategy_engine:8002"
-        "risk_manager:8003"
-        "trade_executor:8004"
-        "scheduler:8005"
-        "export_service:8006"
+        "data_collector:9101"
+        "strategy_engine:9102"
+        "risk_manager:9103"
+        "trade_executor:9104"
+        "scheduler:9105"
+        "export_service:9106"
     )
 
     local failed_services=()
@@ -1003,12 +1003,12 @@ main() {
     echo "   Git Commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
     echo
     echo "🔗 Service URLs:"
-    echo "   Data Collector: http://localhost:8001"
-    echo "   Strategy Engine: http://localhost:8002"
-    echo "   Risk Manager: http://localhost:8003"
-    echo "   Trade Executor: http://localhost:8004"
-    echo "   Scheduler: http://localhost:8005"
-    echo "   Export Service: http://localhost:8006"
+    echo "   Data Collector: http://localhost:9101"
+    echo "   Strategy Engine: http://localhost:9102"
+    echo "   Risk Manager: http://localhost:9103"
+    echo "   Trade Executor: http://localhost:9104"
+    echo "   Scheduler: http://localhost:9105"
+    echo "   Export Service: http://localhost:9106"
     echo "   Grafana: http://localhost:3000"
     echo "   Prometheus: http://localhost:9090"
     echo

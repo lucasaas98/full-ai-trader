@@ -404,7 +404,7 @@ class OperationalDashboard:
             # Try to get system status from maintenance service
             try:
                 response = requests.get(
-                    "http://localhost:8007/status",
+                    "http://localhost:9107/status",
                     timeout=5
                 )
                 if response.status_code == 200:
@@ -620,7 +620,7 @@ Strategy Performance:
 
         # Check for maintenance mode
         try:
-            response = requests.get("http://localhost:8007/status", timeout=5)
+            response = requests.get("http://localhost:9107/status", timeout=5)
             if response.status_code == 200:
                 status = response.json()
                 if status.get("maintenance_mode"):
@@ -904,7 +904,7 @@ Strategy Performance:
             elif operation == "enter_maintenance":
                 try:
                     response = requests.post(
-                        "http://localhost:8007/maintenance/enter",
+                        "http://localhost:9107/maintenance/enter",
                         json={"message": "Maintenance via dashboard", "initiated_by": os.getlogin()},
                         timeout=10
                     )
@@ -918,7 +918,7 @@ Strategy Performance:
             elif operation == "exit_maintenance":
                 try:
                     response = requests.post(
-                        "http://localhost:8007/maintenance/exit",
+                        "http://localhost:9107/maintenance/exit",
                         timeout=10
                     )
                     if response.status_code == 200:

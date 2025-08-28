@@ -102,7 +102,7 @@ services:
         container_name: trading_data_collector
         environment:
             - SERVICE_NAME=data_collector
-            - SERVICE_PORT=8001
+            - SERVICE_PORT=9101
             - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
             - FINVIZ_API_KEY=${FINVIZ_API_KEY}
             - DB_HOST=postgres
@@ -118,7 +118,7 @@ services:
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-100}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
-            - "8001:8001"
+            - "9101:9101"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro
@@ -139,7 +139,7 @@ services:
                     memory: 512M
                     cpus: "0.4"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9101/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -163,7 +163,7 @@ services:
         container_name: trading_strategy_engine
         environment:
             - SERVICE_NAME=strategy_engine
-            - SERVICE_PORT=8002
+            - SERVICE_PORT=9102
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -179,7 +179,7 @@ services:
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-50}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
-            - "8002:8002"
+            - "9102:9102"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro
@@ -202,7 +202,7 @@ services:
                     memory: 1G
                     cpus: "0.8"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9102/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -226,7 +226,7 @@ services:
         container_name: trading_risk_manager
         environment:
             - SERVICE_NAME=risk_manager
-            - SERVICE_PORT=8003
+            - SERVICE_PORT=9103
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -244,7 +244,7 @@ services:
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-200}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
-            - "8003:8003"
+            - "9103:9103"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro
@@ -265,7 +265,7 @@ services:
                     memory: 512M
                     cpus: "0.5"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9103/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -289,7 +289,7 @@ services:
         container_name: trading_trade_executor
         environment:
             - SERVICE_NAME=trade_executor
-            - SERVICE_PORT=8004
+            - SERVICE_PORT=9104
             - ALPACA_API_KEY=${ALPACA_API_KEY}
             - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
             - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://api.alpaca.markets}
@@ -308,7 +308,7 @@ services:
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
             - TRADING_DRY_RUN=${TRADING_DRY_RUN:-false}
         ports:
-            - "8004:8004"
+            - "9104:9104"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro
@@ -331,7 +331,7 @@ services:
                     memory: 512M
                     cpus: "0.4"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9104/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -355,7 +355,7 @@ services:
         container_name: trading_scheduler
         environment:
             - SERVICE_NAME=scheduler
-            - SERVICE_PORT=8005
+            - SERVICE_PORT=9105
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -375,7 +375,7 @@ services:
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-30}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
-            - "8005:8005"
+            - "9105:9105"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro
@@ -405,7 +405,7 @@ services:
                     memory: 512M
                     cpus: "0.25"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9105/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -771,7 +771,7 @@ services:
         container_name: trading_export_service
         environment:
             - SERVICE_NAME=export_service
-            - SERVICE_PORT=8006
+            - SERVICE_PORT=9106
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -786,7 +786,7 @@ services:
             - RATE_LIMIT_REQUESTS=${RATE_LIMIT_REQUESTS:-10}
             - RATE_LIMIT_WINDOW=${RATE_LIMIT_WINDOW:-60}
         ports:
-            - "8006:8006"
+            - "9106:9106"
         volumes:
             - ./data:/app/data:ro
             - ./exports:/app/exports
@@ -808,7 +808,7 @@ services:
                     memory: 512M
                     cpus: "0.25"
         healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+            test: ["CMD", "curl", "-f", "http://localhost:9106/health"]
             interval: 30s
             timeout: 10s
             retries: 3
@@ -830,7 +830,7 @@ services:
         container_name: trading_maintenance
         environment:
             - SERVICE_NAME=maintenance_service
-            - SERVICE_PORT=8007
+            - SERVICE_PORT=9107
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -844,7 +844,7 @@ services:
             - MAINTENANCE_MODE=${MAINTENANCE_MODE:-false}
             - MAINTENANCE_MESSAGE=${MAINTENANCE_MESSAGE:-System under maintenance}
         ports:
-            - "8007:8007"
+            - "9107:9107"
         volumes:
             - ./data:/app/data
             - ./config:/app/config:ro

@@ -226,30 +226,30 @@ make stats
 
 Each service exposes REST API endpoints:
 
-### Data Collector (Port 8001)
+### Data Collector (Port 9101)
 - `GET /health` - Health check
 - `GET /status` - Service status
 - `POST /collect/market-data` - Trigger data collection
 - `GET /data/symbols` - Get tracked symbols
 - `GET /data/latest/{symbol}` - Get latest data for symbol
 
-### Strategy Engine (Port 8002)
+### Strategy Engine (Port 9102)
 - `GET /health` - Health check
 - `GET /strategies` - List available strategies
 - `POST /signals/generate` - Generate trading signals
 
-### Risk Manager (Port 8003)
+### Risk Manager (Port 9103)
 - `GET /health` - Health check
 - `GET /risk/portfolio` - Portfolio risk assessment
 - `POST /risk/validate` - Validate trade request
 
-### Trade Executor (Port 8004)
+### Trade Executor (Port 9104)
 - `GET /health` - Health check
 - `POST /orders` - Submit order
 - `GET /orders/{id}` - Get order status
 - `GET /positions` - Get current positions
 
-### Scheduler (Port 8005)
+### Scheduler (Port 9105)
 - `GET /health` - Health check
 - `GET /jobs` - List scheduled jobs
 - `POST /jobs/{job_id}/trigger` - Manually trigger job
@@ -443,10 +443,10 @@ Be aware of API rate limits:
    ```bash
    # Check Docker daemon
    docker info
-   
+
    # Check logs
    make logs
-   
+
    # Verify configuration
    make check-env
    ```
@@ -455,7 +455,7 @@ Be aware of API rate limits:
    ```bash
    # Check database status
    make shell-db
-   
+
    # Reset database
    make reset-db
    ```
@@ -469,7 +469,7 @@ Be aware of API rate limits:
    ```bash
    # Check container resources
    docker stats
-   
+
    # View system statistics
    make stats
    ```

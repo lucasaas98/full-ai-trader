@@ -631,13 +631,13 @@ set -euo pipefail
 SERVICES=(
     "postgres:5432"
     "redis:6379"
-    "data_collector:8001"
-    "strategy_engine:8002"
-    "risk_manager:8003"
-    "trade_executor:8004"
-    "scheduler:8005"
-    "export_service:8006"
-    "maintenance_service:8007"
+    "data_collector:9101"
+    "strategy_engine:9102"
+    "risk_manager:9103"
+    "trade_executor:9104"
+    "scheduler:9105"
+    "export_service:9106"
+    "maintenance_service:9107"
 )
 
 MONITORING_SERVICES=(

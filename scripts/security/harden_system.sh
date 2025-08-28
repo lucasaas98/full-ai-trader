@@ -278,12 +278,12 @@ configure_firewall() {
         # Allow specific service ports only from trusted networks
         if [ "$ENVIRONMENT" = "production" ]; then
             # Production: Only allow from specific IPs/ranges
-            ufw allow from 10.0.0.0/8 to any port 8001:8007
-            ufw allow from 172.16.0.0/12 to any port 8001:8007
-            ufw allow from 192.168.0.0/16 to any port 8001:8007
+            ufw allow from 10.0.0.0/8 to any port 9101:9107
+            ufw allow from 172.16.0.0/12 to any port 9101:9107
+            ufw allow from 192.168.0.0/16 to any port 9101:9107
         else
             # Development/Staging: Allow from local networks
-            ufw allow 8001:8007/tcp
+            ufw allow 9101:9107/tcp
         fi
 
         # Allow monitoring ports from trusted networks
@@ -1036,7 +1036,7 @@ validate_security_hardening() {
   fi
 
   # Check rate limiting
-  if curl -s http://localhost:8007/rate-limits/status &> /dev/null; then
+  if curl -s http://localhost:9107/rate-limits/status &> /dev/null; then
       print_status "SUCCESS" "Rate limiting is active"
   else
       print_status "WARNING" "Rate limiting status unclear"
@@ -1235,13 +1235,13 @@ validate_security_hardening() {
 +    for service in data_collector strategy_engine risk_manager trade_executor scheduler export_service maintenance_service; do
 +        local port=""
 +        case $service in
-+            "data_collector") port="8001" ;;
-+            "strategy_engine") port="8002" ;;
-+            "risk_manager") port="8003" ;;
-+            "trade_executor") port="8004" ;;
-+            "scheduler") port="8005" ;;
-+            "export_service") port="8006" ;;
-+            "maintenance_service") port="8007" ;;
++            "data_collector") port="9101" ;;
++            "strategy_engine") port="9102" ;;
++            "risk_manager") port="9103" ;;
++            "trade_executor") port="9104" ;;
++            "scheduler") port="9105" ;;
++            "export_service") port="9106" ;;
++            "maintenance_service") port="9107" ;;
 +        esac
 +
 +        if ! curl -f -s "http://localhost:$port/health" > /dev/null; then

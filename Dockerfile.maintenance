@@ -22,8 +22,7 @@ RUN pip install --upgrade pip && \
     psycopg2-binary==2.9.9 \
     httpx==0.25.2 \
     structlog==23.2.0 \
-    python-dotenv==1.0.0 \
-    click==8.1.7
+    python-dotenv==1.0.0
 
 # Runtime stage
 FROM python:3.11-alpine as maintenance-runtime
@@ -59,11 +58,11 @@ RUN mkdir -p /app/data /app/config /app/logs && \
 USER maintenance
 
 # Expose maintenance service port
-EXPOSE 8007
+EXPOSE 9107
 
 # Health check for maintenance mode
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=2 \
-    CMD curl -f http://localhost:8007/maintenance/health || exit 1
+    CMD curl -f http://localhost:9107/maintenance/health || exit 1
 
 # Start maintenance service
 CMD ["python", "-m", "src.maintenance_service.main"]

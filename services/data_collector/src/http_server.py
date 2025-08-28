@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class DataCollectorHTTPServer:
     """HTTP server for data collector service endpoints."""
 
-    def __init__(self, data_service=None, port: int = 8001, host: str = "0.0.0.0"):
+    def __init__(self, data_service=None, port: int = 9101, host: str = "0.0.0.0"):
         """
         Initialize the HTTP server.
 

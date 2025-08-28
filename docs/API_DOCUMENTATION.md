@@ -32,7 +32,7 @@ Authorization: JWT <your-jwt-token>
 
 ## Services and Endpoints
 
-### 1. Data Collector Service (Port 8001)
+### 1. Data Collector Service (Port 9101)
 
 #### Get Market Data
 
@@ -117,7 +117,7 @@ POST /api/v1/subscriptions
 }
 ```
 
-### 2. Strategy Engine Service (Port 8002)
+### 2. Strategy Engine Service (Port 9102)
 
 #### Get Available Strategies
 
@@ -262,7 +262,7 @@ GET /api/v1/strategies/{strategy_id}/performance
 }
 ```
 
-### 3. Risk Manager Service (Port 8003)
+### 3. Risk Manager Service (Port 9103)
 
 #### Assess Trading Signal Risk
 
@@ -384,7 +384,7 @@ PUT /api/v1/risk/limits
 }
 ```
 
-### 4. Trade Executor Service (Port 8004)
+### 4. Trade Executor Service (Port 9104)
 
 #### Execute Trade Order
 
@@ -518,7 +518,7 @@ DELETE /api/v1/orders/{order_id}
 }
 ```
 
-### 5. Portfolio Manager Service (Port 8005)
+### 5. Portfolio Manager Service (Port 9105)
 
 #### Get Portfolio Summary
 
@@ -639,7 +639,7 @@ POST /api/v1/portfolio/rebalance
 }
 ```
 
-### 6. Scheduler Service (Port 8006)
+### 6. Scheduler Service (Port 9106)
 
 #### Get Scheduled Jobs
 
@@ -700,7 +700,7 @@ PUT /api/v1/scheduler/jobs/{job_id}
 }
 ```
 
-### 7. Backtesting Service (Port 8007)
+### 7. Backtesting Service (Port 9107)
 
 #### Run Backtest
 
@@ -823,7 +823,7 @@ POST /api/v1/backtesting/monte-carlo
 ### Real-time Market Data Stream
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8001/ws/market-data');
+const ws = new WebSocket('ws://localhost:9101/ws/market-data');
 
 ws.onopen = function() {
   ws.send(JSON.stringify({
@@ -842,7 +842,7 @@ ws.onmessage = function(event) {
 ### Real-time Trading Signals
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8002/ws/signals');
+const ws = new WebSocket('ws://localhost:9102/ws/signals');
 
 ws.onmessage = function(event) {
   const signal = JSON.parse(event.data);
@@ -862,7 +862,7 @@ ws.onmessage = function(event) {
 ### Portfolio Updates Stream
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8005/ws/portfolio');
+const ws = new WebSocket('ws://localhost:9105/ws/portfolio');
 
 ws.onmessage = function(event) {
   const update = JSON.parse(event.data);
@@ -1068,7 +1068,7 @@ signal = await client.generate_signal(
 # Execute trade if signal is strong
 if signal.strength == "STRONG" and signal.confidence > 0.8:
     risk_assessment = await client.assess_risk(signal)
-    
+
     if risk_assessment.approved:
         order = await client.execute_trade(
             symbol=signal.symbol,
@@ -1076,7 +1076,7 @@ if signal.strength == "STRONG" and signal.confidence > 0.8:
             quantity=100,
             order_type="MARKET"
         )
-        
+
         print(f"Order executed: {order.order_id}")
 ```
 
@@ -1204,7 +1204,7 @@ def sign_request(api_secret, method, path, body=""):
         message.encode(),
         hashlib.sha256
     ).hexdigest()
-    
+
     return {
         'X-Timestamp': timestamp,
         'X-Signature': signature

@@ -28,7 +28,7 @@ from enum import Enum
 from dataclasses import dataclass, asdict, field
 import structlog
 
-import aioredis
+from redis import asyncio as aioredis
 from prometheus_client import Counter, Histogram, Gauge
 
 logger = structlog.get_logger(__name__)

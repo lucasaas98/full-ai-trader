@@ -309,7 +309,7 @@ docker-compose -f docker-compose.prod.yml exec postgres psql -U trading_user -d 
 # Or step-by-step deployment
 ./scripts/ops_manager.sh start-infrastructure --env production
 sleep 60
-./scripts/ops_manager.sh start-core --env production  
+./scripts/ops_manager.sh start-core --env production
 sleep 30
 ./scripts/ops_manager.sh start-monitoring --env production
 ```
@@ -338,16 +338,16 @@ curl -X POST http://localhost:9093/api/v1/alerts \
 ./scripts/ops_manager.sh health
 
 # Service-specific checks
-curl http://localhost:8001/health  # Data Collector
-curl http://localhost:8002/health  # Strategy Engine
-curl http://localhost:8003/health  # Risk Manager
-curl http://localhost:8004/health  # Trade Executor
-curl http://localhost:8005/health  # Scheduler
+curl http://localhost:9101/health  # Data Collector
+curl http://localhost:9102/health  # Strategy Engine
+curl http://localhost:9103/health  # Risk Manager
+curl http://localhost:9104/health  # Trade Executor
+curl http://localhost:9105/health  # Scheduler
 
 # Database connectivity
 docker-compose -f docker-compose.prod.yml exec postgres pg_isready -U trading_user -d trading_db
 
-# Redis connectivity  
+# Redis connectivity
 docker-compose -f docker-compose.prod.yml exec redis redis-cli ping
 ```
 
@@ -357,13 +357,13 @@ docker-compose -f docker-compose.prod.yml exec redis redis-cli ping
 python3 scripts/run_tests.py --integration-tests --env production
 
 # Test data collection
-curl -X POST http://localhost:8001/api/test/collect
+curl -X POST http://localhost:9101/api/test/collect
 
 # Test strategy execution
-curl -X POST http://localhost:8002/api/test/strategy
+curl -X POST http://localhost:9102/api/test/strategy
 
 # Test trade execution (paper mode)
-curl -X POST http://localhost:8004/api/test/execute
+curl -X POST http://localhost:9104/api/test/execute
 ```
 
 ### Performance Validation
@@ -385,7 +385,7 @@ curl -X POST http://localhost:8004/api/test/execute
 ./scripts/security/audit_security.sh --type full --env production
 
 # Test rate limiting
-for i in {1..20}; do curl http://localhost:8001/health; done
+for i in {1..20}; do curl http://localhost:9101/health; done
 
 # Verify SSL
 curl -I https://localhost:8080  # If HTTPS configured
@@ -422,7 +422,7 @@ curl "http://localhost:9090/api/v1/query?query=up"
 # Configure Slack notifications
 export SLACK_WEBHOOK_URL="https://hooks.slack.com/your-webhook"
 
-# Configure email notifications  
+# Configure email notifications
 export ALERT_EMAIL="alerts@yourcompany.com"
 
 # Test notifications
@@ -513,7 +513,7 @@ ls -la data/backups/
 python3 scripts/operational_dashboard.py --mode status
 ./scripts/monitor_system.sh
 
-# Health monitoring  
+# Health monitoring
 ./scripts/ops_manager.sh health
 
 # Performance check
@@ -609,10 +609,10 @@ docker-compose -f docker-compose.prod.yml exec postgres psql -U trading_user -d 
 #### Port Conflicts
 ```bash
 # Check port usage
-sudo netstat -tulpn | grep :8001
+sudo netstat -tulpn | grep :9101
 
 # Kill conflicting processes
-sudo lsof -ti:8001 | xargs sudo kill -9
+sudo lsof -ti:9101 | xargs sudo kill -9
 
 # Use alternative ports
 # Edit docker-compose.prod.yml port mappings
@@ -635,7 +635,7 @@ sudo lsof -ti:8001 | xargs sudo kill -9
 #### Data Collector Issues
 ```bash
 # Check API connectivity
-curl http://localhost:8001/health
+curl http://localhost:9101/health
 
 # Verify exchange connectivity
 ./scripts/ops_manager.sh logs --service data_collector | grep -i error
@@ -650,22 +650,22 @@ curl http://localhost:8001/health
 ./scripts/ops_manager.sh logs --service strategy_engine
 
 # Verify strategy configuration
-curl http://localhost:8002/api/strategies/status
+curl http://localhost:9102/api/strategies/status
 
 # Reset strategy state
-curl -X POST http://localhost:8002/api/strategies/reset
+curl -X POST http://localhost:9102/api/strategies/reset
 ```
 
 #### Trade Execution Issues
 ```bash
 # Check executor status
-curl http://localhost:8004/health
+curl http://localhost:9104/health
 
 # View pending orders
-curl http://localhost:8004/api/orders/pending
+curl http://localhost:9104/api/orders/pending
 
 # Emergency position closure
-curl -X POST http://localhost:8004/api/emergency/close-all
+curl -X POST http://localhost:9104/api/emergency/close-all
 ```
 
 ---
@@ -713,7 +713,7 @@ services:
           cpus: '1.0'
           memory: 2g
     restart: always
-    
+
   strategy_engine:
     deploy:
       resources:
@@ -721,7 +721,7 @@ services:
           cpus: '2.0'
           memory: 4g
     restart: always
-    
+
   postgres:
     deploy:
       resources:
@@ -824,7 +824,7 @@ Level 1: Service Issues
 - Operations Team: ops@yourcompany.com
 - Response Time: 15 minutes
 
-Level 2: System Outage  
+Level 2: System Outage
 - Engineering Team: engineering@yourcompany.com
 - Response Time: 5 minutes
 

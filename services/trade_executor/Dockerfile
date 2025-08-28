@@ -12,12 +12,10 @@ USER root
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+USER appuser
+
 # Copy service source code
 COPY src/ ./src/
-
-# Fix ownership and switch back to non-root user
-RUN chown -R appuser:appuser /app
-USER appuser
 
 # Expose service port
 EXPOSE 9104
@@ -25,6 +23,3 @@ EXPOSE 9104
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:9104/health || exit 1
-
-# Run the trade executor service
-CMD ["python", "-m", "src.main"]

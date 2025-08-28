@@ -27,7 +27,7 @@ The AI Trading System is a comprehensive, microservices-based algorithmic tradin
 │    Data     │  Strategy   │    Risk     │    Trade    │Scheduler│
 │  Collector  │   Engine    │  Manager    │  Executor   │ Service │
 │             │             │             │             │         │
-│  :8001      │   :8002     │   :8003     │   :8004     │  :8006  │
+│  :9101      │   :9102     │   :9103     │   :9104     │  :9106  │
 └─────────────┴─────────────┴─────────────┴─────────────┴─────────┘
                               │
                               ▼
@@ -47,7 +47,7 @@ The AI Trading System is a comprehensive, microservices-based algorithmic tradin
 │ Backtesting │ Monitoring  │   Gotify    │   Security  │  Audit  │
 │   Engine    │  Service    │Notifications│   Service   │ Service │
 │             │             │             │             │         │
-│   :8007     │   :8008     │   :8080     │   :8009     │  :8010  │
+│   :9107     │   :8008     │   :8080     │   :8009     │  :8010  │
 └─────────────┴─────────────┴─────────────┴─────────────┴─────────┘
 ```
 
@@ -652,19 +652,19 @@ production:
     port: 5432
     max_connections: 100
     connection_timeout: 30s
-  
+
   redis:
     cluster_endpoints:
       - redis-1.internal:6379
       - redis-2.internal:6379
       - redis-3.internal:6379
     sentinel_enabled: true
-  
+
   risk_limits:
     max_position_size: 0.10
     max_sector_exposure: 0.30
     daily_loss_limit: 10000.00
-  
+
   monitoring:
     metrics_retention: 30d
     log_retention: 90d

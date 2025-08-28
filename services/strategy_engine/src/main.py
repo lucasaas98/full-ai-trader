@@ -1088,7 +1088,7 @@ class StrategyEngineApp:
 
 if __name__ == "__main__":
     # Development server
-    port = int(os.environ.get('SERVICE_PORT', 8002))
+    port = int(os.environ.get('SERVICE_PORT', 9102))
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",

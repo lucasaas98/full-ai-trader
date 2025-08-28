@@ -1,276 +1,249 @@
 global:
-  # Global configuration
-  smtp_smarthost: 'localhost:587'
-  smtp_from: 'trading-system@localhost'
-  resolve_timeout: 5m
+    # Global configuration
+    smtp_smarthost: "localhost:587"
+    smtp_from: "trading-system@localhost"
+    resolve_timeout: 5m
 
 # Templates for alert formatting
 templates:
-  - '/etc/alertmanager/templates/*.tmpl'
+    - "/etc/alertmanager/templates/*.tmpl"
 
 # Route configuration
 route:
-  group_by: ['alertname', 'service', 'category']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 12h
-  receiver: 'gotify-webhook'
-  routes:
-    # Critical alerts - immediate notification
-    - match:
-        severity: critical
-      receiver: 'gotify-critical'
-      group_wait: 0s
-      repeat_interval: 5m
+    group_by: ["alertname", "service", "category"]
+    group_wait: 10s
+    group_interval: 10s
+    repeat_interval: 12h
+    receiver: "gotify-webhook"
+    routes:
+        # Critical alerts - immediate notification
+        - match:
+              severity: critical
+          receiver: "gotify-critical"
+          group_wait: 0s
+          repeat_interval: 5m
 
-    # Trading performance alerts
-    - match:
-        category: trading
-      receiver: 'gotify-trading'
-      group_wait: 30s
-      repeat_interval: 15m
+        # Trading performance alerts
+        - match:
+              category: trading
+          receiver: "gotify-trading"
+          group_wait: 30s
+          repeat_interval: 15m
 
-    # System alerts
-    - match:
-        category: system
-      receiver: 'gotify-system'
-      group_wait: 1m
-      repeat_interval: 30m
+        # System alerts
+        - match:
+              category: system
+          receiver: "gotify-system"
+          group_wait: 1m
+          repeat_interval: 30m
 
-    # Performance alerts
-    - match:
-        category: performance
-      receiver: 'gotify-performance'
-      group_wait: 2m
-      repeat_interval: 1h
+        # Performance alerts
+        - match:
+              category: performance
+          receiver: "gotify-performance"
+          group_wait: 2m
+          repeat_interval: 1h
 
-    # Database alerts
-    - match:
-        category: database
-      receiver: 'gotify-database'
-      group_wait: 1m
-      repeat_interval: 30m
+        # Database alerts
+        - match:
+              category: database
+          receiver: "gotify-database"
+          group_wait: 1m
+          repeat_interval: 30m
 
-    # API alerts
-    - match:
-        category: api
-      receiver: 'gotify-api'
-      group_wait: 1m
-      repeat_interval: 30m
+        # API alerts
+        - match:
+              category: api
+          receiver: "gotify-api"
+          group_wait: 1m
+          repeat_interval: 30m
 
-    # Security alerts
-    - match:
-        category: security
-      receiver: 'gotify-security'
-      group_wait: 0s
-      repeat_interval: 5m
+        # Security alerts
+        - match:
+              category: security
+          receiver: "gotify-security"
+          group_wait: 0s
+          repeat_interval: 5m
 
 # Receivers configuration
 receivers:
-  - name: 'gotify-webhook'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '[{{ .Status }}] Trading System Alert'
-        message: |
-          {{ range .Alerts }}
-          **Alert:** {{ .Annotations.summary }}
-          **Description:** {{ .Annotations.description }}
-          **Severity:** {{ .Labels.severity }}
-          **Service:** {{ .Labels.service }}
-          **Started:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-webhook"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "[{{ .Status }}] Trading System Alert"
+            message: |
+                {{ range .Alerts }}
+                **Alert:** {{ .Annotations.summary }}
+                **Description:** {{ .Annotations.description }}
+                **Severity:** {{ .Labels.severity }}
+                **Service:** {{ .Labels.service }}
+                **Started:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-critical'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '🚨 CRITICAL: Trading System Emergency'
-        message: |
-          **CRITICAL ALERT DETECTED**
-          {{ range .Alerts }}
-          🔥 **{{ .Annotations.summary }}**
-          📋 **Description:** {{ .Annotations.description }}
-          🏷️ **Service:** {{ .Labels.service }}
-          ⏰ **Started:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ if .Labels.runbook_url }}📖 **Runbook:** {{ .Labels.runbook_url }}{{ end }}
-          {{ end }}
+    - name: "gotify-critical"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "🚨 CRITICAL: Trading System Emergency"
+            message: |
+                **CRITICAL ALERT DETECTED**
+                {{ range .Alerts }}
+                🔥 **{{ .Annotations.summary }}**
+                📋 **Description:** {{ .Annotations.description }}
+                🏷️ **Service:** {{ .Labels.service }}
+                ⏰ **Started:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ if .Labels.runbook_url }}📖 **Runbook:** {{ .Labels.runbook_url }}{{ end }}
+                {{ end }}
 
-          **IMMEDIATE ACTION REQUIRED**
+                **IMMEDIATE ACTION REQUIRED**
 
-  - name: 'gotify-trading'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '📈 Trading Performance Alert'
-        message: |
-          **Trading Alert**
-          {{ range .Alerts }}
-          💰 **{{ .Annotations.summary }}**
-          📊 **Details:** {{ .Annotations.description }}
-          🎯 **Strategy:** {{ .Labels.strategy | default "Unknown" }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-trading"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "📈 Trading Performance Alert"
+            message: |
+                **Trading Alert**
+                {{ range .Alerts }}
+                💰 **{{ .Annotations.summary }}**
+                📊 **Details:** {{ .Annotations.description }}
+                🎯 **Strategy:** {{ .Labels.strategy | default "Unknown" }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-system'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '🖥️ System Alert'
-        message: |
-          **System Monitoring Alert**
-          {{ range .Alerts }}
-          ⚠️ **{{ .Annotations.summary }}**
-          🔧 **Issue:** {{ .Annotations.description }}
-          🏷️ **Service:** {{ .Labels.service }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-system"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "🖥️ System Alert"
+            message: |
+                **System Monitoring Alert**
+                {{ range .Alerts }}
+                ⚠️ **{{ .Annotations.summary }}**
+                🔧 **Issue:** {{ .Annotations.description }}
+                🏷️ **Service:** {{ .Labels.service }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-performance'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '⚡ Performance Alert'
-        message: |
-          **Performance Issue Detected**
-          {{ range .Alerts }}
-          🐌 **{{ .Annotations.summary }}**
-          📊 **Metrics:** {{ .Annotations.description }}
-          🏷️ **Service:** {{ .Labels.service }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-performance"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "⚡ Performance Alert"
+            message: |
+                **Performance Issue Detected**
+                {{ range .Alerts }}
+                🐌 **{{ .Annotations.summary }}**
+                📊 **Metrics:** {{ .Annotations.description }}
+                🏷️ **Service:** {{ .Labels.service }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-database'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '🗄️ Database Alert'
-        message: |
-          **Database Issue**
-          {{ range .Alerts }}
-          💾 **{{ .Annotations.summary }}**
-          🔍 **Details:** {{ .Annotations.description }}
-          🏷️ **Database:** {{ .Labels.database | default "trading_system" }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-database"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "🗄️ Database Alert"
+            message: |
+                **Database Issue**
+                {{ range .Alerts }}
+                💾 **{{ .Annotations.summary }}**
+                🔍 **Details:** {{ .Annotations.description }}
+                🏷️ **Database:** {{ .Labels.database | default "trading_system" }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-api'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '🌐 API Alert'
-        message: |
-          **API Issue Detected**
-          {{ range .Alerts }}
-          🔌 **{{ .Annotations.summary }}**
-          📡 **Details:** {{ .Annotations.description }}
-          🏷️ **Endpoint:** {{ .Labels.endpoint | default "Unknown" }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-api"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "🌐 API Alert"
+            message: |
+                **API Issue Detected**
+                {{ range .Alerts }}
+                🔌 **{{ .Annotations.summary }}**
+                📡 **Details:** {{ .Annotations.description }}
+                🏷️ **Endpoint:** {{ .Labels.endpoint | default "Unknown" }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-  - name: 'gotify-security'
-    webhook_configs:
-      - url: '${GOTIFY_URL}/message?token=${GOTIFY_TOKEN}'
-        http_config:
-          basic_auth:
-            username: ''
-            password: ''
-        send_resolved: true
-        title: '🛡️ SECURITY ALERT'
-        message: |
-          **SECURITY INCIDENT DETECTED**
-          {{ range .Alerts }}
-          🚨 **{{ .Annotations.summary }}**
-          🔒 **Threat:** {{ .Annotations.description }}
-          🏷️ **Source:** {{ .Labels.source | default "Unknown" }}
-          ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
-          {{ end }}
+    - name: "gotify-security"
+      webhook_configs:
+          - url: "https://gotify.repi.fun/message?token=AxujGuYF4qKKXcO"
+            send_resolved: true
+            title: "🛡️ SECURITY ALERT"
+            message: |
+                **SECURITY INCIDENT DETECTED**
+                {{ range .Alerts }}
+                🚨 **{{ .Annotations.summary }}**
+                🔒 **Threat:** {{ .Annotations.description }}
+                🏷️ **Source:** {{ .Labels.source | default "Unknown" }}
+                ⏰ **Time:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+                {{ end }}
 
-          **INVESTIGATE IMMEDIATELY**
+                **INVESTIGATE IMMEDIATELY**
 
 # Inhibit rules - prevent spam
 inhibit_rules:
-  # Inhibit any warning-level alerts when there are critical alerts
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
-    equal: ['service']
+    # Inhibit any warning-level alerts when there are critical alerts
+    - source_match:
+          severity: "critical"
+      target_match:
+          severity: "warning"
+      equal: ["service"]
 
-  # Inhibit duplicate alerts for the same service
-  - source_match:
-      alertname: 'ServiceDown'
-    target_match_re:
-      alertname: 'Service.*'
-    equal: ['service']
+    # Inhibit duplicate alerts for the same service
+    - source_match:
+          alertname: "ServiceDown"
+      target_match_re:
+          alertname: "Service.*"
+      equal: ["service"]
 
-  # Inhibit performance alerts when service is down
-  - source_match:
-      alertname: 'ServiceDown'
-    target_match_re:
-      category: 'performance'
-    equal: ['service']
+    # Inhibit performance alerts when service is down
+    - source_match:
+          alertname: "ServiceDown"
+      target_match_re:
+          category: "performance"
+      equal: ["service"]
 
 # Silence configuration
 silences:
-  # Example: Maintenance window silences can be added here
-  # - matchers:
-  #     - name: 'service'
-  #       value: 'data_collector'
-  #   startsAt: '2024-01-01T00:00:00Z'
-  #   endsAt: '2024-01-01T01:00:00Z'
-  #   createdBy: 'maintenance'
-  #   comment: 'Scheduled maintenance window'
+    # Example: Maintenance window silences can be added here
+    # - matchers:
+    #     - name: 'service'
+    #       value: 'data_collector'
+    #   startsAt: '2024-01-01T00:00:00Z'
+    #   endsAt: '2024-01-01T01:00:00Z'
+    #   createdBy: 'maintenance'
+    #   comment: 'Scheduled maintenance window'
 
 # Time intervals for grouping
 time_intervals:
-  - name: business_hours
-    time_intervals:
-      - times:
-          - start_time: '09:30'
-            end_time: '16:00'
-        weekdays: ['monday:friday']
-        location: 'America/New_York'
+    - name: business_hours
+      time_intervals:
+          - times:
+                - start_time: "09:30"
+                  end_time: "16:00"
+            weekdays: ["monday:friday"]
+            location: "America/New_York"
 
-  - name: after_hours
-    time_intervals:
-      - times:
-          - start_time: '16:01'
-            end_time: '09:29'
-        weekdays: ['monday:friday']
-        location: 'America/New_York'
-      - weekdays: ['saturday', 'sunday']
-        location: 'America/New_York'
+    - name: after_hours
+      time_intervals:
+          - times:
+                - start_time: "16:01"
+                  end_time: "23:59"
+            weekdays: ["monday:friday"]
+            location: "America/New_York"
+          - times:
+                - start_time: "00:00"
+                  end_time: "09:29"
+            weekdays: ["tuesday:wednesday", "thursday", "friday"]
+            location: "America/New_York"
+          - weekdays: ["saturday", "sunday"]
+            location: "America/New_York"
 
-  - name: weekend
-    time_intervals:
-      - weekdays: ['saturday', 'sunday']
-        location: 'America/New_York'
+    - name: weekend
+      time_intervals:
+          - weekdays: ["saturday", "sunday"]
+            location: "America/New_York"

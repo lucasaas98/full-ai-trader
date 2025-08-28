@@ -61,7 +61,7 @@ services:
         container_name: trading_data_collector
         environment:
             - SERVICE_NAME=data_collector
-            - SERVICE_PORT=${DATA_COLLECTOR_PORT:-8001}
+            - SERVICE_PORT=${DATA_COLLECTOR_PORT:-9101}
             - TWELVE_DATA_API_KEY=${TWELVE_DATA_API_KEY}
             - FINVIZ_API_KEY=${FINVIZ_API_KEY}
             - ALPACA_API_KEY=${ALPACA_API_KEY}
@@ -79,7 +79,7 @@ services:
             - LOG_LEVEL=${LOG_LEVEL:-INFO}
             - ENVIRONMENT=${ENVIRONMENT:-development}
         ports:
-            - "${DATA_COLLECTOR_PORT:-8001}:${DATA_COLLECTOR_PORT:-8001}"
+            - "${DATA_COLLECTOR_PORT:-9101}:${DATA_COLLECTOR_PORT:-9101}"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data
@@ -110,7 +110,7 @@ services:
         container_name: trading_strategy_engine
         environment:
             - SERVICE_NAME=strategy_engine
-            - SERVICE_PORT=${STRATEGY_ENGINE_PORT:-8002}
+            - SERVICE_PORT=${STRATEGY_ENGINE_PORT:-9102}
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -124,7 +124,7 @@ services:
             - RISK_MAX_POSITION_SIZE=${RISK_MAX_POSITION_SIZE:-0.05}
             - RISK_MAX_PORTFOLIO_RISK=${RISK_MAX_PORTFOLIO_RISK:-0.02}
         ports:
-            - "${STRATEGY_ENGINE_PORT:-8002}:${STRATEGY_ENGINE_PORT:-8002}"
+            - "${STRATEGY_ENGINE_PORT:-9102}:${STRATEGY_ENGINE_PORT:-9102}"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data
@@ -151,7 +151,7 @@ services:
         container_name: trading_risk_manager
         environment:
             - SERVICE_NAME=risk_manager
-            - SERVICE_PORT=${RISK_MANAGER_PORT:-8003}
+            - SERVICE_PORT=${RISK_MANAGER_PORT:-9103}
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -172,7 +172,7 @@ services:
             - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
             - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
         ports:
-            - "${RISK_MANAGER_PORT:-8003}:${RISK_MANAGER_PORT:-8003}"
+            - "${RISK_MANAGER_PORT:-9103}:${RISK_MANAGER_PORT:-9103}"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data
@@ -468,7 +468,7 @@ services:
         container_name: trading_export_service
         environment:
             - SERVICE_NAME=export_service
-            - SERVICE_PORT=${EXPORT_SERVICE_PORT:-8006}
+            - SERVICE_PORT=${EXPORT_SERVICE_PORT:-9106}
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -481,7 +481,7 @@ services:
             - ENVIRONMENT=${ENVIRONMENT:-development}
             - API_SECRET_KEY=${API_SECRET_KEY}
         ports:
-            - "${EXPORT_SERVICE_PORT:-8006}:${EXPORT_SERVICE_PORT:-8006}"
+            - "${EXPORT_SERVICE_PORT:-9106}:${EXPORT_SERVICE_PORT:-9106}"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data
@@ -506,7 +506,7 @@ services:
         container_name: trading_maintenance_service
         environment:
             - SERVICE_NAME=maintenance_service
-            - SERVICE_PORT=${MAINTENANCE_SERVICE_PORT:-8007}
+            - SERVICE_PORT=${MAINTENANCE_SERVICE_PORT:-9107}
             - DB_HOST=postgres
             - DB_PORT=5432
             - DB_NAME=${DB_NAME:-trading_system}
@@ -521,7 +521,7 @@ services:
             - GOTIFY_URL=${GOTIFY_URL}
             - GOTIFY_TOKEN=${GOTIFY_TOKEN}
         ports:
-            - "${MAINTENANCE_SERVICE_PORT:-8007}:${MAINTENANCE_SERVICE_PORT:-8007}"
+            - "${MAINTENANCE_SERVICE_PORT:-9107}:${MAINTENANCE_SERVICE_PORT:-9107}"
         volumes:
             - ./shared:/app/shared:ro
             - ./data:/app/data

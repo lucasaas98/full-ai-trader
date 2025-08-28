@@ -1,0 +1,48 @@
+Image sizes at 28/08/2025 17:06
+
+Image Sizes:
+trading_cadvisor (sha256:c02cf39d3dba9fcf5531f23358e33377e50fcc6065d97a27e68a4242229c67a0): 78MiB
+trading_data_collector (sha256:a9b706327dc24246cf478975f05a01cf2b047430870318e85a794268103e6eb8): 2.0GiB
+trading_elasticsearch (sha256:7f03b6ec0c6f6d9a844550d1b3689e868e11850ac4e668e8583490c96baca8f1): 1.4GiB
+trading_export_service (sha256:c9e1ab39bd214e57a65b6449f620f89183a064e4b7fe2ca2ecdf6663ebd8e24a): 411MiB
+trading_grafana (sha256:0a7de979b3131ff29c2cdd8ffd040ee63cdfc863f70ec3902eec6c47edfc32fd): 690MiB
+trading_kibana (sha256:14de45f6130869a4ad2ae0004544c83750db66b4a0867614eb12cf22f06db216): 979MiB
+trading_logstash (sha256:a15eae9bea4118e3e76039e6bd62d973e1f7f56f530f991ec8bd3b8f69689966): 731MiB
+trading_maintenance_service (sha256:eb38a7a1dc4ee63ca480d07d83fa5b67093eec0186a66e2e0612ac56533e218d): 284MiB
+trading_node_exporter (sha256:255ec253085fb105696533b31864a5e3b64f1f1e2147b5ec368100cbf3ec9b80): 24MiB
+trading_notification_service (sha256:8736e240bef3ceb483305f1f931b4def9bfc3a1c84695a5df107dd0f82d49f5b): 378MiB
+trading_postgres (sha256:06686173a6ebc27c0f4687565ae0fe73342ea23d1e3813264ded5f5d2b29fe28): 262MiB
+trading_postgres_exporter (sha256:00c363ef1ad18d7cd5dbca15219ed2d6c2d07b9c9205afd2e117377375198cea): 21MiB
+trading_prometheus (sha256:a3bc50fcb50fb1409287c32773d8fe799f6cad5511c4ba3e2e851784e7a05026): 299MiB
+trading_redis (sha256:f218e591b571a4129aa29a8566b597d849fba21af7be853d31b03122b20db5e9): 40MiB
+trading_redis_exporter (sha256:9a111de02678e1907487d2818cccf0b9e34100240c14db745f79d39d57dd9cb4): 9.5MiB
+trading_risk_manager (sha256:3df1e6532c030867163738f8e6ee73242bf485f7eaddf460ce71ca0ce5b0a366): 1.7GiB
+trading_scheduler (sha256:a0fa89582016f5f1d9147c4d8afb747acf29402aa0dc2efb20b06ce90ffa2eaa): 1.5GiB
+trading_strategy_engine (sha256:05c0766082863c01deb6150aa53a9113e0a96000fecf3fbd29ab39516ff6e522): 1.8GiB
+trading_trade_executor (sha256:45236a7341a50e18da89b7cb3cc03b2335b8dbe5e0ac7dca0c525662174ab13f): 1.5GiB
+----------------------
+Total size: 14GiB
+
+
+Collecting resource usage stats for 300 seconds...
+Average resource usage over 300 seconds:
+CONTAINER NAME  AVG CPU %  AVG MEM %
+trading_cadvisor    24.47%     1.09%
+trading_data_collector      .60%     1.00%
+trading_elasticsearch      .97%     3.82%
+trading_export_service      .17%      .23%
+trading_grafana      .33%      .39%
+trading_kibana       .76%     1.66%
+trading_logstash      .84%     4.85%
+trading_maintenance_service      .14%      .14%
+trading_node_exporter     1.42%      .06%
+trading_notification_service      .09%      .19%
+trading_postgres      .22%      .16%
+trading_postgres_exporter      .02%      .22%
+trading_prometheus     2.03%     2.10%
+trading_redis        .68%      .07%
+trading_redis_exporter      .27%      .04%
+trading_risk_manager      .18%      .40%
+trading_scheduler     2.60%      .66%
+trading_strategy_engine      .12%      .46%
+trading_trade_executor      .22%      .44%

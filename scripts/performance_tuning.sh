@@ -674,11 +674,11 @@ scrape_configs:
   - job_name: 'trading-services'
     static_configs:
       - targets:
-        - 'data_collector:8001'
-        - 'strategy_engine:8002'
-        - 'risk_manager:8003'
-        - 'trade_executor:8004'
-        - 'scheduler:8005'
+        - 'data_collector:9101'
+        - 'strategy_engine:9102'
+        - 'risk_manager:9103'
+        - 'trade_executor:9104'
+        - 'scheduler:9105'
     scrape_interval: 10s
     metrics_path: /metrics
 

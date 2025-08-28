@@ -121,7 +121,7 @@ class DataCollectorApp:
 
             # Initialize and start HTTP server
             import os
-            port = int(os.environ.get('SERVICE_PORT', 8001))
+            port = int(os.environ.get('SERVICE_PORT', 9101))
             self.http_server = DataCollectorHTTPServer(
                 data_service=self.data_service,
                 port=port,

@@ -36,18 +36,18 @@ This document provides step-by-step procedures for handling common operational i
 1. **Verify the outage:**
    ```bash
    # Check all service health
-   curl -f http://localhost:8001/health || echo "Data Collector DOWN"
-   curl -f http://localhost:8002/health || echo "Strategy Engine DOWN"
-   curl -f http://localhost:8003/health || echo "Risk Manager DOWN"
-   curl -f http://localhost:8004/health || echo "Trade Executor DOWN"
-   curl -f http://localhost:8006/health || echo "Scheduler DOWN"
+   curl -f http://localhost:9101/health || echo "Data Collector DOWN"
+   curl -f http://localhost:9102/health || echo "Strategy Engine DOWN"
+   curl -f http://localhost:9103/health || echo "Risk Manager DOWN"
+   curl -f http://localhost:9104/health || echo "Trade Executor DOWN"
+   curl -f http://localhost:9106/health || echo "Scheduler DOWN"
    ```
 
 2. **Check infrastructure:**
    ```bash
    # Check Docker containers
    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-   
+
    # Check system resources
    df -h
    free -h
@@ -73,7 +73,7 @@ This document provides step-by-step procedures for handling common operational i
    # Restart database if needed
    docker-compose restart postgres
    docker-compose restart redis
-   
+
    # Wait for database to be ready
    until docker-compose exec postgres pg_isready -U trader; do
      echo "Waiting for database..."
@@ -99,7 +99,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Check all services
    make health-check
-   
+
    # Verify trading functionality
    python scripts/smoke_test.py
    ```
@@ -107,7 +107,7 @@ This document provides step-by-step procedures for handling common operational i
 4. **Resume trading:**
    ```bash
    # Re-enable automatic trading
-   curl -X POST http://localhost:8006/api/v1/scheduler/resume-trading
+   curl -X POST http://localhost:9106/api/v1/scheduler/resume-trading
    ```
 
 **Escalation:** If not resolved in 15 minutes, escalate to Trading Team Lead.
@@ -131,7 +131,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Test from host
    pg_isready -h localhost -p 5432 -U trader
-   
+
    # Test from container
    docker-compose exec postgres psql -U trader -d trading_system -c "SELECT 1;"
    ```
@@ -139,11 +139,11 @@ This document provides step-by-step procedures for handling common operational i
 3. **Check connection limits:**
    ```sql
    -- Check current connections
-   SELECT count(*) as connections, state 
-   FROM pg_stat_activity 
-   WHERE datname = 'trading_system' 
+   SELECT count(*) as connections, state
+   FROM pg_stat_activity
+   WHERE datname = 'trading_system'
    GROUP BY state;
-   
+
    -- Check max connections setting
    SHOW max_connections;
    ```
@@ -154,7 +154,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Restart database container
    docker-compose restart postgres
-   
+
    # Monitor startup logs
    docker-compose logs -f postgres
    ```
@@ -162,10 +162,10 @@ This document provides step-by-step procedures for handling common operational i
 2. **If connection limit exceeded:**
    ```sql
    -- Kill idle connections
-   SELECT pg_terminate_backend(pid) 
-   FROM pg_stat_activity 
-   WHERE datname = 'trading_system' 
-   AND state = 'idle' 
+   SELECT pg_terminate_backend(pid)
+   FROM pg_stat_activity
+   WHERE datname = 'trading_system'
+   AND state = 'idle'
    AND state_change < now() - interval '5 minutes';
    ```
 
@@ -189,14 +189,14 @@ This document provides step-by-step procedures for handling common operational i
 1. **Check data collector status:**
    ```bash
    docker-compose logs data_collector | tail -10
-   curl http://localhost:8001/api/v1/status
+   curl http://localhost:9101/api/v1/status
    ```
 
 2. **Test external APIs:**
    ```bash
    # Test Alpha Vantage
    curl "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=AAPL&apikey=$ALPHA_VANTAGE_KEY"
-   
+
    # Test Yahoo Finance backup
    curl "https://query1.finance.yahoo.com/v8/finance/chart/AAPL"
    ```
@@ -212,7 +212,7 @@ This document provides step-by-step procedures for handling common operational i
 1. **Switch to backup data provider:**
    ```bash
    # Update data collector config
-   curl -X PUT http://localhost:8001/api/v1/config \
+   curl -X PUT http://localhost:9101/api/v1/config \
      -H "Content-Type: application/json" \
      -d '{"primary_provider": "yahoo_finance", "fallback_enabled": true}'
    ```
@@ -220,15 +220,15 @@ This document provides step-by-step procedures for handling common operational i
 2. **Restart data collection:**
    ```bash
    docker-compose restart data_collector
-   
+
    # Force immediate collection
-   curl -X POST http://localhost:8001/api/v1/collect-now
+   curl -X POST http://localhost:9101/api/v1/collect-now
    ```
 
 3. **Verify data flow:**
    ```bash
    # Check recent data
-   curl http://localhost:8001/api/v1/market-data/AAPL?limit=5
+   curl http://localhost:9101/api/v1/market-data/AAPL?limit=5
    ```
 
 ---
@@ -248,7 +248,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Recent errors in trade executor
    docker-compose logs trade_executor | grep -i error | tail -20
-   
+
    # Error rate by type
    curl http://localhost:9090/api/v1/query?query='rate(trading_errors_total[5m])'
    ```
@@ -269,7 +269,7 @@ This document provides step-by-step procedures for handling common operational i
 
 1. **Adjust risk parameters temporarily:**
    ```bash
-   curl -X PUT http://localhost:8003/api/v1/risk/limits \
+   curl -X PUT http://localhost:9103/api/v1/risk/limits \
      -H "Content-Type: application/json" \
      -d '{
        "max_position_concentration": 0.12,
@@ -281,10 +281,10 @@ This document provides step-by-step procedures for handling common operational i
 2. **Review and pause problematic strategies:**
    ```bash
    # Get strategy performance
-   curl http://localhost:8002/api/v1/strategies/momentum_strategy/performance
-   
+   curl http://localhost:9102/api/v1/strategies/momentum_strategy/performance
+
    # Pause if underperforming
-   curl -X PUT http://localhost:8002/api/v1/strategies/momentum_strategy \
+   curl -X PUT http://localhost:9102/api/v1/strategies/momentum_strategy \
      -d '{"enabled": false}'
    ```
 
@@ -326,7 +326,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Database container resources
    docker stats postgres --no-stream
-   
+
    # Disk I/O
    iostat -x 1 3
    ```
@@ -347,7 +347,7 @@ This document provides step-by-step procedures for handling common operational i
    ```sql
    -- Update table statistics
    ANALYZE;
-   
+
    -- Rebuild indexes if needed
    REINDEX INDEX CONCURRENTLY idx_trades_symbol_executed;
    ```
@@ -479,7 +479,7 @@ This document provides step-by-step procedures for handling common operational i
 
 1. **Check strategy metrics:**
    ```bash
-   curl http://localhost:8002/api/v1/strategies/momentum_strategy/performance?days=30
+   curl http://localhost:9102/api/v1/strategies/momentum_strategy/performance?days=30
    ```
 
 2. **Analyze recent signals:**
@@ -498,7 +498,7 @@ This document provides step-by-step procedures for handling common operational i
 
 1. **Adjust strategy parameters:**
    ```bash
-   curl -X PUT http://localhost:8002/api/v1/strategies/momentum_strategy/parameters \
+   curl -X PUT http://localhost:9102/api/v1/strategies/momentum_strategy/parameters \
      -H "Content-Type: application/json" \
      -d '{
        "rsi_period": 21,
@@ -509,14 +509,14 @@ This document provides step-by-step procedures for handling common operational i
 
 2. **Reduce position sizes:**
    ```bash
-   curl -X PUT http://localhost:8003/api/v1/risk/limits \
+   curl -X PUT http://localhost:9103/api/v1/risk/limits \
      -d '{"max_position_size": 0.08, "reason": "strategy_underperformance"}'
    ```
 
 3. **Consider strategy pause:**
    ```bash
    # Pause strategy if severe underperformance
-   curl -X PUT http://localhost:8002/api/v1/strategies/momentum_strategy \
+   curl -X PUT http://localhost:9102/api/v1/strategies/momentum_strategy \
      -d '{"enabled": false, "reason": "performance_review"}'
    ```
 
@@ -534,7 +534,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Compress old logs
    find /app/logs -name "*.log" -mtime +1 -exec gzip {} \;
-   
+
    # Remove very old compressed logs
    find /app/logs -name "*.log.gz" -mtime +30 -delete
    ```
@@ -543,7 +543,7 @@ This document provides step-by-step procedures for handling common operational i
    ```sql
    -- Remove old audit logs
    DELETE FROM audit_logs WHERE created_at < NOW() - INTERVAL '90 days';
-   
+
    -- Remove old performance metrics
    DELETE FROM performance_metrics WHERE timestamp < NOW() - INTERVAL '30 days';
    ```
@@ -564,7 +564,7 @@ This document provides step-by-step procedures for handling common operational i
    ```sql
    -- Update table statistics
    ANALYZE;
-   
+
    -- Vacuum tables
    VACUUM ANALYZE trades;
    VACUUM ANALYZE market_data;
@@ -578,7 +578,7 @@ This document provides step-by-step procedures for handling common operational i
    FROM pg_stats
    WHERE tablename IN ('trades', 'market_data')
    ORDER BY n_distinct DESC;
-   
+
    -- Rebuild unused indexes
    REINDEX INDEX CONCURRENTLY idx_trades_executed_at;
    ```
@@ -587,7 +587,7 @@ This document provides step-by-step procedures for handling common operational i
    ```bash
    # Defragment Redis memory
    docker-compose exec redis redis-cli MEMORY PURGE
-   
+
    # Check fragmentation
    docker-compose exec redis redis-cli INFO memory | grep fragmentation
    ```
@@ -634,7 +634,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
    ```bash
    # Block external access
    docker-compose exec nginx nginx -s reload -c /etc/nginx/nginx-emergency.conf
-   
+
    # Revoke all API keys
    curl -X POST http://localhost:8009/api/v1/security/revoke-all-keys
    ```
@@ -643,7 +643,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
    ```bash
    # Capture current logs
    docker-compose logs > /tmp/security-incident-$(date +%Y%m%d-%H%M%S).log
-   
+
    # Snapshot system state
    docker-compose exec postgres pg_dump trading_system > /tmp/db-snapshot-$(date +%Y%m%d-%H%M%S).sql
    ```
@@ -693,7 +693,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
 1. **Identify data gaps:**
    ```sql
    -- Find missing data periods
-   SELECT symbol, 
+   SELECT symbol,
           MIN(timestamp) as start_gap,
           MAX(timestamp) as end_gap,
           COUNT(*) as missing_points
@@ -755,12 +755,12 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
 
 1. **Backup current configuration:**
    ```bash
-   curl http://localhost:8002/api/v1/strategies/momentum_strategy > /tmp/strategy-backup-$(date +%Y%m%d).json
+   curl http://localhost:9102/api/v1/strategies/momentum_strategy > /tmp/strategy-backup-$(date +%Y%m%d).json
    ```
 
 2. **Update parameters:**
    ```bash
-   curl -X PUT http://localhost:8002/api/v1/strategies/momentum_strategy/parameters \
+   curl -X PUT http://localhost:9102/api/v1/strategies/momentum_strategy/parameters \
      -H "Content-Type: application/json" \
      -d '{
        "rsi_period": 21,
@@ -772,7 +772,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
 3. **Monitor impact:**
    ```bash
    # Watch for 30 minutes
-   watch -n 30 'curl -s http://localhost:8002/api/v1/strategies/momentum_strategy/performance | jq .performance.total_return'
+   watch -n 30 'curl -s http://localhost:9102/api/v1/strategies/momentum_strategy/performance | jq .performance.total_return'
    ```
 
 ### 2. Risk Limit Adjustments
@@ -781,7 +781,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
 
 1. **Document current limits:**
    ```bash
-   curl http://localhost:8003/api/v1/risk/limits > /tmp/risk-limits-backup-$(date +%Y%m%d).json
+   curl http://localhost:9103/api/v1/risk/limits > /tmp/risk-limits-backup-$(date +%Y%m%d).json
    ```
 
 2. **Calculate new limits:**
@@ -791,7 +791,7 @@ curl http://localhost:9090/api/v1/query?query='trading_system_memory_usage_perce
 
 3. **Apply new limits:**
    ```bash
-   curl -X PUT http://localhost:8003/api/v1/risk/limits \
+   curl -X PUT http://localhost:9103/api/v1/risk/limits \
      -H "Content-Type: application/json" \
      -d @new_risk_limits.json
    ```
@@ -842,14 +842,14 @@ echo "Backup completed: $BACKUP_DIR"
 
 1. **Stop trading operations:**
    ```bash
-   curl -X POST http://localhost:8006/api/v1/scheduler/emergency-stop
+   curl -X POST http://localhost:9106/api/v1/scheduler/emergency-stop
    ```
 
 2. **Restore database:**
    ```bash
    # Stop services
    docker-compose stop
-   
+
    # Restore database
    docker-compose up -d postgres
    zcat /backups/20240115/database.sql.gz | docker-compose exec -T postgres psql -U trader trading_system
@@ -863,7 +863,7 @@ echo "Backup completed: $BACKUP_DIR"
 4. **Resume operations:**
    ```bash
    docker-compose up -d
-   curl -X POST http://localhost:8006/api/v1/scheduler/resume-trading
+   curl -X POST http://localhost:9106/api/v1/scheduler/resume-trading
    ```
 
 ---
@@ -919,7 +919,7 @@ echo "Backup completed: $BACKUP_DIR"
    ```bash
    # Check for updates
    pip list --outdated
-   
+
    # Update non-breaking changes
    pip install -U --upgrade-strategy only-if-needed -r requirements.txt
    ```
@@ -997,7 +997,7 @@ echo "Backup completed: $BACKUP_DIR"
    ```bash
    # Increase timeout
    docker-compose exec redis redis-cli CONFIG SET timeout 300
-   
+
    # Enable keepalive
    docker-compose exec redis redis-cli CONFIG SET tcp-keepalive 60
    ```
@@ -1018,13 +1018,13 @@ echo "Backup completed: $BACKUP_DIR"
 1. **Immediate halt:**
    ```bash
    # Stop all trading activities
-   curl -X POST http://localhost:8006/api/v1/emergency/halt-trading
+   curl -X POST http://localhost:9106/api/v1/emergency/halt-trading
    ```
 
 2. **Cancel pending orders:**
    ```bash
    # Cancel all open orders
-   curl -X POST http://localhost:8004/api/v1/orders/cancel-all
+   curl -X POST http://localhost:9104/api/v1/orders/cancel-all
    ```
 
 3. **Notify stakeholders:**
@@ -1049,13 +1049,13 @@ echo "Backup completed: $BACKUP_DIR"
 2. **Execute liquidation:**
    ```bash
    # Submit market orders to close positions
-   curl -X POST http://localhost:8004/api/v1/emergency/liquidate-positions \
+   curl -X POST http://localhost:9104/api/v1/emergency/liquidate-positions \
      -d '{"reason": "risk_management", "max_loss_percent": 0.10}'
    ```
 
 3. **Monitor execution:**
    ```bash
-   watch -n 5 'curl -s http://localhost:8005/api/v1/portfolio | jq .total_value'
+   watch -n 5 'curl -s http://localhost:9105/api/v1/portfolio | jq .total_value'
    ```
 
 ---
@@ -1107,9 +1107,9 @@ echo "Disk: $(df -h / | awk 'NR==2{printf "%s", $5}')"
 
 # Trading status
 echo -e "\nTrading Status:"
-trading_enabled=$(curl -s http://localhost:8006/api/v1/status | jq -r .trading_enabled)
+trading_enabled=$(curl -s http://localhost:9106/api/v1/status | jq -r .trading_enabled)
 echo "Trading Enabled: $trading_enabled"
 
 # Recent performance
 echo -e "\nRecent Performance:"
-portfolio_value=$(curl -s http://localhost:8005/api/v1/portfolio | jq -r .total_value)
+portfolio_value=$(curl -s http://localhost:9105/api/v1/portfolio | jq -r .total_value)

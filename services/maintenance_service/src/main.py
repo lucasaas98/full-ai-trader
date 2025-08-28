@@ -790,7 +790,7 @@ if __name__ == "__main__":
     # Setup signal handlers
     setup_signal_handlers()
 
-    port = int(os.getenv("SERVICE_PORT", 8007))
+    port = int(os.getenv("SERVICE_PORT", 9107))
 
     uvicorn.run(
         app,

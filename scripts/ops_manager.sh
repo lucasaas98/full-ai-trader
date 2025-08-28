@@ -620,7 +620,7 @@ maintenance_mode() {
             fi
 
             # Call maintenance service API if available
-            if curl -s -X POST "http://localhost:8007/maintenance/enter" \
+            if curl -s -X POST "http://localhost:9107/maintenance/enter" \
                 -H "Content-Type: application/json" \
                 -d "{\"message\": \"$message\", \"initiated_by\": \"$(whoami)\"}" &>/dev/null; then
                 print_status "SUCCESS" "Maintenance mode activated"
@@ -638,7 +638,7 @@ maintenance_mode() {
             fi
 
             # Call maintenance service API if available
-            if curl -s -X POST "http://localhost:8007/maintenance/exit" &>/dev/null; then
+            if curl -s -X POST "http://localhost:9107/maintenance/exit" &>/dev/null; then
                 print_status "SUCCESS" "Maintenance mode deactivated"
             else
                 print_status "WARNING" "Maintenance service not available, starting core services manually"
@@ -646,7 +646,7 @@ maintenance_mode() {
             fi
             ;;
         "status")
-            if curl -s "http://localhost:8007/status" | jq -r '.maintenance_mode' 2>/dev/null | grep -q true; then
+            if curl -s "http://localhost:9107/status" | jq -r '.maintenance_mode' 2>/dev/null | grep -q true; then
                 print_status "INFO" "System is currently in maintenance mode"
             else
                 print_status "INFO" "System is not in maintenance mode"

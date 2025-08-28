@@ -42,11 +42,11 @@ DAEMON_MODE=false
 CORE_SERVICES=(
     "postgres:5432:database"
     "redis:6379:cache"
-    "data_collector:8001:api"
-    "strategy_engine:8002:api"
-    "risk_manager:8003:api"
-    "trade_executor:8004:api"
-    "scheduler:8005:api"
+    "data_collector:9101:api"
+    "strategy_engine:9102:api"
+    "risk_manager:9103:api"
+    "trade_executor:9104:api"
+    "scheduler:9105:api"
 )
 
 MONITORING_SERVICES=(
@@ -57,8 +57,8 @@ MONITORING_SERVICES=(
 )
 
 OPTIONAL_SERVICES=(
-    "export_service:8006:api"
-    "maintenance_service:8007:api"
+    "export_service:9106:api"
+    "maintenance_service:9107:api"
     "alertmanager:9093:http"
 )
 

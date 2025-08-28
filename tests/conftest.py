@@ -775,10 +775,7 @@ def test_helper():
     return TestHelper()
 
 
-# Async test support
-@pytest.fixture
-def anyio_backend():
-    return "asyncio"
+
 
 
 # Performance testing markers

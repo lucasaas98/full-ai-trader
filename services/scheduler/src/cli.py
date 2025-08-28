@@ -544,7 +544,7 @@ async def positions(
     """Show current positions."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{url.replace('8000', '8004')}/positions")
+            response = await client.get(f"{url.replace('8000', '9104')}/positions")
             response.raise_for_status()
             positions_data = response.json()
 
@@ -589,7 +589,7 @@ async def portfolio(
     """Show portfolio summary."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"{url.replace('8000', '8004')}/portfolio")
+            response = await client.get(f"{url.replace('8000', '9104')}/portfolio")
             response.raise_for_status()
             portfolio_data = response.json()
 
@@ -618,7 +618,7 @@ async def export(
     try:
         # Get trades data
         async with httpx.AsyncClient() as http_client:
-            response = await http_client.get(f"{url.replace('8000', '8004')}/trades/export")
+            response = await http_client.get(f"{url.replace('8000', '9104')}/trades/export")
             response.raise_for_status()
             trades_data = response.json()
 
@@ -814,7 +814,7 @@ async def strategy(
     try:
         async with httpx.AsyncClient() as client:
             if action == "list":
-                response = await client.get(f"{url.replace('8000', '8002')}/strategies")
+                response = await client.get(f"{url.replace('8000', '9102')}/strategies")
                 response.raise_for_status()
                 strategies_data = response.json()
 
@@ -842,7 +842,7 @@ async def strategy(
             elif action in ["enable", "disable"] and strategy_name:
                 enabled = action == "enable"
                 response = await client.post(
-                    f"{url.replace('8000', '8002')}/strategies/{strategy_name}/toggle",
+                    f"{url.replace('8000', '9102')}/strategies/{strategy_name}/toggle",
                     json={"enabled": enabled}
                 )
                 response.raise_for_status()
@@ -870,7 +870,7 @@ async def risk(
     try:
         async with httpx.AsyncClient() as client:
             if action == "status":
-                response = await client.get(f"{url.replace('8000', '8003')}/risk/status")
+                response = await client.get(f"{url.replace('8000', '9103')}/risk/status")
                 response.raise_for_status()
                 risk_data = response.json()
 
@@ -886,7 +886,7 @@ async def risk(
                 ))
 
             elif action == "limits":
-                response = await client.get(f"{url.replace('8000', '8003')}/risk/limits")
+                response = await client.get(f"{url.replace('8000', '9103')}/risk/limits")
                 response.raise_for_status()
                 limits_data = response.json()
 
@@ -912,7 +912,7 @@ async def risk(
                 console.print(table)
 
             elif action == "alerts":
-                response = await client.get(f"{url.replace('8000', '8003')}/risk/alerts")
+                response = await client.get(f"{url.replace('8000', '9103')}/risk/alerts")
                 response.raise_for_status()
                 alerts_data = response.json()
 
@@ -973,7 +973,7 @@ async def backtest(
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{url.replace('8000', '8002')}/backtest",
+                    f"{url.replace('8000', '9102')}/backtest",
                     json=backtest_params,
                     timeout=300.0
                 )
@@ -1527,7 +1527,7 @@ async def trade(
     try:
         if action == "status":
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{url.replace('8000', '8004')}/status")
+                response = await client.get(f"{url.replace('8000', '9104')}/status")
                 response.raise_for_status()
                 trade_data = response.json()
 
@@ -1541,7 +1541,7 @@ async def trade(
 
         elif action == "history":
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{url.replace('8000', '8004')}/trades/recent")
+                response = await client.get(f"{url.replace('8000', '9104')}/trades/recent")
                 response.raise_for_status()
                 trades_data = response.json()
 
@@ -1581,7 +1581,7 @@ async def trade(
             if confirm:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
-                        f"{url.replace('8000', '8004')}/trades/manual",
+                        f"{url.replace('8000', '9104')}/trades/manual",
                         json={
                             "symbol": symbol,
                             "side": side,
