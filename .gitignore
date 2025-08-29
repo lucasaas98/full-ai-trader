@@ -162,3 +162,4 @@ data/
 !docs/*.md
 
 integration_test_data/
+alertmanager.yml

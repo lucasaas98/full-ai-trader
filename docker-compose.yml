@@ -30,7 +30,7 @@ services:
         image: redis:7-alpine
         container_name: trading_redis
         environment:
-            REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+            REDIS_PASSWORD: ${REDIS_PASSWORD}
         ports:
             - "${REDIS_PORT:-6379}:6379"
         volumes:
@@ -255,6 +255,10 @@ services:
             - ENVIRONMENT=${ENVIRONMENT:-development}
             - GOTIFY_URL=${GOTIFY_URL}
             - GOTIFY_TOKEN=${GOTIFY_TOKEN}
+            - ALPACA_API_KEY=${ALPACA_API_KEY}
+            - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+            - ALPACA_BASE_URL=${ALPACA_BASE_URL:-https://paper-api.alpaca.markets}
+            - ALPACA_DATA_URL=${ALPACA_DATA_URL:-https://data.alpaca.markets}
             - SCHEDULER_MARKET_DATA_INTERVAL=${SCHEDULER_MARKET_DATA_INTERVAL:-60}
             - SCHEDULER_STRATEGY_INTERVAL=${SCHEDULER_STRATEGY_INTERVAL:-300}
             - SCHEDULER_RISK_CHECK_INTERVAL=${SCHEDULER_RISK_CHECK_INTERVAL:-60}
@@ -374,7 +378,9 @@ services:
         image: prometheuscommunity/postgres-exporter:latest
         container_name: trading_postgres_exporter
         environment:
-            DATA_SOURCE_NAME: "postgresql://${DB_USER:-trader}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-trading_system}?sslmode=disable"
+            DATA_SOURCE_URI: "postgres:5432/${DB_NAME:-trading_system}?sslmode=disable"
+            DATA_SOURCE_USER: "${DB_USER:-trader}"
+            DATA_SOURCE_PASS: "${DB_PASSWORD}"
         ports:
             - "9187:9187"
         networks:
@@ -389,7 +395,7 @@ services:
         container_name: trading_redis_exporter
         environment:
             REDIS_ADDR: "redis://redis:6379"
-            REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+            REDIS_PASSWORD: "${REDIS_PASSWORD}"
         ports:
             - "9121:9121"
         networks:
@@ -463,8 +469,8 @@ services:
 
     export_service:
         build:
-            context: .
-            dockerfile: services/export_service/Dockerfile
+            context: ./services/export_service
+            dockerfile: Dockerfile
         container_name: trading_export_service
         environment:
             - SERVICE_NAME=export_service
@@ -501,8 +507,8 @@ services:
 
     maintenance_service:
         build:
-            context: .
-            dockerfile: services/maintenance_service/Dockerfile
+            context: ./services/maintenance_service
+            dockerfile: Dockerfile
         container_name: trading_maintenance_service
         environment:
             - SERVICE_NAME=maintenance_service
@@ -543,8 +549,8 @@ services:
     # Notification Service
     notification_service:
         build:
-            context: .
-            dockerfile: services/notification_service/Dockerfile
+            context: ./services/notification_service
+            dockerfile: Dockerfile
         container_name: trading_notification_service
         environment:
             - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379

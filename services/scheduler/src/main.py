@@ -25,7 +25,7 @@ from shared.config import get_config, Config
 from shared.utils import setup_logging
 from .scheduler import TradingScheduler
 from .orchestrator import ServiceOrchestrator, ServiceConfiguration, ServiceDependency, HealthCheck
-from .market_hours import MarketHoursService
+from shared.market_hours import MarketHoursService
 from .monitor import SystemMonitor
 from .maintenance import MaintenanceManager, MaintenanceScheduler
 from .api import create_app
@@ -74,7 +74,7 @@ class SchedulerService:
             logger.info("Redis connection established")
 
             # Initialize components
-            self.market_hours = MarketHoursService(self.config.scheduler.timezone)
+            self.market_hours = MarketHoursService(timezone_name=self.config.scheduler.timezone)
             self.monitor = SystemMonitor(self.redis_client, self.config)
             self.orchestrator = ServiceOrchestrator(self.redis_client)
             self.scheduler = TradingScheduler(self.config)
@@ -438,7 +438,7 @@ class SchedulerService:
             # Check market hours service
             try:
                 assert self.market_hours is not None
-                session = self.market_hours.get_current_session()
+                session = await self.market_hours.get_current_session()
                 health_status["components"]["market_hours"] = "healthy"
                 health_status["market_session"] = session.value
             except Exception as e:
@@ -476,8 +476,7 @@ class SchedulerService:
 
             # Stop market hours monitoring
             if self.market_hours:
-                # Market hours service doesn't have explicit shutdown method
-                pass
+                await self.market_hours.shutdown()
 
             # Shutdown maintenance system
             if self.maintenance_manager:

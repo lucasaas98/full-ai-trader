@@ -12,8 +12,12 @@ import logging
 from datetime import datetime, timedelta, date, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
+from uuid import UUID, uuid4
 import json
 
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy import text
+from shared.config import get_config
 from shared.models import (
     RiskEvent, PortfolioState, PortfolioMetrics,
     PositionRisk, RiskAlert, DailyRiskReport

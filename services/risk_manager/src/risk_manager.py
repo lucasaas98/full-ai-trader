@@ -46,16 +46,15 @@ class RiskManager:
         self._cache_timestamp: Optional[datetime] = None
         self._cache_ttl = timedelta(minutes=1)
 
-        # Data access
-        self._data_store = None
-        self._data_client = None
+        # Data access via HTTP client
         self._price_cache: Dict[str, Tuple[datetime, float]] = {}
         self._correlation_cache: Dict[str, Tuple[datetime, float]] = {}
         self._volatility_cache: Dict[str, Tuple[datetime, float]] = {}
         self._atr_cache: Dict[str, Tuple[datetime, float]] = {}
 
-        # Initialize data services
-        asyncio.create_task(self._initialize_data_services())
+        # Initialize HTTP client for data access
+        self._data_client = None
+        asyncio.create_task(self._initialize_data_client())
 
     async def validate_trade_request(self,
                                    order_request: OrderRequest,
@@ -1127,38 +1126,12 @@ class RiskManager:
                 if cache_age < timedelta(hours=1):
                     return cached_value
 
-            # Get historical data for both symbols
-            df1 = await self._get_historical_data(symbol1, days=252)
-            df2 = await self._get_historical_data(symbol2, days=252)
-
-            if df1 is None or df2 is None:
+            # Get correlation from data collector service
+            if self._data_client is not None:
+                correlation = await self._data_client.get_symbol_correlation(symbol1, symbol2, days=252)
+            else:
                 # Fallback to placeholder logic
                 correlation = 0.3 if len(set(symbol1) & set(symbol2)) > 1 else 0.1
-            else:
-                # Calculate returns for both symbols
-                returns1 = await self._calculate_returns(df1)
-                returns2 = await self._calculate_returns(df2)
-
-                if returns1 is None or returns2 is None or len(returns1) < 10 or len(returns2) < 10:
-                    correlation = 0.1
-                else:
-                    # Merge on timestamp and calculate correlation
-                    merged = returns1.select(["timestamp", "returns"]).join(
-                        returns2.select(["timestamp", "returns"]),
-                        on="timestamp",
-                        how="inner",
-                        suffix="_2"
-                    )
-
-                    if len(merged) < 10:
-                        correlation = 0.1
-                    else:
-                        # Calculate Pearson correlation
-                        corr_matrix = merged.select(["returns", "returns_2"]).corr()
-                        correlation = float(corr_matrix[0, 1]) if corr_matrix[0, 1] is not None else 0.1
-
-                        # Clamp correlation to reasonable bounds
-                        correlation = max(-1.0, min(1.0, correlation))
 
             # Cache the result
             self._correlation_cache[cache_key] = (datetime.now(), correlation)
@@ -1178,10 +1151,10 @@ class RiskManager:
                 if cache_age < timedelta(hours=1):
                     return cached_value
 
-            # Get historical data
-            df = await self._get_historical_data(symbol, days=252)
-
-            if df is None or len(df) < 20:
+            # Get volatility from data collector service
+            if self._data_client is not None:
+                volatility = await self._data_client.get_symbol_volatility(symbol, days=252)
+            else:
                 # Fallback to symbol-based estimation
                 if any(char.isdigit() for char in symbol):
                     volatility = 0.35  # Higher volatility for symbols with numbers
@@ -1189,20 +1162,6 @@ class RiskManager:
                     volatility = 0.25  # Medium volatility for short symbols
                 else:
                     volatility = 0.20  # Lower volatility for longer symbols
-            else:
-                # Calculate returns
-                returns_df = await self._calculate_returns(df)
-
-                if returns_df is None or len(returns_df) < 20:
-                    volatility = 0.25
-                else:
-                    # Calculate annualized volatility
-                    returns_std_val = returns_df["returns"].std()
-                    returns_std = float(returns_std_val) if returns_std_val is not None else 0.0
-                    volatility = returns_std * np.sqrt(252)  # Annualized
-
-                    # Clamp to reasonable bounds
-                    volatility = max(0.05, min(2.0, volatility))
 
             # Cache the result
             self._volatility_cache[symbol] = (datetime.now(), volatility)
@@ -1222,37 +1181,12 @@ class RiskManager:
                 if cache_age < timedelta(hours=1):
                     return cached_value
 
-            # Get historical OHLC data
-            df = await self._get_historical_data(symbol, days=30)
-
-            if df is None or len(df) < period:
-                # Fallback to placeholder
-                atr = 0.02
+            # Get ATR from data collector service
+            if self._data_client is not None:
+                atr = await self._data_client.get_atr(symbol, period=period, days=30)
             else:
-                # Calculate True Range
-                df_with_tr = df.with_columns([
-                    # True Range = max(H-L, |H-C_prev|, |L-C_prev|)
-                    pl.max_horizontal([
-                        pl.col("high") - pl.col("low"),
-                        (pl.col("high") - pl.col("close").shift(1)).abs(),
-                        (pl.col("low") - pl.col("close").shift(1)).abs()
-                    ]).alias("true_range")
-                ]).drop_nulls()
-
-                if len(df_with_tr) < period:
-                    atr = 0.02
-                else:
-                    # Calculate period-ATR
-                    atr_mean_val = df_with_tr["true_range"].tail(period).mean()
-                    atr_value = float(atr_mean_val) if atr_mean_val is not None else 0.02
-                    price_val = df_with_tr["close"].tail(1).item()
-                    current_price = float(price_val) if price_val is not None else 1.0
-
-                    # Convert to percentage
-                    atr = atr_value / current_price if current_price > 0 else 0.02
-
-                    # Clamp to reasonable bounds
-                    atr = max(0.005, min(0.10, atr))
+                # Fallback to default
+                atr = 0.02
 
             # Cache the result
             self._atr_cache[symbol] = (datetime.now(), atr)
@@ -1262,56 +1196,34 @@ class RiskManager:
             logger.error(f"Error getting ATR for {symbol}: {e}")
             return 0.02  # Default ATR
 
-    async def _initialize_data_services(self):
-        """Initialize data store and client connections."""
+    async def _initialize_data_client(self):
+        """Initialize HTTP client for data collector service."""
         try:
-            # Import data services
-            from services.data_collector.src.data_store import DataStore, DataStoreConfig
-            from services.data_collector.src.twelvedata_client import TwelveDataClient, TwelveDataConfig
+            from shared.clients import DataCollectorClient
 
-            # Create data store config from main config
-            data_config = self.config.data
-            data_store_config = DataStoreConfig(
-                base_path=data_config.parquet_path,
-                max_workers=4,
-                retention_days=data_config.retention_days,
-                compression=data_config.compression,
-                batch_size=data_config.batch_size
-            )
+            # Get data collector service URL from config or use default
+            data_collector_url = getattr(self.config, 'data_collector_url', "http://localhost:9101")
 
-            # Create TwelveData config using values from main config
-            shared_twelvedata = self.config.twelvedata
-            twelvedata_config = TwelveDataConfig(
-                api_key=shared_twelvedata.api_key,
-                base_url=shared_twelvedata.base_url,
-                rate_limit_requests=shared_twelvedata.rate_limit_requests,
-                rate_limit_period=shared_twelvedata.rate_limit_period,
-                timeout=float(shared_twelvedata.timeout)
-            )
+            # Initialize HTTP client
+            self._data_client = DataCollectorClient(base_url=data_collector_url)
 
-            # Initialize data store
-            self._data_store = DataStore(data_store_config)
-
-            # Initialize TwelveData client
-            self._data_client = TwelveDataClient(twelvedata_config)
-
-            logger.info("Data services initialized successfully")
+            logger.info("Data collector HTTP client initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize data services: {e}")
-            # Continue without data services - will use fallback methods
+            logger.error(f"Failed to initialize data collector client: {e}")
+            # Continue without data client - will use fallback methods
 
     async def _get_historical_data(self, symbol: str, days: int = 30) -> Optional[pl.DataFrame]:
         """Get historical market data for a symbol."""
         try:
-            if self._data_store is None:
+            if self._data_client is None:
                 return None
 
             # Calculate date range
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
-            # Try to load from data store first
-            df = await self._data_store.load_market_data(
+            # Get data from data collector service
+            df = await self._data_client.load_market_data(
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
@@ -1320,34 +1232,6 @@ class RiskManager:
 
             if df is not None and len(df) > 0:
                 return df
-
-            # If no local data and we have a client, try to fetch
-            if self._data_client is not None:
-                try:
-                    market_data_list = await self._data_client.get_historical_data(
-                        symbol=symbol,
-                        timeframe=TimeFrame.ONE_DAY,
-                        years=max(1, days // 365)
-                    )
-
-                    if market_data_list:
-                        # Convert to DataFrame
-                        data_dicts = []
-                        for md in market_data_list[-days:]:  # Get last N days
-                            data_dicts.append({
-                                'timestamp': md.timestamp,
-                                'open': float(md.open),
-                                'high': float(md.high),
-                                'low': float(md.low),
-                                'close': float(md.close),
-                                'volume': int(md.volume)
-                            })
-
-                        if data_dicts:
-                            return pl.DataFrame(data_dicts)
-
-                except Exception as e:
-                    logger.warning(f"Failed to fetch data for {symbol}: {e}")
 
             return None
 

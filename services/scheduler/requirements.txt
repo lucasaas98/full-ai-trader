@@ -1,2 +1,5 @@
 tenacity==8.2.3
 typer
+httpx
+psutil
+alpaca-py

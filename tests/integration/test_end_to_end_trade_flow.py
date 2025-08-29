@@ -24,7 +24,7 @@ sys.path.append('/app/services/scheduler/src')
 from shared.models import (
     MarketData, TimeFrame, SignalType, OrderSide, OrderType, OrderStatus
 )
-from services.scheduler.src.scheduler import MarketSession
+from shared.market_hours import MarketSession
 
 # Mock model classes for testing
 from enum import Enum
@@ -1915,7 +1915,7 @@ class TestDataFlowIntegration:
     async def test_market_session_transition_handling(self, trading_system_setup):
         """Test handling of market session transitions."""
         # Test pre-market to regular hours transition
-        with patch('scheduler.MarketHoursService') as mock_market:
+        with patch('shared.market_hours.MarketHoursService') as mock_market:
             market_service = mock_market.return_value
 
             # Pre-market session

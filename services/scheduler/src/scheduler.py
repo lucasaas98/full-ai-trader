@@ -9,8 +9,10 @@ and data pipeline coordination.
 import asyncio
 import logging
 import signal
+import sys
 from datetime import datetime, time, timedelta
-from datetime import date as date_type
+
+from pathlib import Path
 from typing import Dict, List, Optional, Set, Callable, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -25,6 +27,10 @@ import redis.asyncio as redis
 import httpx
 import psutil
 from circuitbreaker import circuit
+
+# Add the project root to the Python path
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+from shared.market_hours import MarketHoursService, MarketSession
 
 
 logger = logging.getLogger(__name__)
@@ -50,14 +56,6 @@ class ServiceStatus(str, Enum):
     STOPPED = "stopped"
     ERROR = "error"
     MAINTENANCE = "maintenance"
-
-
-class MarketSession(str, Enum):
-    """Market session types."""
-    PRE_MARKET = "pre_market"
-    REGULAR = "regular"
-    AFTER_HOURS = "after_hours"
-    CLOSED = "closed"
 
 
 class TaskPriority(str, Enum):
@@ -99,102 +97,7 @@ class ScheduledTask:
     error_count: int = 0
 
 
-class MarketHoursManager:
-    """Manages market hours and trading session detection."""
-
-    def __init__(self, timezone: str = "America/New_York"):
-        self.timezone = pytz.timezone(timezone)
-        # self.nyse = mcal.get_calendar('NYSE')  # Temporarily disabled
-        # self.nasdaq = mcal.get_calendar('NASDAQ')  # Temporarily disabled
-
-        # Default trading hours
-        self.pre_market_start = time(4, 0)  # 4:00 AM ET
-        self.market_open = time(9, 30)      # 9:30 AM ET
-        self.market_close = time(16, 0)     # 4:00 PM ET
-        self.after_hours_end = time(20, 0)  # 8:00 PM ET
-
-    def get_current_session(self) -> MarketSession:
-        """Get the current market session."""
-        now = datetime.now(self.timezone)
-
-        if not self.is_trading_day(now.date()):
-            return MarketSession.CLOSED
-
-        current_time = now.time()
-
-        if self.pre_market_start <= current_time < self.market_open:
-            return MarketSession.PRE_MARKET
-        elif self.market_open <= current_time < self.market_close:
-            return MarketSession.REGULAR
-        elif self.market_close <= current_time < self.after_hours_end:
-            return MarketSession.AFTER_HOURS
-        else:
-            return MarketSession.CLOSED
-
-    def is_trading_day(self, check_date: date_type) -> bool:
-        """Check if the given date is a trading day."""
-        # Check if it's a weekend
-        if check_date.weekday() >= 5:  # Saturday = 5, Sunday = 6
-            return False
-
-        # Check NYSE calendar for holidays - temporarily disabled
-        # schedule = self.nyse.schedule(start_date=check_date, end_date=check_date)
-        # return not schedule.empty
-
-        # Fallback: assume weekdays are trading days (no holiday checking)
-        return True
-
-    def is_market_open(self) -> bool:
-        """Check if the market is currently open."""
-        return self.get_current_session() == MarketSession.REGULAR
-
-    def get_next_market_open(self) -> datetime:
-        """Get the next market open datetime."""
-        now = datetime.now(self.timezone)
-
-        # If market is open today and we haven't passed closing
-        if self.is_trading_day(now.date()) and now.time() < self.market_open:
-            return self.timezone.localize(
-                datetime.combine(now.date(), self.market_open)
-            )
-
-        # Find next trading day
-        current_date = now.date() + timedelta(days=1)
-        while not self.is_trading_day(current_date):
-            current_date += timedelta(days=1)
-
-        return self.timezone.localize(
-            datetime.combine(current_date, self.market_open)
-        )
-
-    def get_next_market_close(self) -> datetime:
-        """Get the next market close datetime."""
-        now = datetime.now(self.timezone)
-
-        # If market is open today
-        if self.is_trading_day(now.date()) and now.time() < self.market_close:
-            return self.timezone.localize(
-                datetime.combine(now.date(), self.market_close)
-            )
-
-        # Find next trading day
-        current_date = now.date() + timedelta(days=1)
-        while not self.is_trading_day(current_date):
-            current_date += timedelta(days=1)
-
-        return self.timezone.localize(
-            datetime.combine(current_date, self.market_close)
-        )
-
-    def time_until_market_open(self) -> timedelta:
-        """Get time until next market open."""
-        return self.get_next_market_open() - datetime.now(self.timezone)
-
-    def time_until_market_close(self) -> timedelta:
-        """Get time until next market close."""
-        if self.is_market_open():
-            return self.get_next_market_close() - datetime.now(self.timezone)
-        return timedelta(0)
+# MarketHoursManager removed - now using shared.market_hours.MarketHoursService
 
 
 class SystemMonitor:
@@ -391,7 +294,7 @@ class TradingScheduler:
     def __init__(self, config: Any):
         self.config = config
         self.scheduler = AsyncIOScheduler()
-        self.market_hours = MarketHoursManager(config.scheduler.timezone)
+        self.market_hours = MarketHoursService(timezone_name=config.scheduler.timezone)
         self.redis: Optional[Any] = None
         self.monitor: Optional[Any] = None
         self.task_queue: Optional[Any] = None
@@ -452,11 +355,17 @@ class TradingScheduler:
             'misfire_grace_time': 300  # 5 minutes
         }
 
+        # Get timezone - fallback to pytz if MarketHoursService doesn't expose it
+        try:
+            scheduler_timezone = self.market_hours.timezone
+        except AttributeError:
+            scheduler_timezone = pytz.timezone(self.config.scheduler.timezone)
+
         self.scheduler.configure(
             jobstores=jobstores,
             executors=executors,
             job_defaults=job_defaults,
-            timezone=self.market_hours.timezone
+            timezone=scheduler_timezone
         )
 
         # Register services
@@ -595,11 +504,17 @@ class TradingScheduler:
         )
 
         # EOD reports - daily at market close
+        # Get timezone for scheduling
+        try:
+            schedule_timezone = self.market_hours.timezone
+        except AttributeError:
+            schedule_timezone = pytz.timezone(self.config.scheduler.timezone)
+
         self.tasks["eod_report"] = ScheduledTask(
             id="eod_report",
             name="End of Day Report",
             function=self._run_eod_report,
-            trigger=CronTrigger(hour=16, minute=5, timezone=self.market_hours.timezone),
+            trigger=CronTrigger(hour=16, minute=5, timezone=schedule_timezone),
             priority=TaskPriority.NORMAL,
             market_hours_only=False
         )
@@ -716,7 +631,7 @@ class TradingScheduler:
                 logger.info(f"Retrying task {task.name} in {retry_delay}s (attempt {task.retry_count})")
 
                 self.scheduler.add_job(
-                    func=self._execute_task_wrapper,
+                    func=execute_scheduled_task,
                     trigger='date',
                     run_date=datetime.now() + timedelta(seconds=retry_delay),
                     args=[task_id],
@@ -740,10 +655,15 @@ class TradingScheduler:
         if self.maintenance_mode:
             return False
 
-        session = self.market_hours.get_current_session()
+        # Simplified market hours check for sync context
+        # This is called from sync context, so use basic time-based check
+        now = datetime.now(pytz.timezone(self.config.scheduler.timezone))
+        current_time = now.time()
 
-        # Run during regular market hours and pre-market
-        return session in [MarketSession.REGULAR, MarketSession.PRE_MARKET]
+        # Check if it's a weekday and within market hours (9:30-16:00 ET)
+        if now.weekday() < 5 and time(9, 30) <= current_time <= time(16, 0):
+            return True
+        return False
 
     async def _check_dependency(self, dependency: str) -> bool:
         """Check if a task dependency is satisfied."""
@@ -861,7 +781,7 @@ class TradingScheduler:
         """Store system metrics in Redis."""
         try:
             if self.redis:
-                self.redis.setex(
+                await self.redis.setex(
                     "system:metrics:latest",
                     300,  # 5 minutes TTL
                     str(metrics)
@@ -870,7 +790,7 @@ class TradingScheduler:
             # Store in time series for historical tracking
             timestamp = datetime.now().timestamp()
             if self.redis:
-                self.redis.zadd(
+                await self.redis.zadd(
                     "system:metrics:timeseries",
                     {str(metrics): timestamp}
                 )
@@ -878,7 +798,7 @@ class TradingScheduler:
             # Keep only last 24 hours of metrics
             cutoff = timestamp - (24 * 3600)
             if self.redis:
-                self.redis.zremrangebyscore("system:metrics:timeseries", 0, cutoff)
+                await self.redis.zremrangebyscore("system:metrics:timeseries", 0, cutoff)
 
         except Exception as e:
             logger.error(f"Failed to store metrics: {e}")
@@ -969,11 +889,23 @@ class TradingScheduler:
     async def _run_risk_check(self, task_id: str):
         """Execute risk checks."""
         try:
+            # Create a proper PortfolioState payload
+            portfolio_data = {
+                "account_id": "scheduler_mock_account",
+                "timestamp": datetime.now().isoformat(),
+                "cash": "10000.00",
+                "buying_power": "10000.00",
+                "total_equity": "10000.00",
+                "positions": [],
+                "day_trades_count": 0,
+                "pattern_day_trader": False
+            }
+
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.services['risk_manager'].url}/monitor-portfolio",
                     timeout=60.0,
-                    json={"positions": [], "cash": 10000, "total_value": 10000}
+                    json=portfolio_data
                 )
                 response.raise_for_status()
 
@@ -1359,10 +1291,10 @@ class TradingScheduler:
                 "emergency_stop": self.emergency_stop
             },
             "market": {
-                "session": self.market_hours.get_current_session().value,
-                "is_trading_day": self.market_hours.is_trading_day(datetime.now().date()),
-                "next_open": self.market_hours.get_next_market_open().isoformat(),
-                "next_close": self.market_hours.get_next_market_close().isoformat()
+                "session": (await self.market_hours.get_current_session()).value,
+                "is_trading_day": await self.market_hours.is_trading_day(datetime.now().date()),
+                "next_open": (next_open.isoformat() if (next_open := await self.market_hours.get_next_market_open()) else None),
+                "next_close": (next_close.isoformat() if (next_close := await self.market_hours.get_next_market_close()) else None)
             },
             "services": service_status,
             "tasks": task_status,

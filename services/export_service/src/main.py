@@ -10,6 +10,7 @@ This service provides comprehensive export functionality including:
 """
 
 import os
+import sys
 import logging
 from datetime import datetime
 from typing import List, Optional
@@ -28,7 +29,8 @@ import zipfile
 
 import asyncpg
 from contextlib import asynccontextmanager
-
+# Add parent directories to Python path for shared imports
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from shared.config import Config
 # Simplified logging setup
 def setup_logging(name):
@@ -822,12 +824,12 @@ async def export_tradenote(
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     port = int(os.getenv("SERVICE_PORT", "9106"))
     host = "0.0.0.0"
-    
+
     logger.info(f"Starting Export Service on {host}:{port}")
-    
+
     uvicorn.run(
         app,
         host=host,

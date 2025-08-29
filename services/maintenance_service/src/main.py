@@ -32,8 +32,6 @@ from monitoring.metrics import MetricsCollector
 
 def setup_logging(service_name: str):
     """Set up logging configuration."""
-    import logging
-
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,

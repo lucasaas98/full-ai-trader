@@ -1327,3 +1327,28 @@ class PositionTracker:
         except Exception as e:
             logger.error(f"Failed to calculate correlation between {symbol1} and {symbol2}: {e}")
             return 0.0
+
+    async def initialize_symbol_tracking(self, symbol: str) -> None:
+        """
+        Initialize tracking for a new symbol.
+
+        Args:
+            symbol: Trading symbol to start tracking
+        """
+        try:
+            # Initialize price callbacks for the symbol if not exists
+            if symbol not in self._price_callbacks:
+                self._price_callbacks[symbol] = []
+
+            # Initialize symbol in positions cache if not exists
+            if symbol not in self._positions_cache:
+                self._positions_cache[symbol] = {}
+
+            # Set up any symbol-specific tracking data
+            # This could include initializing metrics, alerts, or other symbol-specific data
+
+            logger.info(f"Initialized symbol tracking for {symbol}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize symbol tracking for {symbol}: {e}")
+            raise

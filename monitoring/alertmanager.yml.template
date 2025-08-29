@@ -1,0 +1,339 @@
+global:
+    # Global configuration
+    smtp_smarthost: "${SMTP_HOST}:${SMTP_PORT}"
+    smtp_from: "${SMTP_FROM}"
+    smtp_auth_username: "${SMTP_USERNAME}"
+    smtp_auth_password: "${SMTP_PASSWORD}"
+    resolve_timeout: 5m
+
+# Templates for alert formatting
+templates:
+    - "/etc/alertmanager/templates/*.tmpl"
+
+# Route configuration
+route:
+    group_by: ["alertname", "service", "category"]
+    group_wait: 10s
+    group_interval: 10s
+    repeat_interval: 12h
+    receiver: "email-default"
+    routes:
+        # Critical alerts - immediate notification
+        - match:
+              severity: critical
+          receiver: "email-critical"
+          group_wait: 0s
+          repeat_interval: 5m
+
+        # Trading performance alerts
+        - match:
+              category: trading
+          receiver: "email-trading"
+          group_wait: 30s
+          repeat_interval: 15m
+
+        # System alerts
+        - match:
+              category: system
+          receiver: "email-system"
+          group_wait: 1m
+          repeat_interval: 30m
+
+        # Performance alerts
+        - match:
+              category: performance
+          receiver: "email-performance"
+          group_wait: 2m
+          repeat_interval: 1h
+
+        # Database alerts
+        - match:
+              category: database
+          receiver: "email-database"
+          group_wait: 1m
+          repeat_interval: 30m
+
+        # API alerts
+        - match:
+              category: api
+          receiver: "email-api"
+          group_wait: 1m
+          repeat_interval: 30m
+
+        # Security alerts
+        - match:
+              category: security
+          receiver: "email-security"
+          group_wait: 0s
+          repeat_interval: 5m
+
+# Receivers configuration
+receivers:
+    - name: "email-default"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .alert { border-left: 4px solid #007cba; padding: 10px; margin: 10px 0; background-color: #f9f9f9; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2>🚨 Trading System Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="alert">
+                        <p><span class="label">Alert:</span> {{ .Annotations.summary }}</p>
+                        <p><span class="label">Description:</span> {{ .Annotations.description }}</p>
+                        <p><span class="label">Severity:</span> {{ .Labels.severity }}</p>
+                        <p><span class="label">Service:</span> {{ .Labels.service }}</p>
+                        <p><span class="label">Started:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-critical"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .critical { border-left: 4px solid #dc3545; padding: 15px; margin: 10px 0; background-color: #f8d7da; }
+                        .label { font-weight: bold; }
+                        .urgent { color: #dc3545; font-weight: bold; font-size: 18px; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #dc3545;">🚨 CRITICAL: Trading System Emergency</h2>
+                    <div class="urgent">CRITICAL ALERT DETECTED</div>
+                    {{ range .Alerts }}
+                    <div class="critical">
+                        <p>🔥 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>📋 <span class="label">Description:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Service:</span> {{ .Labels.service }}</p>
+                        <p>⏰ <span class="label">Started:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                        {{ if .Labels.runbook_url }}<p>📖 <span class="label">Runbook:</span> <a href="{{ .Labels.runbook_url }}">{{ .Labels.runbook_url }}</a></p>{{ end }}
+                    </div>
+                    {{ end }}
+                    <div class="urgent">IMMEDIATE ACTION REQUIRED</div>
+                </body>
+                </html>
+
+    - name: "email-trading"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .trading { border-left: 4px solid #28a745; padding: 10px; margin: 10px 0; background-color: #d4edda; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #28a745;">📈 Trading Performance Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="trading">
+                        <p>💰 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>📊 <span class="label">Details:</span> {{ .Annotations.description }}</p>
+                        <p>🎯 <span class="label">Strategy:</span> {{ .Labels.strategy | default "Unknown" }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-system"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .system { border-left: 4px solid #ffc107; padding: 10px; margin: 10px 0; background-color: #fff3cd; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #856404;">🖥️ System Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="system">
+                        <p>⚠️ <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>🔧 <span class="label">Issue:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Service:</span> {{ .Labels.service }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-performance"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .performance { border-left: 4px solid #fd7e14; padding: 10px; margin: 10px 0; background-color: #ffeaa7; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #fd7e14;">⚡ Performance Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="performance">
+                        <p>🐌 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>📊 <span class="label">Metrics:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Service:</span> {{ .Labels.service }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-database"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .database { border-left: 4px solid #6f42c1; padding: 10px; margin: 10px 0; background-color: #e2d9f3; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #6f42c1;">🗄️ Database Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="database">
+                        <p>💾 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>🔍 <span class="label">Details:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Database:</span> {{ .Labels.database | default "trading_system" }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-api"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .api { border-left: 4px solid #17a2b8; padding: 10px; margin: 10px 0; background-color: #d1ecf1; }
+                        .label { font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #17a2b8;">🌐 API Alert</h2>
+                    {{ range .Alerts }}
+                    <div class="api">
+                        <p>🔌 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>📡 <span class="label">Details:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Endpoint:</span> {{ .Labels.endpoint | default "Unknown" }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                </body>
+                </html>
+
+    - name: "email-security"
+      email_configs:
+          - to: "${EMAIL_TO}"
+            html: |
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; }
+                        .security { border-left: 4px solid #dc3545; padding: 15px; margin: 10px 0; background-color: #f8d7da; border: 2px solid #dc3545; }
+                        .label { font-weight: bold; }
+                        .urgent { color: #dc3545; font-weight: bold; font-size: 18px; text-align: center; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="color: #dc3545;">🛡️ SECURITY ALERT</h2>
+                    <div class="urgent">SECURITY INCIDENT DETECTED</div>
+                    {{ range .Alerts }}
+                    <div class="security">
+                        <p>🚨 <span class="label">{{ .Annotations.summary }}</span></p>
+                        <p>🔒 <span class="label">Threat:</span> {{ .Annotations.description }}</p>
+                        <p>🏷️ <span class="label">Source:</span> {{ .Labels.source | default "Unknown" }}</p>
+                        <p>⏰ <span class="label">Time:</span> {{ .StartsAt.Format "2006-01-02 15:04:05" }}</p>
+                    </div>
+                    {{ end }}
+                    <div class="urgent">INVESTIGATE IMMEDIATELY</div>
+                </body>
+                </html>
+
+# Inhibit rules - prevent spam
+inhibit_rules:
+    # Inhibit any warning-level alerts when there are critical alerts
+    - source_match:
+          severity: "critical"
+      target_match:
+          severity: "warning"
+      equal: ["service"]
+
+    # Inhibit duplicate alerts for the same service
+    - source_match:
+          alertname: "ServiceDown"
+      target_match_re:
+          alertname: "Service.*"
+      equal: ["service"]
+
+    # Inhibit performance alerts when service is down
+    - source_match:
+          alertname: "ServiceDown"
+      target_match_re:
+          category: "performance"
+      equal: ["service"]
+
+# Time intervals for grouping
+time_intervals:
+    - name: business_hours
+      time_intervals:
+          - times:
+                - start_time: "09:30"
+                  end_time: "16:00"
+            weekdays: ["monday:friday"]
+            location: "America/New_York"
+
+    - name: after_hours
+      time_intervals:
+          - times:
+                - start_time: "16:01"
+                  end_time: "23:59"
+            weekdays: ["monday:friday"]
+            location: "America/New_York"
+          - times:
+                - start_time: "00:00"
+                  end_time: "09:29"
+            weekdays: ["tuesday:wednesday", "thursday", "friday"]
+            location: "America/New_York"
+          - weekdays: ["saturday", "sunday"]
+            location: "America/New_York"
+
+    - name: weekend
+      time_intervals:
+          - weekdays: ["saturday", "sunday"]
+            location: "America/New_York"

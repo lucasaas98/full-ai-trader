@@ -1,5 +1,5 @@
 # Base Dockerfile for Python trading system services
-FROM python:3-alpine
+FROM python:3-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \

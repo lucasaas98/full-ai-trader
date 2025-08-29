@@ -287,6 +287,9 @@ class Config(BaseSettings):
     environment: str = Field(default="development", alias="ENVIRONMENT")
     debug: bool = Field(default=False, alias="DEBUG")
 
+    # Service URLs
+    data_collector_url: str = Field(default="http://localhost:9101", alias="DATA_COLLECTOR_URL")
+
     @property
     def database(self) -> DatabaseConfig:
         """Get database configuration."""
