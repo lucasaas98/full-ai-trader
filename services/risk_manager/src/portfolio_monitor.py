@@ -566,10 +566,13 @@ class PortfolioMonitor:
 
             excess_returns = returns_array - risk_free_rate
 
-            if np.std(excess_returns) > 0:
-                sharpe_ratio = np.mean(excess_returns) / np.std(excess_returns)
+            std_dev = np.std(excess_returns)
+            if std_dev > 1e-9:
+                sharpe_ratio = np.mean(excess_returns) / std_dev
                 # Annualize
-                return sharpe_ratio * np.sqrt(252)
+                annualized_sharpe = sharpe_ratio * np.sqrt(252)
+                # Clamp the value to a reasonable range to prevent overflow
+                return max(-9999.0, min(9999.0, annualized_sharpe))
             else:
                 return 0.0
 
