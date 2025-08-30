@@ -545,7 +545,8 @@ class PerformanceUtils:
 
         # Annualize
         sharpe = (Decimal(str(float(mean_excess))) / std_excess) * Decimal(str(math.sqrt(252)))
-        return sharpe
+        # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
+        return max(Decimal("-99.999999"), min(Decimal("99.999999"), sharpe))
 
     @staticmethod
     def calculate_sortino_ratio(

@@ -19,7 +19,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 import polars as pl
 
 # Add shared module to path
@@ -37,7 +37,7 @@ from .backtesting_engine import BacktestingEngine, BacktestConfig, BacktestMode
 from .redis_integration import RedisStrategyEngine
 
 # Import shared models
-from shared.models import FinVizData, TechnicalIndicators
+from shared.models import FinVizData
 
 
 # Configure logging
@@ -79,6 +79,12 @@ class ParameterOptimizationRequest(BaseModel):
     objective: str = Field(default="sharpe_ratio", description="Optimization objective")
     start_date: str = Field(..., description="Start date")
     end_date: str = Field(..., description="End date")
+
+
+class EODReportRequest(BaseModel):
+    date: Optional[str] = Field(None, description="Report date (YYYY-MM-DD), defaults to today")
+    include_detailed_signals: bool = Field(default=False, description="Include detailed signal analysis")
+    include_performance_metrics: bool = Field(default=True, description="Include strategy performance metrics")
 
 
 class StrategyEngineService:
@@ -545,6 +551,239 @@ class StrategyEngineService:
         except Exception as e:
             self.logger.error(f"Error creating default strategies: {e}")
 
+    async def generate_eod_report(self, request: Optional[EODReportRequest] = None) -> Dict[str, Any]:
+        """Generate End-of-Day trading report."""
+        try:
+            if request is None:
+                request = EODReportRequest(date=None)
+
+            # Parse report date
+            if request.date:
+                report_date = datetime.fromisoformat(request.date).replace(tzinfo=timezone.utc)
+            else:
+                report_date = datetime.now(timezone.utc)
+
+            # start_of_day = report_date.replace(hour=0, minute=0, second=0, microsecond=0)  # Not used in current implementation
+
+            self.logger.info(f"Generating EOD report for {report_date.date()}")
+
+            # Collect strategy performance data
+            strategy_performance = {}
+            total_signals_generated = 0
+            total_high_confidence_signals = 0
+
+            for strategy_name, strategy in self.active_strategies.items():
+                try:
+                    # Get strategy info
+                    strategy_info = strategy.get_strategy_info()
+
+                    # Count signals generated today (would need Redis to get actual counts)
+                    signals_today = 0
+                    high_confidence_signals = 0
+
+                    # Try to get signal metrics from Redis if available
+                    if self.redis_engine and self.redis_engine.redis:
+                        try:
+                            # Get signal count for today
+                            signal_key = f"signals:{strategy_name}:{report_date.strftime('%Y-%m-%d')}"
+                            signals_today = await self.redis_engine.redis.get(signal_key) or 0
+                            signals_today = int(signals_today)
+
+                            # Get high confidence signal count
+                            hc_signal_key = f"high_confidence_signals:{strategy_name}:{report_date.strftime('%Y-%m-%d')}"
+                            high_confidence_signals = await self.redis_engine.redis.get(hc_signal_key) or 0
+                            high_confidence_signals = int(high_confidence_signals)
+                        except Exception as redis_error:
+                            self.logger.warning(f"Could not retrieve signal metrics from Redis: {redis_error}")
+
+                    strategy_performance[strategy_name] = {
+                        "type": strategy.__class__.__name__,
+                        "mode": strategy_info.get("mode", "unknown"),
+                        "signals_generated": signals_today,
+                        "high_confidence_signals": high_confidence_signals,
+                        "min_confidence_threshold": strategy.config.min_confidence,
+                        "max_position_size": strategy.config.max_position_size,
+                        "lookback_period": strategy.config.lookback_period,
+                        "active": True
+                    }
+
+                    total_signals_generated += signals_today
+                    total_high_confidence_signals += high_confidence_signals
+
+                except Exception as strategy_error:
+                    self.logger.error(f"Error collecting performance data for {strategy_name}: {strategy_error}")
+                    strategy_performance[strategy_name] = {
+                        "type": strategy.__class__.__name__,
+                        "error": str(strategy_error),
+                        "active": False
+                    }
+
+            # Collect market analysis summary
+            symbols_analyzed = []
+            technical_analysis_summary = {}
+
+            # Get list of commonly tracked symbols
+            tracked_symbols = set()
+            for strategy in self.active_strategies.values():
+                if hasattr(strategy, 'symbols') and getattr(strategy, 'symbols', None):
+                    tracked_symbols.update(getattr(strategy, 'symbols'))
+
+            # Fallback to default symbols if none found
+            if not tracked_symbols:
+                tracked_symbols = {'AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY', 'QQQ'}
+
+            # Perform analysis on a subset of symbols for the report
+            analysis_symbols = list(tracked_symbols)[:10]  # Limit to 10 symbols for performance
+
+            for symbol in analysis_symbols:
+                try:
+                    market_data = await self._get_market_data(symbol, 50)
+                    if market_data is not None and not market_data.is_empty():
+                        # Perform quick technical analysis
+                        tech_analysis = self.technical_engine.full_analysis(symbol, market_data)
+                        if tech_analysis:
+                            symbols_analyzed.append(symbol)
+                            technical_analysis_summary[symbol] = {
+                                "technical_score": tech_analysis.get('technical_score', 50.0),
+                                "trend": self._determine_trend(tech_analysis.get('indicators', {})),
+                                "volatility": self._calculate_volatility(market_data),
+                                "data_points": tech_analysis.get('data_points', 0)
+                            }
+                except Exception as analysis_error:
+                    self.logger.warning(f"Analysis failed for {symbol}: {analysis_error}")
+                    continue
+
+            # Generate summary statistics
+            avg_technical_score = 0.0
+            if technical_analysis_summary:
+                avg_technical_score = sum(data["technical_score"] for data in technical_analysis_summary.values()) / len(technical_analysis_summary)
+
+            # Create EOD report
+            eod_report = {
+                "report_type": "end_of_day",
+                "date": report_date.strftime('%Y-%m-%d'),
+                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "summary": {
+                    "active_strategies": len(self.active_strategies),
+                    "total_signals_generated": total_signals_generated,
+                    "high_confidence_signals": total_high_confidence_signals,
+                    "symbols_analyzed": len(symbols_analyzed),
+                    "average_technical_score": round(avg_technical_score, 2),
+                    "redis_available": self.redis_engine is not None,
+                    "backtesting_available": self.backtesting_engine is not None
+                },
+                "strategy_performance": strategy_performance,
+                "market_analysis": {
+                    "symbols_tracked": list(tracked_symbols),
+                    "symbols_analyzed": symbols_analyzed,
+                    "technical_summary": technical_analysis_summary
+                },
+                "system_health": {
+                    "strategy_engine_status": "healthy",
+                    "redis_connection": "connected" if self.redis_engine else "disconnected",
+                    "components_active": {
+                        "technical_engine": self.technical_engine is not None,
+                        "fundamental_engine": self.fundamental_engine is not None,
+                        "backtesting_engine": self.backtesting_engine is not None,
+                        "regime_manager": self.regime_manager is not None
+                    }
+                }
+            }
+
+            # Add detailed signals if requested
+            if request.include_detailed_signals:
+                eod_report["detailed_signals"] = await self._get_detailed_signals_for_date(report_date)
+
+            # Store report in Redis if available
+            if self.redis_engine and self.redis_engine.redis:
+                try:
+                    report_key = f"eod_report:{report_date.strftime('%Y-%m-%d')}"
+                    await self.redis_engine.redis.setex(
+                        report_key,
+                        86400 * 7,  # Keep for 7 days
+                        json.dumps(eod_report, default=str)
+                    )
+                    self.logger.info(f"EOD report stored in Redis with key: {report_key}")
+                except Exception as redis_error:
+                    self.logger.warning(f"Could not store EOD report in Redis: {redis_error}")
+
+            self.logger.info(f"EOD report generated successfully for {report_date.date()}")
+            return eod_report
+
+        except Exception as e:
+            self.logger.error(f"Error generating EOD report: {e}")
+            raise HTTPException(status_code=500, detail=f"EOD report generation failed: {str(e)}")
+
+    def _determine_trend(self, indicators: Dict[str, Any]) -> str:
+        """Determine market trend from technical indicators."""
+        try:
+            sma_20 = indicators.get('sma_20')
+            sma_50 = indicators.get('sma_50')
+            rsi = indicators.get('rsi_14')
+
+            if sma_20 and sma_50:
+                if sma_20 > sma_50:
+                    if rsi and rsi > 60:
+                        return "strong_uptrend"
+                    return "uptrend"
+                elif sma_20 < sma_50:
+                    if rsi and rsi < 40:
+                        return "strong_downtrend"
+                    return "downtrend"
+
+            return "sideways"
+        except Exception:
+            return "unknown"
+
+    def _calculate_volatility(self, market_data: pl.DataFrame) -> float:
+        """Calculate simple volatility measure."""
+        try:
+            if market_data.height < 2:
+                return 0.0
+
+            # Calculate daily returns
+            closes = market_data['close'].to_list()
+            returns = []
+            for i in range(1, len(closes)):
+                returns.append((closes[i] - closes[i-1]) / closes[i-1])
+
+            if not returns:
+                return 0.0
+
+            # Calculate standard deviation
+            mean_return = sum(returns) / len(returns)
+            variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+            volatility = (variance ** 0.5) * (252 ** 0.5)  # Annualized
+
+            return round(volatility, 4)
+        except Exception:
+            return 0.0
+
+    async def _get_detailed_signals_for_date(self, report_date: datetime) -> List[Dict[str, Any]]:
+        """Get detailed signal information for a specific date."""
+        detailed_signals = []
+
+        if not self.redis_engine or not self.redis_engine.redis:
+            return detailed_signals
+
+        try:
+            # Search for signals from the specified date
+            date_key = report_date.strftime('%Y-%m-%d')
+            # Search pattern for signals from the specified date
+            # pattern = f"signal:*:{date_key}:*"
+
+            # This would require implementing signal storage with date keys
+            # For now, return empty list with a note
+            detailed_signals.append({
+                "note": "Detailed signal tracking requires Redis signal storage implementation",
+                "date": date_key
+            })
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving detailed signals: {e}")
+
+        return detailed_signals
+
     async def start_real_time_processing(self) -> None:
         """Start real-time signal processing."""
         try:
@@ -925,9 +1164,11 @@ async def get_prometheus_metrics():
         _initialize_metrics()
 
         # Update metrics before returning them
-        strategies_count_gauge.set(len(service.active_strategies))
-        service_health_gauge.labels(component='redis').set(1 if service.redis_engine else 0)
-        service_health_gauge.labels(component='service').set(1)
+        if strategies_count_gauge is not None:
+            strategies_count_gauge.set(len(service.active_strategies))
+        if service_health_gauge is not None:
+            service_health_gauge.labels(component='redis').set(1 if service.redis_engine else 0)
+            service_health_gauge.labels(component='service').set(1)
 
         # Generate Prometheus format
         metrics_output = generate_latest()
@@ -1007,6 +1248,68 @@ async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
         raise
     except Exception as e:
         logger.error(f"Error updating strategy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/reports/eod")
+async def generate_eod_report(request: Optional[EODReportRequest] = None):
+    """Generate End-of-Day trading report."""
+    try:
+        report = await service.generate_eod_report(request)
+
+        # Update Prometheus metrics if available
+        try:
+            _initialize_metrics()
+            if strategies_count_gauge is not None:
+                strategies_count_gauge.set(len(service.active_strategies))
+        except Exception as metrics_error:
+            logger.warning(f"Could not update metrics: {metrics_error}")
+
+        return {
+            "status": "success",
+            "report": report
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating EOD report: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/reports/eod")
+async def get_latest_eod_report():
+    """Get the most recent EOD report."""
+    try:
+        # Try to get from Redis first
+        if service.redis_engine and service.redis_engine.redis:
+            today = datetime.now(timezone.utc).date()
+            report_key = f"eod_report:{today.isoformat()}"
+
+            try:
+                stored_report = await service.redis_engine.redis.get(report_key)
+                if stored_report:
+                    report_data = json.loads(stored_report)
+                    return {
+                        "status": "success",
+                        "report": report_data,
+                        "source": "cached"
+                    }
+            except Exception as redis_error:
+                logger.warning(f"Could not retrieve cached report: {redis_error}")
+
+        # Generate new report if no cached version available
+        logger.info("No cached EOD report found, generating new one")
+        report = await service.generate_eod_report()
+
+        return {
+            "status": "success",
+            "report": report,
+            "source": "generated"
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting EOD report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

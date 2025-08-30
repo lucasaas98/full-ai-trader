@@ -571,8 +571,8 @@ class PortfolioMonitor:
                 sharpe_ratio = np.mean(excess_returns) / std_dev
                 # Annualize
                 annualized_sharpe = sharpe_ratio * np.sqrt(252)
-                # Clamp the value to a reasonable range to prevent overflow
-                return max(-9999.0, min(9999.0, annualized_sharpe))
+                # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
+                return max(-99.999999, min(99.999999, annualized_sharpe))
             else:
                 return 0.0
 

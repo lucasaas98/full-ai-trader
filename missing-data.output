@@ -1,0 +1,1611 @@
+🔍 ENHANCED FULL AI TRADER DATA INSPECTION
+============================================================
+
+📊 OVERALL DATA SUMMARY
+------------------------------
+Total files: 108,203
+Total size: 304.33 MB
+Tickers: 152
+Timeframes: ['15min', '1day', '1h', '1min', '5min']
+File date range: 2024-08-30 to 2025-08-29
+
+🎯 ACTIVE TICKERS FROM REDIS
+------------------------------
+Active tickers count: 0
+⚠️ No active tickers found in Redis!
+
+📁 DATA SOURCE ANALYSIS
+------------------------------
+File system tickers: 152
+Redis active tickers: 0
+⚠️ Redis has no active tickers - analyzing all file system tickers
+
+🔍 ANALYZING 152 TICKERS
+------------------------------
+
+📈 DETAILED DATA TIMESTAMP ANALYSIS
+============================================================
+📊 Showing detailed analysis for first 20 tickers...
+📊 (Full summary table will include all 152 tickers)
+
+🏷️  A (1/152):
+  📊 1min:
+    ✅ Records: 312
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,390
+    📅 First: 2025-05-20 12:15:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  101 days, 3:40:00
+    📊 Completeness: 68.4% (5,390/7,878 expected)
+    ⚠️  20 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,156
+    📅 First: 2024-11-11 12:00:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  291 days, 3:45:00
+    📊 Completeness: 68.1% (5,156/7,566 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,734
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:30:00 UTC
+    ⏱️  Span:  364 days, 6:00:00
+    ⚠️  20 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AA (2/152):
+  📊 1min:
+    ✅ Records: 312
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,468
+    📅 First: 2025-05-20 12:20:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  101 days, 3:35:00
+    📊 Completeness: 69.4% (5,468/7,878 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,156
+    📅 First: 2024-11-11 12:15:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  291 days, 3:30:00
+    📊 Completeness: 68.1% (5,156/7,566 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,735
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-28 15:30:00 UTC
+    ⏱️  Span:  363 days, 6:00:00
+    ⚠️  20 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AAA (3/152):
+  📊 1min:
+    ✅ Records: 32
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:15:00 UTC
+    ⏱️  Span:  3 days, 5:45:00
+  📊 5min:
+    ✅ Records: 3,324
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  364 days, 6:25:00
+    📊 Completeness: 11.7% (3,324/28,392 expected)
+    ⚠️  142 data gaps found
+      Gap: 07-31 09:30 to 07-31 10:25 (ratio: 11.0x)
+      Gap: 07-31 10:25 to 07-31 10:40 (ratio: 3.0x)
+  📊 15min:
+    ✅ Records: 2,538
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  364 days, 6:15:00
+    📊 Completeness: 26.8% (2,538/9,464 expected)
+    ⚠️  83 data gaps found
+      Gap: 07-31 09:30 to 07-31 10:15 (ratio: 3.0x)
+      Gap: 07-31 10:30 to 07-31 14:15 (ratio: 15.0x)
+  📊 1h:
+    ✅ Records: 1,341
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:30:00 UTC
+    ⏱️  Span:  364 days, 6:00:00
+    ⚠️  29 data gaps found
+      Gap: 07-31 10:30 to 07-31 13:30 (ratio: 3.0x)
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AAAA (4/152):
+  📊 1min:
+    ✅ Records: 60
+    📅 First: 2025-08-25 09:35:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:20:00
+  📊 5min:
+    ✅ Records: 357
+    📅 First: 2025-07-16 09:30:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  44 days, 6:25:00
+    📊 Completeness: 10.4% (357/3,432 expected)
+    ⚠️  128 data gaps found
+      Gap: 07-31 09:40 to 07-31 10:00 (ratio: 4.0x)
+      Gap: 07-31 10:10 to 07-31 10:30 (ratio: 4.0x)
+  📊 15min:
+    ✅ Records: 252
+    📅 First: 2025-07-16 09:30:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  44 days, 6:15:00
+    📊 Completeness: 22.0% (252/1,144 expected)
+    ⚠️  73 data gaps found
+      Gap: 07-31 11:00 to 07-31 12:00 (ratio: 4.0x)
+      Gap: 07-31 12:30 to 07-31 15:30 (ratio: 12.0x)
+  📊 1h:
+    ✅ Records: 111
+    📅 First: 2025-07-16 09:30:00 UTC
+    📅 Last:  2025-08-21 14:30:00 UTC
+    ⏱️  Span:  36 days, 5:00:00
+    ⚠️  19 data gaps found
+      Gap: 07-31 12:30 to 07-31 15:30 (ratio: 3.0x)
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+  📊 1day:
+    ✅ Records: 32
+    📅 First: 2025-07-16 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  43 days, 0:00:00
+
+🏷️  AAAU (5/152):
+  📊 1min:
+    ✅ Records: 310
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,388
+    📅 First: 2025-05-21 11:10:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  100 days, 4:45:00
+    📊 Completeness: 69.1% (5,388/7,800 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,130
+    📅 First: 2024-11-11 14:00:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  291 days, 1:45:00
+    📊 Completeness: 67.8% (5,130/7,566 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,727
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-27 15:30:00 UTC
+    ⏱️  Span:  362 days, 6:00:00
+    ⚠️  19 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AACB (6/152):
+  📊 1min:
+    ✅ Records: 4
+    📅 First: 2025-08-26 11:10:00 UTC
+    📅 Last:  2025-08-28 11:25:00 UTC
+    ⏱️  Span:  2 days, 0:15:00
+  📊 5min:
+    ✅ Records: 213
+    📅 First: 2025-04-07 09:30:00 UTC
+    📅 Last:  2025-08-28 11:25:00 UTC
+    ⏱️  Span:  143 days, 1:55:00
+    📊 Completeness: 1.9% (213/11,154 expected)
+    ⚠️  22 data gaps found
+      Gap: 08-05 12:35 to 08-06 12:10 (ratio: 283.0x)
+      Gap: 08-06 12:10 to 08-06 12:25 (ratio: 3.0x)
+  📊 15min:
+    ✅ Records: 168
+    📅 First: 2025-04-07 09:30:00 UTC
+    📅 Last:  2025-08-28 11:15:00 UTC
+    ⏱️  Span:  143 days, 1:45:00
+    📊 Completeness: 4.5% (168/3,718 expected)
+    ⚠️  19 data gaps found
+      Gap: 08-05 12:30 to 08-06 12:00 (ratio: 94.0x)
+      Gap: 08-06 13:00 to 08-06 14:00 (ratio: 4.0x)
+  📊 1h:
+    ✅ Records: 137
+    📅 First: 2025-04-07 09:30:00 UTC
+    📅 Last:  2025-08-28 10:30:00 UTC
+    ⏱️  Span:  143 days, 1:00:00
+    ⚠️  16 data gaps found
+      Gap: 08-05 12:30 to 08-06 11:30 (ratio: 23.0x)
+      Gap: 08-06 13:30 to 08-07 09:30 (ratio: 20.0x)
+  📊 1day:
+    ✅ Records: 100
+    📅 First: 2025-04-07 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  143 days, 0:00:00
+
+🏷️  AACG (7/152):
+  📊 1min:
+    ✅ Records: 136
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,196
+    📅 First: 2024-10-14 15:05:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  319 days, 0:50:00
+    📊 Completeness: 20.9% (5,196/24,882 expected)
+    ⚠️  141 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 12:10 to 08-01 12:25 (ratio: 3.0x)
+  📊 15min:
+    ✅ Records: 3,562
+    📅 First: 2024-08-30 10:00:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  364 days, 5:45:00
+    📊 Completeness: 37.6% (3,562/9,464 expected)
+    ⚠️  45 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,517
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:30:00 UTC
+    ⏱️  Span:  364 days, 6:00:00
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AACI (8/152):
+  📊 1min:
+    ✅ Records: 20
+    📅 First: 2025-08-25 10:05:00 UTC
+    📅 Last:  2025-08-27 14:30:00 UTC
+    ⏱️  Span:  2 days, 4:25:00
+  📊 5min:
+    ✅ Records: 5,023
+    📅 First: 2024-09-05 09:55:00 UTC
+    📅 Last:  2025-08-29 11:15:00 UTC
+    ⏱️  Span:  358 days, 1:20:00
+    📊 Completeness: 18.0% (5,023/27,924 expected)
+    ⚠️  71 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 10:05 (ratio: 794.0x)
+  📊 15min:
+    ✅ Records: 2,104
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 11:15:00 UTC
+    ⏱️  Span:  364 days, 1:45:00
+    📊 Completeness: 22.2% (2,104/9,464 expected)
+    ⚠️  36 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 10:00 (ratio: 265.0x)
+  📊 1h:
+    ✅ Records: 648
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-21 15:30:00 UTC
+    ⏱️  Span:  356 days, 6:00:00
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 155
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AACT (9/152):
+  📊 1min:
+    ✅ Records: 190
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,297
+    📅 First: 2024-11-06 12:30:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  296 days, 3:25:00
+    📊 Completeness: 22.9% (5,297/23,088 expected)
+    ⚠️  183 data gaps found
+      Gap: 07-31 09:35 to 07-31 09:50 (ratio: 3.0x)
+      Gap: 07-31 10:00 to 07-31 10:30 (ratio: 6.0x)
+  📊 15min:
+    ✅ Records: 3,440
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  364 days, 6:15:00
+    📊 Completeness: 36.3% (3,440/9,464 expected)
+    ⚠️  45 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,416
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-29 15:30:00 UTC
+    ⏱️  Span:  364 days, 6:00:00
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AADR (10/152):
+  📊 1min:
+    ✅ Records: 6
+    📅 First: 2025-08-25 13:15:00 UTC
+    📅 Last:  2025-08-27 13:25:00 UTC
+    ⏱️  Span:  2 days, 0:10:00
+  📊 5min:
+    ✅ Records: 1,409
+    📅 First: 2024-08-30 15:55:00 UTC
+    📅 Last:  2025-08-29 13:20:00 UTC
+    ⏱️  Span:  363 days, 21:25:00
+    📊 Completeness: 5.0% (1,409/28,314 expected)
+    ⚠️  56 data gaps found
+      Gap: 07-31 13:20 to 07-31 13:50 (ratio: 6.0x)
+      Gap: 07-31 13:50 to 07-31 14:20 (ratio: 6.0x)
+  📊 15min:
+    ✅ Records: 1,143
+    📅 First: 2024-08-30 15:45:00 UTC
+    📅 Last:  2025-08-29 13:15:00 UTC
+    ⏱️  Span:  363 days, 21:30:00
+    📊 Completeness: 12.1% (1,143/9,438 expected)
+    ⚠️  42 data gaps found
+      Gap: 07-31 15:00 to 07-31 15:45 (ratio: 3.0x)
+      Gap: 07-31 15:45 to 08-01 11:45 (ratio: 80.0x)
+  📊 1h:
+    ✅ Records: 754
+    📅 First: 2024-08-30 15:30:00 UTC
+    📅 Last:  2025-08-27 12:30:00 UTC
+    ⏱️  Span:  361 days, 21:00:00
+    ⚠️  25 data gaps found
+      Gap: 07-31 15:30 to 08-01 11:30 (ratio: 20.0x)
+      Gap: 08-01 14:30 to 08-04 09:30 (ratio: 67.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AAL (11/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 5,078
+    📅 First: 2025-05-20 12:20:00 UTC
+    📅 Last:  2025-08-22 15:55:00 UTC
+    ⏱️  Span:  94 days, 3:35:00
+    📊 Completeness: 69.3% (5,078/7,332 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,026
+    📅 First: 2024-11-11 12:30:00 UTC
+    📅 Last:  2025-08-22 15:45:00 UTC
+    ⏱️  Span:  284 days, 3:15:00
+    📊 Completeness: 68.1% (5,026/7,384 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,708
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-22 15:30:00 UTC
+    ⏱️  Span:  357 days, 6:00:00
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 245
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-22 00:00:00 UTC
+    ⏱️  Span:  357 days, 0:00:00
+
+🏷️  AAM (12/152):
+  📊 1min:
+    ✅ Records: 5
+    📅 First: 2025-08-27 11:30:00 UTC
+    📅 Last:  2025-08-28 15:40:00 UTC
+    ⏱️  Span:  1 day, 4:10:00
+  📊 5min:
+    ✅ Records: 1,128
+    📅 First: 2024-09-16 09:30:00 UTC
+    📅 Last:  2025-08-29 09:50:00 UTC
+    ⏱️  Span:  347 days, 0:20:00
+    📊 Completeness: 4.2% (1,128/27,066 expected)
+    ⚠️  62 data gaps found
+      Gap: 07-31 12:45 to 08-01 09:30 (ratio: 249.0x)
+      Gap: 08-01 09:30 to 08-01 09:55 (ratio: 5.0x)
+  📊 15min:
+    ✅ Records: 933
+    📅 First: 2024-09-16 09:30:00 UTC
+    📅 Last:  2025-08-29 09:45:00 UTC
+    ⏱️  Span:  347 days, 0:15:00
+    📊 Completeness: 10.3% (933/9,022 expected)
+    ⚠️  50 data gaps found
+      Gap: 07-31 12:45 to 08-01 09:30 (ratio: 83.0x)
+      Gap: 08-01 09:45 to 08-01 11:15 (ratio: 6.0x)
+  📊 1h:
+    ✅ Records: 684
+    📅 First: 2024-09-16 09:30:00 UTC
+    📅 Last:  2025-08-29 09:30:00 UTC
+    ⏱️  Span:  347 days, 0:00:00
+    ⚠️  26 data gaps found
+      Gap: 07-31 12:30 to 08-01 09:30 (ratio: 21.0x)
+      Gap: 08-01 10:30 to 08-01 13:30 (ratio: 3.0x)
+  📊 1day:
+    ✅ Records: 239
+    📅 First: 2024-09-16 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  346 days, 0:00:00
+
+🏷️  AAME (13/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 2,181
+    📅 First: 2024-08-30 10:25:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  363 days, 5:30:00
+    📊 Completeness: 7.7% (2,181/28,314 expected)
+    ⚠️  161 data gaps found
+      Gap: 07-31 09:30 to 07-31 10:40 (ratio: 14.0x)
+      Gap: 07-31 10:40 to 07-31 11:00 (ratio: 4.0x)
+  📊 15min:
+    ✅ Records: 1,636
+    📅 First: 2024-08-30 10:15:00 UTC
+    📅 Last:  2025-08-28 15:45:00 UTC
+    ⏱️  Span:  363 days, 5:30:00
+    📊 Completeness: 17.3% (1,636/9,438 expected)
+    ⚠️  60 data gaps found
+      Gap: 07-31 09:30 to 07-31 10:30 (ratio: 4.0x)
+      Gap: 07-31 11:15 to 07-31 15:00 (ratio: 15.0x)
+  📊 1h:
+    ✅ Records: 940
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-22 15:30:00 UTC
+    ⏱️  Span:  357 days, 6:00:00
+    ⚠️  17 data gaps found
+      Gap: 07-31 10:30 to 07-31 14:30 (ratio: 4.0x)
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+  📊 1day:
+    ✅ Records: 245
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-22 00:00:00 UTC
+    ⏱️  Span:  357 days, 0:00:00
+
+🏷️  AAMI (14/152):
+  📊 1min:
+    ✅ Records: 147
+    📅 First: 2025-08-27 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  1 day, 6:25:00
+  📊 5min:
+    ✅ Records: 5,220
+    📅 First: 2025-05-08 10:55:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  112 days, 5:00:00
+    📊 Completeness: 59.8% (5,220/8,736 expected)
+    ⚠️  46 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,026
+    📅 First: 2024-10-31 10:00:00 UTC
+    📅 Last:  2025-08-22 15:45:00 UTC
+    ⏱️  Span:  295 days, 5:45:00
+    📊 Completeness: 65.5% (5,026/7,670 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,695
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-28 15:30:00 UTC
+    ⏱️  Span:  363 days, 6:00:00
+    ⚠️  20 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 245
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-22 00:00:00 UTC
+    ⏱️  Span:  357 days, 0:00:00
+
+🏷️  AAOI (15/152):
+  📊 1min:
+    ✅ Records: 312
+    📅 First: 2025-08-25 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  3 days, 6:25:00
+  📊 5min:
+    ✅ Records: 5,468
+    📅 First: 2025-05-20 12:20:00 UTC
+    📅 Last:  2025-08-29 15:55:00 UTC
+    ⏱️  Span:  101 days, 3:35:00
+    📊 Completeness: 69.4% (5,468/7,878 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,156
+    📅 First: 2024-11-11 12:15:00 UTC
+    📅 Last:  2025-08-29 15:45:00 UTC
+    ⏱️  Span:  291 days, 3:30:00
+    📊 Completeness: 68.1% (5,156/7,566 expected)
+    ⚠️  21 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,721
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-26 15:30:00 UTC
+    ⏱️  Span:  361 days, 6:00:00
+    ⚠️  18 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 249
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-28 00:00:00 UTC
+    ⏱️  Span:  363 days, 0:00:00
+
+🏷️  AAON (16/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 5,000
+    📅 First: 2025-05-20 12:10:00 UTC
+    📅 Last:  2025-08-21 15:55:00 UTC
+    ⏱️  Span:  93 days, 3:45:00
+    📊 Completeness: 68.9% (5,000/7,254 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,000
+    📅 First: 2024-11-11 11:15:00 UTC
+    📅 Last:  2025-08-21 15:45:00 UTC
+    ⏱️  Span:  283 days, 4:30:00
+    📊 Completeness: 68.0% (5,000/7,358 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,699
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-21 15:30:00 UTC
+    ⏱️  Span:  356 days, 6:00:00
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 244
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-21 00:00:00 UTC
+    ⏱️  Span:  356 days, 0:00:00
+
+🏷️  AAP (17/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 5,000
+    📅 First: 2025-05-20 12:20:00 UTC
+    📅 Last:  2025-08-21 15:55:00 UTC
+    ⏱️  Span:  93 days, 3:35:00
+    📊 Completeness: 68.9% (5,000/7,254 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,000
+    📅 First: 2024-11-11 12:00:00 UTC
+    📅 Last:  2025-08-21 15:45:00 UTC
+    ⏱️  Span:  283 days, 3:45:00
+    📊 Completeness: 68.0% (5,000/7,358 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 1day:
+    Trying direct parquet reading...
+    ❌ No data found
+
+🏷️  AAPL (18/152):
+  📊 1min:
+    ✅ Records: 156
+    📅 First: 2025-08-27 09:30:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  1 day, 6:25:00
+  📊 5min:
+    ✅ Records: 5,858
+    📅 First: 2025-05-08 12:20:00 UTC
+    📅 Last:  2025-08-28 15:55:00 UTC
+    ⏱️  Span:  112 days, 3:35:00
+    📊 Completeness: 67.1% (5,858/8,736 expected)
+    ⚠️  18 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,234
+    📅 First: 2024-10-30 12:30:00 UTC
+    📅 Last:  2025-08-22 15:45:00 UTC
+    ⏱️  Span:  296 days, 3:15:00
+    📊 Completeness: 68.0% (5,234/7,696 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,708
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-22 15:30:00 UTC
+    ⏱️  Span:  357 days, 6:00:00
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 245
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-22 00:00:00 UTC
+    ⏱️  Span:  357 days, 0:00:00
+
+🏷️  ABAT (19/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 5,078
+    📅 First: 2025-05-20 11:05:00 UTC
+    📅 Last:  2025-08-22 15:55:00 UTC
+    ⏱️  Span:  94 days, 4:50:00
+    📊 Completeness: 69.3% (5,078/7,332 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,026
+    📅 First: 2024-11-08 15:30:00 UTC
+    📅 Last:  2025-08-22 15:45:00 UTC
+    ⏱️  Span:  287 days, 0:15:00
+    📊 Completeness: 67.4% (5,026/7,462 expected)
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,707
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-22 15:30:00 UTC
+    ⏱️  Span:  357 days, 6:00:00
+    ⚠️  16 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 245
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-22 00:00:00 UTC
+    ⏱️  Span:  357 days, 0:00:00
+
+🏷️  ABBV (20/152):
+  📊 1min:
+    Trying direct parquet reading...
+    ❌ No data found
+  📊 5min:
+    ✅ Records: 5,156
+    📅 First: 2025-05-16 12:20:00 UTC
+    📅 Last:  2025-08-21 15:55:00 UTC
+    ⏱️  Span:  97 days, 3:35:00
+    📊 Completeness: 68.1% (5,156/7,566 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:55 to 08-01 09:30 (ratio: 211.0x)
+      Gap: 08-01 15:55 to 08-04 09:30 (ratio: 787.0x)
+  📊 15min:
+    ✅ Records: 5,052
+    📅 First: 2024-11-07 12:45:00 UTC
+    📅 Last:  2025-08-21 15:45:00 UTC
+    ⏱️  Span:  287 days, 3:00:00
+    📊 Completeness: 67.7% (5,052/7,462 expected)
+    ⚠️  15 data gaps found
+      Gap: 07-31 15:45 to 08-01 09:30 (ratio: 71.0x)
+      Gap: 08-01 15:45 to 08-04 09:30 (ratio: 263.0x)
+  📊 1h:
+    ✅ Records: 1,687
+    📅 First: 2024-08-30 09:30:00 UTC
+    📅 Last:  2025-08-19 15:30:00 UTC
+    ⏱️  Span:  354 days, 6:00:00
+    ⚠️  13 data gaps found
+      Gap: 07-31 15:30 to 08-01 09:30 (ratio: 18.0x)
+      Gap: 08-01 15:30 to 08-04 09:30 (ratio: 66.0x)
+  📊 1day:
+    ✅ Records: 242
+    📅 First: 2024-08-30 00:00:00 UTC
+    📅 Last:  2025-08-19 00:00:00 UTC
+    ⏱️  Span:  354 days, 0:00:00
+  Processed 40/152 tickers...
+  Processed 60/152 tickers...
+  Processed 80/152 tickers...
+  Processed 100/152 tickers...
+  Processed 120/152 tickers...
+  Processed 140/152 tickers...
+
+📋 COMPLETE DATA SUMMARY TABLE (760 entries)
+==============================================================================================================
+Ticker   Timeframe    Records    First Date   Last Date    Days   Complete% 
+--------------------------------------------------------------------------------------------------------------
+A        1min         312        2025-08-25   2025-08-28   3      N/A       
+A        5min         5,390      2025-05-20   2025-08-29   101    68.4%     
+A        15min        5,156      2024-11-11   2025-08-29   291    68.1%     
+A        1h           1,734      2024-08-30   2025-08-29   364    N/A       
+A        1day         249        2024-08-30   2025-08-28   363    N/A       
+AA       1min         312        2025-08-25   2025-08-28   3      N/A       
+AA       5min         5,468      2025-05-20   2025-08-29   101    69.4%     
+AA       15min        5,156      2024-11-11   2025-08-29   291    68.1%     
+AA       1h           1,735      2024-08-30   2025-08-28   363    N/A       
+AA       1day         249        2024-08-30   2025-08-28   363    N/A       
+AAA      1min         32         2025-08-25   2025-08-28   3      N/A       
+AAA      5min         3,324      2024-08-30   2025-08-29   364    11.7%     
+AAA      15min        2,538      2024-08-30   2025-08-29   364    26.8%     
+AAA      1h           1,341      2024-08-30   2025-08-29   364    N/A       
+AAA      1day         249        2024-08-30   2025-08-28   363    N/A       
+AAAA     1min         60         2025-08-25   2025-08-28   3      N/A       
+AAAA     5min         357        2025-07-16   2025-08-29   44     10.4%     
+AAAA     15min        252        2025-07-16   2025-08-29   44     22.0%     
+AAAA     1h           111        2025-07-16   2025-08-21   36     N/A       
+AAAA     1day         32         2025-07-16   2025-08-28   43     N/A       
+AAAU     1min         310        2025-08-25   2025-08-28   3      N/A       
+AAAU     5min         5,388      2025-05-21   2025-08-29   100    69.1%     
+AAAU     15min        5,130      2024-11-11   2025-08-29   291    67.8%     
+AAAU     1h           1,727      2024-08-30   2025-08-27   362    N/A       
+AAAU     1day         249        2024-08-30   2025-08-28   363    N/A       
+AACB     1min         4          2025-08-26   2025-08-28   2      N/A       
+AACB     5min         213        2025-04-07   2025-08-28   143    1.9%      
+AACB     15min        168        2025-04-07   2025-08-28   143    4.5%      
+AACB     1h           137        2025-04-07   2025-08-28   143    N/A       
+AACB     1day         100        2025-04-07   2025-08-28   143    N/A       
+AACG     1min         136        2025-08-25   2025-08-28   3      N/A       
+AACG     5min         5,196      2024-10-14   2025-08-29   319    20.9%     
+AACG     15min        3,562      2024-08-30   2025-08-29   364    37.6%     
+AACG     1h           1,517      2024-08-30   2025-08-29   364    N/A       
+AACG     1day         249        2024-08-30   2025-08-28   363    N/A       
+AACI     1min         20         2025-08-25   2025-08-27   2      N/A       
+AACI     5min         5,023      2024-09-05   2025-08-29   358    18.0%     
+AACI     15min        2,104      2024-08-30   2025-08-29   364    22.2%     
+AACI     1h           648        2024-08-30   2025-08-21   356    N/A       
+AACI     1day         155        2024-08-30   2025-08-28   363    N/A       
+AACT     1min         190        2025-08-25   2025-08-28   3      N/A       
+AACT     5min         5,297      2024-11-06   2025-08-29   296    22.9%     
+AACT     15min        3,440      2024-08-30   2025-08-29   364    36.3%     
+AACT     1h           1,416      2024-08-30   2025-08-29   364    N/A       
+AACT     1day         249        2024-08-30   2025-08-28   363    N/A       
+AADR     1min         6          2025-08-25   2025-08-27   2      N/A       
+AADR     5min         1,409      2024-08-30   2025-08-29   363    5.0%      
+AADR     15min        1,143      2024-08-30   2025-08-29   363    12.1%     
+AADR     1h           754        2024-08-30   2025-08-27   361    N/A       
+AADR     1day         249        2024-08-30   2025-08-28   363    N/A       
+AAL      1min         0          None         None         0      N/A       
+AAL      5min         5,078      2025-05-20   2025-08-22   94     69.3%     
+AAL      15min        5,026      2024-11-11   2025-08-22   284    68.1%     
+AAL      1h           1,708      2024-08-30   2025-08-22   357    N/A       
+AAL      1day         245        2024-08-30   2025-08-22   357    N/A       
+AAM      1min         5          2025-08-27   2025-08-28   1      N/A       
+AAM      5min         1,128      2024-09-16   2025-08-29   347    4.2%      
+AAM      15min        933        2024-09-16   2025-08-29   347    10.3%     
+AAM      1h           684        2024-09-16   2025-08-29   347    N/A       
+AAM      1day         239        2024-09-16   2025-08-28   346    N/A       
+AAME     1min         0          None         None         0      N/A       
+AAME     5min         2,181      2024-08-30   2025-08-28   363    7.7%      
+AAME     15min        1,636      2024-08-30   2025-08-28   363    17.3%     
+AAME     1h           940        2024-08-30   2025-08-22   357    N/A       
+AAME     1day         245        2024-08-30   2025-08-22   357    N/A       
+AAMI     1min         147        2025-08-27   2025-08-28   1      N/A       
+AAMI     5min         5,220      2025-05-08   2025-08-28   112    59.8%     
+AAMI     15min        5,026      2024-10-31   2025-08-22   295    65.5%     
+AAMI     1h           1,695      2024-08-30   2025-08-28   363    N/A       
+AAMI     1day         245        2024-08-30   2025-08-22   357    N/A       
+AAOI     1min         312        2025-08-25   2025-08-28   3      N/A       
+AAOI     5min         5,468      2025-05-20   2025-08-29   101    69.4%     
+AAOI     15min        5,156      2024-11-11   2025-08-29   291    68.1%     
+AAOI     1h           1,721      2024-08-30   2025-08-26   361    N/A       
+AAOI     1day         249        2024-08-30   2025-08-28   363    N/A       
+AAON     1min         0          None         None         0      N/A       
+AAON     5min         5,000      2025-05-20   2025-08-21   93     68.9%     
+AAON     15min        5,000      2024-11-11   2025-08-21   283    68.0%     
+AAON     1h           1,699      2024-08-30   2025-08-21   356    N/A       
+AAON     1day         244        2024-08-30   2025-08-21   356    N/A       
+AAP      1min         0          None         None         0      N/A       
+AAP      5min         5,000      2025-05-20   2025-08-21   93     68.9%     
+AAP      15min        5,000      2024-11-11   2025-08-21   283    68.0%     
+AAP      1h           0          None         None         0      N/A       
+AAP      1day         0          None         None         0      N/A       
+AAPL     1min         156        2025-08-27   2025-08-28   1      N/A       
+AAPL     5min         5,858      2025-05-08   2025-08-28   112    67.1%     
+AAPL     15min        5,234      2024-10-30   2025-08-22   296    68.0%     
+AAPL     1h           1,708      2024-08-30   2025-08-22   357    N/A       
+AAPL     1day         245        2024-08-30   2025-08-22   357    N/A       
+ABAT     1min         0          None         None         0      N/A       
+ABAT     5min         5,078      2025-05-20   2025-08-22   94     69.3%     
+ABAT     15min        5,026      2024-11-08   2025-08-22   287    67.4%     
+ABAT     1h           1,707      2024-08-30   2025-08-22   357    N/A       
+ABAT     1day         245        2024-08-30   2025-08-22   357    N/A       
+ABBV     1min         0          None         None         0      N/A       
+ABBV     5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+ABBV     15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+ABBV     1h           1,687      2024-08-30   2025-08-19   354    N/A       
+ABBV     1day         242        2024-08-30   2025-08-19   354    N/A       
+ABCB     1min         0          None         None         0      N/A       
+ABCB     5min         229        2025-08-20   2025-08-22   2      146.8%    
+ABCB     15min        104        2025-08-19   2025-08-22   3      133.3%    
+ABCB     1h           35         2025-08-18   2025-08-22   4      N/A       
+ABCB     1day         5          2025-08-18   2025-08-22   4      N/A       
+ABCL     1min         0          None         None         0      N/A       
+ABCL     5min         5,078      2025-05-20   2025-08-22   94     69.3%     
+ABCL     15min        5,026      2024-11-11   2025-08-22   284    68.1%     
+ABCL     1h           1,706      2024-08-30   2025-08-22   357    N/A       
+ABCL     1day         245        2024-08-30   2025-08-22   357    N/A       
+ABEO     1min         0          None         None         0      N/A       
+ABEO     5min         5,000      2025-05-20   2025-08-21   93     68.9%     
+ABEO     15min        5,000      2024-11-11   2025-08-21   283    68.0%     
+ABEO     1h           1,699      2024-08-30   2025-08-21   356    N/A       
+ABEO     1day         244        2024-08-30   2025-08-21   356    N/A       
+ABEV     1min         0          None         None         0      N/A       
+ABEV     5min         5,000      2025-05-20   2025-08-21   93     68.9%     
+ABEV     15min        5,000      2024-11-11   2025-08-21   283    68.0%     
+ABEV     1h           1,701      2024-08-30   2025-08-21   356    N/A       
+ABEV     1day         244        2024-08-30   2025-08-21   356    N/A       
+ABG      1min         147        2025-08-27   2025-08-28   1      N/A       
+ABG      5min         5,223      2025-05-15   2025-08-28   105    63.8%     
+ABG      15min        5,026      2024-11-05   2025-08-22   290    66.7%     
+ABG      1h           35         2025-08-18   2025-08-22   4      N/A       
+ABG      1day         5          2025-08-18   2025-08-22   4      N/A       
+ABL      1min         154        2025-08-27   2025-08-28   1      N/A       
+ABL      5min         5,310      2025-05-20   2025-08-29   101    67.4%     
+ABL      15min        5,130      2024-11-05   2025-08-29   297    66.4%     
+ABL      1h           1,734      2024-08-30   2025-08-29   364    N/A       
+ABL      1day         250        2024-08-30   2025-08-28   363    N/A       
+ABM      1min         0          None         None         0      N/A       
+ABM      5min         5,000      2025-05-19   2025-08-21   94     68.2%     
+ABM      15min        5,000      2024-11-11   2025-08-21   283    68.0%     
+ABM      1h           1,699      2024-08-30   2025-08-21   356    N/A       
+ABM      1day         244        2024-08-30   2025-08-21   356    N/A       
+ABNB     1min         0          None         None         0      N/A       
+ABNB     5min         5,078      2025-05-20   2025-08-22   94     69.3%     
+ABNB     15min        5,026      2024-11-11   2025-08-22   284    68.1%     
+ABNB     1h           1,707      2024-08-30   2025-08-22   357    N/A       
+ABNB     1day         245        2024-08-30   2025-08-22   357    N/A       
+ABT      1min         0          None         None         0      N/A       
+ABT      5min         234        2025-08-20   2025-08-22   2      150.0%    
+ABT      15min        104        2025-08-19   2025-08-22   3      133.3%    
+ABT      1h           35         2025-08-18   2025-08-22   4      N/A       
+ABT      1day         5          2025-08-18   2025-08-22   4      N/A       
+ABVE     1min         0          None         None         0      N/A       
+ABVE     5min         5,077      2025-05-01   2025-08-22   113    57.6%     
+ABVE     15min        4,942      2024-08-30   2025-08-22   357    53.2%     
+ABVE     1h           1,646      2024-08-30   2025-08-22   357    N/A       
+ABVE     1day         245        2024-08-30   2025-08-22   357    N/A       
+AC       1min         16         2025-08-27   2025-08-28   1      N/A       
+AC       5min         3,055      2024-08-30   2025-08-29   364    10.8%     
+AC       15min        2,241      2024-08-30   2025-08-29   364    23.7%     
+AC       1h           1,240      2024-08-30   2025-08-29   364    N/A       
+AC       1day         249        2024-08-30   2025-08-28   363    N/A       
+ACET     1min         264        2025-08-25   2025-08-28   3      N/A       
+ACET     5min         5,321      2025-05-06   2025-08-29   115    59.3%     
+ACET     15min        5,129      2024-11-06   2025-08-29   296    66.6%     
+ACET     1h           1,741      2024-08-30   2025-08-29   364    N/A       
+ACET     1day         249        2024-08-30   2025-08-28   363    N/A       
+ACHV     1min         0          None         None         0      N/A       
+ACHV     5min         5,078      2025-05-16   2025-08-22   98     66.4%     
+ACHV     15min        5,026      2024-11-07   2025-08-22   288    67.1%     
+ACHV     1h           1,706      2024-08-30   2025-08-22   357    N/A       
+ACHV     1day         245        2024-08-30   2025-08-22   357    N/A       
+ACRS     1min         154        2025-08-27   2025-08-28   1      N/A       
+ACRS     5min         5,232      2025-05-19   2025-08-28   101    66.4%     
+ACRS     15min        5,026      2024-11-11   2025-08-22   284    68.1%     
+ACRS     1h           1,706      2024-08-30   2025-08-22   357    N/A       
+ACRS     1day         245        2024-08-30   2025-08-22   357    N/A       
+ADN      1min         0          None         None         0      N/A       
+ADN      5min         5,072      2024-11-14   2025-08-22   281    23.1%     
+ADN      15min        3,808      2024-08-30   2025-08-22   357    41.0%     
+ADN      1h           1,539      2024-08-30   2025-08-22   357    N/A       
+ADN      1day         245        2024-08-30   2025-08-22   357    N/A       
+ADTX     1min         195        2025-08-25   2025-08-28   3      N/A       
+ADTX     5min         5,195      2025-04-10   2025-08-28   140    47.6%     
+ADTX     15min        5,093      2024-10-31   2025-08-28   301    65.1%     
+ADTX     1h           1,732      2024-08-30   2025-08-28   363    N/A       
+ADTX     1day         248        2024-08-30   2025-08-27   362    N/A       
+ADV      1min         0          None         None         0      N/A       
+ADV      5min         5,078      2025-05-16   2025-08-22   98     66.4%     
+ADV      15min        5,026      2024-11-08   2025-08-22   287    67.4%     
+ADV      1h           1,706      2024-08-30   2025-08-22   357    N/A       
+ADV      1day         245        2024-08-30   2025-08-22   357    N/A       
+ADVB     1min         32         2025-08-27   2025-08-28   1      N/A       
+ADVB     5min         108        2025-08-20   2025-08-28   8      17.3%     
+ADVB     15min        110        2025-08-19   2025-08-28   9      47.0%     
+ADVB     1h           35         2025-08-18   2025-08-22   4      N/A       
+ADVB     1day         5          2025-08-18   2025-08-22   4      N/A       
+ADXN     1min         2          2025-08-25   2025-08-26   1      N/A       
+ADXN     5min         2,373      2024-08-30   2025-08-26   361    8.4%      
+ADXN     15min        1,640      2024-08-30   2025-08-26   361    17.5%     
+ADXN     1h           918        2024-08-30   2025-08-26   361    N/A       
+ADXN     1day         248        2024-08-30   2025-08-27   362    N/A       
+AEBI     1min         0          None         None         0      N/A       
+AEBI     5min         62         2025-08-22   2025-08-22   0      79.5%     
+AEBI     15min        0          None         None         0      N/A       
+AEBI     1h           35         2025-08-18   2025-08-22   4      N/A       
+AEBI     1day         5          2025-08-18   2025-08-22   4      N/A       
+AEHR     1min         312        2025-08-25   2025-08-28   3      N/A       
+AEHR     5min         5,390      2025-05-21   2025-08-29   100    69.1%     
+AEHR     15min        5,130      2024-11-12   2025-08-29   290    68.0%     
+AEHR     1h           1,741      2024-08-30   2025-08-29   364    N/A       
+AEHR     1day         252        2024-08-30   2025-08-28   363    N/A       
+AEMD     1min         0          None         None         0      N/A       
+AEMD     5min         228        2025-08-22   2025-08-28   6      48.7%     
+AEMD     15min        130        2025-08-21   2025-08-28   7      71.4%     
+AEMD     1h           35         2025-08-18   2025-08-22   4      N/A       
+AEMD     1day         5          2025-08-18   2025-08-22   4      N/A       
+AEVA     1min         312        2025-08-25   2025-08-28   3      N/A       
+AEVA     5min         5,312      2025-05-22   2025-08-29   99     68.8%     
+AEVA     15min        5,104      2024-11-13   2025-08-29   289    67.9%     
+AEVA     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+AEVA     1day         249        2024-08-30   2025-08-28   363    N/A       
+AGRI     1min         96         2025-08-25   2025-08-26   1      N/A       
+AGRI     5min         96         2025-08-25   2025-08-26   1      123.1%    
+AGRI     15min        0          None         None         0      N/A       
+AGRI     1h           0          None         None         0      N/A       
+AGRI     1day         0          None         None         0      N/A       
+AIFF     1min         292        2025-08-25   2025-08-28   3      N/A       
+AIFF     5min         5,233      2025-05-09   2025-08-28   111    60.4%     
+AIFF     15min        5,078      2024-10-23   2025-08-28   309    63.2%     
+AIFF     1h           1,684      2024-08-30   2025-08-26   361    N/A       
+AIFF     1day         246        2024-08-30   2025-08-25   360    N/A       
+AIFU     1min         37         2025-08-27   2025-08-28   1      N/A       
+AIFU     5min         5,069      2025-03-03   2025-08-28   177    36.7%     
+AIFU     15min        4,284      2024-10-23   2025-08-22   303    54.4%     
+AIFU     1h           1,404      2024-10-23   2025-08-22   303    N/A       
+AIFU     1day         245        2024-08-30   2025-08-22   357    N/A       
+AIRJ     1min         0          None         None         0      N/A       
+AIRJ     5min         5,066      2025-04-29   2025-08-22   115    56.5%     
+AIRJ     15min        5,025      2024-09-17   2025-08-22   339    57.0%     
+AIRJ     1h           1,656      2024-08-30   2025-08-22   357    N/A       
+AIRJ     1day         245        2024-08-30   2025-08-22   357    N/A       
+AIRO     1min         231        2025-08-26   2025-08-28   2      N/A       
+AIRO     5min         4,021      2025-06-13   2025-08-28   76     67.8%     
+AIRO     15min        1,334      2025-06-13   2025-08-27   75     68.4%     
+AIRO     1h           360        2025-06-13   2025-08-27   75     N/A       
+AIRO     1day         52         2025-06-13   2025-08-27   75     N/A       
+ALLR     1min         276        2025-08-25   2025-08-28   3      N/A       
+ALLR     5min         5,234      2025-04-28   2025-08-28   122    55.0%     
+ALLR     15min        5,078      2024-11-07   2025-08-28   294    66.4%     
+ALLR     1h           1,719      2024-08-30   2025-08-26   361    N/A       
+ALLR     1day         246        2024-08-30   2025-08-25   360    N/A       
+ALTS     1min         312        2025-08-25   2025-08-28   3      N/A       
+ALTS     5min         390        2025-08-25   2025-08-29   4      125.0%    
+ALTS     15min        156        2025-08-22   2025-08-29   7      85.7%     
+ALTS     1h           49         2025-08-21   2025-08-29   8      N/A       
+ALTS     1day         6          2025-08-21   2025-08-28   7      N/A       
+AMLX     1min         312        2025-08-25   2025-08-28   3      N/A       
+AMLX     5min         5,234      2025-05-23   2025-08-29   98     68.5%     
+AMLX     15min        5,078      2024-11-14   2025-08-29   288    67.8%     
+AMLX     1h           1,741      2024-08-30   2025-08-29   364    N/A       
+AMLX     1day         249        2024-08-30   2025-08-28   363    N/A       
+AMPX     1min         312        2025-08-25   2025-08-28   3      N/A       
+AMPX     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+AMPX     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+AMPX     1h           1,720      2024-08-30   2025-08-26   361    N/A       
+AMPX     1day         246        2024-08-30   2025-08-25   360    N/A       
+AMZN     1min         0          None         None         0      N/A       
+AMZN     5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+AMZN     15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+AMZN     1h           1,701      2024-08-30   2025-08-21   356    N/A       
+AMZN     1day         244        2024-08-30   2025-08-21   356    N/A       
+APLD     1min         156        2025-08-25   2025-08-26   1      N/A       
+APLD     5min         5,156      2025-05-21   2025-08-26   97     68.1%     
+APLD     15min        5,026      2024-11-12   2025-08-25   286    67.6%     
+APLD     1h           1,706      2024-08-30   2025-08-22   357    N/A       
+APLD     1day         246        2024-08-30   2025-08-25   360    N/A       
+ASC      1min         0          None         None         0      N/A       
+ASC      5min         5,078      2025-05-20   2025-08-22   94     69.3%     
+ASC      15min        5,026      2024-11-11   2025-08-22   284    68.1%     
+ASC      1h           1,706      2024-08-30   2025-08-22   357    N/A       
+ASC      1day         245        2024-08-30   2025-08-22   357    N/A       
+ASPI     1min         312        2025-08-25   2025-08-28   3      N/A       
+ASPI     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+ASPI     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+ASPI     1h           1,713      2024-08-30   2025-08-25   360    N/A       
+ASPI     1day         246        2024-08-30   2025-08-25   360    N/A       
+ASST     1min         0          None         None         0      N/A       
+ASST     5min         5,156      2025-05-21   2025-08-28   99     66.8%     
+ASST     15min        5,078      2024-11-01   2025-08-28   300    65.1%     
+ASST     1h           1,704      2024-08-30   2025-08-22   357    N/A       
+ASST     1day         245        2024-08-30   2025-08-22   357    N/A       
+ASTI     1min         66         2025-08-26   2025-08-27   1      N/A       
+ASTI     5min         5,000      2025-01-16   2025-08-27   223    28.7%     
+ASTI     15min        4,498      2024-08-30   2025-08-27   362    47.8%     
+ASTI     1h           1,666      2024-08-30   2025-08-27   362    N/A       
+ASTI     1day         249        2024-08-30   2025-08-27   362    N/A       
+ATAI     1min         308        2025-08-25   2025-08-28   3      N/A       
+ATAI     5min         5,230      2025-05-23   2025-08-29   98     68.4%     
+ATAI     15min        5,078      2024-11-14   2025-08-29   288    67.8%     
+ATAI     1h           1,741      2024-08-30   2025-08-29   364    N/A       
+ATAI     1day         249        2024-08-30   2025-08-28   363    N/A       
+AUBN     1min         0          None         None         0      N/A       
+AUBN     5min         1,294      2024-08-30   2025-08-22   357    4.6%      
+AUBN     15min        1,060      2024-08-30   2025-08-22   357    11.4%     
+AUBN     1h           736        2024-08-30   2025-08-22   357    N/A       
+AUBN     1day         245        2024-08-30   2025-08-22   357    N/A       
+AXR      1min         0          None         None         0      N/A       
+AXR      5min         5,007      2024-10-04   2025-08-22   322    19.9%     
+AXR      15min        3,403      2024-08-30   2025-08-22   357    36.7%     
+AXR      1h           1,481      2024-08-30   2025-08-22   357    N/A       
+AXR      1day         245        2024-08-30   2025-08-22   357    N/A       
+BAC      1min         0          None         None         0      N/A       
+BAC      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+BAC      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+BAC      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+BAC      1day         242        2024-08-30   2025-08-19   354    N/A       
+BCTX     1min         132        2025-08-25   2025-08-26   1      N/A       
+BCTX     5min         5,066      2025-05-01   2025-08-26   117    55.5%     
+BCTX     15min        5,025      2024-10-28   2025-08-26   302    64.0%     
+BCTX     1h           1,711      2024-08-30   2025-08-25   360    N/A       
+BCTX     1day         3          2025-08-21   2025-08-25   4      N/A       
+BE       1min         78         2025-08-25   2025-08-25   0      N/A       
+BE       5min         5,078      2025-05-21   2025-08-25   96     67.8%     
+BE       15min        5,026      2024-11-12   2025-08-25   286    67.6%     
+BE       1h           1,703      2024-08-30   2025-08-22   357    N/A       
+BE       1day         245        2024-08-30   2025-08-22   357    N/A       
+BLNE     1min         127        2025-08-25   2025-08-26   1      N/A       
+BLNE     5min         5,000      2025-05-09   2025-08-26   109    58.8%     
+BLNE     15min        3,407      2025-01-27   2025-08-26   211    62.1%     
+BLNE     1h           1,012      2025-01-27   2025-08-26   211    N/A       
+BLNE     1day         247        2024-08-30   2025-08-26   361    N/A       
+BMNR     1min         156        2025-08-25   2025-08-26   1      N/A       
+BMNR     5min         4,207      2024-09-18   2025-08-26   342    15.8%     
+BMNR     15min        1,665      2024-09-18   2025-08-26   342    18.7%     
+BMNR     1h           595        2024-09-18   2025-08-22   338    N/A       
+BMNR     1day         246        2024-08-30   2025-08-25   360    N/A       
+BMR      1min         160        2025-08-25   2025-08-27   2      N/A       
+BMR      5min         5,067      2025-04-02   2025-08-27   147    44.2%     
+BMR      15min        5,026      2024-10-29   2025-08-27   302    64.0%     
+BMR      1h           1,720      2024-08-30   2025-08-26   361    N/A       
+BMR      1day         247        2024-08-30   2025-08-26   361    N/A       
+BTAI     1min         156        2025-08-25   2025-08-26   1      N/A       
+BTAI     5min         0          None         None         0      N/A       
+BTAI     15min        0          None         None         0      N/A       
+BTAI     1h           0          None         None         0      N/A       
+BTAI     1day         0          None         None         0      N/A       
+BTDR     1min         312        2025-08-25   2025-08-28   3      N/A       
+BTDR     5min         5,312      2025-05-21   2025-08-28   99     68.8%     
+BTDR     15min        5,104      2024-11-12   2025-08-28   289    67.9%     
+BTDR     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+BTDR     1day         248        2024-08-30   2025-08-27   362    N/A       
+BULL     1min         78         2025-08-25   2025-08-25   0      N/A       
+BULL     5min         5,078      2025-05-21   2025-08-25   96     67.8%     
+BULL     15min        3,118      2024-08-30   2025-08-25   360    33.3%     
+BULL     1h           1,147      2024-08-30   2025-08-25   360    N/A       
+BULL     1day         245        2024-08-30   2025-08-22   357    N/A       
+BZAI     1min         312        2025-08-25   2025-08-28   3      N/A       
+BZAI     5min         5,312      2025-05-16   2025-08-28   104    65.5%     
+BZAI     15min        4,058      2025-01-14   2025-08-28   226    69.1%     
+BZAI     1h           1,096      2025-01-14   2025-08-28   226    N/A       
+BZAI     1day         158        2025-01-10   2025-08-27   229    N/A       
+CHR      1min         0          None         None         0      N/A       
+CHR      5min         3,874      2024-08-30   2025-08-22   357    13.9%     
+CHR      15min        2,723      2024-08-30   2025-08-22   357    29.3%     
+CHR      1h           1,331      2024-08-30   2025-08-22   357    N/A       
+CHR      1day         245        2024-08-30   2025-08-22   357    N/A       
+CIFR     1min         312        2025-08-25   2025-08-28   3      N/A       
+CIFR     5min         5,312      2025-05-22   2025-08-29   99     68.8%     
+CIFR     15min        5,104      2024-11-13   2025-08-29   289    67.9%     
+CIFR     1h           1,722      2024-08-30   2025-08-26   361    N/A       
+CIFR     1day         249        2024-08-30   2025-08-28   363    N/A       
+CLIK     1min         0          None         None         0      N/A       
+CLIK     5min         5,043      2025-04-21   2025-08-22   123    52.6%     
+CLIK     15min        4,266      2024-10-09   2025-08-22   317    51.8%     
+CLIK     1h           1,438      2024-10-09   2025-08-22   317    N/A       
+CLIK     1day         218        2024-10-09   2025-08-22   317    N/A       
+CLMT     1min         156        2025-08-25   2025-08-26   1      N/A       
+CLMT     5min         5,000      2025-05-23   2025-08-26   95     67.5%     
+CLMT     15min        5,000      2024-11-14   2025-08-26   285    67.5%     
+CLMT     1h           1,720      2024-08-30   2025-08-26   361    N/A       
+CLMT     1day         247        2024-08-30   2025-08-26   361    N/A       
+CLWT     1min         10         2025-08-25   2025-08-26   1      N/A       
+CLWT     5min         2,350      2024-08-30   2025-08-26   361    8.3%      
+CLWT     15min        1,774      2024-08-30   2025-08-26   361    18.9%     
+CLWT     1h           1,065      2024-08-30   2025-08-26   361    N/A       
+CLWT     1day         246        2024-08-30   2025-08-25   360    N/A       
+CRML     1min         312        2025-08-25   2025-08-28   3      N/A       
+CRML     5min         5,312      2025-05-22   2025-08-29   99     68.8%     
+CRML     15min        5,090      2024-08-30   2025-08-29   364    53.8%     
+CRML     1h           1,654      2024-08-30   2025-08-29   364    N/A       
+CRML     1day         249        2024-08-30   2025-08-28   363    N/A       
+CWD      1min         132        2025-08-26   2025-08-28   2      N/A       
+CWD      5min         132        2025-08-26   2025-08-28   2      84.6%     
+CWD      15min        80         2025-08-25   2025-08-28   3      102.6%    
+CWD      1h           0          None         None         0      N/A       
+CWD      1day         3          2025-08-25   2025-08-27   2      N/A       
+DDI      1min         0          None         None         0      N/A       
+DDI      5min         5,000      2024-12-17   2025-08-22   248    25.8%     
+DDI      15min        4,308      2024-08-30   2025-08-22   357    46.4%     
+DDI      1h           1,609      2024-08-30   2025-08-22   357    N/A       
+DDI      1day         245        2024-08-30   2025-08-22   357    N/A       
+DEVS     1min         157        2025-08-25   2025-08-27   2      N/A       
+DEVS     5min         5,147      2025-05-05   2025-08-28   115    57.4%     
+DEVS     15min        4,703      2024-11-07   2025-08-28   294    61.5%     
+DEVS     1h           1,375      2024-11-07   2025-08-26   292    N/A       
+DEVS     1day         238        2024-08-30   2025-08-26   361    N/A       
+DFDV     1min         312        2025-08-25   2025-08-28   3      N/A       
+DFDV     5min         5,234      2025-05-23   2025-08-29   98     68.5%     
+DFDV     15min        2,085      2025-05-06   2025-08-29   115    69.7%     
+DFDV     1h           564        2025-05-06   2025-08-29   115    N/A       
+DFDV     1day         249        2024-08-30   2025-08-28   363    N/A       
+DK       1min         312        2025-08-25   2025-08-28   3      N/A       
+DK       5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+DK       15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+DK       1h           1,734      2024-08-30   2025-08-28   363    N/A       
+DK       1day         248        2024-08-30   2025-08-27   362    N/A       
+DUO      1min         269        2025-08-25   2025-08-28   3      N/A       
+DUO      5min         5,347      2025-04-17   2025-08-29   134    51.2%     
+DUO      15min        5,129      2024-11-04   2025-08-29   298    66.2%     
+DUO      1h           1,712      2024-08-30   2025-08-26   361    N/A       
+DUO      1day         249        2024-08-30   2025-08-28   363    N/A       
+EUDA     1min         178        2025-08-25   2025-08-28   3      N/A       
+EUDA     5min         4,601      2024-08-30   2025-08-28   363    16.2%     
+EUDA     15min        3,007      2024-08-30   2025-08-28   363    31.9%     
+EUDA     1h           1,415      2024-08-30   2025-08-27   362    N/A       
+EUDA     1day         248        2024-08-30   2025-08-27   362    N/A       
+FLNT     1min         170        2025-08-25   2025-08-27   2      N/A       
+FLNT     5min         3,495      2024-08-30   2025-08-27   362    12.4%     
+FLNT     15min        2,479      2024-08-30   2025-08-27   362    26.3%     
+FLNT     1h           1,320      2024-08-30   2025-08-27   362    N/A       
+FLNT     1day         247        2024-08-30   2025-08-26   361    N/A       
+FORA     1min         45         2025-08-25   2025-08-25   0      N/A       
+FORA     5min         2,714      2024-08-30   2025-08-25   360    9.7%      
+FORA     15min        2,004      2024-08-30   2025-08-25   360    21.4%     
+FORA     1h           1,144      2024-08-30   2025-08-22   357    N/A       
+FORA     1day         245        2024-08-30   2025-08-22   357    N/A       
+GOOGL    1min         0          None         None         0      N/A       
+GOOGL    5min         5,624      2025-05-08   2025-08-21   105    68.7%     
+GOOGL    15min        5,208      2024-10-30   2025-08-21   295    67.9%     
+GOOGL    1h           1,686      2024-08-30   2025-08-19   354    N/A       
+GOOGL    1day         242        2024-08-30   2025-08-19   354    N/A       
+GOTU     1min         156        2025-08-27   2025-08-28   1      N/A       
+GOTU     5min         5,078      2025-05-27   2025-08-29   94     69.3%     
+GOTU     15min        5,026      2024-11-18   2025-08-29   284    68.1%     
+GOTU     1h           1,742      2024-08-30   2025-08-29   364    N/A       
+GOTU     1day         249        2024-08-30   2025-08-28   363    N/A       
+GPRE     1min         312        2025-08-25   2025-08-28   3      N/A       
+GPRE     5min         5,234      2025-05-23   2025-08-29   98     68.5%     
+GPRE     15min        5,078      2024-11-14   2025-08-29   288    67.8%     
+GPRE     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+GPRE     1day         249        2024-08-30   2025-08-28   363    N/A       
+GS       1min         0          None         None         0      N/A       
+GS       5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+GS       15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+GS       1h           1,685      2024-08-30   2025-08-19   354    N/A       
+GS       1day         242        2024-08-30   2025-08-19   354    N/A       
+HCWB     1min         295        2025-08-25   2025-08-28   3      N/A       
+HCWB     5min         5,295      2025-02-07   2025-08-28   202    33.6%     
+HCWB     15min        4,570      2024-08-30   2025-08-28   363    48.4%     
+HCWB     1h           1,576      2024-08-30   2025-08-28   363    N/A       
+HCWB     1day         248        2024-08-30   2025-08-27   362    N/A       
+HD       1min         0          None         None         0      N/A       
+HD       5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+HD       15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+HD       1h           1,685      2024-08-30   2025-08-19   354    N/A       
+HD       1day         242        2024-08-30   2025-08-19   354    N/A       
+HIVE     1min         312        2025-08-25   2025-08-28   3      N/A       
+HIVE     5min         5,234      2025-05-23   2025-08-29   98     68.5%     
+HIVE     15min        5,078      2024-11-14   2025-08-29   288    67.8%     
+HIVE     1h           1,741      2024-08-30   2025-08-29   364    N/A       
+HIVE     1day         249        2024-08-30   2025-08-28   363    N/A       
+HOLO     1min         74         2025-08-25   2025-08-25   0      N/A       
+HOLO     5min         5,155      2025-05-21   2025-08-28   99     66.8%     
+HOLO     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+HOLO     1h           1,713      2024-08-30   2025-08-25   360    N/A       
+HOLO     1day         246        2024-08-30   2025-08-25   360    N/A       
+HSAI     1min         312        2025-08-25   2025-08-28   3      N/A       
+HSAI     5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+HSAI     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+HSAI     1h           1,727      2024-08-30   2025-08-27   362    N/A       
+HSAI     1day         248        2024-08-30   2025-08-27   362    N/A       
+HTZ      1min         234        2025-08-25   2025-08-27   2      N/A       
+HTZ      5min         5,078      2025-05-23   2025-08-27   96     67.8%     
+HTZ      15min        5,026      2024-11-14   2025-08-27   286    67.6%     
+HTZ      1h           1,727      2024-08-30   2025-08-27   362    N/A       
+HTZ      1day         3          2025-08-22   2025-08-26   4      N/A       
+HUT      1min         312        2025-08-25   2025-08-28   3      N/A       
+HUT      5min         5,312      2025-05-22   2025-08-29   99     68.8%     
+HUT      15min        5,104      2024-11-13   2025-08-29   289    67.9%     
+HUT      1h           1,734      2024-08-30   2025-08-28   363    N/A       
+HUT      1day         249        2024-08-30   2025-08-28   363    N/A       
+IMAB     1min         307        2025-08-25   2025-08-28   3      N/A       
+IMAB     5min         5,154      2025-05-02   2025-08-28   118    56.0%     
+IMAB     15min        5,026      2024-10-18   2025-08-27   313    61.8%     
+IMAB     1h           1,712      2024-08-30   2025-08-27   362    N/A       
+IMAB     1day         248        2024-08-30   2025-08-27   362    N/A       
+INHD     1min         310        2025-08-25   2025-08-28   3      N/A       
+INHD     5min         5,387      2024-11-04   2025-08-29   298    23.2%     
+INHD     15min        3,419      2024-08-30   2025-08-29   364    36.1%     
+INHD     1h           1,371      2024-08-30   2025-08-29   364    N/A       
+INHD     1day         248        2024-08-30   2025-08-28   363    N/A       
+IPDN     1min         31         2025-08-27   2025-08-28   1      N/A       
+IPDN     5min         5,078      2024-11-26   2025-08-29   276    23.6%     
+IPDN     15min        3,481      2024-08-30   2025-08-29   364    36.8%     
+IPDN     1h           1,453      2024-08-30   2025-08-28   363    N/A       
+IPDN     1day         249        2024-08-30   2025-08-28   363    N/A       
+IREN     1min         312        2025-08-25   2025-08-28   3      N/A       
+IREN     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+IREN     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+IREN     1h           1,728      2024-08-30   2025-08-27   362    N/A       
+IREN     1day         248        2024-08-30   2025-08-27   362    N/A       
+IWM      1min         0          None         None         0      N/A       
+IWM      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+IWM      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+IWM      1h           1,701      2024-08-30   2025-08-21   356    N/A       
+IWM      1day         244        2024-08-30   2025-08-21   356    N/A       
+JMIA     1min         312        2025-08-25   2025-08-28   3      N/A       
+JMIA     5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+JMIA     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+JMIA     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+JMIA     1day         248        2024-08-30   2025-08-27   362    N/A       
+JNJ      1min         0          None         None         0      N/A       
+JNJ      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+JNJ      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+JNJ      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+JNJ      1day         242        2024-08-30   2025-08-19   354    N/A       
+JPM      1min         0          None         None         0      N/A       
+JPM      5min         5,000      2025-05-16   2025-08-19   95     67.5%     
+JPM      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+JPM      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+JPM      1day         242        2024-08-30   2025-08-19   354    N/A       
+KO       1min         0          None         None         0      N/A       
+KO       5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+KO       15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+KO       1h           1,688      2024-08-30   2025-08-19   354    N/A       
+KO       1day         242        2024-08-30   2025-08-19   354    N/A       
+KSS      1min         234        2025-08-26   2025-08-28   2      N/A       
+KSS      5min         5,078      2025-05-27   2025-08-28   93     70.0%     
+KSS      15min        5,026      2024-11-15   2025-08-28   286    67.6%     
+KSS      1h           1,728      2024-08-30   2025-08-27   362    N/A       
+KSS      1day         3          2025-08-25   2025-08-27   2      N/A       
+LWLG     1min         312        2025-08-25   2025-08-28   3      N/A       
+LWLG     5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+LWLG     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+LWLG     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+LWLG     1day         248        2024-08-30   2025-08-27   362    N/A       
+META     1min         0          None         None         0      N/A       
+META     5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+META     15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+META     1h           1,686      2024-08-30   2025-08-19   354    N/A       
+META     1day         242        2024-08-30   2025-08-19   354    N/A       
+MS       1min         0          None         None         0      N/A       
+MS       5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+MS       15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+MS       1h           1,687      2024-08-30   2025-08-19   354    N/A       
+MS       1day         242        2024-08-30   2025-08-19   354    N/A       
+MSFT     1min         0          None         None         0      N/A       
+MSFT     5min         5,624      2025-05-08   2025-08-21   105    68.7%     
+MSFT     15min        5,156      2024-10-30   2025-08-19   293    67.7%     
+MSFT     1h           1,686      2024-08-30   2025-08-19   354    N/A       
+MSFT     1day         242        2024-08-30   2025-08-19   354    N/A       
+NB       1min         156        2025-08-25   2025-08-26   1      N/A       
+NB       5min         5,000      2025-05-23   2025-08-26   95     67.5%     
+NB       15min        5,000      2024-11-07   2025-08-26   292    65.9%     
+NB       1h           1,716      2024-08-30   2025-08-26   361    N/A       
+NB       1day         247        2024-08-30   2025-08-26   361    N/A       
+NIO      1min         312        2025-08-25   2025-08-28   3      N/A       
+NIO      5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+NIO      15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+NIO      1h           1,729      2024-08-30   2025-08-27   362    N/A       
+NIO      1day         248        2024-08-30   2025-08-27   362    N/A       
+NUKK     1min         306        2025-08-25   2025-08-28   3      N/A       
+NUKK     5min         5,308      2025-05-05   2025-08-29   116    58.7%     
+NUKK     15min        5,104      2024-10-30   2025-08-29   303    64.8%     
+NUKK     1h           1,712      2024-08-30   2025-08-26   361    N/A       
+NUKK     1day         249        2024-08-30   2025-08-28   363    N/A       
+NVDA     1min         0          None         None         0      N/A       
+NVDA     5min         5,624      2025-05-08   2025-08-21   105    68.7%     
+NVDA     15min        5,156      2024-10-30   2025-08-19   293    67.7%     
+NVDA     1h           1,686      2024-08-30   2025-08-19   354    N/A       
+NVDA     1day         242        2024-08-30   2025-08-19   354    N/A       
+OKLO     1min         312        2025-08-25   2025-08-28   3      N/A       
+OKLO     5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+OKLO     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+OKLO     1h           1,720      2024-08-30   2025-08-26   361    N/A       
+OKLO     1day         247        2024-08-30   2025-08-26   361    N/A       
+ONDS     1min         312        2025-08-25   2025-08-28   3      N/A       
+ONDS     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+ONDS     15min        5,078      2024-11-12   2025-08-28   289    67.6%     
+ONDS     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+ONDS     1day         248        2024-08-30   2025-08-27   362    N/A       
+OPAD     1min         312        2025-08-25   2025-08-28   3      N/A       
+OPAD     5min         5,312      2025-04-01   2025-08-28   149    45.7%     
+OPAD     15min        5,036      2024-08-30   2025-08-28   363    53.4%     
+OPAD     1h           1,701      2024-08-30   2025-08-27   362    N/A       
+OPAD     1day         248        2024-08-30   2025-08-27   362    N/A       
+OPEN     1min         312        2025-08-25   2025-08-28   3      N/A       
+OPEN     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+OPEN     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+OPEN     1h           1,729      2024-08-30   2025-08-27   362    N/A       
+OPEN     1day         248        2024-08-30   2025-08-27   362    N/A       
+PEP      1min         0          None         None         0      N/A       
+PEP      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+PEP      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+PEP      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+PEP      1day         242        2024-08-30   2025-08-19   354    N/A       
+PFE      1min         0          None         None         0      N/A       
+PFE      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+PFE      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+PFE      1h           1,686      2024-08-30   2025-08-19   354    N/A       
+PFE      1day         242        2024-08-30   2025-08-19   354    N/A       
+PG       1min         0          None         None         0      N/A       
+PG       5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+PG       15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+PG       1h           1,700      2024-08-30   2025-08-21   356    N/A       
+PG       1day         244        2024-08-30   2025-08-21   356    N/A       
+PGEN     1min         312        2025-08-25   2025-08-28   3      N/A       
+PGEN     5min         312        2025-08-25   2025-08-28   3      133.3%    
+PGEN     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+PGEN     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+PGEN     1day         248        2024-08-30   2025-08-27   362    N/A       
+PMEC     1min         44         2025-08-25   2025-08-25   0      N/A       
+PMEC     5min         5,000      2024-11-15   2025-08-25   283    22.7%     
+PMEC     15min        3,670      2024-08-30   2025-08-25   360    39.2%     
+PMEC     1h           1,498      2024-08-30   2025-08-25   360    N/A       
+PMEC     1day         246        2024-08-30   2025-08-25   360    N/A       
+PSKY     1min         234        2025-08-26   2025-08-28   2      N/A       
+PSKY     5min         1,322      2025-08-07   2025-08-29   22     77.0%     
+PSKY     15min        441        2025-08-07   2025-08-29   22     77.1%     
+PSKY     1h           119        2025-08-07   2025-08-29   22     N/A       
+PSKY     1day         249        2024-08-30   2025-08-28   363    N/A       
+QQQ      1min         0          None         None         0      N/A       
+QQQ      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+QQQ      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+QQQ      1h           1,701      2024-08-30   2025-08-21   356    N/A       
+QQQ      1day         244        2024-08-30   2025-08-21   356    N/A       
+RIME     1min         129        2025-08-26   2025-08-28   2      N/A       
+RIME     5min         5,133      2025-03-03   2025-08-29   179    36.8%     
+RIME     15min        5,051      2024-10-10   2025-08-29   323    60.1%     
+RIME     1h           1,687      2024-09-09   2025-08-29   354    N/A       
+RIME     1day         249        2024-08-30   2025-08-28   363    N/A       
+RIOT     1min         312        2025-08-25   2025-08-28   3      N/A       
+RIOT     5min         5,234      2025-05-22   2025-08-28   98     68.5%     
+RIOT     15min        5,078      2024-11-13   2025-08-28   288    67.8%     
+RIOT     1h           1,736      2024-08-30   2025-08-28   363    N/A       
+RIOT     1day         250        2024-08-30   2025-08-27   362    N/A       
+RKLB     1min         312        2025-08-25   2025-08-28   3      N/A       
+RKLB     5min         5,078      2025-05-27   2025-08-28   93     70.0%     
+RKLB     15min        5,026      2024-11-15   2025-08-28   286    67.6%     
+RKLB     1h           1,729      2024-08-30   2025-08-27   362    N/A       
+RKLB     1day         250        2024-08-30   2025-08-27   362    N/A       
+RR       1min         312        2025-08-25   2025-08-28   3      N/A       
+RR       5min         5,078      2025-05-27   2025-08-28   93     70.0%     
+RR       15min        5,026      2024-11-15   2025-08-28   286    67.6%     
+RR       1h           1,727      2024-08-30   2025-08-27   362    N/A       
+RR       1day         248        2024-08-30   2025-08-27   362    N/A       
+SER      1min         93         2025-08-25   2025-08-26   1      N/A       
+SER      5min         3,551      2024-08-30   2025-08-26   361    12.6%     
+SER      15min        2,382      2024-08-30   2025-08-26   361    25.4%     
+SER      1h           1,244      2024-08-30   2025-08-26   361    N/A       
+SER      1day         246        2024-08-30   2025-08-25   360    N/A       
+SMX      1min         210        2025-08-26   2025-08-28   2      N/A       
+SMX      5min         5,156      2025-03-31   2025-08-29   151    43.8%     
+SMX      15min        5,052      2024-10-16   2025-08-29   317    61.3%     
+SMX      1h           1,718      2024-08-30   2025-08-28   363    N/A       
+SMX      1day         249        2024-08-30   2025-08-28   363    N/A       
+SOGP     1min         96         2025-08-26   2025-08-28   2      N/A       
+SOGP     5min         5,077      2024-10-11   2025-08-28   321    20.3%     
+SOGP     15min        3,372      2024-08-30   2025-08-28   363    35.7%     
+SOGP     1h           1,469      2024-08-30   2025-08-28   363    N/A       
+SOGP     1day         249        2024-08-30   2025-08-28   363    N/A       
+SPAI     1min         151        2025-08-25   2025-08-26   1      N/A       
+SPAI     5min         5,151      2025-02-04   2025-08-26   203    32.5%     
+SPAI     15min        4,955      2024-08-30   2025-08-25   360    52.9%     
+SPAI     1h           1,664      2024-08-30   2025-08-22   357    N/A       
+SPAI     1day         245        2024-08-30   2025-08-22   357    N/A       
+SPRC     1min         127        2025-08-26   2025-08-27   1      N/A       
+SPRC     5min         5,000      2025-02-18   2025-08-27   190    33.7%     
+SPRC     15min        5,000      2024-09-25   2025-08-27   336    57.2%     
+SPRC     1h           1,694      2024-08-30   2025-08-27   362    N/A       
+SPRC     1day         248        2024-08-30   2025-08-27   362    N/A       
+SPY      1min         0          None         None         0      N/A       
+SPY      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+SPY      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+SPY      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+SPY      1day         242        2024-08-30   2025-08-19   354    N/A       
+STSS     1min         233        2025-08-25   2025-08-27   2      N/A       
+STSS     5min         5,233      2025-03-31   2025-08-27   149    45.0%     
+STSS     15min        5,078      2024-09-27   2025-08-27   334    58.5%     
+STSS     1h           1,709      2024-08-30   2025-08-27   362    N/A       
+STSS     1day         247        2024-08-30   2025-08-26   361    N/A       
+TELO     1min         173        2025-08-26   2025-08-28   2      N/A       
+TELO     5min         5,078      2025-04-30   2025-08-28   120    54.3%     
+TELO     15min        5,026      2024-11-04   2025-08-28   297    65.1%     
+TELO     1h           1,725      2024-08-30   2025-08-27   362    N/A       
+TELO     1day         248        2024-08-30   2025-08-27   362    N/A       
+THAR     1min         78         2025-08-25   2025-08-25   0      N/A       
+THAR     5min         5,078      2024-11-06   2025-08-25   292    22.3%     
+THAR     15min        3,852      2024-08-30   2025-08-25   360    41.2%     
+THAR     1h           1,567      2024-08-30   2025-08-22   357    N/A       
+THAR     1day         247        2024-08-30   2025-08-22   357    N/A       
+TMC      1min         312        2025-08-25   2025-08-28   3      N/A       
+TMC      5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+TMC      15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+TMC      1h           1,734      2024-08-30   2025-08-28   363    N/A       
+TMC      1day         248        2024-08-30   2025-08-27   362    N/A       
+TMO      1min         0          None         None         0      N/A       
+TMO      5min         5,000      2025-05-16   2025-08-19   95     67.5%     
+TMO      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+TMO      1h           1,685      2024-08-30   2025-08-19   354    N/A       
+TMO      1day         242        2024-08-30   2025-08-19   354    N/A       
+TSLA     1min         0          None         None         0      N/A       
+TSLA     5min         5,624      2025-05-08   2025-08-21   105    68.7%     
+TSLA     15min        5,208      2024-10-30   2025-08-21   295    67.9%     
+TSLA     1h           1,687      2024-08-30   2025-08-19   354    N/A       
+TSLA     1day         242        2024-08-30   2025-08-19   354    N/A       
+UNH      1min         0          None         None         0      N/A       
+UNH      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+UNH      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+UNH      1h           1,685      2024-08-30   2025-08-19   354    N/A       
+UNH      1day         242        2024-08-30   2025-08-19   354    N/A       
+UP       1min         312        2025-08-25   2025-08-28   3      N/A       
+UP       5min         390        2025-08-25   2025-08-29   4      125.0%    
+UP       15min        104        2025-08-26   2025-08-29   3      133.3%    
+UP       1h           35         2025-08-25   2025-08-29   4      N/A       
+UP       1day         4          2025-08-25   2025-08-28   3      N/A       
+UPXI     1min         156        2025-08-25   2025-08-26   1      N/A       
+UPXI     5min         156        2025-08-25   2025-08-26   1      200.0%    
+UPXI     15min        0          None         None         0      N/A       
+UPXI     1h           0          None         None         0      N/A       
+UPXI     1day         0          None         None         0      N/A       
+UUUU     1min         156        2025-08-25   2025-08-26   1      N/A       
+UUUU     5min         5,156      2025-05-23   2025-08-28   97     68.1%     
+UUUU     15min        5,052      2024-11-14   2025-08-28   287    67.7%     
+UUUU     1h           1,720      2024-08-30   2025-08-26   361    N/A       
+UUUU     1day         0          None         None         0      N/A       
+VNET     1min         156        2025-08-27   2025-08-28   1      N/A       
+VNET     5min         5,000      2025-05-28   2025-08-28   92     69.7%     
+VNET     15min        5,000      2024-11-18   2025-08-28   283    68.0%     
+VNET     1h           1,734      2024-08-30   2025-08-28   363    N/A       
+VNET     1day         249        2024-08-30   2025-08-28   363    N/A       
+WAVE     1min         54         2025-08-25   2025-08-26   1      N/A       
+WAVE     5min         5,000      2024-12-05   2025-08-26   264    24.3%     
+WAVE     15min        4,218      2024-08-30   2025-08-26   361    44.9%     
+WAVE     1h           1,612      2024-08-30   2025-08-26   361    N/A       
+WAVE     1day         247        2024-08-30   2025-08-26   361    N/A       
+WFC      1min         0          None         None         0      N/A       
+WFC      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+WFC      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+WFC      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+WFC      1day         242        2024-08-30   2025-08-19   354    N/A       
+WMT      1min         0          None         None         0      N/A       
+WMT      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+WMT      15min        5,052      2024-11-07   2025-08-21   287    67.7%     
+WMT      1h           1,686      2024-08-30   2025-08-19   354    N/A       
+WMT      1day         242        2024-08-30   2025-08-19   354    N/A       
+XLF      1min         0          None         None         0      N/A       
+XLF      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+XLF      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+XLF      1h           1,687      2024-08-30   2025-08-19   354    N/A       
+XLF      1day         242        2024-08-30   2025-08-19   354    N/A       
+XLK      1min         0          None         None         0      N/A       
+XLK      5min         5,156      2025-05-16   2025-08-21   97     68.1%     
+XLK      15min        5,000      2024-11-07   2025-08-19   285    67.5%     
+XLK      1h           1,686      2024-08-30   2025-08-19   354    N/A       
+XLK      1day         242        2024-08-30   2025-08-19   354    N/A       
+
+📊 ANALYSIS SUMMARY
+------------------------------
+Total tickers analyzed: 152
+Tickers with 5-minute data: 151
+Tickers with 15-minute data: 148
+Average 5-minute data completeness: 58.4%
+Average 15-minute data completeness: 60.1%
+
+⚠️ Tickers with low data counts (34):
+  ADXN (1min): 2 records
+  BCTX (1day): 3 records
+  CWD (1day): 3 records
+  HTZ (1day): 3 records
+  KSS (1day): 3 records
+  AACB (1min): 4 records
+  UP (1day): 4 records
+  AAM (1min): 5 records
+  ABCB (1day): 5 records
+  ABG (1day): 5 records
+  ABT (1day): 5 records
+  ADVB (1day): 5 records
+  AEBI (1day): 5 records
+  AEMD (1day): 5 records
+  AADR (1min): 6 records
+  ALTS (1day): 6 records
+  CLWT (1min): 10 records
+  AC (1min): 16 records
+  AACI (1min): 20 records
+  IPDN (1min): 31 records
+  AAA (1min): 32 records
+  AAAA (1day): 32 records
+  ADVB (1min): 32 records
+  ABCB (1h): 35 records
+  ABG (1h): 35 records
+  ABT (1h): 35 records
+  ADVB (1h): 35 records
+  AEBI (1h): 35 records
+  AEMD (1h): 35 records
+  UP (1h): 35 records
+  AIFU (1min): 37 records
+  PMEC (1min): 44 records
+  FORA (1min): 45 records
+  ALTS (1h): 49 records
+
+✅ Tickers with high data counts (402):
+  AAPL (5min): 5,858 records
+  GOOGL (5min): 5,624 records
+  MSFT (5min): 5,624 records
+  NVDA (5min): 5,624 records
+  TSLA (5min): 5,624 records
+
+🔧 SYSTEM STATUS ANALYSIS
+------------------------------
+⚠️ Redis connected but no active tickers - data collection may be paused
+   - Check if data collection service is running
+   - Check if tickers were properly loaded into Redis
+✅ File system has data for 152 tickers
+📊 Total data files: 108,203
+💾 Total data size: 304.33 MB
+
+💡 RECOMMENDATIONS
+------------------------------
+1. 🔧 Restart data collection service to populate active tickers in Redis
+2. 🔍 Check logs for data collection service startup issues
+3. 📊 Consider data retention policy - you have data spanning full year
+4. 🔄 Implement data cleanup for old files if storage is a concern
+5. 🎯 Prioritize re-fetching data for tickers with low record counts
+6. 📈 Focus on 5-minute and 15-minute data for active trading
+7. 🔍 Investigate why some tickers have much more data than others

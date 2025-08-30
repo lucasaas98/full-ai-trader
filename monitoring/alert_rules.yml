@@ -235,7 +235,7 @@ groups:
                 description: "Redis cache is not responding"
 
           - alert: RedisHighMemoryUsage
-            expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+            expr: redis_memory_used_bytes / 1073742000 > 1
             for: 5m
             labels:
                 severity: warning
@@ -526,7 +526,7 @@ groups:
                 description: "Container {{ $labels.name }} CPU usage is {{ $value | humanizePercentage }}"
 
           - alert: HighContainerMemory
-            expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.85
+            expr: container_memory_usage_bytes / 1073742000 > 1
             for: 5m
             labels:
                 severity: warning

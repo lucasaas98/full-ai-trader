@@ -149,7 +149,9 @@ class PerformanceTracker:
                 if daily_stats['pnl_stddev'] and daily_stats['pnl_stddev'] > 0:
                     risk_free_rate = Decimal("0.02") / Decimal("365")  # Assume 2% annual risk-free rate
                     excess_return = Decimal(str(daily_stats['avg_pnl'])) - risk_free_rate
-                    sharpe_ratio = excess_return / Decimal(str(daily_stats['pnl_stddev']))
+                    calculated_sharpe = excess_return / Decimal(str(daily_stats['pnl_stddev']))
+                    # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
+                    sharpe_ratio = max(Decimal("-99.999999"), min(Decimal("99.999999"), calculated_sharpe))
 
                 metrics = {
                     'date': target_date,

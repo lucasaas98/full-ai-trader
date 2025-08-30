@@ -27,7 +27,7 @@ services:
             retries: 5
 
     redis:
-        image: redis:7-alpine
+        image: redis:alpine
         container_name: trading_redis
         environment:
             REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -425,7 +425,7 @@ services:
 
     # Log aggregation
     elasticsearch:
-        image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+        image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
         container_name: trading_elasticsearch
         environment:
             - discovery.type=single-node
@@ -440,10 +440,15 @@ services:
         restart: unless-stopped
 
     kibana:
-        image: docker.elastic.co/kibana/kibana:8.11.0
+        image: docker.elastic.co/kibana/kibana:8.15.3
         container_name: trading_kibana
         environment:
             - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+            - XPACK_SECURITY_ENABLED=false
+            - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=a7a6311933d3503b89bc8229502be22b5dd1f7c4c19f7030ad8e5187516e7b7d
+            - XPACK_REPORTING_ROLES_ENABLED=false
+            - TELEMETRY_ENABLED=false
+            - LOGGING_ROOT_LEVEL=warn
         ports:
             - "5601:5601"
         networks:
@@ -453,11 +458,12 @@ services:
         restart: unless-stopped
 
     logstash:
-        image: docker.elastic.co/logstash/logstash:8.11.0
+        image: docker.elastic.co/logstash/logstash:8.15.3
         container_name: trading_logstash
         volumes:
             - ./logging/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
             - ./logging/patterns:/usr/share/logstash/patterns:ro
+            - ./data/logs:/app/data/logs:ro
         ports:
             - "5044:5044"
             - "9600:9600"
