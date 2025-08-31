@@ -1115,9 +1115,16 @@ class NotificationManager:
         """Get count of active positions"""
         try:
             if self.db_manager:
-                latest_snapshots = await self.db_manager.get_portfolio_snapshots(limit=1)
+                today = date.today()
+                start_time = datetime.combine(today, datetime.min.time())
+                end_time = datetime.combine(today, datetime.max.time())
+
+                latest_snapshots = await self.db_manager.get_portfolio_snapshots(
+                    start_date=start_time,
+                    end_date=end_time
+                )
                 if latest_snapshots:
-                    positions = latest_snapshots[0].get('positions', [])
+                    positions = latest_snapshots[-1].get('positions', [])
                     # Count positions with non-zero quantity
                     active_count = sum(1 for pos in positions if pos.get('quantity', 0) != 0)
                     return active_count

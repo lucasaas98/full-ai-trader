@@ -465,14 +465,48 @@ class SharedDatabaseManager:
             logger.error(f"Failed to insert portfolio snapshot: {e}")
             return False
 
+    async def get_risk_events(self, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
+        """Get risk events between dates."""
+        try:
+            async with self.session_factory() as session:
+                query = text("""
+                    SELECT
+                        id, event_type, severity, symbol, description,
+                        timestamp, resolved_at, action_taken, metadata
+                    FROM risk_events
+                    WHERE timestamp >= :start_date AND timestamp <= :end_date
+                    ORDER BY timestamp
+                """)
+
+                result = await session.execute(query, {
+                    'start_date': start_date,
+                    'end_date': end_date
+                })
+
+                events = []
+                for row in result:
+                    event = {
+                        'id': str(row.id),
+                        'event_type': row.event_type,
+                        'severity': row.severity,
+                        'symbol': row.symbol,
+                        'description': row.description,
+                        'timestamp': row.timestamp,
+                        'resolved_at': row.resolved_at,
+                        'action_taken': row.action_taken,
+                        'metadata': row.metadata or {}
+                    }
+                    events.append(event)
+
+                return events
+
+        except Exception as e:
+            logger.error(f"Failed to get risk events: {e}")
+            return []
+
     async def close(self):
         """Close database connections."""
         if self.engine:
             await self.engine.dispose()
             logger.info("Database connection closed")
         self._initialized = False
-
-    def __del__(self):
-        """Cleanup on deletion."""
-        if self.engine and not self.engine.is_disposed:
-            logger.warning("Database connection not properly closed")

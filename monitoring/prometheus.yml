@@ -74,6 +74,8 @@ scrape_configs:
     - job_name: "cadvisor"
       static_configs:
           - targets: ["cadvisor:8080"]
+          - scrape_interval: 15s
+
 # Remote write configuration for long-term storage (optional)
 # remote_write:
 #   - url: "https://your-remote-storage/api/v1/write"
