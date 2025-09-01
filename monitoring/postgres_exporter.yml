@@ -1,0 +1,9 @@
+auth_modules:
+    trading_system_dev: # Set this to any name you want
+        type: userpass
+        userpass:
+            username: ${DB_USER}
+            password: ${DB_PASSWORD}
+        options:
+            # options become key=value parameters of the DSN
+            sslmode: disable

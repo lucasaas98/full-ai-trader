@@ -134,7 +134,7 @@ class DataCollectorApp:
 
             self.logger.info("Data Collection Service started successfully")
             self.logger.info(f"HTTP server running on port {port}")
-            self.logger.info(f"Service configuration: {self.config.dict()}")
+            self.logger.info(f"Service configuration: {self.config.model_dump()}")
 
             # Log service status
             status = await self.data_service.get_service_status()

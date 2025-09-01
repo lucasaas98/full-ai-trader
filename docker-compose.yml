@@ -381,6 +381,8 @@ services:
             DATA_SOURCE_URI: "postgres:5432/${DB_NAME:-trading_system}?sslmode=disable"
             DATA_SOURCE_USER: "${DB_USER:-trader}"
             DATA_SOURCE_PASS: "${DB_PASSWORD}"
+        volumes:
+            - ./monitoring/postgres_exporter.yml:/postgres_exporter.yml:ro
         ports:
             - "9187:9187"
         networks:

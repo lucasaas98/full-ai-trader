@@ -1,6 +1,6 @@
 {
     "id": null,
-    "title": "AI Trading System - Comprehensive Monitoring",
+    "title": "AI Trading System - Comprehensive Monitoring2",
     "tags": ["trading", "ai", "monitoring", "real-time"],
     "timezone": "browser",
     "panels": [
@@ -1084,6 +1084,6 @@
         "to": "now"
     },
     "timepicker": {},
-    "uid": "trading-system-comprehensive",
+    "uid": "trading-system-comprehensive2",
     "version": 1
 }
