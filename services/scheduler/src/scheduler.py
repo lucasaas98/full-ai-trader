@@ -30,7 +30,7 @@ from circuitbreaker import circuit
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from shared.market_hours import MarketHoursService, MarketSession
+from shared.market_hours import MarketHoursService
 
 
 logger = logging.getLogger(__name__)
@@ -199,7 +199,7 @@ class TaskQueue:
         """Add task to appropriate priority queue."""
         queue_name = self.queues[priority]
         if self.redis:
-            self.redis.lpush(queue_name, task_id)  # type: ignore
+            await self.redis.lpush(queue_name, task_id)  # type: ignore
         logger.debug(f"Enqueued task {task_id} to {priority} queue")
 
     async def dequeue_task(self) -> Optional[str]:
@@ -223,7 +223,7 @@ class TaskQueue:
         """Get lengths of all priority queues."""
         lengths = {}
         for priority, queue_name in self.queues.items():
-            lengths[priority.value] = self.redis.llen(queue_name)  # type: ignore
+            lengths[priority.value] = await self.redis.llen(queue_name)  # type: ignore
         return lengths
 
 
@@ -839,7 +839,7 @@ class TradingScheduler:
 
             # Mark step as completed
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
             logger.info("FinViz scan completed successfully")
 
         except Exception as e:
@@ -861,7 +861,7 @@ class TradingScheduler:
                 response.raise_for_status()
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
             logger.info(f"Price updates ({timeframe}) completed successfully")
 
         except Exception as e:
@@ -879,7 +879,7 @@ class TradingScheduler:
                 response.raise_for_status()
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
             logger.info("Strategy analysis completed successfully")
 
         except Exception as e:
@@ -929,7 +929,7 @@ class TradingScheduler:
                 response.raise_for_status()
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
             logger.info("EOD report generated successfully")
 
             # Send notification
@@ -952,7 +952,7 @@ class TradingScheduler:
                 logger.warning(f"{failed_count} services are unhealthy")
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 300, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
 
         except Exception as e:
             logger.error(f"Health check failed: {e}")
@@ -1005,7 +1005,7 @@ class TradingScheduler:
 
             logger.info(f"Data cleanup completed: {files_deleted} files deleted")
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 3600, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 3600, "completed")
 
         except Exception as e:
             logger.error(f"Data cleanup failed: {e}")
@@ -1021,7 +1021,7 @@ class TradingScheduler:
             await asyncio.sleep(5)  # Simulate maintenance work
 
             if self.redis:
-                self.redis.setex(f"task:completion:{task_id}", 3600, "completed")
+                await self.redis.setex(f"task:completion:{task_id}", 3600, "completed")
             logger.info("Database maintenance completed successfully")
 
         except Exception as e:
@@ -1199,7 +1199,7 @@ class TradingScheduler:
 
             # Store notification in Redis for other services to pick up
             if self.redis:
-                self.redis.lpush("notifications:queue", str(notification_data))  # type: ignore
+                await self.redis.lpush("notifications:queue", str(notification_data))  # type: ignore
 
             logger.info(f"Notification sent: {message}")
 

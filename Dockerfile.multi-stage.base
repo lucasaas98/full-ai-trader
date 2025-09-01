@@ -14,6 +14,10 @@ RUN pip install --upgrade pip && \
 # Stage 2: Runtime stage - clean Alpine without build tools
 FROM python:3-slim AS runtime
 
+RUN apt update && apt install curl -y
+RUN apt clean && \
+  rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app

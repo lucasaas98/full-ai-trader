@@ -5,6 +5,16 @@ FROM trading-system-base:latest
 ENV SERVICE_NAME=data_collector \
     SERVICE_PORT=9101
 
+# Switch to root temporarily to install packages
+USER root
+
+# Copy service-specific requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Switch back to appuser
+USER appuser
+
 # Copy service source code
 COPY src/ ./src/
 

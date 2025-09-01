@@ -520,6 +520,16 @@ class FinVizScreener:
         Returns:
             FinVizScreenerResult with breakout candidates
         """
+        custom_filters = {
+            "market_cap": "cap_0.3to",
+            "average_volume": "sh_avgvol_500to",
+            "current_volume": "sh_curvol_o1000",
+            "price": "sh_price_3to100",
+            "relative_volume": f"sh_relvol_o{min_volume_ratio}",
+            "sma20": "ta_sma20_pa",
+            "volatility": "ta_volatility_wo8",
+        }
+
         params = FinVizScreenerParams(
             market_cap_min=None,
             market_cap_max=None,
@@ -529,15 +539,7 @@ class FinVizScreener:
             price_max=None,
             above_sma20=False,
             weekly_volatility_min=None,
-            custom_filters={
-                "market_cap": "cap_0.3to",
-                "average_volume": "sh_avgvol_500to",
-                "current_volume": "sh_curvol_o1000",
-                "price": "sh_price_3to100",
-                "relative_volume": f"sh_relvol_o{min_volume_ratio}",
-                "sma20": "ta_sma20_pa",
-                "volatility": "ta_volatility_wo8",
-            }
+            custom_filters=custom_filters
         )
 
         return await self.fetch_screener_data(params, limit)
@@ -557,19 +559,23 @@ class FinVizScreener:
         Returns:
             FinVizScreenerResult with gap stocks
         """
+        custom_filters={
+            "market_cap": "cap_0.1to",
+            "average_volume": "sh_avgvol_o200",
+            "current_volume": "sh_curvol_o500",
+            "price": "sh_price_2to50",
+            "gap_up": f"ta_gap_u{int(min_gap_percent)}",
+        }
         params = FinVizScreenerParams(
-            market_cap_min="100M",
+            market_cap_min=None,
             market_cap_max=None,
-            avg_volume_min="200K",
-            current_volume_min="500K",
-            price_min=2.0,
-            price_max=50.0,
+            avg_volume_min=None,
+            current_volume_min=None,
+            price_min=None,
+            price_max=None,
             above_sma20=False,
             weekly_volatility_min=None,
-            custom_filters={
-                "gap_up": f"ta_gap_u{min_gap_percent}",
-                "premarket_high": "sh_price_hi52w"
-            }
+            custom_filters=custom_filters
         )
 
         return await self.fetch_screener_data(params, limit)
