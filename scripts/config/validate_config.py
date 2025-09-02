@@ -12,16 +12,16 @@ Usage:
     python validate_config.py --env production --strict --check-secrets
 """
 
-import os
-import sys
-import re
-import json
 import argparse
-from pathlib import Path
-from typing import List, Optional, Tuple
+import json
+import logging
+import os
+import re
+import sys
 from dataclasses import dataclass
 from enum import Enum
-import logging
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 # Configure logging
 logging.basicConfig(
