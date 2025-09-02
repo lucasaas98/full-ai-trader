@@ -12,23 +12,25 @@ This module provides comprehensive system monitoring including:
 """
 
 import asyncio
-import logging
-import psutil
-import time
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Set, Callable
-from dataclasses import dataclass, field
-from enum import Enum
-import redis.asyncio as redis
-import httpx
-from collections import deque, defaultdict
 import json
+import logging
+import time
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
+
+import httpx
+import psutil
+import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
 
 class AlertSeverity(str, Enum):
     """Alert severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -37,6 +39,7 @@ class AlertSeverity(str, Enum):
 
 class MetricType(str, Enum):
     """Types of metrics collected."""
+
     COUNTER = "counter"
     GAUGE = "gauge"
     HISTOGRAM = "histogram"
@@ -46,6 +49,7 @@ class MetricType(str, Enum):
 @dataclass
 class Alert:
     """System alert representation."""
+
     id: str
     timestamp: datetime
     severity: AlertSeverity
@@ -59,6 +63,7 @@ class Alert:
 @dataclass
 class MetricPoint:
     """Single metric data point."""
+
     timestamp: datetime
     value: float
     tags: Dict[str, str] = field(default_factory=dict)
@@ -67,6 +72,7 @@ class MetricPoint:
 @dataclass
 class Threshold:
     """Metric threshold configuration."""
+
     warning: float
     critical: float
     duration: int = 60  # seconds - how long threshold must be exceeded
@@ -98,12 +104,12 @@ class SystemMonitor:
 
         # Thresholds configuration
         self.thresholds = {
-            'cpu_percent': Threshold(warning=70.0, critical=85.0),
-            'memory_percent': Threshold(warning=80.0, critical=90.0),
-            'disk_percent': Threshold(warning=85.0, critical=95.0),
-            'response_time': Threshold(warning=1000.0, critical=5000.0),  # milliseconds
-            'error_rate': Threshold(warning=5.0, critical=10.0),  # percentage
-            'queue_length': Threshold(warning=100.0, critical=500.0),
+            "cpu_percent": Threshold(warning=70.0, critical=85.0),
+            "memory_percent": Threshold(warning=80.0, critical=90.0),
+            "disk_percent": Threshold(warning=85.0, critical=95.0),
+            "response_time": Threshold(warning=1000.0, critical=5000.0),  # milliseconds
+            "error_rate": Threshold(warning=5.0, critical=10.0),  # percentage
+            "queue_length": Threshold(warning=100.0, critical=500.0),
         }
 
         # Performance tracking
@@ -127,7 +133,7 @@ class SystemMonitor:
             self._database_monitor,
             self._redis_monitor,
             self._alert_processor,
-            self._metrics_cleanup
+            self._metrics_cleanup,
         ]
 
         for task_func in tasks:
@@ -160,36 +166,48 @@ class SystemMonitor:
 
                 # CPU monitoring
                 cpu_percent = psutil.cpu_percent(interval=1)
-                await self._record_metric('cpu_percent', cpu_percent, timestamp)
+                await self._record_metric("cpu_percent", cpu_percent, timestamp)
 
                 # Memory monitoring
                 memory = psutil.virtual_memory()
-                await self._record_metric('memory_percent', memory.percent, timestamp)
-                await self._record_metric('memory_used_gb', memory.used / (1024**3), timestamp)
-                await self._record_metric('memory_available_gb', memory.available / (1024**3), timestamp)
+                await self._record_metric("memory_percent", memory.percent, timestamp)
+                await self._record_metric(
+                    "memory_used_gb", memory.used / (1024**3), timestamp
+                )
+                await self._record_metric(
+                    "memory_available_gb", memory.available / (1024**3), timestamp
+                )
 
                 # Disk monitoring
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage("/")
                 disk_percent = (disk.used / disk.total) * 100
-                await self._record_metric('disk_percent', disk_percent, timestamp)
-                await self._record_metric('disk_used_gb', disk.used / (1024**3), timestamp)
-                await self._record_metric('disk_free_gb', disk.free / (1024**3), timestamp)
+                await self._record_metric("disk_percent", disk_percent, timestamp)
+                await self._record_metric(
+                    "disk_used_gb", disk.used / (1024**3), timestamp
+                )
+                await self._record_metric(
+                    "disk_free_gb", disk.free / (1024**3), timestamp
+                )
 
                 # Network monitoring
                 network = psutil.net_io_counters()
-                await self._record_metric('network_bytes_sent', network.bytes_sent, timestamp)
-                await self._record_metric('network_bytes_recv', network.bytes_recv, timestamp)
+                await self._record_metric(
+                    "network_bytes_sent", network.bytes_sent, timestamp
+                )
+                await self._record_metric(
+                    "network_bytes_recv", network.bytes_recv, timestamp
+                )
 
                 # Process monitoring
                 process_count = len(psutil.pids())
-                await self._record_metric('process_count', process_count, timestamp)
+                await self._record_metric("process_count", process_count, timestamp)
 
                 # Load average (Unix systems)
                 try:
                     load_avg = psutil.getloadavg()
-                    await self._record_metric('load_avg_1m', load_avg[0], timestamp)
-                    await self._record_metric('load_avg_5m', load_avg[1], timestamp)
-                    await self._record_metric('load_avg_15m', load_avg[2], timestamp)
+                    await self._record_metric("load_avg_1m", load_avg[0], timestamp)
+                    await self._record_metric("load_avg_5m", load_avg[1], timestamp)
+                    await self._record_metric("load_avg_15m", load_avg[2], timestamp)
                 except (AttributeError, OSError):
                     # getloadavg not available on Windows
                     pass
@@ -216,11 +234,13 @@ class SystemMonitor:
                     ("data_collector", "http://data_collector:9101"),
                     ("strategy_engine", "http://strategy_engine:9102"),
                     ("risk_manager", "http://risk_manager:9103"),
-                    ("trade_executor", "http://trade_executor:9104")
+                    ("trade_executor", "http://trade_executor:9104"),
                 ]
 
                 for service_name, base_url in services:
-                    await self._monitor_service_performance(service_name, base_url, timestamp)
+                    await self._monitor_service_performance(
+                        service_name, base_url, timestamp
+                    )
 
                 await asyncio.sleep(30)  # Check every 30 seconds
 
@@ -230,7 +250,9 @@ class SystemMonitor:
                 logger.error(f"Service health monitoring error: {e}")
                 await asyncio.sleep(60)
 
-    async def _monitor_service_performance(self, service_name: str, base_url: str, timestamp: datetime):
+    async def _monitor_service_performance(
+        self, service_name: str, base_url: str, timestamp: datetime
+    ):
         """Monitor performance metrics for a specific service."""
         try:
             # Health check with timing
@@ -242,57 +264,89 @@ class SystemMonitor:
                     response_time = (time.time() - start_time) * 1000  # milliseconds
 
                     is_healthy = response.status_code == 200
-                    await self._record_metric(f'service_{service_name}_response_time', response_time, timestamp)
-                    await self._record_metric(f'service_{service_name}_healthy', 1 if is_healthy else 0, timestamp)
+                    await self._record_metric(
+                        f"service_{service_name}_response_time",
+                        response_time,
+                        timestamp,
+                    )
+                    await self._record_metric(
+                        f"service_{service_name}_healthy",
+                        1 if is_healthy else 0,
+                        timestamp,
+                    )
 
                     # Get detailed metrics if available
                     if is_healthy:
                         try:
-                            metrics_response = await client.get(f"{base_url}/metrics", timeout=5.0)
+                            metrics_response = await client.get(
+                                f"{base_url}/metrics", timeout=5.0
+                            )
                             if metrics_response.status_code == 200:
                                 service_metrics = metrics_response.json()
-                                await self._process_service_metrics(service_name, service_metrics, timestamp)
+                                await self._process_service_metrics(
+                                    service_name, service_metrics, timestamp
+                                )
                         except:
                             pass  # Metrics endpoint might not exist
 
                 except asyncio.TimeoutError:
-                    await self._record_metric(f'service_{service_name}_healthy', 0, timestamp)
-                    await self._record_metric(f'service_{service_name}_response_time', 5000, timestamp)
+                    await self._record_metric(
+                        f"service_{service_name}_healthy", 0, timestamp
+                    )
+                    await self._record_metric(
+                        f"service_{service_name}_response_time", 5000, timestamp
+                    )
                     logger.warning(f"Health check timeout for {service_name}")
 
         except Exception as e:
             logger.error(f"Failed to monitor service {service_name}: {e}")
-            await self._record_metric(f'service_{service_name}_healthy', 0, timestamp)
+            await self._record_metric(f"service_{service_name}_healthy", 0, timestamp)
 
-    async def _process_service_metrics(self, service_name: str, metrics: Dict[str, Any], timestamp: datetime):
+    async def _process_service_metrics(
+        self, service_name: str, metrics: Dict[str, Any], timestamp: datetime
+    ):
         """Process and store service-specific metrics."""
         try:
             # Store service metrics
             self.service_metrics[service_name] = metrics
 
             # Extract common metrics
-            if 'requests_total' in metrics:
-                await self._record_metric(f'service_{service_name}_requests_total',
-                                        metrics['requests_total'], timestamp)
+            if "requests_total" in metrics:
+                await self._record_metric(
+                    f"service_{service_name}_requests_total",
+                    metrics["requests_total"],
+                    timestamp,
+                )
 
-            if 'requests_failed' in metrics:
-                await self._record_metric(f'service_{service_name}_requests_failed',
-                                        metrics['requests_failed'], timestamp)
+            if "requests_failed" in metrics:
+                await self._record_metric(
+                    f"service_{service_name}_requests_failed",
+                    metrics["requests_failed"],
+                    timestamp,
+                )
 
-            if 'active_connections' in metrics:
-                await self._record_metric(f'service_{service_name}_connections',
-                                        metrics['active_connections'], timestamp)
+            if "active_connections" in metrics:
+                await self._record_metric(
+                    f"service_{service_name}_connections",
+                    metrics["active_connections"],
+                    timestamp,
+                )
 
-            if 'memory_usage_mb' in metrics:
-                await self._record_metric(f'service_{service_name}_memory_mb',
-                                        metrics['memory_usage_mb'], timestamp)
+            if "memory_usage_mb" in metrics:
+                await self._record_metric(
+                    f"service_{service_name}_memory_mb",
+                    metrics["memory_usage_mb"],
+                    timestamp,
+                )
 
             # Calculate error rate
-            if 'requests_total' in metrics and 'requests_failed' in metrics:
-                total = metrics['requests_total']
-                failed = metrics['requests_failed']
+            if "requests_total" in metrics and "requests_failed" in metrics:
+                total = metrics["requests_total"]
+                failed = metrics["requests_failed"]
                 error_rate = (failed / total * 100) if total > 0 else 0
-                await self._record_metric(f'service_{service_name}_error_rate', error_rate, timestamp)
+                await self._record_metric(
+                    f"service_{service_name}_error_rate", error_rate, timestamp
+                )
 
         except Exception as e:
             logger.error(f"Failed to process service metrics for {service_name}: {e}")
@@ -305,9 +359,9 @@ class SystemMonitor:
 
                 # Monitor known API endpoints
                 api_services = {
-                    'alpaca': self.config.alpaca.base_url,
-                    'twelvedata': self.config.twelvedata.base_url,
-                    'finviz': self.config.finviz.base_url
+                    "alpaca": self.config.alpaca.base_url,
+                    "twelvedata": self.config.twelvedata.base_url,
+                    "finviz": self.config.finviz.base_url,
                 }
 
                 for api_name, base_url in api_services.items():
@@ -321,7 +375,9 @@ class SystemMonitor:
                 logger.error(f"API rate limit monitoring error: {e}")
                 await asyncio.sleep(60)
 
-    async def _check_api_rate_limits(self, api_name: str, base_url: str, timestamp: datetime):
+    async def _check_api_rate_limits(
+        self, api_name: str, base_url: str, timestamp: datetime
+    ):
         """Check rate limits for a specific API."""
         try:
             # Get rate limit info from Redis
@@ -331,31 +387,39 @@ class SystemMonitor:
             if rate_limit_data:
                 rate_limit_info = json.loads(rate_limit_data)
 
-                requests_made = rate_limit_info.get('requests_made', 0)
-                limit = rate_limit_info.get('limit', 1000)
-                window_start = datetime.fromisoformat(rate_limit_info.get('window_start', timestamp.isoformat()))
+                requests_made = rate_limit_info.get("requests_made", 0)
+                limit = rate_limit_info.get("limit", 1000)
+                window_start = datetime.fromisoformat(
+                    rate_limit_info.get("window_start", timestamp.isoformat())
+                )
 
                 # Calculate usage percentage
                 usage_percent = (requests_made / limit * 100) if limit > 0 else 0
-                await self._record_metric(f'api_{api_name}_rate_limit_usage', usage_percent, timestamp)
+                await self._record_metric(
+                    f"api_{api_name}_rate_limit_usage", usage_percent, timestamp
+                )
 
                 # Store API rate limit info
                 self.api_rate_limits[api_name] = {
-                    'requests_made': requests_made,
-                    'limit': limit,
-                    'usage_percent': usage_percent,
-                    'window_start': window_start,
-                    'last_updated': timestamp
+                    "requests_made": requests_made,
+                    "limit": limit,
+                    "usage_percent": usage_percent,
+                    "window_start": window_start,
+                    "last_updated": timestamp,
                 }
 
                 # Check thresholds
                 if usage_percent > 80:
                     await self._create_alert(
                         f"api_rate_limit_{api_name}",
-                        AlertSeverity.HIGH if usage_percent > 90 else AlertSeverity.MEDIUM,
+                        (
+                            AlertSeverity.HIGH
+                            if usage_percent > 90
+                            else AlertSeverity.MEDIUM
+                        ),
                         f"API rate limit usage high for {api_name}: {usage_percent:.1f}%",
                         source="monitor",
-                        metadata={'api': api_name, 'usage': usage_percent}
+                        metadata={"api": api_name, "usage": usage_percent},
                     )
 
         except Exception as e:
@@ -373,20 +437,22 @@ class SystemMonitor:
                     # For now, simulate database metrics
 
                     # Connection pool metrics
-                    await self._record_metric('db_connections_active', 5, timestamp)
-                    await self._record_metric('db_connections_idle', 3, timestamp)
-                    await self._record_metric('db_connections_total', 8, timestamp)
+                    await self._record_metric("db_connections_active", 5, timestamp)
+                    await self._record_metric("db_connections_idle", 3, timestamp)
+                    await self._record_metric("db_connections_total", 8, timestamp)
 
                     # Query performance
-                    await self._record_metric('db_avg_query_time', 50.0, timestamp)  # milliseconds
-                    await self._record_metric('db_slow_queries', 0, timestamp)
+                    await self._record_metric(
+                        "db_avg_query_time", 50.0, timestamp
+                    )  # milliseconds
+                    await self._record_metric("db_slow_queries", 0, timestamp)
 
                     # Database size
-                    await self._record_metric('db_size_mb', 1024.0, timestamp)
+                    await self._record_metric("db_size_mb", 1024.0, timestamp)
 
                 except Exception as e:
                     logger.error(f"Database monitoring error: {e}")
-                    await self._record_metric('db_healthy', 0, timestamp)
+                    await self._record_metric("db_healthy", 0, timestamp)
 
                 await asyncio.sleep(60)  # Check every minute
 
@@ -406,14 +472,24 @@ class SystemMonitor:
                 redis_info = await self.redis.info()
 
                 # Basic Redis metrics
-                await self._record_metric('redis_connected_clients',
-                                        redis_info.get('connected_clients', 0), timestamp)
-                await self._record_metric('redis_used_memory_mb',
-                                        redis_info.get('used_memory', 0) / (1024*1024), timestamp)
-                await self._record_metric('redis_keyspace_hits',
-                                        redis_info.get('keyspace_hits', 0), timestamp)
-                await self._record_metric('redis_keyspace_misses',
-                                        redis_info.get('keyspace_misses', 0), timestamp)
+                await self._record_metric(
+                    "redis_connected_clients",
+                    redis_info.get("connected_clients", 0),
+                    timestamp,
+                )
+                await self._record_metric(
+                    "redis_used_memory_mb",
+                    redis_info.get("used_memory", 0) / (1024 * 1024),
+                    timestamp,
+                )
+                await self._record_metric(
+                    "redis_keyspace_hits", redis_info.get("keyspace_hits", 0), timestamp
+                )
+                await self._record_metric(
+                    "redis_keyspace_misses",
+                    redis_info.get("keyspace_misses", 0),
+                    timestamp,
+                )
 
                 # Queue monitoring
                 await self._monitor_redis_queues(timestamp)
@@ -421,14 +497,14 @@ class SystemMonitor:
                 # Check Redis health
                 try:
                     await self.redis.ping()
-                    await self._record_metric('redis_healthy', 1, timestamp)
+                    await self._record_metric("redis_healthy", 1, timestamp)
                 except:
-                    await self._record_metric('redis_healthy', 0, timestamp)
+                    await self._record_metric("redis_healthy", 0, timestamp)
                     await self._create_alert(
                         "redis_connection",
                         AlertSeverity.CRITICAL,
                         "Redis connection failed",
-                        source="monitor"
+                        source="monitor",
                     )
 
                 await asyncio.sleep(30)  # Check every 30 seconds
@@ -444,10 +520,10 @@ class SystemMonitor:
         try:
             # Task queues
             queue_names = [
-                'scheduler:queue:critical',
-                'scheduler:queue:high',
-                'scheduler:queue:normal',
-                'scheduler:queue:low'
+                "scheduler:queue:critical",
+                "scheduler:queue:high",
+                "scheduler:queue:normal",
+                "scheduler:queue:low",
             ]
 
             total_queue_length = 0
@@ -455,39 +531,42 @@ class SystemMonitor:
                 queue_length = await self.redis.llen(queue_name)  # type: ignore
                 total_queue_length += queue_length
 
-                queue_type = queue_name.split(':')[-1]
-                await self._record_metric(f'queue_{queue_type}_length', queue_length, timestamp)
+                queue_type = queue_name.split(":")[-1]
+                await self._record_metric(
+                    f"queue_{queue_type}_length", queue_length, timestamp
+                )
 
-            await self._record_metric('queue_total_length', total_queue_length, timestamp)
+            await self._record_metric(
+                "queue_total_length", total_queue_length, timestamp
+            )
 
             # Check queue thresholds
-            if total_queue_length > self.thresholds['queue_length'].critical:
+            if total_queue_length > self.thresholds["queue_length"].critical:
                 await self._create_alert(
                     "queue_length_critical",
                     AlertSeverity.CRITICAL,
                     f"Total queue length critical: {total_queue_length}",
                     source="monitor",
-                    metadata={'queue_length': total_queue_length}
+                    metadata={"queue_length": total_queue_length},
                 )
-            elif total_queue_length > self.thresholds['queue_length'].warning:
+            elif total_queue_length > self.thresholds["queue_length"].warning:
                 await self._create_alert(
                     "queue_length_warning",
                     AlertSeverity.MEDIUM,
                     f"Total queue length high: {total_queue_length}",
                     source="monitor",
-                    metadata={'queue_length': total_queue_length}
+                    metadata={"queue_length": total_queue_length},
                 )
 
             # Notification queues
-            notification_queues = [
-                'notifications:queue',
-                'notifications:failed'
-            ]
+            notification_queues = ["notifications:queue", "notifications:failed"]
 
             for queue_name in notification_queues:
                 queue_length = await self.redis.llen(queue_name)  # type: ignore
-                queue_type = queue_name.split(':')[-1]
-                await self._record_metric(f'notifications_{queue_type}_length', queue_length, timestamp)
+                queue_type = queue_name.split(":")[-1]
+                await self._record_metric(
+                    f"notifications_{queue_type}_length", queue_length, timestamp
+                )
 
         except Exception as e:
             logger.error(f"Queue monitoring error: {e}")
@@ -554,7 +633,13 @@ class SystemMonitor:
                 logger.error(f"Metrics cleanup error: {e}")
                 await asyncio.sleep(3600)
 
-    async def _record_metric(self, metric_name: str, value: float, timestamp: datetime, tags: Optional[Dict[str, str]] = None):
+    async def _record_metric(
+        self,
+        metric_name: str,
+        value: float,
+        timestamp: datetime,
+        tags: Optional[Dict[str, str]] = None,
+    ):
         """Record a metric point."""
         try:
             if tags is None:
@@ -567,11 +652,18 @@ class SystemMonitor:
 
             # Store in Redis for persistence
             redis_key = f"metrics:{metric_name}"
-            await self.redis.zadd(redis_key, {json.dumps({
-                'value': value,
-                'tags': tags,
-                'timestamp': timestamp.isoformat()
-            }): timestamp.timestamp()})
+            await self.redis.zadd(
+                redis_key,
+                {
+                    json.dumps(
+                        {
+                            "value": value,
+                            "tags": tags,
+                            "timestamp": timestamp.isoformat(),
+                        }
+                    ): timestamp.timestamp()
+                },
+            )
 
         except Exception as e:
             logger.error(f"Failed to record metric {metric_name}: {e}")
@@ -604,11 +696,11 @@ class SystemMonitor:
                     f"{metric_name} critical threshold exceeded: {avg_value:.2f} >= {threshold.critical}",
                     source="monitor",
                     metadata={
-                        'metric': metric_name,
-                        'value': avg_value,
-                        'threshold': threshold.critical,
-                        'duration': threshold.duration
-                    }
+                        "metric": metric_name,
+                        "value": avg_value,
+                        "threshold": threshold.critical,
+                        "duration": threshold.duration,
+                    },
                 )
             elif avg_value >= threshold.warning:
                 await self._create_alert(
@@ -617,15 +709,21 @@ class SystemMonitor:
                     f"{metric_name} warning threshold exceeded: {avg_value:.2f} >= {threshold.warning}",
                     source="monitor",
                     metadata={
-                        'metric': metric_name,
-                        'value': avg_value,
-                        'threshold': threshold.warning,
-                        'duration': threshold.duration
-                    }
+                        "metric": metric_name,
+                        "value": avg_value,
+                        "threshold": threshold.warning,
+                        "duration": threshold.duration,
+                    },
                 )
 
-    async def _create_alert(self, alert_id: str, severity: AlertSeverity, message: str,
-                          source: str, metadata: Optional[Dict[str, Any]] = None):
+    async def _create_alert(
+        self,
+        alert_id: str,
+        severity: AlertSeverity,
+        message: str,
+        source: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         """Create a new system alert."""
         if metadata is None:
             metadata = {}
@@ -640,7 +738,7 @@ class SystemMonitor:
             severity=severity,
             source=source,
             message=message,
-            metadata=metadata
+            metadata=metadata,
         )
 
         self.active_alerts[alert_id] = alert
@@ -648,14 +746,16 @@ class SystemMonitor:
         # Store alert in Redis
         self.redis.lpush(
             f"alerts:{severity.value}",
-            json.dumps({
-                'id': alert_id,
-                'timestamp': alert.timestamp.isoformat(),
-                'severity': severity.value,
-                'source': source,
-                'message': message,
-                'metadata': metadata
-            })
+            json.dumps(
+                {
+                    "id": alert_id,
+                    "timestamp": alert.timestamp.isoformat(),
+                    "severity": severity.value,
+                    "source": source,
+                    "message": message,
+                    "metadata": metadata,
+                }
+            ),
         )
 
         # Notify callbacks
@@ -675,9 +775,16 @@ class SystemMonitor:
         try:
             # Basic resolution logic based on alert type
             if alert.id.startswith("threshold_"):
-                metric_name = alert.id.replace("threshold_", "").replace("_critical", "").replace("_warning", "")
+                metric_name = (
+                    alert.id.replace("threshold_", "")
+                    .replace("_critical", "")
+                    .replace("_warning", "")
+                )
 
-                if metric_name in self.metrics_buffer and self.metrics_buffer[metric_name]:
+                if (
+                    metric_name in self.metrics_buffer
+                    and self.metrics_buffer[metric_name]
+                ):
                     # Check if recent values are below threshold
                     recent_point = self.metrics_buffer[metric_name][-1]
                     threshold = self.thresholds.get(metric_name)
@@ -689,7 +796,7 @@ class SystemMonitor:
             elif alert.id.startswith("api_rate_limit_"):
                 api_name = alert.id.replace("api_rate_limit_", "")
                 if api_name in self.api_rate_limits:
-                    usage = self.api_rate_limits[api_name].get('usage_percent', 0)
+                    usage = self.api_rate_limits[api_name].get("usage_percent", 0)
                     return usage < 70  # Resolve when usage drops below 70%
 
             elif alert.id == "redis_connection":
@@ -715,13 +822,15 @@ class SystemMonitor:
         # Store resolution in Redis
         self.redis.lpush(
             "alerts:resolved",
-            json.dumps({
-                'id': alert.id,
-                'original_timestamp': alert.timestamp.isoformat(),
-                'resolved_timestamp': alert.resolved_at.isoformat(),
-                'duration': (alert.resolved_at - alert.timestamp).total_seconds(),
-                'message': alert.message
-            })
+            json.dumps(
+                {
+                    "id": alert.id,
+                    "original_timestamp": alert.timestamp.isoformat(),
+                    "resolved_timestamp": alert.resolved_at.isoformat(),
+                    "duration": (alert.resolved_at - alert.timestamp).total_seconds(),
+                    "message": alert.message,
+                }
+            ),
         )
 
     async def _cleanup_old_alerts(self):
@@ -740,7 +849,9 @@ class SystemMonitor:
         """Register callback for new alerts."""
         self.alert_callbacks.append(callback)
 
-    async def get_metrics(self, metric_name: str, duration: Optional[timedelta] = None) -> List[MetricPoint]:
+    async def get_metrics(
+        self, metric_name: str, duration: Optional[timedelta] = None
+    ) -> List[MetricPoint]:
         """Get metric data points for a specific duration."""
         if duration is None:
             duration = timedelta(hours=1)
@@ -748,8 +859,11 @@ class SystemMonitor:
         cutoff_time = datetime.now() - duration
 
         if metric_name in self.metrics_buffer:
-            return [point for point in self.metrics_buffer[metric_name]
-                   if point.timestamp >= cutoff_time]
+            return [
+                point
+                for point in self.metrics_buffer[metric_name]
+                if point.timestamp >= cutoff_time
+            ]
 
         return []
 
@@ -762,23 +876,26 @@ class SystemMonitor:
             if not points:
                 continue
 
-            recent_points = [p for p in points if (current_time - p.timestamp).total_seconds() < 300]  # Last 5 minutes
+            recent_points = [
+                p for p in points if (current_time - p.timestamp).total_seconds() < 300
+            ]  # Last 5 minutes
 
             if recent_points:
                 values = [p.value for p in recent_points]
                 summary[metric_name] = {
-                    'current': recent_points[-1].value,
-                    'average': sum(values) / len(values),
-                    'min': min(values),
-                    'max': max(values),
-                    'count': len(values),
-                    'last_update': recent_points[-1].timestamp.isoformat()
+                    "current": recent_points[-1].value,
+                    "average": sum(values) / len(values),
+                    "min": min(values),
+                    "max": max(values),
+                    "count": len(values),
+                    "last_update": recent_points[-1].timestamp.isoformat(),
                 }
 
         return summary
 
-    async def get_alerts(self, severity: Optional[AlertSeverity] = None,
-                        resolved: Optional[bool] = None) -> List[Dict[str, Any]]:
+    async def get_alerts(
+        self, severity: Optional[AlertSeverity] = None, resolved: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
         """Get alerts with optional filtering."""
         alerts = []
 
@@ -789,19 +906,23 @@ class SystemMonitor:
             if resolved is not None and alert.resolved != resolved:
                 continue
 
-            alerts.append({
-                'id': alert.id,
-                'timestamp': alert.timestamp.isoformat(),
-                'severity': alert.severity.value,
-                'source': alert.source,
-                'message': alert.message,
-                'resolved': alert.resolved,
-                'resolved_at': alert.resolved_at.isoformat() if alert.resolved_at else None,
-                'metadata': alert.metadata
-            })
+            alerts.append(
+                {
+                    "id": alert.id,
+                    "timestamp": alert.timestamp.isoformat(),
+                    "severity": alert.severity.value,
+                    "source": alert.source,
+                    "message": alert.message,
+                    "resolved": alert.resolved,
+                    "resolved_at": (
+                        alert.resolved_at.isoformat() if alert.resolved_at else None
+                    ),
+                    "metadata": alert.metadata,
+                }
+            )
 
         # Sort by timestamp (newest first)
-        alerts.sort(key=lambda x: x['timestamp'], reverse=True)
+        alerts.sort(key=lambda x: x["timestamp"], reverse=True)
         return alerts
 
     async def clear_alerts(self, severity: Optional[AlertSeverity] = None):
@@ -841,30 +962,35 @@ class SystemMonitor:
         api_summary = dict(self.api_rate_limits)
 
         return {
-            'timestamp': current_time.isoformat(),
-            'system_resources': system_summary,
-            'services': service_summary,
-            'alerts': alert_summary,
-            'api_rate_limits': api_summary,
-            'monitoring_uptime': (current_time - self.last_performance_check).total_seconds()
+            "timestamp": current_time.isoformat(),
+            "system_resources": system_summary,
+            "services": service_summary,
+            "alerts": alert_summary,
+            "api_rate_limits": api_summary,
+            "monitoring_uptime": (
+                current_time - self.last_performance_check
+            ).total_seconds(),
         }
 
     async def _get_system_resource_summary(self) -> Dict[str, Any]:
         """Get system resource usage summary."""
-        resource_metrics = ['cpu_percent', 'memory_percent', 'disk_percent']
+        resource_metrics = ["cpu_percent", "memory_percent", "disk_percent"]
         summary = {}
 
         for metric in resource_metrics:
             if metric in self.metrics_buffer and self.metrics_buffer[metric]:
-                recent_points = [p for p in self.metrics_buffer[metric]
-                               if (datetime.now() - p.timestamp).total_seconds() < 300]
+                recent_points = [
+                    p
+                    for p in self.metrics_buffer[metric]
+                    if (datetime.now() - p.timestamp).total_seconds() < 300
+                ]
                 if recent_points:
                     values = [p.value for p in recent_points]
                     summary[metric] = {
-                        'current': recent_points[-1].value,
-                        'average': sum(values) / len(values),
-                        'max': max(values),
-                        'min': min(values)
+                        "current": recent_points[-1].value,
+                        "average": sum(values) / len(values),
+                        "max": max(values),
+                        "min": min(values),
                     }
 
         return summary
@@ -874,12 +1000,14 @@ class SystemMonitor:
         summary = {}
 
         for service_name, metrics in self.service_metrics.items():
-            if 'response_time' in metrics:
+            if "response_time" in metrics:
                 summary[service_name] = {
-                    'response_time': metrics['response_time'],
-                    'requests_total': metrics.get('requests_total', 0),
-                    'error_rate': metrics.get('error_rate', 0),
-                    'last_updated': metrics.get('last_updated', datetime.now().isoformat())
+                    "response_time": metrics["response_time"],
+                    "requests_total": metrics.get("requests_total", 0),
+                    "error_rate": metrics.get("error_rate", 0),
+                    "last_updated": metrics.get(
+                        "last_updated", datetime.now().isoformat()
+                    ),
                 }
 
         return summary
@@ -887,43 +1015,51 @@ class SystemMonitor:
     async def _get_alert_summary(self) -> Dict[str, Any]:
         """Get alert summary statistics."""
         total_alerts = len(self.active_alerts)
-        resolved_alerts = sum(1 for alert in self.active_alerts.values() if alert.resolved)
+        resolved_alerts = sum(
+            1 for alert in self.active_alerts.values() if alert.resolved
+        )
         active_alerts = total_alerts - resolved_alerts
 
         severity_counts = {}
         for severity in AlertSeverity:
             severity_counts[severity.value] = sum(
-                1 for alert in self.active_alerts.values()
+                1
+                for alert in self.active_alerts.values()
                 if alert.severity == severity and not alert.resolved
             )
 
         return {
-            'total_alerts': total_alerts,
-            'active_alerts': active_alerts,
-            'resolved_alerts': resolved_alerts,
-            'by_severity': severity_counts
+            "total_alerts": total_alerts,
+            "active_alerts": active_alerts,
+            "resolved_alerts": resolved_alerts,
+            "by_severity": severity_counts,
         }
 
     async def get_health_check_summary(self) -> Dict[str, Any]:
         """Get health check summary for all monitored endpoints."""
         return {
-            'total_endpoints': len(self.service_metrics),
-            'healthy_endpoints': sum(1 for metrics in self.service_metrics.values()
-                                   if metrics.get('healthy', False)),
-            'response_times': {
-                service: metrics.get('response_time', 0)
+            "total_endpoints": len(self.service_metrics),
+            "healthy_endpoints": sum(
+                1
+                for metrics in self.service_metrics.values()
+                if metrics.get("healthy", False)
+            ),
+            "response_times": {
+                service: metrics.get("response_time", 0)
                 for service, metrics in self.service_metrics.items()
-            }
+            },
         }
 
-    def set_threshold(self, metric_name: str, warning: float, critical: float, duration: int = 60):
+    def set_threshold(
+        self, metric_name: str, warning: float, critical: float, duration: int = 60
+    ):
         """Set or update threshold for a metric."""
         self.thresholds[metric_name] = Threshold(
-            warning=warning,
-            critical=critical,
-            duration=duration
+            warning=warning, critical=critical, duration=duration
         )
-        logger.info(f"Updated threshold for {metric_name}: warning={warning}, critical={critical}")
+        logger.info(
+            f"Updated threshold for {metric_name}: warning={warning}, critical={critical}"
+        )
 
     def disable_threshold(self, metric_name: str):
         """Disable threshold checking for a metric."""
@@ -937,7 +1073,9 @@ class SystemMonitor:
             self.thresholds[metric_name].enabled = True
             logger.info(f"Enabled threshold for {metric_name}")
 
-    async def export_metrics(self, metric_names: List[str], duration: timedelta) -> Dict[str, List[Dict[str, Any]]]:
+    async def export_metrics(
+        self, metric_names: List[str], duration: timedelta
+    ) -> Dict[str, List[Dict[str, Any]]]:
         """Export metrics data for analysis."""
         exported_data = {}
 
@@ -945,16 +1083,18 @@ class SystemMonitor:
             metric_points = await self.get_metrics(metric_name, duration)
             exported_data[metric_name] = [
                 {
-                    'timestamp': point.timestamp.isoformat(),
-                    'value': point.value,
-                    'tags': point.tags
+                    "timestamp": point.timestamp.isoformat(),
+                    "value": point.value,
+                    "tags": point.tags,
                 }
                 for point in metric_points
             ]
 
         return exported_data
 
-    async def get_metric_statistics(self, metric_name: str, duration: timedelta) -> Dict[str, float]:
+    async def get_metric_statistics(
+        self, metric_name: str, duration: timedelta
+    ) -> Dict[str, float]:
         """Get statistical summary of a metric over a duration."""
         metric_points = await self.get_metrics(metric_name, duration)
 
@@ -964,11 +1104,14 @@ class SystemMonitor:
         values = [point.value for point in metric_points]
 
         return {
-            'count': len(values),
-            'mean': sum(values) / len(values),
-            'min': min(values),
-            'max': max(values),
-            'std_dev': (sum((x - sum(values) / len(values)) ** 2 for x in values) / len(values)) ** 0.5
+            "count": len(values),
+            "mean": sum(values) / len(values),
+            "min": min(values),
+            "max": max(values),
+            "std_dev": (
+                sum((x - sum(values) / len(values)) ** 2 for x in values) / len(values)
+            )
+            ** 0.5,
         }
 
     async def force_metric_collection(self):
@@ -980,19 +1123,27 @@ class SystemMonitor:
         # System resources
         cpu_percent = psutil.cpu_percent(interval=0.1)
         memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
 
-        await self._record_metric('cpu_percent', cpu_percent, timestamp)
-        await self._record_metric('memory_percent', memory.percent, timestamp)
-        await self._record_metric('disk_percent', (disk.used / disk.total) * 100, timestamp)
+        await self._record_metric("cpu_percent", cpu_percent, timestamp)
+        await self._record_metric("memory_percent", memory.percent, timestamp)
+        await self._record_metric(
+            "disk_percent", (disk.used / disk.total) * 100, timestamp
+        )
 
         # Redis metrics
         try:
             redis_info = await self.redis.info()
-            await self._record_metric('redis_connected_clients',
-                                    redis_info.get('connected_clients', 0), timestamp)
-            await self._record_metric('redis_used_memory_mb',
-                                    redis_info.get('used_memory', 0) / (1024*1024), timestamp)
+            await self._record_metric(
+                "redis_connected_clients",
+                redis_info.get("connected_clients", 0),
+                timestamp,
+            )
+            await self._record_metric(
+                "redis_used_memory_mb",
+                redis_info.get("used_memory", 0) / (1024 * 1024),
+                timestamp,
+            )
         except Exception as e:
             logger.error(f"Failed to collect Redis metrics: {e}")
 

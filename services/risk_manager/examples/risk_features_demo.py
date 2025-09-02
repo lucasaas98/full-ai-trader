@@ -17,7 +17,8 @@ from typing import Dict, List
 
 # Import the risk calculator and related models
 from src.risk_calculator import RiskCalculator
-from shared.models import Position, PortfolioState
+
+from shared.models import PortfolioState, Position
 
 
 def create_sample_portfolio() -> PortfolioState:
@@ -27,45 +28,45 @@ def create_sample_portfolio() -> PortfolioState:
             symbol="AAPL",
             quantity=100,
             current_price=Decimal("175.50"),
-            market_value=Decimal("17550.00")
+            market_value=Decimal("17550.00"),
         ),
         Position(
             symbol="MSFT",
             quantity=75,
             current_price=Decimal("380.00"),
-            market_value=Decimal("28500.00")
+            market_value=Decimal("28500.00"),
         ),
         Position(
             symbol="GOOGL",
             quantity=25,
             current_price=Decimal("140.00"),
-            market_value=Decimal("3500.00")
+            market_value=Decimal("3500.00"),
         ),
         Position(
             symbol="TSLA",
             quantity=50,
             current_price=Decimal("220.00"),
-            market_value=Decimal("11000.00")
+            market_value=Decimal("11000.00"),
         ),
         Position(
             symbol="JPM",
             quantity=150,
             current_price=Decimal("165.00"),
-            market_value=Decimal("24750.00")
+            market_value=Decimal("24750.00"),
         ),
         Position(
             symbol="SPY",
             quantity=100,
             current_price=Decimal("450.00"),
-            market_value=Decimal("45000.00")
-        )
+            market_value=Decimal("45000.00"),
+        ),
     ]
 
     return PortfolioState(
         timestamp=datetime.now(timezone.utc),
         cash_balance=Decimal("30000.00"),
         positions=positions,
-        total_equity=Decimal("160300.00")
+        total_equity=Decimal("160300.00"),
     )
 
 
@@ -80,7 +81,7 @@ def create_sample_options_positions() -> List[Dict]:
             "underlying_price": 175.5,
             "days_to_expiry": 30,
             "implied_volatility": 0.25,
-            "risk_free_rate": 0.05
+            "risk_free_rate": 0.05,
         },
         {
             "symbol": "TSLA_PUT_200_45D",
@@ -90,8 +91,8 @@ def create_sample_options_positions() -> List[Dict]:
             "underlying_price": 220.0,
             "days_to_expiry": 45,
             "implied_volatility": 0.40,
-            "risk_free_rate": 0.05
-        }
+            "risk_free_rate": 0.05,
+        },
     ]
 
 
@@ -102,6 +103,7 @@ def create_sample_portfolio_history() -> List[Dict]:
     history = []
 
     import random
+
     random.seed(42)  # For reproducible results
 
     for i in range(30):
@@ -110,24 +112,27 @@ def create_sample_portfolio_history() -> List[Dict]:
         current_value = base_value * (1 + daily_return)
         base_value = current_value
 
-        history.append({
-            "date": f"2024-01-{i+1:02d}",
-            "total_equity": current_value
-        })
+        history.append({"date": f"2024-01-{i+1:02d}", "total_equity": current_value})
 
     return history
 
 
-async def demonstrate_liquidity_risk(calculator: RiskCalculator, portfolio: PortfolioState):
+async def demonstrate_liquidity_risk(
+    calculator: RiskCalculator, portfolio: PortfolioState
+):
     """Demonstrate liquidity risk assessment."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("LIQUIDITY RISK ASSESSMENT")
-    print("="*60)
+    print("=" * 60)
 
     liquidity_metrics = await calculator.calculate_liquidity_risk(portfolio)
 
-    print(f"Portfolio Liquidity Score: {liquidity_metrics.get('portfolio_liquidity_score', 0):.3f}")
-    print(f"Concentration Risk (largest position): {liquidity_metrics.get('concentration_risk', 0):.1%}")
+    print(
+        f"Portfolio Liquidity Score: {liquidity_metrics.get('portfolio_liquidity_score', 0):.3f}"
+    )
+    print(
+        f"Concentration Risk (largest position): {liquidity_metrics.get('concentration_risk', 0):.1%}"
+    )
 
     print("\nPosition Liquidity Breakdown:")
     for symbol, data in liquidity_metrics.get("position_liquidity", {}).items():
@@ -137,16 +142,18 @@ async def demonstrate_liquidity_risk(calculator: RiskCalculator, portfolio: Port
     if illiquid_positions:
         print(f"\nIlliquid Positions ({len(illiquid_positions)}):")
         for pos in illiquid_positions:
-            print(f"  {pos['symbol']}: {pos['weight']:.1%} weight, {pos['liquidity_score']:.2f} score")
+            print(
+                f"  {pos['symbol']}: {pos['weight']:.1%} weight, {pos['liquidity_score']:.2f} score"
+            )
     else:
         print("\nNo significantly illiquid positions detected.")
 
 
 async def demonstrate_var_backtesting(calculator: RiskCalculator):
     """Demonstrate VaR model backtesting."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("VAR MODEL BACKTESTING")
-    print("="*60)
+    print("=" * 60)
 
     # Create sample data for backtesting
     portfolio_history = create_sample_portfolio_history()
@@ -166,11 +173,13 @@ async def demonstrate_var_backtesting(calculator: RiskCalculator):
     print(f"Kupiec Statistic: {backtest_results.get('kupiec_statistic', 0):.4f}")
 
 
-async def demonstrate_risk_adjusted_returns(calculator: RiskCalculator, portfolio: PortfolioState):
+async def demonstrate_risk_adjusted_returns(
+    calculator: RiskCalculator, portfolio: PortfolioState
+):
     """Demonstrate risk-adjusted return calculations."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("RISK-ADJUSTED RETURNS")
-    print("="*60)
+    print("=" * 60)
 
     risk_adjusted = await calculator.calculate_risk_adjusted_returns(portfolio)
 
@@ -189,9 +198,9 @@ async def demonstrate_risk_adjusted_returns(calculator: RiskCalculator, portfoli
 
 async def demonstrate_options_greeks(calculator: RiskCalculator):
     """Demonstrate options Greeks calculations."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("OPTIONS GREEKS ANALYSIS")
-    print("="*60)
+    print("=" * 60)
 
     options_positions = create_sample_options_positions()
     greeks = await calculator.calculate_options_greeks(options_positions)
@@ -211,11 +220,13 @@ async def demonstrate_options_greeks(calculator: RiskCalculator):
         print(f"    Vega: {position_greeks['vega']:.2f}")
 
 
-async def demonstrate_enhanced_stress_testing(calculator: RiskCalculator, portfolio: PortfolioState):
+async def demonstrate_enhanced_stress_testing(
+    calculator: RiskCalculator, portfolio: PortfolioState
+):
     """Demonstrate enhanced stress testing."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("ENHANCED STRESS TESTING")
-    print("="*60)
+    print("=" * 60)
 
     stress_results = await calculator.enhanced_stress_test(portfolio)
 
@@ -238,11 +249,13 @@ async def demonstrate_enhanced_stress_testing(calculator: RiskCalculator, portfo
         print(f"    Positions at Risk: {result.get('positions_at_risk', 0)}")
 
 
-async def demonstrate_risk_attribution(calculator: RiskCalculator, portfolio: PortfolioState):
+async def demonstrate_risk_attribution(
+    calculator: RiskCalculator, portfolio: PortfolioState
+):
     """Demonstrate risk attribution analysis."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("RISK ATTRIBUTION ANALYSIS")
-    print("="*60)
+    print("=" * 60)
 
     attribution = await calculator.calculate_risk_attribution(portfolio)
 
@@ -265,11 +278,13 @@ async def demonstrate_risk_attribution(calculator: RiskCalculator, portfolio: Po
     print(f"  Sector Concentration: {factors.get('sector_concentration', 0):.1%}")
 
 
-async def demonstrate_comprehensive_report(calculator: RiskCalculator, portfolio: PortfolioState):
+async def demonstrate_comprehensive_report(
+    calculator: RiskCalculator, portfolio: PortfolioState
+):
     """Demonstrate comprehensive risk report generation."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("COMPREHENSIVE RISK REPORT")
-    print("="*60)
+    print("=" * 60)
 
     report = await calculator.generate_comprehensive_risk_report(portfolio)
 
@@ -280,8 +295,12 @@ async def demonstrate_comprehensive_report(calculator: RiskCalculator, portfolio
 
     # VaR Analysis
     var_analysis = report.get("risk_metrics", {}).get("var_analysis", {})
-    print(f"\n95% VaR: ${var_analysis.get('var_95_percent', 0):,.2f} ({var_analysis.get('var_as_percent_of_portfolio', {}).get('95_percent', 0):.1f}% of portfolio)")
-    print(f"99% VaR: ${var_analysis.get('var_99_percent', 0):,.2f} ({var_analysis.get('var_as_percent_of_portfolio', {}).get('99_percent', 0):.1f}% of portfolio)")
+    print(
+        f"\n95% VaR: ${var_analysis.get('var_95_percent', 0):,.2f} ({var_analysis.get('var_as_percent_of_portfolio', {}).get('95_percent', 0):.1f}% of portfolio)"
+    )
+    print(
+        f"99% VaR: ${var_analysis.get('var_99_percent', 0):,.2f} ({var_analysis.get('var_as_percent_of_portfolio', {}).get('99_percent', 0):.1f}% of portfolio)"
+    )
 
     # Risk Warnings
     warnings = report.get("warnings", [])
@@ -315,9 +334,9 @@ async def demonstrate_comprehensive_report(calculator: RiskCalculator, portfolio
 
 async def main():
     """Main demonstration function."""
-    print("="*60)
+    print("=" * 60)
     print("RISK CALCULATOR ADVANCED FEATURES DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
     print("\nThis demo showcases the enhanced risk management capabilities")
     print("including liquidity risk, VaR backtesting, options Greeks,")
     print("stress testing, and comprehensive risk reporting.")
@@ -343,9 +362,9 @@ async def main():
     await demonstrate_risk_attribution(calculator, portfolio)
     await demonstrate_comprehensive_report(calculator, portfolio)
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("DEMONSTRATION COMPLETE")
-    print("="*60)
+    print("=" * 60)
     print("\nAll new risk management features have been demonstrated.")
     print("Check the generated 'risk_report_sample.json' for detailed analysis.")
     print("\nTODO: Implement comprehensive test coverage for all features")

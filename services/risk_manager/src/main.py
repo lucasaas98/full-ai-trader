@@ -16,10 +16,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from prometheus_client import Counter, Gauge, generate_latest
+from pydantic import BaseModel
 
 # Add the parent directory to Python path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -28,17 +28,26 @@ from decimal import Decimal
 
 from shared.config import get_config
 from shared.models import (
-    PortfolioState, TradeSignal, OrderRequest, RiskEvent, RiskAlert,
-    PositionSizing, PortfolioMetrics, RiskLimits, DailyRiskReport,
-    RiskEventType, RiskSeverity
+    DailyRiskReport,
+    OrderRequest,
+    PortfolioMetrics,
+    PortfolioState,
+    PositionSizing,
+    RiskAlert,
+    RiskEvent,
+    RiskEventType,
+    RiskLimits,
+    RiskSeverity,
+    TradeSignal,
 )
 
-from .risk_manager import RiskManager
-from .position_sizer import PositionSizer
-from .portfolio_monitor import PortfolioMonitor
 from .alert_manager import AlertManager
-from .database_manager import RiskDatabaseManager
 from .alpaca_client import AlpacaRiskClient
+from .database_manager import RiskDatabaseManager
+from .portfolio_monitor import PortfolioMonitor
+from .position_sizer import PositionSizer
+from .risk_manager import RiskManager
+
 
 # Configure logging
 def setup_logging():
@@ -60,8 +69,9 @@ def setup_logging():
     logging.basicConfig(
         level=getattr(logging, log_config.level),
         format=log_config.format,
-        handlers=handlers
+        handlers=handlers,
     )
+
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -103,7 +113,7 @@ async def lifespan(app: FastAPI):
             max_daily_loss_percentage=Decimal("0.05"),  # 5% daily loss limit
             max_positions=5,
             max_correlation_threshold=config.risk.max_correlation,
-            emergency_stop_percentage=Decimal("0.10")  # 10% emergency stop
+            emergency_stop_percentage=Decimal("0.10"),  # 10% emergency stop
         )
 
         # Initialize service components
@@ -145,7 +155,7 @@ app = FastAPI(
     title="Risk Management Service",
     description="Comprehensive risk management for automated trading",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -199,15 +209,19 @@ async def health_check():
     """Health check endpoint."""
     try:
         # Check database connection
-        db_healthy = await database_manager.health_check() if database_manager else False
+        db_healthy = (
+            await database_manager.health_check() if database_manager else False
+        )
 
         # Check service components
-        services_healthy = all([
-            risk_manager is not None,
-            position_sizer is not None,
-            portfolio_monitor is not None,
-            alert_manager is not None
-        ])
+        services_healthy = all(
+            [
+                risk_manager is not None,
+                position_sizer is not None,
+                portfolio_monitor is not None,
+                alert_manager is not None,
+            ]
+        )
 
         overall_healthy = db_healthy and services_healthy
 
@@ -216,7 +230,9 @@ async def health_check():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "database": "healthy" if db_healthy else "unhealthy",
             "services": "healthy" if services_healthy else "unhealthy",
-            "emergency_stop_active": risk_manager.emergency_stop_active if risk_manager else False
+            "emergency_stop_active": (
+                risk_manager.emergency_stop_active if risk_manager else False
+            ),
         }
     except Exception as e:
         logger.error(f"Health check error: {e}")
@@ -232,9 +248,7 @@ async def validate_trade(request: TradeValidationRequest):
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         is_valid, filters = await risk_manager.validate_trade_request(
-            request.order_request,
-            request.portfolio,
-            request.signal
+            request.order_request, request.portfolio, request.signal
         )
 
         # Convert filters to dict format
@@ -246,7 +260,7 @@ async def validate_trade(request: TradeValidationRequest):
                 "reason": f.reason,
                 "value": f.value,
                 "limit": f.limit,
-                "severity": f.severity
+                "severity": f.severity,
             }
             filter_dicts.append(filter_dict)
 
@@ -258,7 +272,7 @@ async def validate_trade(request: TradeValidationRequest):
         return TradeValidationResponse(
             is_valid=is_valid,
             risk_filters=filter_dicts,
-            recommended_adjustments=recommendations
+            recommended_adjustments=recommendations,
         )
 
     except Exception as e:
@@ -271,13 +285,15 @@ async def calculate_position_size(request: PositionSizingRequest):
     """Calculate optimal position size for a trade."""
     try:
         if not position_sizer:
-            raise HTTPException(status_code=503, detail="Position sizer not initialized")
+            raise HTTPException(
+                status_code=503, detail="Position sizer not initialized"
+            )
 
         sizing = await position_sizer.calculate_position_size(
             symbol=request.symbol,
             current_price=request.current_price,
             portfolio=request.portfolio,
-            signal=request.signal
+            signal=request.signal,
         )
 
         return sizing
@@ -293,7 +309,9 @@ async def get_portfolio_metrics(portfolio: PortfolioState):
     """Get current portfolio risk metrics."""
     try:
         if not portfolio_monitor:
-            raise HTTPException(status_code=503, detail="Portfolio monitor not initialized")
+            raise HTTPException(
+                status_code=503, detail="Portfolio monitor not initialized"
+            )
 
         metrics = await portfolio_monitor.calculate_detailed_metrics(portfolio)
 
@@ -309,7 +327,9 @@ async def get_portfolio_metrics(portfolio: PortfolioState):
 
 
 @app.post("/monitor-portfolio")
-async def monitor_portfolio(portfolio: PortfolioState, background_tasks: BackgroundTasks):
+async def monitor_portfolio(
+    portfolio: PortfolioState, background_tasks: BackgroundTasks
+):
     """Monitor portfolio and generate alerts."""
     try:
         if not portfolio_monitor or not alert_manager:
@@ -319,7 +339,9 @@ async def monitor_portfolio(portfolio: PortfolioState, background_tasks: Backgro
 
         # Store portfolio snapshot
         if database_manager:
-            background_tasks.add_task(database_manager.store_portfolio_snapshot, portfolio)
+            background_tasks.add_task(
+                database_manager.store_portfolio_snapshot, portfolio
+            )
             background_tasks.add_task(database_manager.store_portfolio_metrics, metrics)
 
         # Send alerts
@@ -334,7 +356,7 @@ async def monitor_portfolio(portfolio: PortfolioState, background_tasks: Backgro
             "status": "monitoring_complete",
             "metrics": metrics,
             "alerts_generated": len(alerts),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -344,7 +366,9 @@ async def monitor_portfolio(portfolio: PortfolioState, background_tasks: Backgro
 
 # Stop loss and position management endpoints
 @app.post("/update-trailing-stops")
-async def update_trailing_stops(portfolio: PortfolioState, market_prices: Dict[str, Decimal]):
+async def update_trailing_stops(
+    portfolio: PortfolioState, market_prices: Dict[str, Decimal]
+):
     """Update trailing stops for all positions."""
     try:
         if not risk_manager:
@@ -368,7 +392,7 @@ async def update_trailing_stops(portfolio: PortfolioState, market_prices: Dict[s
                     title=f"Stop Loss Triggered: {event.symbol}",
                     message=event.description,
                     action_required=True,
-                    metadata=event.metadata
+                    metadata=event.metadata,
                 )
                 alerts.append(alert)
 
@@ -377,7 +401,7 @@ async def update_trailing_stops(portfolio: PortfolioState, market_prices: Dict[s
         return {
             "events_generated": len(events),
             "trailing_stops_updated": True,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -393,6 +417,7 @@ async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         from shared.models import OrderSide
+
         order_side = OrderSide.BUY if side.upper() == "BUY" else OrderSide.SELL
 
         stop_loss, take_profit = await risk_manager.calculate_stop_loss_take_profit(
@@ -404,8 +429,12 @@ async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
             "entry_price": str(entry_price),
             "stop_loss": str(stop_loss),
             "take_profit": str(take_profit),
-            "risk_reward_ratio": float((take_profit - entry_price) / (entry_price - stop_loss)) if order_side == OrderSide.BUY else float((entry_price - take_profit) / (stop_loss - entry_price)),
-            "side": side
+            "risk_reward_ratio": (
+                float((take_profit - entry_price) / (entry_price - stop_loss))
+                if order_side == OrderSide.BUY
+                else float((entry_price - take_profit) / (stop_loss - entry_price))
+            ),
+            "side": side,
         }
 
     except Exception as e:
@@ -430,7 +459,7 @@ async def activate_emergency_stop(reason: str):
             symbol=None,
             description=f"Emergency stop activated: {reason}",
             action_taken="halt_all_trading",
-            resolved_at=None
+            resolved_at=None,
         )
 
         # Send emergency alert
@@ -446,7 +475,7 @@ async def activate_emergency_stop(reason: str):
         return {
             "status": "emergency_stop_activated",
             "reason": reason,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -468,7 +497,7 @@ async def deactivate_emergency_stop(authorized_by: str):
         return {
             "status": "emergency_stop_deactivated",
             "authorized_by": authorized_by,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -484,12 +513,14 @@ async def get_risk_events(
     event_type: Optional[str] = None,
     severity: Optional[str] = None,
     symbol: Optional[str] = None,
-    limit: int = 100
+    limit: int = 100,
 ):
     """Get risk events with filtering."""
     try:
         if not database_manager:
-            raise HTTPException(status_code=503, detail="Database manager not initialized")
+            raise HTTPException(
+                status_code=503, detail="Database manager not initialized"
+            )
 
         # Parse dates
         start_dt = datetime.fromisoformat(start_date) if start_date else None
@@ -501,13 +532,10 @@ async def get_risk_events(
             event_type=event_type,
             severity=severity,
             symbol=symbol,
-            limit=limit
+            limit=limit,
         )
 
-        return {
-            "events": events,
-            "total": len(events)
-        }
+        return {"events": events, "total": len(events)}
 
     except Exception as e:
         logger.error(f"Error retrieving risk events: {e}")
@@ -519,7 +547,9 @@ async def get_risk_statistics(days: int = 30):
     """Get risk statistics for the specified period."""
     try:
         if not database_manager:
-            raise HTTPException(status_code=503, detail="Database manager not initialized")
+            raise HTTPException(
+                status_code=503, detail="Database manager not initialized"
+            )
 
         statistics = await database_manager.get_risk_statistics(days)
 
@@ -548,8 +578,7 @@ async def get_daily_report(date: Optional[str] = None):
         end_of_day = start_of_day + timedelta(days=1)
 
         events_dict = await database_manager.get_risk_events(
-            start_date=start_of_day,
-            end_date=end_of_day
+            start_date=start_of_day, end_date=end_of_day
         )
 
         # Convert dictionary events to RiskEvent objects
@@ -558,14 +587,16 @@ async def get_daily_report(date: Optional[str] = None):
             try:
                 event = RiskEvent(
                     id=event_dict.get("id"),
-                    event_type=RiskEventType(event_dict.get("event_type", "emergency_stop")),
+                    event_type=RiskEventType(
+                        event_dict.get("event_type", "emergency_stop")
+                    ),
                     severity=RiskSeverity(event_dict.get("severity", "medium")),
                     symbol=event_dict.get("symbol"),
                     description=event_dict.get("description", ""),
                     timestamp=event_dict.get("timestamp", datetime.now(timezone.utc)),
                     resolved_at=event_dict.get("resolved_at"),
                     action_taken=event_dict.get("action_taken"),
-                    metadata=event_dict.get("metadata", {})
+                    metadata=event_dict.get("metadata", {}),
                 )
                 events.append(event)
             except Exception as e:
@@ -579,19 +610,19 @@ async def get_daily_report(date: Optional[str] = None):
             # Create daily report
             report = DailyRiskReport(
                 date=report_date,
-                portfolio_value=Decimal(str(metrics['total_exposure'])),
+                portfolio_value=Decimal(str(metrics["total_exposure"])),
                 daily_pnl=Decimal("0"),  # Would need to calculate from historical data
                 daily_return=0.0,
-                max_drawdown=Decimal(str(metrics['max_drawdown'])),
-                current_drawdown=Decimal(str(metrics['current_drawdown'])),
-                volatility=float(metrics['volatility']),
-                sharpe_ratio=float(metrics['sharpe_ratio']),
-                var_1d=Decimal(str(metrics['value_at_risk_1d'])),
+                max_drawdown=Decimal(str(metrics["max_drawdown"])),
+                current_drawdown=Decimal(str(metrics["current_drawdown"])),
+                volatility=float(metrics["volatility"]),
+                sharpe_ratio=float(metrics["sharpe_ratio"]),
+                var_1d=Decimal(str(metrics["value_at_risk_1d"])),
                 total_trades=0,  # Would need to get from trades data
                 winning_trades=0,
                 risk_events=events,
                 position_risks=[],  # Would get from position_risks table
-                compliance_violations=[]
+                compliance_violations=[],
             )
 
             # Store report
@@ -610,10 +641,12 @@ async def get_daily_report(date: Optional[str] = None):
                 "total_trades": report.total_trades,
                 "winning_trades": report.winning_trades,
                 "risk_events_count": len(report.risk_events),
-                "compliance_violations": report.compliance_violations
+                "compliance_violations": report.compliance_violations,
             }
         else:
-            raise HTTPException(status_code=404, detail="No portfolio metrics available")
+            raise HTTPException(
+                status_code=404, detail="No portfolio metrics available"
+            )
 
     except Exception as e:
         logger.error(f"Error generating daily report: {e}")
@@ -626,7 +659,9 @@ async def get_alerts(acknowledged: bool = False, limit: int = 50):
     """Get risk alerts."""
     try:
         if not database_manager:
-            raise HTTPException(status_code=503, detail="Database manager not initialized")
+            raise HTTPException(
+                status_code=503, detail="Database manager not initialized"
+            )
 
         if not acknowledged:
             alerts = await database_manager.get_unacknowledged_alerts(limit=limit)
@@ -634,10 +669,7 @@ async def get_alerts(acknowledged: bool = False, limit: int = 50):
             # Would need additional method to get acknowledged alerts
             alerts = []
 
-        return {
-            "alerts": alerts,
-            "total": len(alerts)
-        }
+        return {"alerts": alerts, "total": len(alerts)}
 
     except Exception as e:
         logger.error(f"Error retrieving alerts: {e}")
@@ -649,9 +681,12 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str):
     """Acknowledge a risk alert."""
     try:
         if not database_manager:
-            raise HTTPException(status_code=503, detail="Database manager not initialized")
+            raise HTTPException(
+                status_code=503, detail="Database manager not initialized"
+            )
 
         from uuid import UUID
+
         alert_uuid = UUID(alert_id)
 
         success = await database_manager.acknowledge_alert(alert_uuid, acknowledged_by)
@@ -661,7 +696,7 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str):
                 "status": "acknowledged",
                 "alert_id": alert_id,
                 "acknowledged_by": acknowledged_by,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         else:
             raise HTTPException(status_code=404, detail="Alert not found")
@@ -682,14 +717,22 @@ async def get_risk_limits():
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         return {
-            "max_position_percentage": str(risk_manager.risk_limits.max_position_percentage),
+            "max_position_percentage": str(
+                risk_manager.risk_limits.max_position_percentage
+            ),
             "max_positions": risk_manager.risk_limits.max_positions,
             "stop_loss_percentage": str(risk_manager.risk_limits.stop_loss_percentage),
-            "take_profit_percentage": str(risk_manager.risk_limits.take_profit_percentage),
-            "max_daily_loss_percentage": str(risk_manager.risk_limits.max_daily_loss_percentage),
+            "take_profit_percentage": str(
+                risk_manager.risk_limits.take_profit_percentage
+            ),
+            "max_daily_loss_percentage": str(
+                risk_manager.risk_limits.max_daily_loss_percentage
+            ),
             "max_correlation_threshold": risk_manager.risk_limits.max_correlation_threshold,
-            "emergency_stop_percentage": str(risk_manager.risk_limits.emergency_stop_percentage),
-            "max_position_volatility": risk_manager.risk_limits.max_position_volatility
+            "emergency_stop_percentage": str(
+                risk_manager.risk_limits.emergency_stop_percentage
+            ),
+            "max_position_volatility": risk_manager.risk_limits.max_position_volatility,
         }
 
     except Exception as e:
@@ -702,31 +745,27 @@ def init_prometheus_metrics():
     global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge
 
     risk_events_counter = Counter(
-        'risk_manager_events_total',
-        'Total number of risk events',
-        ['event_type', 'severity']
+        "risk_manager_events_total",
+        "Total number of risk events",
+        ["event_type", "severity"],
     )
 
     portfolio_value_gauge = Gauge(
-        'risk_manager_portfolio_value',
-        'Current portfolio value'
+        "risk_manager_portfolio_value", "Current portfolio value"
     )
 
     positions_count_gauge = Gauge(
-        'risk_manager_positions_total',
-        'Number of active positions'
+        "risk_manager_positions_total", "Number of active positions"
     )
 
     alerts_counter = Counter(
-        'risk_manager_alerts_total',
-        'Total number of alerts generated',
-        ['severity']
+        "risk_manager_alerts_total", "Total number of alerts generated", ["severity"]
     )
 
     service_health_gauge = Gauge(
-        'risk_manager_service_health',
-        'Health status of risk manager components',
-        ['component']
+        "risk_manager_service_health",
+        "Health status of risk manager components",
+        ["component"],
     )
 
 
@@ -737,18 +776,26 @@ async def update_prometheus_metrics():
     try:
         # Update service health metrics
         if service_health_gauge:
-            service_health_gauge.labels(component='database').set(1 if database_manager else 0)
-            service_health_gauge.labels(component='risk_manager').set(1 if risk_manager else 0)
-            service_health_gauge.labels(component='portfolio_monitor').set(1 if portfolio_monitor else 0)
-            service_health_gauge.labels(component='alert_manager').set(1 if alert_manager else 0)
+            service_health_gauge.labels(component="database").set(
+                1 if database_manager else 0
+            )
+            service_health_gauge.labels(component="risk_manager").set(
+                1 if risk_manager else 0
+            )
+            service_health_gauge.labels(component="portfolio_monitor").set(
+                1 if portfolio_monitor else 0
+            )
+            service_health_gauge.labels(component="alert_manager").set(
+                1 if alert_manager else 0
+            )
 
         # Get latest portfolio metrics if available
         if database_manager:
             try:
                 latest_metrics = await database_manager.get_latest_portfolio_metrics()
                 if latest_metrics and portfolio_value_gauge and positions_count_gauge:
-                    portfolio_value_gauge.set(latest_metrics.get('total_exposure', 0))
-                    positions_count_gauge.set(latest_metrics.get('position_count', 0))
+                    portfolio_value_gauge.set(latest_metrics.get("total_exposure", 0))
+                    positions_count_gauge.set(latest_metrics.get("position_count", 0))
             except Exception as e:
                 logger.debug(f"Could not update portfolio metrics: {e}")
 
@@ -766,7 +813,7 @@ async def update_risk_limits(limits: Dict):
         # Update risk limits
         for key, value in limits.items():
             if hasattr(risk_manager.risk_limits, key):
-                if isinstance(value, str) and key.endswith('_percentage'):
+                if isinstance(value, str) and key.endswith("_percentage"):
                     setattr(risk_manager.risk_limits, key, Decimal(value))
                 else:
                     setattr(risk_manager.risk_limits, key, value)
@@ -776,7 +823,7 @@ async def update_risk_limits(limits: Dict):
         return {
             "status": "updated",
             "updated_limits": limits,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -794,17 +841,14 @@ async def get_metrics():
         # Generate Prometheus format
         metrics_output = generate_latest()
 
-        return Response(
-            content=metrics_output,
-            media_type="text/plain; version=0.0.4"
-        )
+        return Response(content=metrics_output, media_type="text/plain; version=0.0.4")
 
     except Exception as e:
         logger.error(f"Failed to generate metrics: {e}")
         return Response(
             content=f"# Error generating metrics: {str(e)}\n",
             media_type="text/plain; version=0.0.4",
-            status_code=500
+            status_code=500,
         )
 
 
@@ -820,7 +864,7 @@ async def test_notifications():
 
         return {
             "test_results": results,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -839,11 +883,13 @@ async def get_system_status():
                 "position_sizer": position_sizer is not None,
                 "portfolio_monitor": portfolio_monitor is not None,
                 "alert_manager": alert_manager is not None,
-                "database_manager": database_manager is not None
+                "database_manager": database_manager is not None,
             },
-            "emergency_stop_active": risk_manager.emergency_stop_active if risk_manager else False,
+            "emergency_stop_active": (
+                risk_manager.emergency_stop_active if risk_manager else False
+            ),
             "daily_trade_count": risk_manager.daily_trade_count if risk_manager else 0,
-            "daily_pnl": str(risk_manager.daily_pnl) if risk_manager else "0"
+            "daily_pnl": str(risk_manager.daily_pnl) if risk_manager else "0",
         }
 
         # Add database health check
@@ -856,7 +902,9 @@ async def get_system_status():
 
         # Add monitoring statistics
         if portfolio_monitor:
-            status["monitoring_statistics"] = portfolio_monitor.get_monitoring_statistics()
+            status["monitoring_statistics"] = (
+                portfolio_monitor.get_monitoring_statistics()
+            )
 
         return status
 
@@ -896,7 +944,9 @@ async def sync_portfolio_data():
         # Store portfolio snapshot in database
         if database_manager:
             await database_manager.store_portfolio_snapshot(portfolio)
-            logger.info(f"Portfolio snapshot stored: ${portfolio.total_equity} equity, {len(portfolio.positions)} positions")
+            logger.info(
+                f"Portfolio snapshot stored: ${portfolio.total_equity} equity, {len(portfolio.positions)} positions"
+            )
 
         # Calculate and store metrics if we have a portfolio monitor
         if portfolio_monitor:
@@ -921,7 +971,7 @@ async def sync_portfolio_endpoint():
             return {
                 "status": "success",
                 "message": "Portfolio data synced successfully",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         else:
             raise HTTPException(status_code=500, detail="Failed to sync portfolio data")
@@ -937,7 +987,9 @@ async def daily_cleanup_task():
         try:
             # Wait until next day
             now = datetime.now(timezone.utc)
-            next_day = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            next_day = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
             wait_seconds = (next_day - now).total_seconds()
 
             await asyncio.sleep(wait_seconds)
@@ -959,7 +1011,9 @@ async def daily_cleanup_task():
             await asyncio.sleep(3600)  # Retry in 1 hour
 
 
-async def _generate_trade_recommendations(request: TradeValidationRequest, filters) -> Dict:
+async def _generate_trade_recommendations(
+    request: TradeValidationRequest, filters
+) -> Dict:
     """Generate recommendations for fixing trade validation issues."""
     recommendations = {}
 
@@ -973,24 +1027,26 @@ async def _generate_trade_recommendations(request: TradeValidationRequest, filte
             recommendations["position_size"] = {
                 "current_shares": current_size,
                 "recommended_shares": recommended_size,
-                "reason": "Reduce position size to meet risk limits"
+                "reason": "Reduce position size to meet risk limits",
             }
 
         elif filter_result.filter_name == "buying_power":
             # Recommend position size based on available buying power
             available = request.portfolio.buying_power
             price = request.order_request.price or Decimal("100")
-            max_shares = int(available / price * Decimal("0.95"))  # Use 95% of available
+            max_shares = int(
+                available / price * Decimal("0.95")
+            )  # Use 95% of available
             recommendations["buying_power"] = {
                 "current_shares": request.order_request.quantity,
                 "max_affordable_shares": max_shares,
-                "reason": "Adjust position size based on available buying power"
+                "reason": "Adjust position size based on available buying power",
             }
 
         elif filter_result.filter_name == "correlation_limit":
             recommendations["correlation"] = {
                 "reason": "Consider reducing existing correlated positions before opening new position",
-                "action": "Review portfolio correlation and reduce similar positions"
+                "action": "Review portfolio correlation and reduce similar positions",
             }
 
     return recommendations
@@ -1046,12 +1102,13 @@ if __name__ == "__main__":
 
     # Run the application
     import os
-    port = int(os.environ.get('SERVICE_PORT', 9103))
+
+    port = int(os.environ.get("SERVICE_PORT", 9103))
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",
         port=port,
         reload=False,
         log_level=config.logging.level.lower(),
-        access_log=True
+        access_log=True,
     )

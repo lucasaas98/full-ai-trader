@@ -5,26 +5,37 @@ This module defines the data models and database schema for the AI strategy engi
 including decision tracking, performance metrics, and prompt management.
 """
 
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, field, asdict
-from enum import Enum
 import json
+import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
-    Column, String, Float, Integer, DateTime, JSON, Boolean, Text,
-    ForeignKey, Index, UniqueConstraint, create_engine
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
 )
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, sessionmaker
-from sqlalchemy.dialects.postgresql import UUID
-import uuid
 
 Base = declarative_base()
 
 
 class AIModelType(Enum):
     """Enumeration of available AI models."""
+
     OPUS = "claude-3-opus"
     SONNET = "claude-3-sonnet"
     HAIKU = "claude-3-haiku"
@@ -32,6 +43,7 @@ class AIModelType(Enum):
 
 class DecisionType(Enum):
     """Types of trading decisions."""
+
     BUY = "BUY"
     SELL = "SELL"
     HOLD = "HOLD"
@@ -40,6 +52,7 @@ class DecisionType(Enum):
 
 class PromptType(Enum):
     """Types of prompts used in the system."""
+
     MASTER_ANALYST = "master_analyst"
     MARKET_REGIME = "market_regime"
     RISK_ASSESSMENT = "risk_assessment"
@@ -50,9 +63,11 @@ class PromptType(Enum):
 
 # SQLAlchemy Models
 
+
 class AIDecisionRecord(Base):
     """Records AI trading decisions for audit and performance tracking."""
-    __tablename__ = 'ai_decisions'
+
+    __tablename__ = "ai_decisions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -88,15 +103,16 @@ class AIDecisionRecord(Base):
     prompt_versions = Column(JSON)  # Version of each prompt used
 
     __table_args__ = (
-        Index('ix_ai_decisions_timestamp', 'timestamp'),
-        Index('ix_ai_decisions_ticker', 'ticker'),
-        Index('ix_ai_decisions_confidence', 'confidence'),
+        Index("ix_ai_decisions_timestamp", "timestamp"),
+        Index("ix_ai_decisions_ticker", "ticker"),
+        Index("ix_ai_decisions_confidence", "confidence"),
     )
 
 
 class AIResponseCache(Base):
     """Caches AI responses to reduce API calls."""
-    __tablename__ = 'ai_response_cache'
+
+    __tablename__ = "ai_response_cache"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     cache_key = Column(String(64), nullable=False, unique=True)  # SHA256 hash
@@ -114,14 +130,15 @@ class AIResponseCache(Base):
     hit_count = Column(Integer, default=0)
 
     __table_args__ = (
-        Index('ix_ai_cache_expires', 'expires_at'),
-        Index('ix_ai_cache_key_model', 'cache_key', 'model'),
+        Index("ix_ai_cache_expires", "expires_at"),
+        Index("ix_ai_cache_key_model", "cache_key", "model"),
     )
 
 
 class PromptVersion(Base):
     """Tracks different versions of prompts for A/B testing."""
-    __tablename__ = 'prompt_versions'
+
+    __tablename__ = "prompt_versions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     prompt_type = Column(String(50), nullable=False)
@@ -141,19 +158,22 @@ class PromptVersion(Base):
 
     # Metadata
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     is_active = Column(Boolean, default=True)
     notes = Column(Text)
 
     __table_args__ = (
-        UniqueConstraint('prompt_type', 'version', name='uq_prompt_version'),
-        Index('ix_prompt_active', 'is_active'),
+        UniqueConstraint("prompt_type", "version", name="uq_prompt_version"),
+        Index("ix_prompt_active", "is_active"),
     )
 
 
 class AIPerformanceMetrics(Base):
     """Aggregated performance metrics for AI decisions."""
-    __tablename__ = 'ai_performance_metrics'
+
+    __tablename__ = "ai_performance_metrics"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     date = Column(DateTime, nullable=False)
@@ -187,21 +207,24 @@ class AIPerformanceMetrics(Base):
     prompt_performance = Column(JSON)  # Performance by prompt version
 
     __table_args__ = (
-        Index('ix_ai_metrics_date', 'date'),
-        Index('ix_ai_metrics_ticker', 'ticker'),
-        UniqueConstraint('date', 'ticker', name='uq_metrics_date_ticker'),
+        Index("ix_ai_metrics_date", "date"),
+        Index("ix_ai_metrics_ticker", "ticker"),
+        UniqueConstraint("date", "ticker", name="uq_metrics_date_ticker"),
     )
 
 
 class MarketRegimeState(Base):
     """Tracks market regime assessments over time."""
-    __tablename__ = 'market_regime_states'
+
+    __tablename__ = "market_regime_states"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Regime classification
-    regime = Column(String(50), nullable=False)  # trending_bullish, trending_bearish, etc.
+    regime = Column(
+        String(50), nullable=False
+    )  # trending_bullish, trending_bearish, etc.
     strength = Column(Float, nullable=False)  # 0-100
     risk_level = Column(String(20), nullable=False)  # low, medium, high, extreme
 
@@ -231,17 +254,18 @@ class MarketRegimeState(Base):
     response_time_ms = Column(Integer)
 
     __table_args__ = (
-        Index('ix_regime_timestamp', 'timestamp'),
-        Index('ix_regime_type', 'regime'),
+        Index("ix_regime_timestamp", "timestamp"),
+        Index("ix_regime_type", "regime"),
     )
 
 
 class AITradeExecution(Base):
     """Links AI decisions to actual trade executions."""
-    __tablename__ = 'ai_trade_executions'
+
+    __tablename__ = "ai_trade_executions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    decision_id = Column(UUID(as_uuid=True), ForeignKey('ai_decisions.id'))
+    decision_id = Column(UUID(as_uuid=True), ForeignKey("ai_decisions.id"))
 
     # Execution details
     executed_at = Column(DateTime, nullable=False)
@@ -263,16 +287,18 @@ class AITradeExecution(Base):
     decision = relationship("AIDecisionRecord", backref="executions")
 
     __table_args__ = (
-        Index('ix_execution_decision', 'decision_id'),
-        Index('ix_execution_timestamp', 'executed_at'),
+        Index("ix_execution_decision", "decision_id"),
+        Index("ix_execution_timestamp", "executed_at"),
     )
 
 
 # Dataclass Models for Runtime Use
 
+
 @dataclass
 class AIContext:
     """Runtime context for AI decision making."""
+
     ticker: str
     current_price: float
     market_regime: str
@@ -287,6 +313,7 @@ class AIContext:
 @dataclass
 class PromptContext:
     """Context for prompt formatting."""
+
     template: str
     variables: Dict[str, Any]
     model_preference: AIModelType
@@ -298,6 +325,7 @@ class PromptContext:
 @dataclass
 class ConsensusResult:
     """Result of consensus building from multiple AI responses."""
+
     final_decision: str
     consensus_confidence: float
     agreement_rate: float
@@ -310,6 +338,7 @@ class ConsensusResult:
 @dataclass
 class PerformanceReport:
     """AI strategy performance report."""
+
     period_start: datetime
     period_end: datetime
     total_decisions: int
@@ -327,6 +356,7 @@ class PerformanceReport:
 
 # Database initialization function
 
+
 def init_database(connection_string: str):
     """
     Initialize the database with AI strategy tables.
@@ -341,14 +371,14 @@ def init_database(connection_string: str):
 
 # Helper functions for data conversion
 
+
 def decision_to_dict(decision: AIDecisionRecord) -> Dict[str, Any]:
     """Convert AIDecisionRecord to dictionary."""
     return asdict(decision)
 
 
 def create_performance_summary(
-    decisions: List[AIDecisionRecord],
-    executions: List[AITradeExecution]
+    decisions: List[AIDecisionRecord], executions: List[AITradeExecution]
 ) -> PerformanceReport:
     """
     Create a performance summary from decision and execution records.
@@ -374,7 +404,7 @@ def create_performance_summary(
             best_performing_prompt="N/A",
             worst_performing_prompt="N/A",
             model_rankings={},
-            recommendations=[]
+            recommendations=[],
         )
 
     # Calculate metrics
@@ -383,11 +413,17 @@ def create_performance_summary(
     total_decisions = len(decisions)
 
     # Calculate accuracy (decisions with positive outcomes)
-    accurate_decisions = [d for d in decisions if func.coalesce(d.actual_outcome, 0) > 0]
-    accuracy_rate = len(accurate_decisions) / total_decisions if total_decisions > 0 else 0
+    accurate_decisions = [
+        d for d in decisions if func.coalesce(d.actual_outcome, 0) > 0
+    ]
+    accuracy_rate = (
+        len(accurate_decisions) / total_decisions if total_decisions > 0 else 0
+    )
 
     # Calculate win rate from executions
-    winning_trades = [e for e in executions if e.realized_pnl is not None and e.realized_pnl > 0]
+    winning_trades = [
+        e for e in executions if e.realized_pnl is not None and e.realized_pnl > 0
+    ]
     win_rate = len(winning_trades) / len(executions) if executions else 0
 
     # Calculate total P&L
@@ -407,13 +443,13 @@ def create_performance_summary(
         if decision.models_used is not None:
             for model in decision.models_used:
                 if model not in model_performance:
-                    model_performance[model] = {'count': 0, 'success': 0}
-                model_performance[model]['count'] += 1
+                    model_performance[model] = {"count": 0, "success": 0}
+                model_performance[model]["count"] += 1
                 if func.coalesce(decision.actual_outcome, 0) > 0:
-                    model_performance[model]['success'] += 1
+                    model_performance[model]["success"] += 1
 
     model_rankings = {
-        model: (stats['success'] / stats['count']) if stats['count'] > 0 else 0
+        model: (stats["success"] / stats["count"]) if stats["count"] > 0 else 0
         for model, stats in model_performance.items()
     }
 
@@ -422,7 +458,9 @@ def create_performance_summary(
     if accuracy_rate < 0.5:
         recommendations.append("Consider adjusting confidence thresholds")
     if total_api_cost > total_pnl * 0.1:
-        recommendations.append("API costs are high relative to profits, increase cache usage")
+        recommendations.append(
+            "API costs are high relative to profits, increase cache usage"
+        )
     if win_rate < 0.4 and win_rate > 0:
         recommendations.append("Low win rate, review risk management parameters")
 
@@ -439,5 +477,5 @@ def create_performance_summary(
         best_performing_prompt="master_analyst",  # Placeholder
         worst_performing_prompt="contrarian",  # Placeholder
         model_rankings={str(k): float(v) for k, v in model_rankings.items()},
-        recommendations=recommendations
+        recommendations=recommendations,
     )

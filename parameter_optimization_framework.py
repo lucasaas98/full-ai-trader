@@ -11,34 +11,37 @@ Usage:
     python parameter_optimization_framework.py --quick-test --strategy hybrid
 """
 
+import argparse
 import asyncio
+import itertools
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
-from enum import Enum
-import pandas as pd
-import numpy as np
-from pathlib import Path
-import argparse
-import itertools
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Import system components
 import sys
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+
 sys.path.append(str(Path(__file__).parent))
 
+from backtesting.backtest_engine import BacktestConfig, BacktestEngine
+from services.risk_manager.src.risk_manager import RiskManager
+from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
 from shared.config import get_config
 from shared.models import SignalType, TradeSignal
-from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
-from services.risk_manager.src.risk_manager import RiskManager
-from backtesting.backtest_engine import BacktestEngine, BacktestConfig
 
 
 class ParameterType(Enum):
     """Types of parameters that can be optimized."""
+
     STRATEGY = "strategy"
     RISK = "risk"
     EXECUTION = "execution"
@@ -48,6 +51,7 @@ class ParameterType(Enum):
 
 class OptimizationMetric(Enum):
     """Metrics to optimize for."""
+
     TOTAL_RETURN = "total_return"
     SHARPE_RATIO = "sharpe_ratio"
     MAX_DRAWDOWN = "max_drawdown"
@@ -61,6 +65,7 @@ class OptimizationMetric(Enum):
 @dataclass
 class ParameterRange:
     """Define parameter ranges for optimization."""
+
     name: str
     type: ParameterType
     min_value: float
@@ -85,6 +90,7 @@ class ParameterRange:
 @dataclass
 class TestScenario:
     """Define a complete test scenario."""
+
     name: str
     description: str
     parameters: Dict[str, Any]
@@ -94,6 +100,7 @@ class TestScenario:
 @dataclass
 class OptimizationResult:
     """Results from parameter optimization."""
+
     scenario_name: str
     parameters: Dict[str, Any]
     metrics: Dict[str, float]
@@ -108,10 +115,10 @@ class OptimizationResult:
         """Calculate composite optimization score."""
         # Weighted score combining multiple metrics
         weights = {
-            'sharpe_ratio': 0.3,
-            'total_return': 0.25,
-            'max_drawdown': -0.25,  # Negative weight (lower is better)
-            'win_rate': 0.2
+            "sharpe_ratio": 0.3,
+            "total_return": 0.25,
+            "max_drawdown": -0.25,  # Negative weight (lower is better)
+            "win_rate": 0.2,
         }
 
         score = 0.0
@@ -142,20 +149,17 @@ class ParameterOptimizer:
     def _load_optimization_config(self, config_path: Optional[str]) -> Dict[str, Any]:
         """Load optimization configuration from file."""
         if config_path and Path(config_path).exists():
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 return json.load(f)
 
         # Default configuration
         return {
             "symbols": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"],
-            "backtest_period": {
-                "start_date": "2023-01-01",
-                "end_date": "2023-12-31"
-            },
+            "backtest_period": {"start_date": "2023-01-01", "end_date": "2023-12-31"},
             "initial_capital": 100000,
             "optimization_metric": OptimizationMetric.SHARPE_RATIO.value,
             "parallel_jobs": 4,
-            "max_iterations": 1000
+            "max_iterations": 1000,
         }
 
     def _define_parameter_ranges(self) -> Dict[str, ParameterRange]:
@@ -168,7 +172,7 @@ class ParameterOptimizer:
                 min_value=40.0,
                 max_value=80.0,
                 step=5.0,
-                description="Minimum confidence threshold for signals"
+                description="Minimum confidence threshold for signals",
             ),
             "lookback_period": ParameterRange(
                 name="lookback_period",
@@ -176,7 +180,7 @@ class ParameterOptimizer:
                 min_value=20,
                 max_value=200,
                 step=10,
-                description="Historical data lookback period in days"
+                description="Historical data lookback period in days",
             ),
             "risk_reward_ratio": ParameterRange(
                 name="risk_reward_ratio",
@@ -184,9 +188,8 @@ class ParameterOptimizer:
                 min_value=1.0,
                 max_value=4.0,
                 step=0.5,
-                description="Minimum risk/reward ratio for trades"
+                description="Minimum risk/reward ratio for trades",
             ),
-
             # Risk Management Parameters
             "max_position_size": ParameterRange(
                 name="max_position_size",
@@ -194,7 +197,7 @@ class ParameterOptimizer:
                 min_value=0.02,
                 max_value=0.20,
                 step=0.01,
-                description="Maximum position size as percentage of portfolio"
+                description="Maximum position size as percentage of portfolio",
             ),
             "stop_loss_percentage": ParameterRange(
                 name="stop_loss_percentage",
@@ -202,7 +205,7 @@ class ParameterOptimizer:
                 min_value=0.01,
                 max_value=0.05,
                 step=0.005,
-                description="Stop loss percentage"
+                description="Stop loss percentage",
             ),
             "take_profit_percentage": ParameterRange(
                 name="take_profit_percentage",
@@ -210,7 +213,7 @@ class ParameterOptimizer:
                 min_value=0.02,
                 max_value=0.10,
                 step=0.01,
-                description="Take profit percentage"
+                description="Take profit percentage",
             ),
             "max_portfolio_risk": ParameterRange(
                 name="max_portfolio_risk",
@@ -218,7 +221,7 @@ class ParameterOptimizer:
                 min_value=0.01,
                 max_value=0.05,
                 step=0.005,
-                description="Maximum portfolio risk exposure"
+                description="Maximum portfolio risk exposure",
             ),
             "drawdown_limit": ParameterRange(
                 name="drawdown_limit",
@@ -226,9 +229,8 @@ class ParameterOptimizer:
                 min_value=0.10,
                 max_value=0.25,
                 step=0.05,
-                description="Maximum allowed drawdown"
+                description="Maximum allowed drawdown",
             ),
-
             # Execution Parameters
             "execution_strategy": ParameterRange(
                 name="execution_strategy",
@@ -236,9 +238,8 @@ class ParameterOptimizer:
                 min_value=0,
                 max_value=0,
                 values=["immediate", "market", "twap", "vwap", "adaptive"],
-                description="Order execution strategy"
+                description="Order execution strategy",
             ),
-
             # Timing Parameters
             "strategy_interval": ParameterRange(
                 name="strategy_interval",
@@ -246,8 +247,8 @@ class ParameterOptimizer:
                 min_value=60,
                 max_value=1800,
                 step=60,
-                description="Strategy execution interval in seconds"
-            )
+                description="Strategy execution interval in seconds",
+            ),
         }
 
     def _define_test_scenarios(self) -> List[TestScenario]:
@@ -261,13 +262,13 @@ class ParameterOptimizer:
                     "max_position_size": 0.03,
                     "stop_loss_percentage": 0.015,
                     "take_profit_percentage": 0.03,
-                    "risk_reward_ratio": 2.0
+                    "risk_reward_ratio": 2.0,
                 },
                 expected_characteristics={
                     "trade_frequency": "low",
                     "win_rate": "high",
-                    "volatility": "low"
-                }
+                    "volatility": "low",
+                },
             ),
             TestScenario(
                 name="aggressive",
@@ -277,13 +278,13 @@ class ParameterOptimizer:
                     "max_position_size": 0.10,
                     "stop_loss_percentage": 0.025,
                     "take_profit_percentage": 0.05,
-                    "risk_reward_ratio": 1.5
+                    "risk_reward_ratio": 1.5,
                 },
                 expected_characteristics={
                     "trade_frequency": "high",
                     "win_rate": "medium",
-                    "volatility": "high"
-                }
+                    "volatility": "high",
+                },
             ),
             TestScenario(
                 name="balanced",
@@ -293,13 +294,13 @@ class ParameterOptimizer:
                     "max_position_size": 0.05,
                     "stop_loss_percentage": 0.02,
                     "take_profit_percentage": 0.04,
-                    "risk_reward_ratio": 2.0
+                    "risk_reward_ratio": 2.0,
                 },
                 expected_characteristics={
                     "trade_frequency": "medium",
                     "win_rate": "medium",
-                    "volatility": "medium"
-                }
+                    "volatility": "medium",
+                },
             ),
             TestScenario(
                 name="high_frequency",
@@ -310,13 +311,13 @@ class ParameterOptimizer:
                     "stop_loss_percentage": 0.01,
                     "take_profit_percentage": 0.02,
                     "strategy_interval": 60,
-                    "risk_reward_ratio": 1.5
+                    "risk_reward_ratio": 1.5,
                 },
                 expected_characteristics={
                     "trade_frequency": "very_high",
                     "hold_time": "short",
-                    "volatility": "high"
-                }
+                    "volatility": "high",
+                },
             ),
             TestScenario(
                 name="risk_minimized",
@@ -327,20 +328,22 @@ class ParameterOptimizer:
                     "max_portfolio_risk": 0.01,
                     "stop_loss_percentage": 0.01,
                     "drawdown_limit": 0.10,
-                    "risk_reward_ratio": 3.0
+                    "risk_reward_ratio": 3.0,
                 },
                 expected_characteristics={
                     "risk": "very_low",
                     "returns": "steady",
-                    "drawdown": "minimal"
-                }
-            )
+                    "drawdown": "minimal",
+                },
+            ),
         ]
 
-    async def run_optimization(self,
-                              optimization_type: str = "scenarios",
-                              symbols: Optional[List[str]] = None,
-                              max_iterations: Optional[int] = None) -> List[OptimizationResult]:
+    async def run_optimization(
+        self,
+        optimization_type: str = "scenarios",
+        symbols: Optional[List[str]] = None,
+        max_iterations: Optional[int] = None,
+    ) -> List[OptimizationResult]:
         """
         Run parameter optimization.
 
@@ -370,7 +373,9 @@ class ParameterOptimizer:
         results.sort(key=lambda x: x.score, reverse=True)
         self.results = results
 
-        self.logger.info(f"Optimization complete. Tested {len(results)} parameter combinations.")
+        self.logger.info(
+            f"Optimization complete. Tested {len(results)} parameter combinations."
+        )
         return results
 
     async def _run_scenario_tests(self, symbols: List[str]) -> List[OptimizationResult]:
@@ -392,13 +397,15 @@ class ParameterOptimizer:
                 metrics=metrics,
                 backtest_results=backtest_results,
                 execution_time=execution_time,
-                total_signals=backtest_results.get('total_signals', 0),
-                successful_trades=backtest_results.get('successful_trades', 0),
-                failed_trades=backtest_results.get('failed_trades', 0)
+                total_signals=backtest_results.get("total_signals", 0),
+                successful_trades=backtest_results.get("successful_trades", 0),
+                failed_trades=backtest_results.get("failed_trades", 0),
             )
 
             results.append(result)
-            self.logger.info(f"Scenario {scenario.name} completed. Score: {result.score:.4f}")
+            self.logger.info(
+                f"Scenario {scenario.name} completed. Score: {result.score:.4f}"
+            )
 
         return results
 
@@ -409,7 +416,7 @@ class ParameterOptimizer:
             "min_confidence",
             "max_position_size",
             "stop_loss_percentage",
-            "take_profit_percentage"
+            "take_profit_percentage",
         ]
 
         param_combinations = []
@@ -432,7 +439,9 @@ class ParameterOptimizer:
             params = dict(zip(keys, combination))
             param_combinations.append(params)
 
-        self.logger.info(f"Grid search will test {len(param_combinations)} combinations")
+        self.logger.info(
+            f"Grid search will test {len(param_combinations)} combinations"
+        )
 
         results = []
         for i, params in enumerate(param_combinations):
@@ -450,16 +459,18 @@ class ParameterOptimizer:
                 metrics=metrics,
                 backtest_results=backtest_results,
                 execution_time=execution_time,
-                total_signals=backtest_results.get('total_signals', 0),
-                successful_trades=backtest_results.get('successful_trades', 0),
-                failed_trades=backtest_results.get('failed_trades', 0)
+                total_signals=backtest_results.get("total_signals", 0),
+                successful_trades=backtest_results.get("successful_trades", 0),
+                failed_trades=backtest_results.get("failed_trades", 0),
             )
 
             results.append(result)
 
         return results
 
-    async def _run_random_search(self, symbols: List[str], max_iterations: int) -> List[OptimizationResult]:
+    async def _run_random_search(
+        self, symbols: List[str], max_iterations: int
+    ) -> List[OptimizationResult]:
         """Run random parameter search."""
         results = []
 
@@ -481,9 +492,9 @@ class ParameterOptimizer:
                 metrics=metrics,
                 backtest_results=backtest_results,
                 execution_time=execution_time,
-                total_signals=backtest_results.get('total_signals', 0),
-                successful_trades=backtest_results.get('successful_trades', 0),
-                failed_trades=backtest_results.get('failed_trades', 0)
+                total_signals=backtest_results.get("total_signals", 0),
+                successful_trades=backtest_results.get("successful_trades", 0),
+                failed_trades=backtest_results.get("failed_trades", 0),
             )
 
             results.append(result)
@@ -507,11 +518,17 @@ class ParameterOptimizer:
 
         return params
 
-    async def _run_backtest(self, parameters: Dict[str, Any], symbols: List[str]) -> Dict[str, Any]:
+    async def _run_backtest(
+        self, parameters: Dict[str, Any], symbols: List[str]
+    ) -> Dict[str, Any]:
         """Run backtest with given parameters."""
         # Configure backtest
-        start_date = datetime.strptime(self.optimization_config["backtest_period"]["start_date"], "%Y-%m-%d")
-        end_date = datetime.strptime(self.optimization_config["backtest_period"]["end_date"], "%Y-%m-%d")
+        start_date = datetime.strptime(
+            self.optimization_config["backtest_period"]["start_date"], "%Y-%m-%d"
+        )
+        end_date = datetime.strptime(
+            self.optimization_config["backtest_period"]["end_date"], "%Y-%m-%d"
+        )
 
         backtest_config = BacktestConfig(
             start_date=start_date,
@@ -520,7 +537,7 @@ class ParameterOptimizer:
             commission_per_trade=1.0,
             commission_percentage=0.0005,
             slippage_bps=5.0,
-            max_positions=10
+            max_positions=10,
         )
 
         # Create strategy configuration with test parameters
@@ -532,7 +549,7 @@ class ParameterOptimizer:
             max_position_size=parameters.get("max_position_size", 0.05),
             default_stop_loss_pct=parameters.get("stop_loss_percentage", 0.02),
             default_take_profit_pct=parameters.get("take_profit_percentage", 0.04),
-            risk_reward_ratio=parameters.get("risk_reward_ratio", 2.0)
+            risk_reward_ratio=parameters.get("risk_reward_ratio", 2.0),
         )
 
         # Run backtest (simplified - would integrate with actual backtest engine)
@@ -551,7 +568,7 @@ class ParameterOptimizer:
             "win_rate": win_rate,
             "total_signals": np.random.randint(50, 500),
             "successful_trades": np.random.randint(20, 200),
-            "failed_trades": np.random.randint(5, 50)
+            "failed_trades": np.random.randint(5, 50),
         }
 
     def _calculate_metrics(self, backtest_results: Dict[str, Any]) -> Dict[str, float]:
@@ -565,7 +582,9 @@ class ParameterOptimizer:
         metrics["win_rate"] = backtest_results.get("win_rate", 0.0)
 
         # Calculated metrics
-        total_trades = backtest_results.get("successful_trades", 0) + backtest_results.get("failed_trades", 0)
+        total_trades = backtest_results.get(
+            "successful_trades", 0
+        ) + backtest_results.get("failed_trades", 0)
         if total_trades > 0:
             metrics["trade_frequency"] = total_trades / 252  # Trades per trading day
 
@@ -577,7 +596,9 @@ class ParameterOptimizer:
         if metrics["win_rate"] > 0:
             avg_win = 0.04  # Estimate
             avg_loss = 0.02  # Estimate
-            metrics["profit_factor"] = (metrics["win_rate"] * avg_win) / ((1 - metrics["win_rate"]) * avg_loss)
+            metrics["profit_factor"] = (metrics["win_rate"] * avg_win) / (
+                (1 - metrics["win_rate"]) * avg_loss
+            )
 
         return metrics
 
@@ -588,7 +609,7 @@ class ParameterOptimizer:
 
         html_content = self._generate_html_report()
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             f.write(html_content)
 
         self.logger.info(f"Optimization report saved to {output_path}")
@@ -633,12 +654,18 @@ class ParameterOptimizer:
                         <th>Win Rate</th>
                         <th>Key Parameters</th>
                     </tr>
-        """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), len(self.results))
+        """.format(
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), len(self.results)
+        )
 
         # Add top 5 results
         for i, result in enumerate(self.results[:5]):
             css_class = "best-result" if i == 0 else ""
-            key_params = {k: v for k, v in result.parameters.items() if k in ["min_confidence", "max_position_size", "stop_loss_percentage"]}
+            key_params = {
+                k: v
+                for k, v in result.parameters.items()
+                if k in ["min_confidence", "max_position_size", "stop_loss_percentage"]
+            }
 
             html += f"""
                     <tr class="{css_class}">
@@ -683,18 +710,20 @@ class ParameterOptimizer:
         results_data = []
 
         for result in self.results:
-            results_data.append({
-                "scenario_name": result.scenario_name,
-                "parameters": result.parameters,
-                "metrics": result.metrics,
-                "score": result.score,
-                "execution_time": result.execution_time,
-                "total_signals": result.total_signals,
-                "successful_trades": result.successful_trades,
-                "failed_trades": result.failed_trades
-            })
+            results_data.append(
+                {
+                    "scenario_name": result.scenario_name,
+                    "parameters": result.parameters,
+                    "metrics": result.metrics,
+                    "score": result.score,
+                    "execution_time": result.execution_time,
+                    "total_signals": result.total_signals,
+                    "successful_trades": result.successful_trades,
+                    "failed_trades": result.failed_trades,
+                }
+            )
 
-        with open(output_path, 'w') as f:
+        with open(output_path, "w") as f:
             json.dump(results_data, f, indent=2)
 
         self.logger.info(f"Results exported to {output_path}")
@@ -703,20 +732,39 @@ class ParameterOptimizer:
 
 def main():
     """Main entry point for parameter optimization."""
-    parser = argparse.ArgumentParser(description="Trading System Parameter Optimization")
-    parser.add_argument("--config", type=str, help="Path to optimization configuration file")
-    parser.add_argument("--type", type=str, default="scenarios", choices=["scenarios", "grid_search", "random"])
-    parser.add_argument("--symbols", type=str, nargs="+", help="List of symbols to test")
-    parser.add_argument("--iterations", type=int, default=100, help="Max iterations for random search")
-    parser.add_argument("--output", type=str, default="optimization_results", help="Output file prefix")
-    parser.add_argument("--quick-test", action="store_true", help="Run quick test with limited scenarios")
+    parser = argparse.ArgumentParser(
+        description="Trading System Parameter Optimization"
+    )
+    parser.add_argument(
+        "--config", type=str, help="Path to optimization configuration file"
+    )
+    parser.add_argument(
+        "--type",
+        type=str,
+        default="scenarios",
+        choices=["scenarios", "grid_search", "random"],
+    )
+    parser.add_argument(
+        "--symbols", type=str, nargs="+", help="List of symbols to test"
+    )
+    parser.add_argument(
+        "--iterations", type=int, default=100, help="Max iterations for random search"
+    )
+    parser.add_argument(
+        "--output", type=str, default="optimization_results", help="Output file prefix"
+    )
+    parser.add_argument(
+        "--quick-test",
+        action="store_true",
+        help="Run quick test with limited scenarios",
+    )
 
     args = parser.parse_args()
 
     # Setup logging
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     # Create optimizer
@@ -729,7 +777,9 @@ def main():
             optimizer.test_scenarios = optimizer.test_scenarios[:2]
             results = await optimizer.run_optimization("scenarios", args.symbols)
         else:
-            results = await optimizer.run_optimization(args.type, args.symbols, args.iterations)
+            results = await optimizer.run_optimization(
+                args.type, args.symbols, args.iterations
+            )
 
         # Generate reports
         html_path = optimizer.generate_report(f"{args.output}.html")
@@ -738,7 +788,9 @@ def main():
         print(f"\nOptimization Complete!")
         print(f"HTML Report: {html_path}")
         print(f"JSON Results: {json_path}")
-        print(f"\nBest Result: {results[0].scenario_name} (Score: {results[0].score:.4f})")
+        print(
+            f"\nBest Result: {results[0].scenario_name} (Score: {results[0].score:.4f})"
+        )
         print(f"Parameters: {json.dumps(results[0].parameters, indent=2)}")
 
     # Run the optimization

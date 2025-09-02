@@ -9,33 +9,46 @@ database interactions, and service coordination.
 import asyncio
 import logging
 import os
-import pytest
+import sys
 import time
-from datetime import datetime, timedelta, date, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-import sys
-
-import redis.asyncio as redis
-import asyncpg
+from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import AsyncMock, Mock
+
+import asyncpg
+import pytest
+import redis.asyncio as redis
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.config import get_config, Config
-from shared.models import MarketData, TimeFrame, AssetType, OrderRequest, OrderResponse, OrderType, OrderSide, OrderStatus
+from shared.config import Config, get_config
 from shared.database_manager import SharedDatabaseManager as DatabaseManager
-
-from tests.integration.mock_services.mock_data_collector import MockDataCollector, MockDataCollectorConfig
-from tests.integration.mock_services.service_orchestrator import ServiceOrchestrator, create_service_orchestrator
+from shared.models import (
+    AssetType,
+    MarketData,
+    OrderRequest,
+    OrderResponse,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TimeFrame,
+)
+from tests.integration.mock_services.mock_data_collector import (
+    MockDataCollector,
+    MockDataCollectorConfig,
+)
+from tests.integration.mock_services.service_orchestrator import (
+    ServiceOrchestrator,
+    create_service_orchestrator,
+)
 
 # Configure logging for tests
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -46,8 +59,8 @@ class CredentialValidator:
     @staticmethod
     def validate_alpaca_credentials():
         """Ensure integration Alpaca credentials differ from production."""
-        prod_key = os.getenv('ALPACA_API_KEY', '')
-        integration_key = os.getenv('ALPACA_API_KEY', '')
+        prod_key = os.getenv("ALPACA_API_KEY", "")
+        integration_key = os.getenv("ALPACA_API_KEY", "")
 
         if prod_key and integration_key and prod_key == integration_key:
             raise ValueError(
@@ -56,7 +69,10 @@ class CredentialValidator:
             )
 
         # Check for test patterns
-        if not any(test_pattern in integration_key.lower() for test_pattern in ['test', 'integration', 'pkt']):
+        if not any(
+            test_pattern in integration_key.lower()
+            for test_pattern in ["test", "integration", "pkt"]
+        ):
             logger.warning(
                 "Alpaca API key doesn't contain test indicators. "
                 "Ensure you're using test/paper credentials."
@@ -65,9 +81,11 @@ class CredentialValidator:
     @staticmethod
     def validate_database_credentials():
         """Ensure integration database is different from production."""
-        db_name = os.getenv('DB_NAME', '')
+        db_name = os.getenv("DB_NAME", "")
 
-        if not any(test_pattern in db_name.lower() for test_pattern in ['test', 'integration']):
+        if not any(
+            test_pattern in db_name.lower() for test_pattern in ["test", "integration"]
+        ):
             raise ValueError(
                 f"Database name '{db_name}' doesn't indicate testing. "
                 "Use a test-specific database name."
@@ -92,7 +110,7 @@ async def redis_client():
         port=config.redis.port,
         password=config.redis.password,
         db=config.redis.db,
-        decode_responses=True
+        decode_responses=True,
     )
 
     # Test connection
@@ -118,7 +136,7 @@ async def database_pool():
         user=config.database.user,
         password=config.database.password,
         min_size=2,
-        max_size=5
+        max_size=5,
     )
 
     logger.info("✅ Database connection pool created")
@@ -143,7 +161,7 @@ async def mock_data_collector():
         available_symbols=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"],
         redis_publish_interval=10,  # Faster for tests
         simulate_screener=True,
-        screener_interval=30
+        screener_interval=30,
     )
 
     collector = MockDataCollector(config)
@@ -204,8 +222,8 @@ class TestRealSystemIntegration:
     async def test_setup_integration_environment(self, validate_credentials):
         """Test that integration environment is properly set up."""
         # Check environment variables
-        assert os.getenv('INTEGRATION_TEST_MODE') == 'true'
-        assert os.getenv('TESTING') == 'true'
+        assert os.getenv("INTEGRATION_TEST_MODE") == "true"
+        assert os.getenv("TESTING") == "true"
 
         # Check data directory exists
         data_path = Path("data/parquet")
@@ -236,11 +254,11 @@ class TestRealSystemIntegration:
 
         # Read message
         message = await pubsub.get_message(timeout=5)
-        if message and message['type'] == 'subscribe':
+        if message and message["type"] == "subscribe":
             message = await pubsub.get_message(timeout=5)
 
         assert message is not None
-        assert message['data'] == "test_message"
+        assert message["data"] == "test_message"
 
         await pubsub.close()
         logger.info("✅ Redis connectivity test passed")
@@ -253,21 +271,25 @@ class TestRealSystemIntegration:
             assert result == 1
 
             # Test table access
-            tables = await conn.fetch("""
+            tables = await conn.fetch(
+                """
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public'
-            """)
+            """
+            )
 
-            table_names = [row['table_name'] for row in tables]
+            table_names = [row["table_name"] for row in tables]
 
             # Check for essential tables
-            required_tables = ['orders', 'positions', 'portfolio_snapshots']
+            required_tables = ["orders", "positions", "portfolio_snapshots"]
             for table in required_tables:
                 assert table in table_names, f"Required table '{table}' not found"
 
         logger.info("✅ Database connectivity test passed")
 
-    async def test_mock_data_collector_functionality(self, mock_data_collector, redis_client):
+    async def test_mock_data_collector_functionality(
+        self, mock_data_collector, redis_client
+    ):
         """Test mock data collector publishes data correctly."""
         # Subscribe to market data updates
         pubsub = redis_client.pubsub()
@@ -286,7 +308,7 @@ class TestRealSystemIntegration:
 
         while time.time() < timeout and messages_received < 2:
             message = await pubsub.get_message(timeout=5)
-            if message and message['type'] == 'message':
+            if message and message["type"] == "message":
                 messages_received += 1
                 logger.info(f"Received message on {message['channel']}")
 
@@ -296,8 +318,8 @@ class TestRealSystemIntegration:
 
         # Test health check
         health = await mock_data_collector.health_check()
-        assert health['status'] == 'healthy'
-        assert health['available_symbols'] > 0
+        assert health["status"] == "healthy"
+        assert health["available_symbols"] > 0
 
         logger.info("✅ Mock data collector test passed")
 
@@ -305,19 +327,23 @@ class TestRealSystemIntegration:
         """Test that all services start up correctly."""
         status = await service_orchestrator.get_service_status()
 
-        assert status['orchestrator_running'] is True
+        assert status["orchestrator_running"] is True
 
         # Check each service
-        for service_name, service_info in status['services'].items():
-            if service_name == 'mock_data_collector':
+        for service_name, service_info in status["services"].items():
+            if service_name == "mock_data_collector":
                 continue  # Skip since we use separate fixture
 
-            assert service_info['status'] in ['running', 'started'], \
-                f"Service {service_name} is not running: {service_info['status']} - {service_info.get('error', 'No error')}"
+            assert service_info["status"] in [
+                "running",
+                "started",
+            ], f"Service {service_name} is not running: {service_info['status']} - {service_info.get('error', 'No error')}"
 
         logger.info("✅ Service orchestrator startup test passed")
 
-    async def test_end_to_end_data_flow(self, mock_data_collector, service_orchestrator, redis_client):
+    async def test_end_to_end_data_flow(
+        self, mock_data_collector, service_orchestrator, redis_client
+    ):
         """Test complete data flow from data collector through all services."""
         # Subscribe to key channels
         pubsub = redis_client.pubsub()
@@ -326,7 +352,7 @@ class TestRealSystemIntegration:
             "screener:updates",
             "strategy:signals",
             "risk:assessments",
-            "orders:*"
+            "orders:*",
         ]
 
         await pubsub.psubscribe(*channels)
@@ -347,31 +373,36 @@ class TestRealSystemIntegration:
 
         while time.time() < timeout and len(messages) < 5:
             message = await pubsub.get_message(timeout=2)
-            if message and message['type'] == 'pmessage':
-                messages.append({
-                    'channel': message['channel'],
-                    'data': message['data'],
-                    'timestamp': datetime.now(timezone.utc)
-                })
+            if message and message["type"] == "pmessage":
+                messages.append(
+                    {
+                        "channel": message["channel"],
+                        "data": message["data"],
+                        "timestamp": datetime.now(timezone.utc),
+                    }
+                )
 
         await pubsub.close()
 
         # Analyze message flow
         channel_counts = {}
         for msg in messages:
-            channel_base = msg['channel'].split(':')[0]
+            channel_base = msg["channel"].split(":")[0]
             channel_counts[channel_base] = channel_counts.get(channel_base, 0) + 1
 
         logger.info(f"Messages received by channel: {channel_counts}")
 
         # We should have at least some data flow
         assert len(messages) > 0, "No messages received in data flow test"
-        assert 'market_data' in channel_counts or 'screener' in channel_counts, \
-            "No market data or screener updates received"
+        assert (
+            "market_data" in channel_counts or "screener" in channel_counts
+        ), "No market data or screener updates received"
 
         logger.info("✅ End-to-end data flow test passed")
 
-    async def test_trading_simulation(self, service_orchestrator, database_pool, redis_client):
+    async def test_trading_simulation(
+        self, service_orchestrator, database_pool, redis_client
+    ):
         """Test a complete trading simulation."""
         logger.info("🎭 Starting trading simulation test...")
 
@@ -402,8 +433,8 @@ class TestRealSystemIntegration:
 
             while time.time() < timeout:
                 message = await pubsub.get_message(timeout=1)
-                if message and message['type'] == 'pmessage':
-                    messages.append(message['channel'])
+                if message and message["type"] == "pmessage":
+                    messages.append(message["channel"])
                     if len(messages) >= 10:  # Limit collection
                         break
 
@@ -413,8 +444,9 @@ class TestRealSystemIntegration:
             logger.info(f"Messages during simulation: {len(messages)}")
 
             # Validation - we should see some activity even if no actual orders
-            assert len(messages) > 0 or final_orders > initial_orders, \
-                "No trading activity detected during simulation"
+            assert (
+                len(messages) > 0 or final_orders > initial_orders
+            ), "No trading activity detected during simulation"
 
             logger.info("✅ Trading simulation test passed")
 
@@ -429,18 +461,19 @@ class TestRealSystemIntegration:
         # Get initial status
         initial_status = await service_orchestrator.get_service_status()
         running_services = [
-            name for name, info in initial_status['services'].items()
-            if info['status'] == 'running'
+            name
+            for name, info in initial_status["services"].items()
+            if info["status"] == "running"
         ]
 
         logger.info(f"Initially running services: {running_services}")
 
         # Simulate Redis connectivity issues by using wrong password
         test_redis = redis.Redis(
-            host='localhost',
+            host="localhost",
             port=6381,
-            password='wrong_password',
-            decode_responses=True
+            password="wrong_password",
+            decode_responses=True,
         )
 
         try:
@@ -456,8 +489,9 @@ class TestRealSystemIntegration:
 
         final_status = await service_orchestrator.get_service_status()
         still_running = [
-            name for name, info in final_status['services'].items()
-            if info['status'] == 'running'
+            name
+            for name, info in final_status["services"].items()
+            if info["status"] == "running"
         ]
 
         logger.info(f"Services still running after resilience test: {still_running}")
@@ -474,8 +508,9 @@ class TestRealSystemIntegration:
         # Get status before shutdown
         status_before = await service_orchestrator.get_service_status()
         running_before = [
-            name for name, info in status_before['services'].items()
-            if info['status'] == 'running'
+            name
+            for name, info in status_before["services"].items()
+            if info["status"] == "running"
         ]
 
         logger.info(f"Services running before shutdown: {running_before}")
@@ -489,15 +524,17 @@ class TestRealSystemIntegration:
         # Check final status
         status_after = await service_orchestrator.get_service_status()
         stopped_services = [
-            name for name, info in status_after['services'].items()
-            if info['status'] == 'stopped'
+            name
+            for name, info in status_after["services"].items()
+            if info["status"] == "stopped"
         ]
 
         logger.info(f"Services stopped after shutdown: {stopped_services}")
 
         # Most services should be stopped
-        assert len(stopped_services) >= len(running_before) // 2, \
-            "Not enough services stopped during graceful shutdown"
+        assert (
+            len(stopped_services) >= len(running_before) // 2
+        ), "Not enough services stopped during graceful shutdown"
 
         logger.info("✅ Graceful shutdown test passed")
 
@@ -517,11 +554,13 @@ class TestRealSystemIntegration:
             orders_count = await conn.fetchval("SELECT COUNT(*) FROM orders")
             positions_count = await conn.fetchval("SELECT COUNT(*) FROM positions")
 
-            logger.info(f"Database - Orders: {orders_count}, Positions: {positions_count}")
+            logger.info(
+                f"Database - Orders: {orders_count}, Positions: {positions_count}"
+            )
 
         # Basic consistency check - we should have some data structures in place
         assert len(redis_keys) >= 0  # Redis might be empty in tests, that's OK
-        assert orders_count >= 0      # Tables should exist and be queryable
+        assert orders_count >= 0  # Tables should exist and be queryable
         assert positions_count >= 0
 
         logger.info("✅ Data consistency test passed")
@@ -535,8 +574,8 @@ class TestRealSystemIntegration:
         # Get service status multiple times to test performance
         for i in range(5):
             status = await service_orchestrator.get_service_status()
-            assert 'timestamp' in status
-            assert 'services' in status
+            assert "timestamp" in status
+            assert "services" in status
             await asyncio.sleep(0.5)
 
         elapsed_time = time.time() - start_time
@@ -551,11 +590,14 @@ class TestRealSystemIntegration:
         config = get_config()
 
         # Check that we're in test mode
-        assert config.environment in ['integration_test', 'test']
+        assert config.environment in ["integration_test", "test"]
         assert config.testing is True
 
         # Check database configuration
-        assert 'test' in config.database.name.lower() or 'integration' in config.database.name.lower()
+        assert (
+            "test" in config.database.name.lower()
+            or "integration" in config.database.name.lower()
+        )
 
         # Check that trading is in safe mode
         assert config.trading.dry_run is True
@@ -565,6 +607,7 @@ class TestRealSystemIntegration:
 
 
 # Helper functions and fixtures for specific test scenarios
+
 
 @pytest.fixture
 async def sample_market_data():
@@ -579,7 +622,7 @@ async def sample_market_data():
             low=149.0,
             close=150.5,
             volume=1000000,
-            asset_type=AssetType.STOCK
+            asset_type=AssetType.STOCK,
         ),
         MarketData(
             symbol="SPY",
@@ -590,8 +633,8 @@ async def sample_market_data():
             low=399.0,
             close=400.5,
             volume=2000000,
-            asset_type=AssetType.ETF
-        )
+            asset_type=AssetType.ETF,
+        ),
     ]
 
 
@@ -605,27 +648,25 @@ async def test_market_data_processing(sample_market_data, redis_client):
     # Test Redis publishing of market data
     for data in sample_market_data:
         message = {
-            'symbol': data.symbol,
-            'price': data.close,
-            'volume': data.volume,
-            'timestamp': data.timestamp.isoformat()
+            "symbol": data.symbol,
+            "price": data.close,
+            "volume": data.volume,
+            "timestamp": data.timestamp.isoformat(),
         }
 
-        await redis_client.publish(
-            f"test_market_data:{data.symbol}",
-            str(message)
-        )
+        await redis_client.publish(f"test_market_data:{data.symbol}", str(message))
 
     logger.info("✅ Market data processing test passed")
 
 
 # Integration test runner and utility functions
 
+
 def pytest_configure(config):
     """Configure pytest for integration tests."""
     config.addinivalue_line(
         "markers",
-        "real_integration: marks tests as real integration tests (deselect with '-m \"not real_integration\"')"
+        "real_integration: marks tests as real integration tests (deselect with '-m \"not real_integration\"')",
     )
 
 
@@ -634,20 +675,23 @@ async def run_integration_test_suite():
     logger.info("🚀 Starting Real System Integration Test Suite")
 
     # Set test environment
-    os.environ['INTEGRATION_TEST_MODE'] = 'true'
-    os.environ['TESTING'] = 'true'
+    os.environ["INTEGRATION_TEST_MODE"] = "true"
+    os.environ["TESTING"] = "true"
 
     try:
         # Run pytest programmatically
-        exit_code = pytest.main([
-            __file__,
-            '-v',
-            '--tb=short',
-            '-m', 'real_integration',
-            '--asyncio-mode=auto',
-            '--capture=no',
-            '--durations=20'
-        ])
+        exit_code = pytest.main(
+            [
+                __file__,
+                "-v",
+                "--tb=short",
+                "-m",
+                "real_integration",
+                "--asyncio-mode=auto",
+                "--capture=no",
+                "--durations=20",
+            ]
+        )
 
         if exit_code == 0:
             logger.info("✅ All integration tests passed!")

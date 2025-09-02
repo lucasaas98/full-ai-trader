@@ -10,27 +10,35 @@ Enhanced with Alpaca API integration for accurate market hours detection.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, time as dt_time, date, timezone
-from typing import Dict, List, Optional, Any, Callable, Set
+from datetime import date, datetime
+from datetime import time as dt_time
+from datetime import timedelta, timezone
 from enum import Enum
-import pytz
+from typing import Any, Callable, Dict, List, Optional, Set
 
+import pytz
+from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import BaseModel, Field
 
 from shared.models import TimeFrame
 
 # Import Alpaca market hours functionality with fallback
 try:
-    from shared.market_hours import is_market_open as alpaca_is_market_open, get_market_status
+    from shared.market_hours import (
+        get_market_status,
+    )
+    from shared.market_hours import is_market_open as alpaca_is_market_open
+
     ALPACA_MARKET_HOURS_AVAILABLE = True
 except ImportError:
-    logger.warning("Alpaca market hours functionality not available, using fallback logic")
+    logger.warning(
+        "Alpaca market hours functionality not available, using fallback logic"
+    )
     ALPACA_MARKET_HOURS_AVAILABLE = False
     alpaca_is_market_open = None
     get_market_status = None
@@ -41,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 class MarketSession(Enum):
     """Market session types."""
+
     PRE_MARKET = "pre_market"
     REGULAR = "regular"
     AFTER_MARKET = "after_market"
@@ -49,6 +58,7 @@ class MarketSession(Enum):
 
 class TaskPriority(Enum):
     """Task priority levels."""
+
     LOW = 1
     NORMAL = 2
     HIGH = 3
@@ -59,33 +69,45 @@ class SchedulerConfig(BaseModel):
     """Configuration for scheduler service."""
 
     # Market hours
-    market_open_time: str = Field(default="09:30", description="Market open time (HH:MM)")
-    market_close_time: str = Field(default="16:00", description="Market close time (HH:MM)")
-    pre_market_start: str = Field(default="04:00", description="Pre-market start time (HH:MM)")
-    after_market_end: str = Field(default="20:00", description="After-market end time (HH:MM)")
+    market_open_time: str = Field(
+        default="09:30", description="Market open time (HH:MM)"
+    )
+    market_close_time: str = Field(
+        default="16:00", description="Market close time (HH:MM)"
+    )
+    pre_market_start: str = Field(
+        default="04:00", description="Pre-market start time (HH:MM)"
+    )
+    after_market_end: str = Field(
+        default="20:00", description="After-market end time (HH:MM)"
+    )
     timezone: str = Field(default="America/New_York", description="Market timezone")
 
     # Weekend and holiday trading
-    trade_weekends: bool = Field(default=False, description="Enable weekend data collection")
+    trade_weekends: bool = Field(
+        default=False, description="Enable weekend data collection"
+    )
     trade_holidays: bool = Field(default=False, description="Enable holiday trading")
 
     # Enhanced market hours detection
-    use_alpaca_market_hours: bool = Field(default=True, description="Use Alpaca API for accurate market hours")
+    use_alpaca_market_hours: bool = Field(
+        default=True, description="Use Alpaca API for accurate market hours"
+    )
 
     # Scheduler settings
     max_workers: int = Field(default=10, description="Maximum concurrent tasks")
     job_defaults: Dict[str, Any] = Field(
-        default={
-            'coalesce': True,
-            'max_instances': 1,
-            'misfire_grace_time': 30
-        },
-        description="Default job settings"
+        default={"coalesce": True, "max_instances": 1, "misfire_grace_time": 30},
+        description="Default job settings",
     )
 
     # Rate limiting
-    enable_smart_scheduling: bool = Field(default=True, description="Enable smart task spacing")
-    min_task_interval: float = Field(default=1.0, description="Minimum interval between tasks")
+    enable_smart_scheduling: bool = Field(
+        default=True, description="Enable smart task spacing"
+    )
+    min_task_interval: float = Field(
+        default=1.0, description="Minimum interval between tasks"
+    )
 
     # Known US market holidays (will be expanded)
     holidays: List[str] = Field(
@@ -99,9 +121,9 @@ class SchedulerConfig(BaseModel):
             "2024-07-04",  # Independence Day
             "2024-09-02",  # Labor Day
             "2024-11-28",  # Thanksgiving
-            "2024-12-25"   # Christmas
+            "2024-12-25",  # Christmas
         ],
-        description="Market holiday dates (YYYY-MM-DD)"
+        description="Market holiday dates (YYYY-MM-DD)",
     )
 
 
@@ -111,10 +133,16 @@ class ScheduledTask(BaseModel):
     id: str = Field(..., description="Unique task identifier")
     name: str = Field(..., description="Human-readable task name")
     callback: str = Field(..., description="Callback function name")
-    priority: TaskPriority = Field(default=TaskPriority.NORMAL, description="Task priority")
+    priority: TaskPriority = Field(
+        default=TaskPriority.NORMAL, description="Task priority"
+    )
     enabled: bool = Field(default=True, description="Whether task is enabled")
-    market_hours_only: bool = Field(default=False, description="Run only during market hours")
-    timeframes: Optional[List[TimeFrame]] = Field(None, description="Associated timeframes")
+    market_hours_only: bool = Field(
+        default=False, description="Run only during market hours"
+    )
+    timeframes: Optional[List[TimeFrame]] = Field(
+        None, description="Associated timeframes"
+    )
 
     # Scheduling
     interval_seconds: Optional[int] = Field(None, description="Interval in seconds")
@@ -149,12 +177,18 @@ class MarketHoursManager:
     def __init__(self, config: SchedulerConfig):
         self.config = config
         self.timezone = pytz.timezone(config.timezone)
-        self._holiday_dates = set(datetime.strptime(h, "%Y-%m-%d").date() for h in config.holidays)
+        self._holiday_dates = set(
+            datetime.strptime(h, "%Y-%m-%d").date() for h in config.holidays
+        )
 
         # Enable Alpaca-enhanced mode if available
-        self.use_alpaca_api = ALPACA_MARKET_HOURS_AVAILABLE and getattr(config, 'use_alpaca_market_hours', True)
+        self.use_alpaca_api = ALPACA_MARKET_HOURS_AVAILABLE and getattr(
+            config, "use_alpaca_market_hours", True
+        )
         if self.use_alpaca_api:
-            logger.info("MarketHoursManager: Using Alpaca API for enhanced market hours detection")
+            logger.info(
+                "MarketHoursManager: Using Alpaca API for enhanced market hours detection"
+            )
         else:
             logger.info("MarketHoursManager: Using fallback market hours logic")
 
@@ -169,7 +203,9 @@ class MarketHoursManager:
             return MarketSession.CLOSED
 
         # Check if it's a weekend
-        if now.weekday() >= 5 and not self.config.trade_weekends:  # Saturday = 5, Sunday = 6
+        if (
+            now.weekday() >= 5 and not self.config.trade_weekends
+        ):  # Saturday = 5, Sunday = 6
             return MarketSession.CLOSED
 
         # Parse time strings
@@ -193,6 +229,7 @@ class MarketHoursManager:
         if self.use_alpaca_api:
             try:
                 import asyncio
+
                 # Try to get current event loop, create new one if needed
                 try:
                     loop = asyncio.get_event_loop()
@@ -206,7 +243,9 @@ class MarketHoursManager:
                     # No event loop, create one
                     return asyncio.run(alpaca_is_market_open())
             except Exception as e:
-                logger.warning(f"Alpaca API market hours check failed, using fallback: {e}")
+                logger.warning(
+                    f"Alpaca API market hours check failed, using fallback: {e}"
+                )
                 # Fall back to original logic
                 return self.get_current_session() == MarketSession.REGULAR
         else:
@@ -217,13 +256,18 @@ class MarketHoursManager:
         if self.use_alpaca_api:
             try:
                 import asyncio
+
                 # Get detailed market status from Alpaca
                 try:
                     loop = asyncio.get_event_loop()
                     if loop.is_running():
                         # Fall back to traditional method in async context
                         session = self.get_current_session()
-                        return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+                        return session in [
+                            MarketSession.PRE_MARKET,
+                            MarketSession.REGULAR,
+                            MarketSession.AFTER_MARKET,
+                        ]
                     else:
                         status = loop.run_until_complete(get_market_status())
                         return status.is_trading_session
@@ -232,13 +276,23 @@ class MarketHoursManager:
                     status = asyncio.run(get_market_status())
                     return status.is_trading_session
             except Exception as e:
-                logger.warning(f"Alpaca API trading session check failed, using fallback: {e}")
+                logger.warning(
+                    f"Alpaca API trading session check failed, using fallback: {e}"
+                )
                 # Fall back to original logic
                 session = self.get_current_session()
-                return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+                return session in [
+                    MarketSession.PRE_MARKET,
+                    MarketSession.REGULAR,
+                    MarketSession.AFTER_MARKET,
+                ]
         else:
             session = self.get_current_session()
-            return session in [MarketSession.PRE_MARKET, MarketSession.REGULAR, MarketSession.AFTER_MARKET]
+            return session in [
+                MarketSession.PRE_MARKET,
+                MarketSession.REGULAR,
+                MarketSession.AFTER_MARKET,
+            ]
 
     def time_until_market_open(self) -> Optional[timedelta]:
         """Get time until next market open."""
@@ -250,10 +304,10 @@ class MarketHoursManager:
 
         # Calculate next market open
         next_open = now.replace(
-            hour=int(self.config.market_open_time.split(':')[0]),
-            minute=int(self.config.market_open_time.split(':')[1]),
+            hour=int(self.config.market_open_time.split(":")[0]),
+            minute=int(self.config.market_open_time.split(":")[1]),
             second=0,
-            microsecond=0
+            microsecond=0,
         )
 
         # If today's market open has passed, move to next trading day
@@ -261,8 +315,7 @@ class MarketHoursManager:
             next_open += timedelta(days=1)
 
         # Skip weekends and holidays
-        while (next_open.weekday() >= 5 or
-               next_open.date() in self._holiday_dates):
+        while next_open.weekday() >= 5 or next_open.date() in self._holiday_dates:
             next_open += timedelta(days=1)
 
         return next_open - now
@@ -274,10 +327,10 @@ class MarketHoursManager:
 
         now = datetime.now(self.timezone)
         market_close = now.replace(
-            hour=int(self.config.market_close_time.split(':')[0]),
-            minute=int(self.config.market_close_time.split(':')[1]),
+            hour=int(self.config.market_close_time.split(":")[0]),
+            minute=int(self.config.market_close_time.split(":")[1]),
             second=0,
-            microsecond=0
+            microsecond=0,
         )
 
         return market_close - now
@@ -296,14 +349,14 @@ class SchedulerService:
         self.market_hours = MarketHoursManager(config)
 
         # Initialize APScheduler
-        jobstores = {'default': MemoryJobStore()}
-        executors = {'default': AsyncIOExecutor()}
+        jobstores = {"default": MemoryJobStore()}
+        executors = {"default": AsyncIOExecutor()}
 
         self.scheduler = AsyncIOScheduler(
             jobstores=jobstores,
             executors=executors,
             job_defaults=config.job_defaults,
-            timezone=config.timezone
+            timezone=config.timezone,
         )
 
         # Task management
@@ -317,7 +370,9 @@ class SchedulerService:
         self._shutdown_event = asyncio.Event()
 
         # Initialize holiday dates for market hours calculation
-        self._holiday_dates = set(datetime.strptime(d, "%Y-%m-%d").date() for d in config.holidays)
+        self._holiday_dates = set(
+            datetime.strptime(d, "%Y-%m-%d").date() for d in config.holidays
+        )
 
     async def start(self):
         """Start the scheduler service."""
@@ -359,11 +414,7 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Error stopping scheduler service: {e}")
 
-    async def register_task(
-        self,
-        task: ScheduledTask,
-        callback: Callable
-    ):
+    async def register_task(self, task: ScheduledTask, callback: Callable):
         """
         Register a new scheduled task.
 
@@ -397,14 +448,12 @@ class SchedulerService:
             if task.interval_seconds:
                 # Interval-based scheduling
                 trigger = IntervalTrigger(
-                    seconds=task.interval_seconds,
-                    timezone=self.config.timezone
+                    seconds=task.interval_seconds, timezone=self.config.timezone
                 )
             elif task.cron_expression:
                 # Cron-based scheduling
                 trigger = CronTrigger.from_crontab(
-                    task.cron_expression,
-                    timezone=self.config.timezone
+                    task.cron_expression, timezone=self.config.timezone
                 )
             else:
                 logger.error(f"Task {task.id} has no scheduling configuration")
@@ -418,7 +467,7 @@ class SchedulerService:
                 name=task.name,
                 max_instances=1,
                 coalesce=True,
-                misfire_grace_time=60
+                misfire_grace_time=60,
             )
 
             logger.info(f"Scheduled task {task.id} with trigger: {trigger}")
@@ -455,23 +504,26 @@ class SchedulerService:
                 callback = self._callbacks[task_id]
 
                 try:
-                    await asyncio.wait_for(
-                        callback(),
-                        timeout=task.max_runtime_seconds
-                    )
+                    await asyncio.wait_for(callback(), timeout=task.max_runtime_seconds)
 
                     # Update success stats
                     stats.successful_runs += 1
                     stats.last_success = datetime.now(timezone.utc)
 
-                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+                    execution_time = (
+                        datetime.now(timezone.utc) - start_time
+                    ).total_seconds()
                     stats.total_runtime += execution_time
                     stats.average_runtime = stats.total_runtime / stats.successful_runs
 
-                    logger.info(f"Task {task.name} completed successfully in {execution_time:.2f}s")
+                    logger.info(
+                        f"Task {task.name} completed successfully in {execution_time:.2f}s"
+                    )
 
                 except asyncio.TimeoutError:
-                    logger.error(f"Task {task_id} timed out after {task.max_runtime_seconds}s")
+                    logger.error(
+                        f"Task {task_id} timed out after {task.max_runtime_seconds}s"
+                    )
                     stats.failed_runs += 1
                     stats.last_failure = datetime.now(timezone.utc)
 
@@ -508,7 +560,9 @@ class SchedulerService:
             # Check if dependency ran within reasonable time
             time_since_success = datetime.now(timezone.utc) - dep_stats.last_success
             if time_since_success > timedelta(hours=1):  # Configurable threshold
-                logger.debug(f"Dependency {dep_id} last success too old: {time_since_success}")
+                logger.debug(
+                    f"Dependency {dep_id} last success too old: {time_since_success}"
+                )
                 return False
 
         return True
@@ -537,7 +591,7 @@ class SchedulerService:
             self._callbacks[task.id],
             trigger=DateTrigger(run_date=retry_time),
             id=f"{task.id}_retry_{int(retry_time.timestamp())}",
-            max_instances=1
+            max_instances=1,
         )
 
     async def _add_health_check_job(self):
@@ -546,12 +600,16 @@ class SchedulerService:
         async def health_check():
             try:
                 stats = self.get_scheduler_stats()
-                logger.debug(f"Scheduler health check: {stats['running_jobs']} jobs running")
+                logger.debug(
+                    f"Scheduler health check: {stats['running_jobs']} jobs running"
+                )
 
                 # Check for stuck jobs
                 for job in self.scheduler.get_jobs():
-                    if hasattr(job, 'next_run_time') and job.next_run_time:
-                        if job.next_run_time < datetime.now(pytz.timezone(self.config.timezone)) - timedelta(minutes=10):
+                    if hasattr(job, "next_run_time") and job.next_run_time:
+                        if job.next_run_time < datetime.now(
+                            pytz.timezone(self.config.timezone)
+                        ) - timedelta(minutes=10):
                             logger.warning(f"Job {job.id} appears to be stuck")
 
             except Exception as e:
@@ -561,7 +619,7 @@ class SchedulerService:
             health_check,
             IntervalTrigger(minutes=5),
             id="scheduler_health_check",
-            max_instances=1
+            max_instances=1,
         )
 
     def create_data_collection_tasks(self) -> List[ScheduledTask]:
@@ -569,106 +627,122 @@ class SchedulerService:
         tasks = []
 
         # FinViz screener task
-        tasks.append(ScheduledTask(
-            id="finviz_momentum_scan",
-            name="FinViz Momentum Screener",
-            callback="run_finviz_scan",
-            priority=TaskPriority.HIGH,
-            interval_seconds=300,  # 5 minutes
-            cron_expression=None,
-            market_hours_only=False,  # Can run outside market hours
-            timeframes=[],  # Not applicable for screener
-            max_runtime_seconds=120,
-            retry_count=2
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="finviz_momentum_scan",
+                name="FinViz Momentum Screener",
+                callback="run_finviz_scan",
+                priority=TaskPriority.HIGH,
+                interval_seconds=300,  # 5 minutes
+                cron_expression=None,
+                market_hours_only=False,  # Can run outside market hours
+                timeframes=[],  # Not applicable for screener
+                max_runtime_seconds=120,
+                retry_count=2,
+            )
+        )
 
         # TwelveData price updates
-        tasks.append(ScheduledTask(
-            id="price_update_5min",
-            name="5-Minute Price Update",
-            callback="update_5min_data",
-            priority=TaskPriority.HIGH,
-            interval_seconds=300,  # 5 minutes
-            cron_expression=None,
-            market_hours_only=True,
-            timeframes=[TimeFrame.FIVE_MINUTES],
-            max_runtime_seconds=180,
-            depends_on=["finviz_momentum_scan"]
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="price_update_5min",
+                name="5-Minute Price Update",
+                callback="update_5min_data",
+                priority=TaskPriority.HIGH,
+                interval_seconds=300,  # 5 minutes
+                cron_expression=None,
+                market_hours_only=True,
+                timeframes=[TimeFrame.FIVE_MINUTES],
+                max_runtime_seconds=180,
+                depends_on=["finviz_momentum_scan"],
+            )
+        )
 
-        tasks.append(ScheduledTask(
-            id="price_update_15min",
-            name="15-Minute Price Update",
-            callback="update_15min_data",
-            priority=TaskPriority.NORMAL,
-            interval_seconds=900,  # 15 minutes
-            cron_expression=None,
-            market_hours_only=True,
-            timeframes=[TimeFrame.FIFTEEN_MINUTES],
-            max_runtime_seconds=240
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="price_update_15min",
+                name="15-Minute Price Update",
+                callback="update_15min_data",
+                priority=TaskPriority.NORMAL,
+                interval_seconds=900,  # 15 minutes
+                cron_expression=None,
+                market_hours_only=True,
+                timeframes=[TimeFrame.FIFTEEN_MINUTES],
+                max_runtime_seconds=240,
+            )
+        )
 
-        tasks.append(ScheduledTask(
-            id="price_update_hourly",
-            name="Hourly Price Update",
-            callback="update_hourly_data",
-            priority=TaskPriority.NORMAL,
-            interval_seconds=3600,  # 1 hour
-            cron_expression=None,
-            market_hours_only=True,
-            timeframes=[TimeFrame.ONE_HOUR],
-            max_runtime_seconds=300
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="price_update_hourly",
+                name="Hourly Price Update",
+                callback="update_hourly_data",
+                priority=TaskPriority.NORMAL,
+                interval_seconds=3600,  # 1 hour
+                cron_expression=None,
+                market_hours_only=True,
+                timeframes=[TimeFrame.ONE_HOUR],
+                max_runtime_seconds=300,
+            )
+        )
 
         # Daily data update at market close
-        tasks.append(ScheduledTask(
-            id="price_update_daily",
-            name="Daily Price Update",
-            callback="update_daily_data",
-            priority=TaskPriority.HIGH,
-            interval_seconds=None,
-            cron_expression="30 16 * * MON-FRI",  # 4:30 PM weekdays
-            market_hours_only=False,
-            timeframes=[TimeFrame.ONE_DAY],
-            max_runtime_seconds=600
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="price_update_daily",
+                name="Daily Price Update",
+                callback="update_daily_data",
+                priority=TaskPriority.HIGH,
+                interval_seconds=None,
+                cron_expression="30 16 * * MON-FRI",  # 4:30 PM weekdays
+                market_hours_only=False,
+                timeframes=[TimeFrame.ONE_DAY],
+                max_runtime_seconds=600,
+            )
+        )
 
         # Maintenance tasks
-        tasks.append(ScheduledTask(
-            id="data_cleanup",
-            name="Data Cleanup",
-            callback="cleanup_old_data",
-            priority=TaskPriority.LOW,
-            interval_seconds=None,
-            cron_expression="0 2 * * *",  # 2 AM daily
-            market_hours_only=False,
-            timeframes=[],  # Not applicable for maintenance
-            max_runtime_seconds=1800
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="data_cleanup",
+                name="Data Cleanup",
+                callback="cleanup_old_data",
+                priority=TaskPriority.LOW,
+                interval_seconds=None,
+                cron_expression="0 2 * * *",  # 2 AM daily
+                market_hours_only=False,
+                timeframes=[],  # Not applicable for maintenance
+                max_runtime_seconds=1800,
+            )
+        )
 
-        tasks.append(ScheduledTask(
-            id="data_validation",
-            name="Data Integrity Validation",
-            callback="validate_data_integrity",
-            priority=TaskPriority.LOW,
-            interval_seconds=None,
-            cron_expression="0 3 * * *",  # 3 AM daily
-            market_hours_only=False,
-            timeframes=[],  # Not applicable for validation
-            max_runtime_seconds=3600
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="data_validation",
+                name="Data Integrity Validation",
+                callback="validate_data_integrity",
+                priority=TaskPriority.LOW,
+                interval_seconds=None,
+                cron_expression="0 3 * * *",  # 3 AM daily
+                market_hours_only=False,
+                timeframes=[],  # Not applicable for validation
+                max_runtime_seconds=3600,
+            )
+        )
 
-        tasks.append(ScheduledTask(
-            id="storage_optimization",
-            name="Storage Optimization",
-            callback="optimize_storage",
-            priority=TaskPriority.LOW,
-            interval_seconds=None,
-            cron_expression="0 1 * * SUN",  # 1 AM every Sunday
-            market_hours_only=False,
-            timeframes=[],  # Not applicable for optimization
-            max_runtime_seconds=7200
-        ))
+        tasks.append(
+            ScheduledTask(
+                id="storage_optimization",
+                name="Storage Optimization",
+                callback="optimize_storage",
+                priority=TaskPriority.LOW,
+                interval_seconds=None,
+                cron_expression="0 1 * * SUN",  # 1 AM every Sunday
+                market_hours_only=False,
+                timeframes=[],  # Not applicable for optimization
+                max_runtime_seconds=7200,
+            )
+        )
 
         return tasks
 
@@ -737,10 +811,7 @@ class SchedulerService:
             else:
                 return {}
 
-        return {
-            task_id: stats.dict()
-            for task_id, stats in self._task_stats.items()
-        }
+        return {task_id: stats.dict() for task_id, stats in self._task_stats.items()}
 
     def get_scheduler_stats(self) -> Dict[str, Any]:
         """Get overall scheduler statistics."""
@@ -756,9 +827,8 @@ class SchedulerService:
             "time_until_market_open": str(self.market_hours.time_until_market_open()),
             "time_until_market_close": str(self.market_hours.time_until_market_close()),
             "next_job_run": min(
-                (j.next_run_time for j in jobs if j.next_run_time),
-                default=None
-            )
+                (j.next_run_time for j in jobs if j.next_run_time), default=None
+            ),
         }
 
     def get_next_job_runs(self, limit: int = 10) -> List[Dict[str, Any]]:
@@ -779,9 +849,10 @@ class SchedulerService:
                 "id": job.id,
                 "name": job.name,
                 "next_run": job.next_run_time,
-                "trigger": str(job.trigger)
+                "trigger": str(job.trigger),
             }
-            for job in jobs if job.next_run_time
+            for job in jobs
+            if job.next_run_time
         ]
 
         upcoming_jobs.sort(key=lambda x: x["next_run"])
@@ -791,7 +862,7 @@ class SchedulerService:
         self,
         task_id: str,
         new_interval: Optional[int] = None,
-        new_cron: Optional[str] = None
+        new_cron: Optional[str] = None,
     ):
         """
         Reschedule an existing task.
@@ -843,7 +914,7 @@ class SchedulerService:
         name: str,
         callback: Callable,
         run_time: datetime,
-        priority: TaskPriority = TaskPriority.NORMAL
+        priority: TaskPriority = TaskPriority.NORMAL,
     ) -> str:
         """
         Schedule a one-time task.
@@ -865,7 +936,7 @@ class SchedulerService:
                 trigger=DateTrigger(run_date=run_time),
                 id=task_id,
                 name=name,
-                max_instances=1
+                max_instances=1,
             )
 
             logger.info(f"Scheduled one-time task {name} for {run_time}")
@@ -894,13 +965,17 @@ class SchedulerService:
             for timing, desc in [(before_time, "before"), (after_time, "after")]:
                 if timing > datetime.now(timezone.utc):
                     self.scheduler.add_job(
-                        lambda: self._callbacks.get("price_update_5min", lambda: None)(),
+                        lambda: self._callbacks.get(
+                            "price_update_5min", lambda: None
+                        )(),
                         trigger=DateTrigger(run_date=timing),
                         id=f"event_update_{event_type}_{desc}_{int(timing.timestamp())}",
-                        max_instances=1
+                        max_instances=1,
                     )
 
-    def get_market_schedule_for_week(self, start_date: Optional[date] = None) -> Dict[str, Any]:
+    def get_market_schedule_for_week(
+        self, start_date: Optional[date] = None
+    ) -> Dict[str, Any]:
         """
         Get market schedule for the week.
 
@@ -932,23 +1007,25 @@ class SchedulerService:
                 "day_name": day_name,
                 "is_trading_day": not (is_holiday or is_weekend),
                 "is_holiday": is_holiday,
-                "is_weekend": is_weekend
+                "is_weekend": is_weekend,
             }
 
             if session_info["is_trading_day"]:
-                session_info.update({
-                    "pre_market_start": self.config.pre_market_start,
-                    "market_open": self.config.market_open_time,
-                    "market_close": self.config.market_close_time,
-                    "after_market_end": self.config.after_market_end
-                })
+                session_info.update(
+                    {
+                        "pre_market_start": self.config.pre_market_start,
+                        "market_open": self.config.market_open_time,
+                        "market_close": self.config.market_close_time,
+                        "after_market_end": self.config.after_market_end,
+                    }
+                )
 
             schedule[day.isoformat()] = session_info
 
         return {
             "week_start": week_start.isoformat(),
             "timezone": self.config.timezone,
-            "schedule": schedule
+            "schedule": schedule,
         }
 
     async def optimize_task_scheduling(self):
@@ -968,7 +1045,9 @@ class SchedulerService:
                 if success_rate < 0.8:  # Less than 80% success
                     task.retry_count = min(task.retry_count + 1, 5)
                     task.retry_delay = min(task.retry_delay * 1.5, 60.0)
-                    logger.info(f"Increased retry settings for {task_id} (success rate: {success_rate:.2f})")
+                    logger.info(
+                        f"Increased retry settings for {task_id} (success rate: {success_rate:.2f})"
+                    )
 
                 elif success_rate > 0.95:  # More than 95% success
                     task.retry_count = max(task.retry_count - 1, 1)
@@ -997,19 +1076,23 @@ class SchedulerService:
             "scheduler_status": self.get_scheduler_stats(),
             "task_performance": {},
             "recommendations": [],
-            "alerts": []
+            "alerts": [],
         }
 
         try:
             total_tasks = len(self._task_stats)
             total_runs = sum(stats.total_runs for stats in self._task_stats.values())
-            total_failures = sum(stats.failed_runs for stats in self._task_stats.values())
+            total_failures = sum(
+                stats.failed_runs for stats in self._task_stats.values()
+            )
 
             report["summary"] = {
                 "total_tasks": total_tasks,
                 "total_runs": total_runs,
                 "total_failures": total_failures,
-                "overall_success_rate": (total_runs - total_failures) / total_runs if total_runs > 0 else 0
+                "overall_success_rate": (
+                    (total_runs - total_failures) / total_runs if total_runs > 0 else 0
+                ),
             }
 
             # Analyze each task
@@ -1028,21 +1111,33 @@ class SchedulerService:
                     "success_rate": success_rate,
                     "average_runtime": avg_runtime,
                     "last_run": stats.last_run.isoformat() if stats.last_run else None,
-                    "last_success": stats.last_success.isoformat() if stats.last_success else None,
-                    "last_failure": stats.last_failure.isoformat() if stats.last_failure else None,
+                    "last_success": (
+                        stats.last_success.isoformat() if stats.last_success else None
+                    ),
+                    "last_failure": (
+                        stats.last_failure.isoformat() if stats.last_failure else None
+                    ),
                     "priority": task.priority.value,
-                    "enabled": task.enabled
+                    "enabled": task.enabled,
                 }
 
                 # Generate recommendations
                 if success_rate < 0.8:
-                    report["alerts"].append(f"Task {task.name} has low success rate: {success_rate:.2f}")
+                    report["alerts"].append(
+                        f"Task {task.name} has low success rate: {success_rate:.2f}"
+                    )
 
-                if stats.last_success and datetime.now(timezone.utc) - stats.last_success > timedelta(hours=24):
-                    report["alerts"].append(f"Task {task.name} hasn't succeeded in over 24 hours")
+                if stats.last_success and datetime.now(
+                    timezone.utc
+                ) - stats.last_success > timedelta(hours=24):
+                    report["alerts"].append(
+                        f"Task {task.name} hasn't succeeded in over 24 hours"
+                    )
 
                 if avg_runtime > task.max_runtime_seconds * 0.8:
-                    report["recommendations"].append(f"Consider increasing timeout for {task.name}")
+                    report["recommendations"].append(
+                        f"Consider increasing timeout for {task.name}"
+                    )
 
                 report["task_performance"][task_id] = task_report
 
@@ -1052,11 +1147,7 @@ class SchedulerService:
 
         return report
 
-    async def handle_market_event(
-        self,
-        event_type: str,
-        event_data: Dict[str, Any]
-    ):
+    async def handle_market_event(self, event_type: str, event_data: Dict[str, Any]):
         """
         Handle market events by adjusting scheduling.
 
@@ -1073,12 +1164,14 @@ class SchedulerService:
 
                 # Schedule increased data collection frequency for first hour
                 for minutes in [5, 15, 30, 45]:
-                    run_time = datetime.now(pytz.timezone(self.config.timezone)) + timedelta(minutes=minutes)
+                    run_time = datetime.now(
+                        pytz.timezone(self.config.timezone)
+                    ) + timedelta(minutes=minutes)
                     await self.schedule_one_time_task(
                         f"market_open_boost_{minutes}min",
                         self._callbacks.get("update_5min_data", lambda: None),
                         run_time,
-                        TaskPriority.HIGH
+                        TaskPriority.HIGH,
                     )
 
             elif event_type == "market_close":
@@ -1086,12 +1179,14 @@ class SchedulerService:
                 self.pause_all_market_tasks()
 
                 # Schedule end-of-day data collection
-                eod_time = datetime.now(pytz.timezone(self.config.timezone)) + timedelta(minutes=30)
+                eod_time = datetime.now(
+                    pytz.timezone(self.config.timezone)
+                ) + timedelta(minutes=30)
                 await self.schedule_one_time_task(
                     "end_of_day_collection",
                     self._callbacks.get("update_daily_data", lambda: None),
                     eod_time,
-                    TaskPriority.HIGH
+                    TaskPriority.HIGH,
                 )
 
             elif event_type == "high_volatility":
@@ -1100,12 +1195,16 @@ class SchedulerService:
                 if ticker:
                     # Schedule extra updates for the next hour
                     for minutes in [5, 10, 20, 30, 45, 60]:
-                        run_time = datetime.now(pytz.timezone(self.config.timezone)) + timedelta(minutes=minutes)
+                        run_time = datetime.now(
+                            pytz.timezone(self.config.timezone)
+                        ) + timedelta(minutes=minutes)
                         await self.schedule_one_time_task(
                             f"volatility_boost_{ticker}_{minutes}min",
-                            lambda t=ticker: self._callbacks.get("force_ticker_update", lambda x: None)(t),
+                            lambda t=ticker: self._callbacks.get(
+                                "force_ticker_update", lambda x: None
+                            )(t),
                             run_time,
-                            TaskPriority.HIGH
+                            TaskPriority.HIGH,
                         )
 
             elif event_type == "api_error":
@@ -1120,12 +1219,14 @@ class SchedulerService:
                                 self.scheduler.pause_job(task_id)
 
                     # Schedule resumption
-                    resume_time = datetime.now(pytz.timezone(self.config.timezone)) + timedelta(minutes=10)
+                    resume_time = datetime.now(
+                        pytz.timezone(self.config.timezone)
+                    ) + timedelta(minutes=10)
                     await self.schedule_one_time_task(
                         "resume_twelvedata_tasks",
                         self._resume_twelvedata_tasks,
                         resume_time,
-                        TaskPriority.NORMAL
+                        TaskPriority.NORMAL,
                     )
 
         except Exception as e:
@@ -1158,8 +1259,10 @@ class SchedulerService:
             job_info = {
                 "id": job.id,
                 "name": job.name,
-                "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
-                "trigger": str(job.trigger)
+                "next_run": (
+                    job.next_run_time.isoformat() if job.next_run_time else None
+                ),
+                "trigger": str(job.trigger),
             }
 
             if not job.next_run_time:
@@ -1176,12 +1279,12 @@ class SchedulerService:
             "paused_jobs": len(paused_jobs),
             "running": running_jobs,
             "pending": pending_jobs[:10],  # Show next 10 pending
-            "paused": paused_jobs
+            "paused": paused_jobs,
         }
 
     def __del__(self):
         """Cleanup on destruction."""
-        if hasattr(self, 'scheduler') and self.scheduler.running:
+        if hasattr(self, "scheduler") and self.scheduler.running:
             self.scheduler.shutdown(wait=False)
 
 
@@ -1189,7 +1292,7 @@ class SchedulerService:
 def create_market_aware_trigger(
     base_interval: int,
     market_hours_only: bool = True,
-    timezone: str = "America/New_York"
+    timezone: str = "America/New_York",
 ) -> IntervalTrigger:
     """
     Create market-aware interval trigger.
@@ -1205,15 +1308,9 @@ def create_market_aware_trigger(
     # For market hours only, we use cron triggers during trading days
     if market_hours_only:
         # This is a simplified approach - in practice, you'd want more sophisticated logic
-        return IntervalTrigger(
-            seconds=base_interval,
-            timezone=timezone
-        )
+        return IntervalTrigger(seconds=base_interval, timezone=timezone)
     else:
-        return IntervalTrigger(
-            seconds=base_interval,
-            timezone=timezone
-        )
+        return IntervalTrigger(seconds=base_interval, timezone=timezone)
 
 
 def calculate_optimal_intervals(
@@ -1221,7 +1318,7 @@ def calculate_optimal_intervals(
     active_tickers: int,
     timeframes: List[TimeFrame],
     market_volatility: float = 1.0,
-    priority_weights: Optional[Dict[TimeFrame, float]] = None
+    priority_weights: Optional[Dict[TimeFrame, float]] = None,
 ) -> Dict[TimeFrame, int]:
     """
     Calculate optimal update intervals based on API limits, ticker count, and market conditions.
@@ -1248,16 +1345,16 @@ def calculate_optimal_intervals(
         TimeFrame.FIVE_MINUTES: 300,
         TimeFrame.FIFTEEN_MINUTES: 900,
         TimeFrame.ONE_HOUR: 3600,
-        TimeFrame.ONE_DAY: 86400
+        TimeFrame.ONE_DAY: 86400,
     }
 
     # Default priority weights (higher values = more frequent updates)
     if priority_weights is None:
         priority_weights = {
-            TimeFrame.FIVE_MINUTES: 4.0,    # Highest priority for short-term trading
-            TimeFrame.FIFTEEN_MINUTES: 3.0, # High priority for intraday
-            TimeFrame.ONE_HOUR: 2.0,        # Medium priority for swing trading
-            TimeFrame.ONE_DAY: 1.0          # Lower priority for long-term analysis
+            TimeFrame.FIVE_MINUTES: 4.0,  # Highest priority for short-term trading
+            TimeFrame.FIFTEEN_MINUTES: 3.0,  # High priority for intraday
+            TimeFrame.ONE_HOUR: 2.0,  # Medium priority for swing trading
+            TimeFrame.ONE_DAY: 1.0,  # Lower priority for long-term analysis
         }
 
     # Calculate effective API rate limit (use the most restrictive)
@@ -1292,13 +1389,19 @@ def calculate_optimal_intervals(
         if active_tickers <= 0:
             batches_needed = 1  # Handle zero tickers case
         else:
-            batches_needed = max(1, (active_tickers + batch_size - 1) // batch_size)  # Ceiling division
+            batches_needed = max(
+                1, (active_tickers + batch_size - 1) // batch_size
+            )  # Ceiling division
 
         # Apply volatility adjustment (higher volatility = more frequent updates)
-        volatility_multiplier = 1.0 / max(0.5, min(2.0, market_volatility))  # Clamp between 0.5x and 2x
+        volatility_multiplier = 1.0 / max(
+            0.5, min(2.0, market_volatility)
+        )  # Clamp between 0.5x and 2x
 
         # Apply priority weighting (higher priority = more frequent updates)
-        priority_multiplier = 1.0 / max(0.5, min(3.0, priority_weight))  # Clamp between 0.33x and 2x
+        priority_multiplier = 1.0 / max(
+            0.5, min(3.0, priority_weight)
+        )  # Clamp between 0.33x and 2x
 
         # Calculate minimum interval based on rate limits
         # Allow for burst capacity by spreading requests over a longer window
@@ -1312,16 +1415,20 @@ def calculate_optimal_intervals(
             min_interval_from_rate_limit = int(minutes_needed * 60)
         else:
             # Can update more frequently, but respect minimum API call spacing
-            min_interval_from_rate_limit = max(60, int(60 / max(1, safe_rate_limit) * requests_per_minute))
+            min_interval_from_rate_limit = max(
+                60, int(60 / max(1, safe_rate_limit) * requests_per_minute)
+            )
 
         # Combine all factors
         calculated_interval = max(
             base_interval,  # Never go below the base interval for the timeframe
-            min_interval_from_rate_limit  # Respect rate limits
+            min_interval_from_rate_limit,  # Respect rate limits
         )
 
         # Apply market condition adjustments
-        calculated_interval = int(calculated_interval * volatility_multiplier * priority_multiplier)
+        calculated_interval = int(
+            calculated_interval * volatility_multiplier * priority_multiplier
+        )
 
         # Ensure we don't update too frequently (minimum 30 seconds)
         optimal_interval = max(30, calculated_interval)
@@ -1339,12 +1446,13 @@ def calculate_optimal_intervals(
 
 # Example usage
 if __name__ == "__main__":
+
     async def main():
         config = SchedulerConfig(
             market_open_time="09:30",
             market_close_time="16:00",
             timezone="America/New_York",
-            max_workers=5
+            max_workers=5,
         )
 
         scheduler = SchedulerService(config)
@@ -1373,7 +1481,7 @@ if __name__ == "__main__":
                 "update_daily_data": dummy_price_update,
                 "cleanup_old_data": lambda: logger.info("Cleaning up..."),
                 "validate_data_integrity": lambda: logger.info("Validating..."),
-                "optimize_storage": lambda: logger.info("Optimizing storage...")
+                "optimize_storage": lambda: logger.info("Optimizing storage..."),
             }
 
             for task in tasks:

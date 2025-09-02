@@ -13,17 +13,19 @@ Version: 1.0.0 - Updated for async Redis compatibility
 Note: All imports verified and syntax validated
 """
 
-import time
-import logging
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Tuple, List, Any
-from dataclasses import dataclass
-from enum import Enum
-import json
 import hashlib
-from fastapi import Request, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
+import json
+import logging
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import redis.asyncio as redis
+from fastapi import HTTPException, Request
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
 
 # Explicit type alias for clarity
@@ -31,25 +33,31 @@ TypeAny = Any
 
 logger = logging.getLogger(__name__)
 
+
 class RateLimitType(Enum):
     """Types of rate limits"""
+
     PER_MINUTE = "per_minute"
     PER_HOUR = "per_hour"
     PER_DAY = "per_day"
     BURST = "burst"
     SLIDING_WINDOW = "sliding_window"
 
+
 class RateLimitScope(Enum):
     """Scope of rate limiting"""
+
     GLOBAL = "global"
     PER_IP = "per_ip"
     PER_USER = "per_user"
     PER_API_KEY = "per_api_key"
     PER_ENDPOINT = "per_endpoint"
 
+
 @dataclass
 class RateLimitRule:
     """Rate limit rule configuration"""
+
     name: str
     limit: int
     window_seconds: int
@@ -61,13 +69,16 @@ class RateLimitRule:
     burst_limit: Optional[int] = None
     enabled: bool = True
 
+
 @dataclass
 class RateLimitStatus:
     """Current rate limit status for a key"""
+
     limit: int
     remaining: int
     reset_time: datetime
     retry_after: Optional[int] = None
+
 
 class RateLimiter:
     """Redis-backed rate limiter with sliding window"""
@@ -84,7 +95,7 @@ class RateLimiter:
                 name="api_general",
                 limit=100,
                 window_seconds=60,
-                scope=RateLimitScope.PER_IP
+                scope=RateLimitScope.PER_IP,
             ),
             "api_trading": RateLimitRule(
                 name="api_trading",
@@ -92,42 +103,42 @@ class RateLimiter:
                 window_seconds=60,
                 scope=RateLimitScope.PER_USER,
                 endpoints=["/trades", "/orders", "/positions"],
-                methods=["POST", "PUT", "DELETE"]
+                methods=["POST", "PUT", "DELETE"],
             ),
             "api_market_data": RateLimitRule(
                 name="api_market_data",
                 limit=30,
                 window_seconds=60,
                 scope=RateLimitScope.PER_IP,
-                endpoints=["/market-data", "/quotes", "/charts"]
+                endpoints=["/market-data", "/quotes", "/charts"],
             ),
             "api_export": RateLimitRule(
                 name="api_export",
                 limit=5,
                 window_seconds=60,
                 scope=RateLimitScope.PER_USER,
-                endpoints=["/export"]
+                endpoints=["/export"],
             ),
             "api_admin": RateLimitRule(
                 name="api_admin",
                 limit=20,
                 window_seconds=60,
                 scope=RateLimitScope.PER_USER,
-                endpoints=["/admin", "/config", "/maintenance"]
+                endpoints=["/admin", "/config", "/maintenance"],
             ),
             "burst_protection": RateLimitRule(
                 name="burst_protection",
                 limit=10,
                 window_seconds=1,
                 scope=RateLimitScope.PER_IP,
-                burst_limit=20
+                burst_limit=20,
             ),
             "daily_limit": RateLimitRule(
                 name="daily_limit",
                 limit=10000,
                 window_seconds=86400,
-                scope=RateLimitScope.PER_IP
-            )
+                scope=RateLimitScope.PER_IP,
+            ),
         }
 
     def add_rule(self, rule: RateLimitRule):
@@ -142,17 +153,14 @@ class RateLimiter:
             logger.info(f"Removed rate limiting rule: {rule_name}")
 
     async def check_rate_limit(
-        self,
-        key: str,
-        rule: RateLimitRule,
-        increment: int = 1
+        self, key: str, rule: RateLimitRule, increment: int = 1
     ) -> Tuple[bool, RateLimitStatus]:
         """Check if request is within rate limit using sliding window"""
         if not rule.enabled:
             return True, RateLimitStatus(
                 limit=rule.limit,
                 remaining=rule.limit,
-                reset_time=datetime.now() + timedelta(seconds=rule.window_seconds)
+                reset_time=datetime.now() + timedelta(seconds=rule.window_seconds),
             )
 
         current_time = time.time()
@@ -184,7 +192,7 @@ class RateLimiter:
                     limit=rule.burst_limit,
                     remaining=0,
                     reset_time=datetime.fromtimestamp(current_time + 1),
-                    retry_after=1
+                    retry_after=1,
                 )
 
             # Check main limit
@@ -193,9 +201,13 @@ class RateLimiter:
                 await self.redis.zrem(redis_key, str(current_time))
 
                 # Calculate when the limit resets
-                oldest_request = await self.redis.zrange(redis_key, 0, 0, withscores=True)
+                oldest_request = await self.redis.zrange(
+                    redis_key, 0, 0, withscores=True
+                )
                 if oldest_request:
-                    reset_time = datetime.fromtimestamp(oldest_request[0][1] + rule.window_seconds)
+                    reset_time = datetime.fromtimestamp(
+                        oldest_request[0][1] + rule.window_seconds
+                    )
                     retry_after = int((reset_time - datetime.now()).total_seconds())
                 else:
                     reset_time = datetime.now() + timedelta(seconds=rule.window_seconds)
@@ -205,7 +217,7 @@ class RateLimiter:
                     limit=rule.limit,
                     remaining=0,
                     reset_time=reset_time,
-                    retry_after=max(retry_after, 1)
+                    retry_after=max(retry_after, 1),
                 )
 
             # Within limits
@@ -213,9 +225,7 @@ class RateLimiter:
             reset_time = datetime.fromtimestamp(current_time + rule.window_seconds)
 
             return True, RateLimitStatus(
-                limit=rule.limit,
-                remaining=remaining,
-                reset_time=reset_time
+                limit=rule.limit, remaining=remaining, reset_time=reset_time
             )
 
         except Exception as e:
@@ -224,13 +234,11 @@ class RateLimiter:
             return True, RateLimitStatus(
                 limit=rule.limit,
                 remaining=rule.limit,
-                reset_time=datetime.now() + timedelta(seconds=rule.window_seconds)
+                reset_time=datetime.now() + timedelta(seconds=rule.window_seconds),
             )
 
     async def check_multiple_rules(
-        self,
-        key: str,
-        rules: List[RateLimitRule]
+        self, key: str, rules: List[RateLimitRule]
     ) -> Tuple[bool, Dict[str, RateLimitStatus]]:
         """Check multiple rate limiting rules"""
         results = {}
@@ -248,11 +256,7 @@ class RateLimiter:
 
         return all_passed, results
 
-    def _get_rate_limit_key(
-        self,
-        request: Request,
-        rule: RateLimitRule
-    ) -> str:
+    def _get_rate_limit_key(self, request: Request, rule: RateLimitRule) -> str:
         """Generate rate limit key based on scope"""
         if rule.scope == RateLimitScope.GLOBAL:
             return "global"
@@ -263,7 +267,11 @@ class RateLimiter:
             return user_id or self._get_client_ip(request)
         elif rule.scope == RateLimitScope.PER_API_KEY:
             api_key = self._extract_api_key(request)
-            return hashlib.sha256(api_key.encode()).hexdigest()[:16] if api_key else self._get_client_ip(request)
+            return (
+                hashlib.sha256(api_key.encode()).hexdigest()[:16]
+                if api_key
+                else self._get_client_ip(request)
+            )
         elif rule.scope == RateLimitScope.PER_ENDPOINT:
             return f"{request.method}:{request.url.path}"
         else:
@@ -348,7 +356,7 @@ class RateLimiter:
         stats = {
             "active_rules": len([r for r in self.rules.values() if r.enabled]),
             "total_rules": len(self.rules),
-            "rule_details": {}
+            "rule_details": {},
         }
 
         for rule_name, rule in self.rules.items():
@@ -372,10 +380,11 @@ class RateLimiter:
                 "scope": rule.scope.value,
                 "active_keys": active_keys,
                 "total_usage": total_usage,
-                "endpoints": rule.endpoints
+                "endpoints": rule.endpoints,
             }
 
         return stats
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for rate limiting"""
@@ -388,7 +397,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Apply rate limiting to requests"""
         # Get applicable rules for this request
         applicable_rules = [
-            rule for rule in {**self.rate_limiter.default_rules, **self.rate_limiter.rules}.values()
+            rule
+            for rule in {
+                **self.rate_limiter.default_rules,
+                **self.rate_limiter.rules,
+            }.values()
             if self.rate_limiter._should_apply_rule(request, rule)
         ]
 
@@ -403,11 +416,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             passed, status = await self.rate_limiter.check_rate_limit(key, rule)
 
             # Add rate limit headers
-            rate_limit_headers.update({
-                f"X-RateLimit-{rule.name}-Limit": str(status.limit),
-                f"X-RateLimit-{rule.name}-Remaining": str(status.remaining),
-                f"X-RateLimit-{rule.name}-Reset": str(int(status.reset_time.timestamp()))
-            })
+            rate_limit_headers.update(
+                {
+                    f"X-RateLimit-{rule.name}-Limit": str(status.limit),
+                    f"X-RateLimit-{rule.name}-Remaining": str(status.remaining),
+                    f"X-RateLimit-{rule.name}-Reset": str(
+                        int(status.reset_time.timestamp())
+                    ),
+                }
+            )
 
             if not passed:
                 # Log rate limit violation
@@ -426,13 +443,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     "rule": rule.name,
                     "limit": status.limit,
                     "retry_after": status.retry_after,
-                    "reset_time": status.reset_time.isoformat()
+                    "reset_time": status.reset_time.isoformat(),
                 }
 
                 raise HTTPException(
-                    status_code=429,
-                    detail=error_response,
-                    headers=rate_limit_headers
+                    status_code=429, detail=error_response, headers=rate_limit_headers
                 )
 
         # Process request
@@ -443,6 +458,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             response.headers[header] = value
 
         return response
+
 
 class AdaptiveRateLimiter:
     """Adaptive rate limiter that adjusts limits based on system load"""
@@ -488,10 +504,7 @@ class AdaptiveRateLimiter:
             return rule.limit
 
     async def check_adaptive_rate_limit(
-        self,
-        key: str,
-        rule: RateLimitRule,
-        increment: int = 1
+        self, key: str, rule: RateLimitRule, increment: int = 1
     ) -> Tuple[bool, RateLimitStatus]:
         """Check rate limit with adaptive adjustment"""
         # Get adapted limit
@@ -508,10 +521,11 @@ class AdaptiveRateLimiter:
             bypass_users=rule.bypass_users,
             bypass_ips=rule.bypass_ips,
             burst_limit=rule.burst_limit,
-            enabled=rule.enabled
+            enabled=rule.enabled,
         )
 
         return await self.base_limiter.check_rate_limit(key, adapted_rule, increment)
+
 
 class CircuitBreakerRateLimiter:
     """Rate limiter with circuit breaker functionality"""
@@ -568,7 +582,9 @@ class CircuitBreakerRateLimiter:
                         await self.redis.delete(circuit_key)
                         logger.info(f"Circuit breaker closed for {endpoint}")
                     else:
-                        await self.redis.set(circuit_key, json.dumps(circuit_info), ex=300)
+                        await self.redis.set(
+                            circuit_key, json.dumps(circuit_info), ex=300
+                        )
 
                 # Reset failure count on success
                 circuit_info["failures"] = 0
@@ -591,7 +607,7 @@ class CircuitBreakerRateLimiter:
                     "state": "closed",
                     "failures": 0,
                     "opened_at": None,
-                    "half_open_calls": 0
+                    "half_open_calls": 0,
                 }
 
             circuit_info["failures"] += 1
@@ -600,12 +616,15 @@ class CircuitBreakerRateLimiter:
                 # Open circuit
                 circuit_info["state"] = "open"
                 circuit_info["opened_at"] = time.time()
-                logger.warning(f"Circuit breaker opened for {endpoint} after {self.failure_threshold} failures")
+                logger.warning(
+                    f"Circuit breaker opened for {endpoint} after {self.failure_threshold} failures"
+                )
 
             await self.redis.set(circuit_key, json.dumps(circuit_info), ex=3600)
 
         except Exception as e:
             logger.error(f"Failed to record failure for circuit breaker: {e}")
+
 
 class TradingRateLimiter:
     """Specialized rate limiter for trading operations"""
@@ -619,7 +638,7 @@ class TradingRateLimiter:
                 window_seconds=60,
                 scope=RateLimitScope.PER_USER,
                 endpoints=["/orders"],
-                methods=["POST"]
+                methods=["POST"],
             ),
             "position_changes_per_hour": RateLimitRule(
                 name="position_changes_per_hour",
@@ -627,14 +646,14 @@ class TradingRateLimiter:
                 window_seconds=3600,
                 scope=RateLimitScope.PER_USER,
                 endpoints=["/positions"],
-                methods=["POST", "PUT", "DELETE"]
+                methods=["POST", "PUT", "DELETE"],
             ),
             "daily_trade_volume": RateLimitRule(
                 name="daily_trade_volume",
                 limit=1000000,  # $1M daily limit
                 window_seconds=86400,
-                scope=RateLimitScope.PER_USER
-            )
+                scope=RateLimitScope.PER_USER,
+            ),
         }
 
         # Add trading rules to main rate limiter
@@ -642,9 +661,7 @@ class TradingRateLimiter:
             self.rate_limiter.add_rule(rule)
 
     async def check_trading_limits(
-        self,
-        user_id: str,
-        trade_value: float
+        self, user_id: str, trade_value: float
     ) -> Tuple[bool, Dict[str, TypeAny]]:
         """Check trading-specific rate limits"""
         # Check volume limit
@@ -657,51 +674,56 @@ class TradingRateLimiter:
                 f"rate_limit:daily_trade_volume:{user_id}",
                 day_start,
                 current_time,
-                withscores=True
+                withscores=True,
             )
 
             current_volume = sum(float(entry[0]) for entry in volume_entries)
 
-            if current_volume + trade_value > self.trading_rules["daily_trade_volume"].limit:
+            if (
+                current_volume + trade_value
+                > self.trading_rules["daily_trade_volume"].limit
+            ):
                 return False, {
                     "error": "Daily trading volume limit exceeded",
                     "current_volume": current_volume,
                     "limit": self.trading_rules["daily_trade_volume"].limit,
-                    "trade_value": trade_value
+                    "trade_value": trade_value,
                 }
 
             # Record this trade volume
             await self.rate_limiter.redis.zadd(
                 f"rate_limit:daily_trade_volume:{user_id}",
-                {str(trade_value): current_time}
+                {str(trade_value): current_time},
             )
 
             return True, {
                 "current_volume": current_volume + trade_value,
                 "limit": self.trading_rules["daily_trade_volume"].limit,
-                "remaining": self.trading_rules["daily_trade_volume"].limit - current_volume - trade_value
+                "remaining": self.trading_rules["daily_trade_volume"].limit
+                - current_volume
+                - trade_value,
             }
 
         except Exception as e:
             logger.error(f"Trading limit check failed: {e}")
             return True, {"error": "Rate limit check unavailable"}
 
+
 # Rate limiting decorators
-def rate_limit(
-    rule_name: str,
-    custom_key: Optional[str] = None,
-    increment: int = 1
-):
+def rate_limit(rule_name: str, custom_key: Optional[str] = None, increment: int = 1):
     """Decorator for function-level rate limiting"""
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             # Get rate limiter from context (would need to be set up)
-            rate_limiter = getattr(func, '_rate_limiter', None)
+            rate_limiter = getattr(func, "_rate_limiter", None)
             if not rate_limiter:
                 return await func(*args, **kwargs)
 
             # Get rule
-            rule = rate_limiter.rules.get(rule_name) or rate_limiter.default_rules.get(rule_name)
+            rule = rate_limiter.rules.get(rule_name) or rate_limiter.default_rules.get(
+                rule_name
+            )
             if not rule:
                 logger.warning(f"Rate limit rule not found: {rule_name}")
                 return await func(*args, **kwargs)
@@ -718,14 +740,16 @@ def rate_limit(
                     detail={
                         "error": "Rate limit exceeded",
                         "rule": rule_name,
-                        "retry_after": status.retry_after
-                    }
+                        "retry_after": status.retry_after,
+                    },
                 )
 
             return await func(*args, **kwargs)
 
         return wrapper
+
     return decorator
+
 
 # Rate limit configuration management
 class RateLimitConfig:
@@ -744,7 +768,7 @@ class RateLimitConfig:
             name="api_general",
             limit=api_limit,
             window_seconds=60,
-            scope=RateLimitScope.PER_IP
+            scope=RateLimitScope.PER_IP,
         )
 
         # Trading limits
@@ -755,7 +779,7 @@ class RateLimitConfig:
             window_seconds=60,
             scope=RateLimitScope.PER_USER,
             endpoints=["/trades", "/orders", "/positions"],
-            methods=["POST", "PUT", "DELETE"]
+            methods=["POST", "PUT", "DELETE"],
         )
 
         # Market data limits
@@ -765,7 +789,7 @@ class RateLimitConfig:
             limit=market_data_limit,
             window_seconds=60,
             scope=RateLimitScope.PER_IP,
-            endpoints=["/market-data", "/quotes", "/charts"]
+            endpoints=["/market-data", "/quotes", "/charts"],
         )
 
         # Export limits
@@ -775,7 +799,7 @@ class RateLimitConfig:
             limit=export_limit,
             window_seconds=60,
             scope=RateLimitScope.PER_USER,
-            endpoints=["/export"]
+            endpoints=["/export"],
         )
 
         # Burst protection
@@ -785,7 +809,7 @@ class RateLimitConfig:
             limit=burst_limit,
             window_seconds=1,
             scope=RateLimitScope.PER_IP,
-            burst_limit=burst_limit * 2
+            burst_limit=burst_limit * 2,
         )
 
         return rules
@@ -797,7 +821,7 @@ class RateLimitConfig:
         window_seconds: int,
         scope: str,
         endpoints: Optional[List[str]] = None,
-        methods: Optional[List[str]] = None
+        methods: Optional[List[str]] = None,
     ) -> RateLimitRule:
         """Create a custom rate limiting rule"""
         return RateLimitRule(
@@ -806,8 +830,9 @@ class RateLimitConfig:
             window_seconds=window_seconds,
             scope=RateLimitScope(scope),
             endpoints=endpoints,
-            methods=methods
+            methods=methods,
         )
+
 
 # Monitoring and analytics
 class RateLimitMonitor:
@@ -831,7 +856,9 @@ class RateLimitMonitor:
                     violations[ip] = int(count)
 
             # Sort by violation count
-            sorted_violations = sorted(violations.items(), key=lambda x: x[1], reverse=True)
+            sorted_violations = sorted(
+                violations.items(), key=lambda x: x[1], reverse=True
+            )
 
             return [
                 {"ip": ip, "violations": count}
@@ -852,7 +879,7 @@ class RateLimitMonitor:
                 "blocked_requests": 0,
                 "allowed_requests": 0,
                 "top_blocked_endpoints": {},
-                "top_blocked_ips": {}
+                "top_blocked_ips": {},
             }
 
             # This would be populated by actual rate limiting events
@@ -863,6 +890,7 @@ class RateLimitMonitor:
         except Exception as e:
             logger.error(f"Failed to analyze rate limiting effectiveness: {e}")
             return {}
+
 
 # Utility functions
 async def cleanup_rate_limit_data(redis_client: redis.Redis, max_age_hours: int = 24):
@@ -890,6 +918,7 @@ async def cleanup_rate_limit_data(redis_client: redis.Redis, max_age_hours: int 
     except Exception as e:
         logger.error(f"Rate limit data cleanup failed: {e}")
 
+
 async def get_rate_limit_metrics(redis_client: redis.Redis) -> Dict[str, TypeAny]:
     """Get comprehensive rate limiting metrics"""
     try:
@@ -897,7 +926,7 @@ async def get_rate_limit_metrics(redis_client: redis.Redis) -> Dict[str, TypeAny
             "total_active_limits": 0,
             "rules_by_type": {},
             "top_consumers": [],
-            "recent_blocks": 0
+            "recent_blocks": 0,
         }
 
         # Count active rate limit keys
@@ -921,7 +950,10 @@ async def get_rate_limit_metrics(redis_client: redis.Redis) -> Dict[str, TypeAny
         logger.error(f"Failed to get rate limit metrics: {e}")
         return {}
 
-def create_rate_limiter_from_config(redis_client: redis.Redis, config: Dict[str, TypeAny]) -> RateLimiter:
+
+def create_rate_limiter_from_config(
+    redis_client: redis.Redis, config: Dict[str, TypeAny]
+) -> RateLimiter:
     """Create rate limiter with configuration"""
     rate_limiter = RateLimiter(redis_client)
 
@@ -938,6 +970,7 @@ def create_rate_limiter_from_config(redis_client: redis.Redis, config: Dict[str,
 
     return rate_limiter
 
+
 # Health check for rate limiting system
 async def health_check_rate_limiting(redis_client: redis.Redis) -> Dict[str, TypeAny]:
     """Perform health check on rate limiting system"""
@@ -948,10 +981,7 @@ async def health_check_rate_limiting(redis_client: redis.Redis) -> Dict[str, Typ
         # Test rate limiting functionality
         test_key = f"health_check_{int(time.time())}"
         test_rule = RateLimitRule(
-            name="health_check",
-            limit=1,
-            window_seconds=60,
-            scope=RateLimitScope.GLOBAL
+            name="health_check", limit=1, window_seconds=60, scope=RateLimitScope.GLOBAL
         )
 
         rate_limiter = RateLimiter(redis_client)
@@ -964,7 +994,7 @@ async def health_check_rate_limiting(redis_client: redis.Redis) -> Dict[str, Typ
             "status": "healthy",
             "redis_connected": True,
             "rate_limiting_functional": passed,
-            "test_completed_at": datetime.now().isoformat()
+            "test_completed_at": datetime.now().isoformat(),
         }
 
     except Exception as e:
@@ -973,5 +1003,5 @@ async def health_check_rate_limiting(redis_client: redis.Redis) -> Dict[str, Typ
             "status": "unhealthy",
             "error": str(e),
             "redis_connected": False,
-            "rate_limiting_functional": False
+            "rate_limiting_functional": False,
         }

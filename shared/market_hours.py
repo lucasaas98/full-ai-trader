@@ -35,21 +35,23 @@ Usage:
 
 import asyncio
 import logging
-from datetime import datetime, date, time, timezone, timedelta
-from typing import Optional, List, Dict, Any, Callable, Union
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
-import aiohttp
 from functools import lru_cache
+from typing import Any, Callable, Dict, List, Optional, Union
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
 # Try to import alpaca-py, fallback to manual HTTP requests if not available
 try:
-    from alpaca.trading.client import TradingClient
-    from alpaca.trading.requests import GetCalendarRequest
-    from alpaca.trading.models import Calendar, Clock
     from alpaca.common.exceptions import APIError
+    from alpaca.trading.client import TradingClient
+    from alpaca.trading.models import Calendar, Clock
+    from alpaca.trading.requests import GetCalendarRequest
+
     ALPACA_AVAILABLE = True
 except ImportError:
     logger.warning("alpaca-py not available, using HTTP requests for market hours")
@@ -61,6 +63,7 @@ except ImportError:
 
 try:
     import pytz
+
     PYTZ_AVAILABLE = True
 except ImportError:
     pytz = None
@@ -70,6 +73,7 @@ except ImportError:
 
 class MarketSession(str, Enum):
     """Market session types."""
+
     PRE_MARKET = "pre_market"
     REGULAR = "regular"
     AFTER_HOURS = "after_hours"
@@ -78,6 +82,7 @@ class MarketSession(str, Enum):
 
 class MarketEvent(str, Enum):
     """Market events that trigger actions."""
+
     MARKET_OPEN = "market_open"
     MARKET_CLOSE = "market_close"
     PRE_MARKET_START = "pre_market_start"
@@ -90,6 +95,7 @@ class MarketEvent(str, Enum):
 @dataclass
 class MarketStatus:
     """Comprehensive market status information."""
+
     is_open: bool
     current_session: MarketSession
     timestamp: datetime
@@ -105,13 +111,14 @@ class MarketStatus:
         return self.current_session in [
             MarketSession.PRE_MARKET,
             MarketSession.REGULAR,
-            MarketSession.AFTER_HOURS
+            MarketSession.AFTER_HOURS,
         ]
 
 
 @dataclass
 class MarketDay:
     """Market day information from Alpaca Calendar API."""
+
     date: date
     open_time: datetime
     close_time: datetime
@@ -127,6 +134,7 @@ class MarketDay:
 @dataclass
 class MarketEventInfo:
     """Market event with timing information."""
+
     event_type: MarketEvent
     timestamp: datetime
     description: str
@@ -164,18 +172,20 @@ class MarketHoursService:
         self.config = None
         try:
             from shared.config import get_config
+
             self.config = get_config()
         except Exception as e:
             logger.warning(f"Could not load shared config: {e}")
 
         # Initialize Alpaca client if available
         self.trading_client: Optional[TradingClient] = None
-        if ALPACA_AVAILABLE and self.config and hasattr(self.config, 'alpaca'):
+        if ALPACA_AVAILABLE and self.config and hasattr(self.config, "alpaca"):
             try:
                 self.trading_client = TradingClient(
                     api_key=self.config.alpaca.api_key,
                     secret_key=self.config.alpaca.secret_key,
-                    paper=self.config.alpaca.base_url and 'paper' in self.config.alpaca.base_url
+                    paper=self.config.alpaca.base_url
+                    and "paper" in self.config.alpaca.base_url,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize Alpaca client: {e}")
@@ -203,10 +213,10 @@ class MarketHoursService:
 
         # Fallback market hours (EST/EDT)
         self._fallback_times = {
-            'pre_market_start': time(4, 0),   # 4:00 AM
-            'market_open': time(9, 30),       # 9:30 AM
-            'market_close': time(16, 0),      # 4:00 PM
-            'after_hours_end': time(20, 0)   # 8:00 PM
+            "pre_market_start": time(4, 0),  # 4:00 AM
+            "market_open": time(9, 30),  # 9:30 AM
+            "market_close": time(16, 0),  # 4:00 PM
+            "after_hours_end": time(20, 0),  # 8:00 PM
         }
 
     async def __aenter__(self):
@@ -230,10 +240,12 @@ class MarketHoursService:
             Complete market status information
         """
         # Check cache first
-        if (not force_refresh and
-            self._status_cache and
-            self._status_cache_time and
-            datetime.now(timezone.utc) - self._status_cache_time < self.cache_ttl):
+        if (
+            not force_refresh
+            and self._status_cache
+            and self._status_cache_time
+            and datetime.now(timezone.utc) - self._status_cache_time < self.cache_ttl
+        ):
             return self._status_cache
 
         try:
@@ -270,10 +282,7 @@ class MarketHoursService:
             calendar_info = None
             try:
                 today = datetime.now(timezone.utc).date()
-                calendar_request = GetCalendarRequest(
-                    start=today,
-                    end=today
-                )
+                calendar_request = GetCalendarRequest(start=today, end=today)
                 calendar_data = self.trading_client.get_calendar(calendar_request)
                 if calendar_data:
                     calendar_info = calendar_data[0]
@@ -282,13 +291,15 @@ class MarketHoursService:
 
             return MarketStatus(
                 is_open=clock.is_open,
-                current_session=MarketSession.REGULAR if clock.is_open else MarketSession.CLOSED,
+                current_session=(
+                    MarketSession.REGULAR if clock.is_open else MarketSession.CLOSED
+                ),
                 timestamp=clock.timestamp,
                 next_open=clock.next_open,
                 next_close=clock.next_close,
                 market_date=clock.timestamp.date() if clock.timestamp else None,
                 is_trading_day=bool(calendar_info),
-                early_close=False  # Would need additional logic to determine this
+                early_close=False,  # Would need additional logic to determine this
             )
 
         except Exception as e:
@@ -297,13 +308,15 @@ class MarketHoursService:
 
     async def _get_status_from_http_api(self) -> Optional[MarketStatus]:
         """Get market status using direct HTTP API calls."""
-        if not self.config or not hasattr(self.config, 'alpaca'):
+        if not self.config or not hasattr(self.config, "alpaca"):
             logger.warning("Alpaca configuration not available")
             return None
 
         # Validate credentials
         if not self.config.alpaca.api_key or not self.config.alpaca.secret_key:
-            logger.error("Alpaca API credentials not configured. Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables")
+            logger.error(
+                "Alpaca API credentials not configured. Please set ALPACA_API_KEY and ALPACA_SECRET_KEY environment variables"
+            )
             return None
 
         if not self._session:
@@ -321,10 +334,14 @@ class MarketHoursService:
             clock_url = f"{base_url}/v2/clock"
             async with self._session.get(clock_url, headers=headers) as response:
                 if response.status == 403:
-                    logger.error("Alpaca Clock API returned status 403 - Invalid API credentials. Please check ALPACA_API_KEY and ALPACA_SECRET_KEY")
+                    logger.error(
+                        "Alpaca Clock API returned status 403 - Invalid API credentials. Please check ALPACA_API_KEY and ALPACA_SECRET_KEY"
+                    )
                     return None
                 elif response.status != 200:
-                    logger.error(f"Alpaca Clock API returned status {response.status}: {await response.text()}")
+                    logger.error(
+                        f"Alpaca Clock API returned status {response.status}: {await response.text()}"
+                    )
                     return None
 
                 clock_data = await response.json()
@@ -332,14 +349,13 @@ class MarketHoursService:
             # Get calendar data for today
             today = datetime.now(timezone.utc).date()
             calendar_url = f"{base_url}/v2/calendar"
-            calendar_params = {
-                "start": today.isoformat(),
-                "end": today.isoformat()
-            }
+            calendar_params = {"start": today.isoformat(), "end": today.isoformat()}
 
             calendar_info = None
             try:
-                async with self._session.get(calendar_url, headers=headers, params=calendar_params) as response:
+                async with self._session.get(
+                    calendar_url, headers=headers, params=calendar_params
+                ) as response:
                     if response.status == 200:
                         calendar_data = await response.json()
                         if calendar_data:
@@ -349,13 +365,31 @@ class MarketHoursService:
 
             return MarketStatus(
                 is_open=clock_data.get("is_open", False),
-                current_session=MarketSession.REGULAR if clock_data.get("is_open") else MarketSession.CLOSED,
-                timestamp=datetime.fromisoformat(clock_data["timestamp"].replace("Z", "+00:00")),
-                next_open=datetime.fromisoformat(clock_data["next_open"].replace("Z", "+00:00")) if clock_data.get("next_open") else None,
-                next_close=datetime.fromisoformat(clock_data["next_close"].replace("Z", "+00:00")) if clock_data.get("next_close") else None,
+                current_session=(
+                    MarketSession.REGULAR
+                    if clock_data.get("is_open")
+                    else MarketSession.CLOSED
+                ),
+                timestamp=datetime.fromisoformat(
+                    clock_data["timestamp"].replace("Z", "+00:00")
+                ),
+                next_open=(
+                    datetime.fromisoformat(
+                        clock_data["next_open"].replace("Z", "+00:00")
+                    )
+                    if clock_data.get("next_open")
+                    else None
+                ),
+                next_close=(
+                    datetime.fromisoformat(
+                        clock_data["next_close"].replace("Z", "+00:00")
+                    )
+                    if clock_data.get("next_close")
+                    else None
+                ),
                 market_date=today,
                 is_trading_day=bool(calendar_info),
-                early_close=False  # Would need additional calendar logic
+                early_close=False,  # Would need additional calendar logic
             )
 
         except Exception as e:
@@ -372,15 +406,15 @@ class MarketHoursService:
         current_time = now.time()
 
         # Use fallback times to determine sessions if market is a trading day
-        if current_time < self._fallback_times['market_open']:
-            if current_time >= self._fallback_times['pre_market_start']:
+        if current_time < self._fallback_times["market_open"]:
+            if current_time >= self._fallback_times["pre_market_start"]:
                 status.current_session = MarketSession.PRE_MARKET
             else:
                 status.current_session = MarketSession.CLOSED
-        elif current_time < self._fallback_times['market_close']:
+        elif current_time < self._fallback_times["market_close"]:
             status.current_session = MarketSession.REGULAR
             status.is_open = True
-        elif current_time < self._fallback_times['after_hours_end']:
+        elif current_time < self._fallback_times["after_hours_end"]:
             status.current_session = MarketSession.AFTER_HOURS
         else:
             status.current_session = MarketSession.CLOSED
@@ -399,7 +433,7 @@ class MarketHoursService:
                 is_open=False,
                 current_session=MarketSession.CLOSED,
                 timestamp=now,
-                is_trading_day=False
+                is_trading_day=False,
             )
 
         # Convert to ET (simplified, doesn't handle DST properly)
@@ -407,17 +441,17 @@ class MarketHoursService:
         current_time = et_now.time()
 
         # Determine session
-        if current_time < self._fallback_times['market_open']:
-            if current_time >= self._fallback_times['pre_market_start']:
+        if current_time < self._fallback_times["market_open"]:
+            if current_time >= self._fallback_times["pre_market_start"]:
                 session = MarketSession.PRE_MARKET
                 is_open = False
             else:
                 session = MarketSession.CLOSED
                 is_open = False
-        elif current_time < self._fallback_times['market_close']:
+        elif current_time < self._fallback_times["market_close"]:
             session = MarketSession.REGULAR
             is_open = True
-        elif current_time < self._fallback_times['after_hours_end']:
+        elif current_time < self._fallback_times["after_hours_end"]:
             session = MarketSession.AFTER_HOURS
             is_open = False
         else:
@@ -428,7 +462,7 @@ class MarketHoursService:
             is_open=is_open,
             current_session=session,
             timestamp=now,
-            is_trading_day=is_trading_day
+            is_trading_day=is_trading_day,
         )
 
     async def is_market_open(self, timestamp: Optional[datetime] = None) -> bool:
@@ -462,7 +496,11 @@ class MarketHoursService:
 
         # Simple time check (doesn't account for holidays)
         time_check = timestamp.time()
-        return self._fallback_times['market_open'] <= time_check <= self._fallback_times['market_close']
+        return (
+            self._fallback_times["market_open"]
+            <= time_check
+            <= self._fallback_times["market_close"]
+        )
 
     async def get_current_session(self) -> MarketSession:
         """Get the current market session."""
@@ -491,13 +529,10 @@ class MarketHoursService:
         try:
             # Try to get calendar data from Alpaca
             if self.trading_client:
-                calendar_request = GetCalendarRequest(
-                    start=check_date,
-                    end=check_date
-                )
+                calendar_request = GetCalendarRequest(start=check_date, end=check_date)
                 calendar_data = self.trading_client.get_calendar(calendar_request)
                 return len(calendar_data) > 0
-            elif self.config and hasattr(self.config, 'alpaca'):
+            elif self.config and hasattr(self.config, "alpaca"):
                 return await self._is_trading_day_http(check_date)
         except Exception as e:
             logger.error(f"Failed to check trading day via Alpaca: {e}")
@@ -518,12 +553,11 @@ class MarketHoursService:
 
             base_url = self.config.alpaca.base_url or "https://paper-api.alpaca.markets"
             url = f"{base_url}/v2/calendar"
-            params = {
-                "start": check_date.isoformat(),
-                "end": check_date.isoformat()
-            }
+            params = {"start": check_date.isoformat(), "end": check_date.isoformat()}
 
-            async with self._session.get(url, headers=headers, params=params) as response:
+            async with self._session.get(
+                url, headers=headers, params=params
+            ) as response:
                 if response.status == 200:
                     data = await response.json()
                     return len(data) > 0
@@ -557,7 +591,7 @@ class MarketHoursService:
         # Start monitoring tasks
         self._monitoring_tasks = [
             asyncio.create_task(self._session_monitoring_loop()),
-            asyncio.create_task(self._event_monitoring_loop())
+            asyncio.create_task(self._event_monitoring_loop()),
         ]
 
     async def stop_monitoring(self):
@@ -587,7 +621,9 @@ class MarketHoursService:
 
                 # Check for session change
                 if current_session != self._current_session:
-                    logger.info(f"Market session changed: {self._current_session} -> {current_session}")
+                    logger.info(
+                        f"Market session changed: {self._current_session} -> {current_session}"
+                    )
 
                     # Create event info
                     event_info = MarketEventInfo(
@@ -595,7 +631,7 @@ class MarketHoursService:
                         timestamp=datetime.now(timezone.utc),
                         description=f"Session changed from {self._current_session} to {current_session}",
                         session_from=self._current_session,
-                        session_to=current_session
+                        session_to=current_session,
                     )
 
                     # Notify session change callbacks
@@ -612,7 +648,9 @@ class MarketHoursService:
                     await self._trigger_event(event_info)
 
                     # Generate specific session events
-                    await self._generate_session_events(self._current_session, current_session)
+                    await self._generate_session_events(
+                        self._current_session, current_session
+                    )
 
                     self._current_session = current_session
 
@@ -636,15 +674,18 @@ class MarketHoursService:
                     event_info = MarketEventInfo(
                         event_type=MarketEvent.MARKET_OPEN,
                         timestamp=status.next_open,
-                        description="Market opening"
+                        description="Market opening",
                     )
                     await self._trigger_event(event_info)
 
-                if status.next_close and (status.next_close - now).total_seconds() <= 120:
+                if (
+                    status.next_close
+                    and (status.next_close - now).total_seconds() <= 120
+                ):
                     event_info = MarketEventInfo(
                         event_type=MarketEvent.MARKET_CLOSE,
                         timestamp=status.next_close,
-                        description="Market closing"
+                        description="Market closing",
                     )
                     await self._trigger_event(event_info)
 
@@ -655,39 +696,53 @@ class MarketHoursService:
                 logger.error(f"Event monitoring loop error: {e}")
                 await asyncio.sleep(60)
 
-    async def _generate_session_events(self, old_session: Optional[MarketSession], new_session: MarketSession):
+    async def _generate_session_events(
+        self, old_session: Optional[MarketSession], new_session: MarketSession
+    ):
         """Generate specific events based on session transitions."""
         now = datetime.now(timezone.utc)
 
-        if new_session == MarketSession.PRE_MARKET and old_session == MarketSession.CLOSED:
+        if (
+            new_session == MarketSession.PRE_MARKET
+            and old_session == MarketSession.CLOSED
+        ):
             event = MarketEventInfo(
                 event_type=MarketEvent.PRE_MARKET_START,
                 timestamp=now,
-                description="Pre-market trading started"
+                description="Pre-market trading started",
             )
             await self._trigger_event(event)
 
-        elif new_session == MarketSession.REGULAR and old_session == MarketSession.PRE_MARKET:
+        elif (
+            new_session == MarketSession.REGULAR
+            and old_session == MarketSession.PRE_MARKET
+        ):
             event = MarketEventInfo(
                 event_type=MarketEvent.MARKET_OPEN,
                 timestamp=now,
-                description="Regular market opened"
+                description="Regular market opened",
             )
             await self._trigger_event(event)
 
-        elif new_session == MarketSession.AFTER_HOURS and old_session == MarketSession.REGULAR:
+        elif (
+            new_session == MarketSession.AFTER_HOURS
+            and old_session == MarketSession.REGULAR
+        ):
             event = MarketEventInfo(
                 event_type=MarketEvent.MARKET_CLOSE,
                 timestamp=now,
-                description="Regular market closed"
+                description="Regular market closed",
             )
             await self._trigger_event(event)
 
-        elif new_session == MarketSession.CLOSED and old_session == MarketSession.AFTER_HOURS:
+        elif (
+            new_session == MarketSession.CLOSED
+            and old_session == MarketSession.AFTER_HOURS
+        ):
             event = MarketEventInfo(
                 event_type=MarketEvent.AFTER_HOURS_END,
                 timestamp=now,
-                description="After-hours trading ended"
+                description="After-hours trading ended",
             )
             await self._trigger_event(event)
 
@@ -711,16 +766,18 @@ class MarketHoursService:
         status = await self.get_market_status()
 
         return {
-            'timestamp': status.timestamp.isoformat() if status.timestamp else None,
-            'is_open': status.is_open,
-            'current_session': status.current_session.value,
-            'is_trading_day': status.is_trading_day,
-            'is_trading_session': status.is_trading_session,
-            'market_date': status.market_date.isoformat() if status.market_date else None,
-            'early_close': status.early_close,
-            'next_open': status.next_open.isoformat() if status.next_open else None,
-            'next_close': status.next_close.isoformat() if status.next_close else None,
-            'monitoring_active': self._monitoring_active
+            "timestamp": status.timestamp.isoformat() if status.timestamp else None,
+            "is_open": status.is_open,
+            "current_session": status.current_session.value,
+            "is_trading_day": status.is_trading_day,
+            "is_trading_session": status.is_trading_session,
+            "market_date": (
+                status.market_date.isoformat() if status.market_date else None
+            ),
+            "early_close": status.early_close,
+            "next_open": status.next_open.isoformat() if status.next_open else None,
+            "next_close": status.next_close.isoformat() if status.next_close else None,
+            "monitoring_active": self._monitoring_active,
         }
 
     async def wait_for_market_open(self):
@@ -731,7 +788,9 @@ class MarketHoursService:
                 break
 
             if status.next_open:
-                wait_time = (status.next_open - datetime.now(timezone.utc)).total_seconds()
+                wait_time = (
+                    status.next_open - datetime.now(timezone.utc)
+                ).total_seconds()
                 if wait_time > 0:
                     # Wait for market open, but check every minute
                     sleep_time = min(60, wait_time)
@@ -743,7 +802,9 @@ class MarketHoursService:
                 # No next open time available, wait a minute and check again
                 await asyncio.sleep(60)
 
-    async def wait_for_session(self, target_session: MarketSession, timeout: Optional[int] = None):
+    async def wait_for_session(
+        self, target_session: MarketSession, timeout: Optional[int] = None
+    ):
         """Wait for a specific market session."""
         start_time = datetime.now()
 
@@ -755,7 +816,9 @@ class MarketHoursService:
             if timeout:
                 elapsed = (datetime.now() - start_time).total_seconds()
                 if elapsed > timeout:
-                    raise TimeoutError(f"Timeout waiting for session {target_session.value}")
+                    raise TimeoutError(
+                        f"Timeout waiting for session {target_session.value}"
+                    )
 
             await asyncio.sleep(30)  # Check every 30 seconds
 
@@ -838,7 +901,9 @@ def is_market_open_sync(timestamp: Optional[datetime] = None) -> bool:
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            raise RuntimeError("Cannot use sync version from async context. Use await is_market_open() instead.")
+            raise RuntimeError(
+                "Cannot use sync version from async context. Use await is_market_open() instead."
+            )
         else:
             return loop.run_until_complete(is_market_open(timestamp))
     except RuntimeError:

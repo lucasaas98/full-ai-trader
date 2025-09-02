@@ -5,25 +5,27 @@ This module provides comprehensive backtesting capabilities including walk-forwa
 analysis, parameter optimization, detailed performance metrics, and risk analysis.
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
 from enum import Enum
+from itertools import product
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 import polars as pl
-from itertools import product
 
-import json
+from shared.models import FinVizData, SignalType
 
-from .base_strategy import BaseStrategy, BacktestMetrics
+from .base_strategy import BacktestMetrics, BaseStrategy
 from .hybrid_strategy import HybridStrategy
-from shared.models import SignalType, FinVizData
 
 
 class OptimizationMethod(Enum):
     """Parameter optimization methods."""
+
     GRID_SEARCH = "grid_search"
     RANDOM_SEARCH = "random_search"
     WALK_FORWARD = "walk_forward"
@@ -32,6 +34,7 @@ class OptimizationMethod(Enum):
 
 class BacktestMode(Enum):
     """Backtesting execution modes."""
+
     SIMPLE = "simple"
     WALK_FORWARD = "walk_forward"
     MONTE_CARLO = "monte_carlo"
@@ -41,6 +44,7 @@ class BacktestMode(Enum):
 @dataclass
 class Trade:
     """Individual trade record."""
+
     entry_time: datetime
     exit_time: datetime
     symbol: str
@@ -56,12 +60,13 @@ class Trade:
     strategy_name: str
     signal_confidence: float
     max_favorable_excursion: float  # MFE
-    max_adverse_excursion: float   # MAE
+    max_adverse_excursion: float  # MAE
 
 
 @dataclass
 class PortfolioSnapshot:
     """Portfolio state at a point in time."""
+
     timestamp: datetime
     total_equity: float
     cash: float
@@ -75,10 +80,11 @@ class PortfolioSnapshot:
 @dataclass
 class BacktestConfig:
     """Backtesting configuration parameters."""
+
     initial_capital: float = 100000.0
     commission_per_trade: float = 1.0
     commission_percentage: float = 0.001  # 0.1% commission
-    slippage_percentage: float = 0.0005   # 0.05% slippage
+    slippage_percentage: float = 0.0005  # 0.05% slippage
     max_positions: int = 10
     margin_requirement: float = 1.0  # 1.0 = no margin, 0.5 = 2:1 leverage
     risk_free_rate: float = 0.02  # 2% annual risk-free rate
@@ -157,10 +163,16 @@ class BacktestingEngine:
         self._trade_id_counter = 0
         self._cache = {}
 
-    async def backtest_strategy(self, strategy: BaseStrategy, symbol: str,
-                              data: pl.DataFrame, start_date: datetime,
-                              end_date: datetime, finviz_data: Optional[FinVizData] = None,
-                              mode: BacktestMode = BacktestMode.SIMPLE) -> DetailedBacktestResult:
+    async def backtest_strategy(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        start_date: datetime,
+        end_date: datetime,
+        finviz_data: Optional[FinVizData] = None,
+        mode: BacktestMode = BacktestMode.SIMPLE,
+    ) -> DetailedBacktestResult:
         """
         Run comprehensive backtest of strategy.
 
@@ -177,7 +189,9 @@ class BacktestingEngine:
             Detailed backtest results
         """
         try:
-            self.logger.info(f"Starting {mode.value} backtest for {strategy.name} on {symbol}")
+            self.logger.info(
+                f"Starting {mode.value} backtest for {strategy.name} on {symbol}"
+            )
 
             # Initialize result container
             result = DetailedBacktestResult()
@@ -189,8 +203,7 @@ class BacktestingEngine:
 
             # Filter data to backtest period
             test_data = data.filter(
-                (pl.col("timestamp") >= start_date) &
-                (pl.col("timestamp") <= end_date)
+                (pl.col("timestamp") >= start_date) & (pl.col("timestamp") <= end_date)
             ).sort("timestamp")
 
             if test_data.height == 0:
@@ -198,13 +211,21 @@ class BacktestingEngine:
 
             # Execute backtest based on mode
             if mode == BacktestMode.SIMPLE:
-                await self._run_simple_backtest(strategy, result, test_data, finviz_data)
+                await self._run_simple_backtest(
+                    strategy, result, test_data, finviz_data
+                )
             elif mode == BacktestMode.WALK_FORWARD:
-                await self._run_walk_forward_backtest(strategy, result, test_data, finviz_data)
+                await self._run_walk_forward_backtest(
+                    strategy, result, test_data, finviz_data
+                )
             elif mode == BacktestMode.MONTE_CARLO:
-                await self._run_monte_carlo_backtest(strategy, result, test_data, finviz_data)
+                await self._run_monte_carlo_backtest(
+                    strategy, result, test_data, finviz_data
+                )
             else:
-                await self._run_simple_backtest(strategy, result, test_data, finviz_data)
+                await self._run_simple_backtest(
+                    strategy, result, test_data, finviz_data
+                )
 
             # Calculate comprehensive metrics
             self._calculate_detailed_metrics(result)
@@ -219,8 +240,10 @@ class BacktestingEngine:
             self._analyze_signal_quality(result)
 
             if result.metrics and result.metrics.total_return is not None:
-                self.logger.info(f"Backtest completed: {len(result.trades)} trades, "
-                               f"{result.metrics.total_return:.2%} return")
+                self.logger.info(
+                    f"Backtest completed: {len(result.trades)} trades, "
+                    f"{result.metrics.total_return:.2%} return"
+                )
             else:
                 self.logger.info(f"Backtest completed: {len(result.trades)} trades")
 
@@ -230,8 +253,13 @@ class BacktestingEngine:
             self.logger.error(f"Backtest error: {e}")
             raise
 
-    async def _run_simple_backtest(self, strategy: BaseStrategy, result: DetailedBacktestResult,
-                                 data: pl.DataFrame, finviz_data: Optional[FinVizData]) -> None:
+    async def _run_simple_backtest(
+        self,
+        strategy: BaseStrategy,
+        result: DetailedBacktestResult,
+        data: pl.DataFrame,
+        finviz_data: Optional[FinVizData],
+    ) -> None:
         """Run simple backtest with full data available."""
         try:
             # Initialize state
@@ -252,7 +280,9 @@ class BacktestingEngine:
                 try:
                     # Generate signal
                     if isinstance(strategy, HybridStrategy):
-                        signal = await strategy.analyze(result.symbol, window_data, finviz_data)
+                        signal = await strategy.analyze(
+                            result.symbol, window_data, finviz_data
+                        )
                     else:
                         signal = await strategy.analyze(result.symbol, window_data)
 
@@ -262,13 +292,22 @@ class BacktestingEngine:
 
                     # Process signal
                     await self._process_signal(
-                        signal, result.symbol, current_time, current_price,
-                        portfolio, current_positions, result
+                        signal,
+                        result.symbol,
+                        current_time,
+                        current_price,
+                        portfolio,
+                        current_positions,
+                        result,
                     )
 
                     # Update portfolio snapshot
                     self._update_portfolio_snapshot(
-                        portfolio, current_positions, current_time, current_price, result
+                        portfolio,
+                        current_positions,
+                        current_time,
+                        current_price,
+                        result,
                     )
 
                 except Exception as e:
@@ -284,12 +323,17 @@ class BacktestingEngine:
             self.logger.error(f"Simple backtest error: {e}")
             raise
 
-    async def _run_monte_carlo_backtest(self, strategy: BaseStrategy, result: DetailedBacktestResult,
-                                      data: pl.DataFrame, finviz_data: Optional[FinVizData]) -> None:
+    async def _run_monte_carlo_backtest(
+        self,
+        strategy: BaseStrategy,
+        result: DetailedBacktestResult,
+        data: pl.DataFrame,
+        finviz_data: Optional[FinVizData],
+    ) -> None:
         """Run Monte Carlo backtest with randomized market conditions."""
         try:
             # Monte Carlo simulation parameters
-            num_simulations = getattr(self.config, 'monte_carlo_simulations', 100)
+            num_simulations = getattr(self.config, "monte_carlo_simulations", 100)
 
             # Run multiple simulations with bootstrap sampling
             simulation_results = []
@@ -297,12 +341,16 @@ class BacktestingEngine:
             for sim in range(num_simulations):
                 # Bootstrap sampling of the data
                 n_samples = len(data)
-                bootstrap_indices = np.random.choice(n_samples, size=n_samples, replace=True)
+                bootstrap_indices = np.random.choice(
+                    n_samples, size=n_samples, replace=True
+                )
                 bootstrap_data = data[bootstrap_indices]
 
                 # Run backtest on bootstrap sample
                 sim_result = DetailedBacktestResult()
-                await self._run_simple_backtest(strategy, sim_result, bootstrap_data, finviz_data)
+                await self._run_simple_backtest(
+                    strategy, sim_result, bootstrap_data, finviz_data
+                )
 
                 if sim_result.metrics:
                     simulation_results.append(sim_result.metrics)
@@ -310,18 +358,34 @@ class BacktestingEngine:
             # Aggregate Monte Carlo results
             if simulation_results:
                 # Calculate mean and confidence intervals
-                total_returns = [r.total_return for r in simulation_results if r.total_return is not None]
-                sharpe_ratios = [r.sharpe_ratio for r in simulation_results if r.sharpe_ratio is not None]
-                max_drawdowns = [r.max_drawdown for r in simulation_results if r.max_drawdown is not None]
+                total_returns = [
+                    r.total_return
+                    for r in simulation_results
+                    if r.total_return is not None
+                ]
+                sharpe_ratios = [
+                    r.sharpe_ratio
+                    for r in simulation_results
+                    if r.sharpe_ratio is not None
+                ]
+                max_drawdowns = [
+                    r.max_drawdown
+                    for r in simulation_results
+                    if r.max_drawdown is not None
+                ]
 
                 if total_returns:
-                    result.metadata['monte_carlo'] = {
-                        'num_simulations': num_simulations,
-                        'total_return_mean': np.mean(total_returns),
-                        'total_return_std': np.std(total_returns),
-                        'total_return_95_ci': np.percentile(total_returns, [2.5, 97.5]),
-                        'sharpe_ratio_mean': np.mean(sharpe_ratios) if sharpe_ratios else 0,
-                        'max_drawdown_mean': np.mean(max_drawdowns) if max_drawdowns else 0
+                    result.metadata["monte_carlo"] = {
+                        "num_simulations": num_simulations,
+                        "total_return_mean": np.mean(total_returns),
+                        "total_return_std": np.std(total_returns),
+                        "total_return_95_ci": np.percentile(total_returns, [2.5, 97.5]),
+                        "sharpe_ratio_mean": (
+                            np.mean(sharpe_ratios) if sharpe_ratios else 0
+                        ),
+                        "max_drawdown_mean": (
+                            np.mean(max_drawdowns) if max_drawdowns else 0
+                        ),
                     }
 
             # Use the first simulation as the primary result
@@ -332,19 +396,26 @@ class BacktestingEngine:
             self.logger.error(f"Monte Carlo backtest error: {e}")
             raise
 
-    async def _run_walk_forward_backtest(self, strategy: BaseStrategy, result: DetailedBacktestResult,
-                                       data: pl.DataFrame, finviz_data: Optional[FinVizData]) -> None:
+    async def _run_walk_forward_backtest(
+        self,
+        strategy: BaseStrategy,
+        result: DetailedBacktestResult,
+        data: pl.DataFrame,
+        finviz_data: Optional[FinVizData],
+    ) -> None:
         """Run walk-forward backtest with parameter optimization."""
         try:
             # Walk-forward parameters
             optimization_window = 252  # 1 year
-            out_of_sample_window = 63   # 3 months
+            out_of_sample_window = 63  # 3 months
             min_trades_for_optimization = 10
 
             total_periods = (data.height - optimization_window) // out_of_sample_window
 
             if total_periods < 1:
-                self.logger.warning("Insufficient data for walk-forward analysis, falling back to simple backtest")
+                self.logger.warning(
+                    "Insufficient data for walk-forward analysis, falling back to simple backtest"
+                )
                 await self._run_simple_backtest(strategy, result, data, finviz_data)
                 return
 
@@ -377,11 +448,13 @@ class BacktestingEngine:
 
                     # Update strategy with optimal parameters
                     strategy.update_config(optimal_params)
-                    optimization_results.append({
-                        "period": period,
-                        "optimal_params": optimal_params,
-                        "optimization_data_points": opt_data.height
-                    })
+                    optimization_results.append(
+                        {
+                            "period": period,
+                            "optimal_params": optimal_params,
+                            "optimization_data_points": opt_data.height,
+                        }
+                    )
 
                 # Test on out-of-sample data
                 period_result = DetailedBacktestResult()
@@ -389,7 +462,9 @@ class BacktestingEngine:
                 period_result.strategy_name = strategy.name
                 period_result.symbol = result.symbol
 
-                await self._run_simple_backtest(strategy, period_result, test_data, finviz_data)
+                await self._run_simple_backtest(
+                    strategy, period_result, test_data, finviz_data
+                )
 
                 # Combine results
                 all_trades.extend(period_result.trades)
@@ -400,15 +475,20 @@ class BacktestingEngine:
             result.portfolio_snapshots = all_snapshots
             result.metadata = {
                 "walk_forward_periods": total_periods,
-                "optimization_results": optimization_results
+                "optimization_results": optimization_results,
             }
 
         except Exception as e:
             self.logger.error(f"Walk-forward backtest error: {e}")
             raise
 
-    async def _optimize_parameters(self, strategy: BaseStrategy, symbol: str,
-                                 data: pl.DataFrame, finviz_data: Optional[FinVizData]) -> Dict[str, Any]:
+    async def _optimize_parameters(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        finviz_data: Optional[FinVizData],
+    ) -> Dict[str, Any]:
         """Optimize strategy parameters using historical data."""
         try:
             # Define parameter ranges for optimization
@@ -418,7 +498,7 @@ class BacktestingEngine:
                 return {}
 
             best_params = {}
-            best_score = -float('inf')
+            best_score = -float("inf")
 
             # Grid search optimization
             param_combinations = list(product(*param_ranges.values()))
@@ -427,6 +507,7 @@ class BacktestingEngine:
             if len(param_combinations) > max_combinations:
                 # Random sampling if too many combinations
                 import random
+
                 param_combinations = random.sample(param_combinations, max_combinations)
 
             for combination in param_combinations:
@@ -448,7 +529,9 @@ class BacktestingEngine:
                     best_score = score
                     best_params = test_params
 
-            self.logger.info(f"Parameter optimization completed. Best score: {best_score:.3f}")
+            self.logger.info(
+                f"Parameter optimization completed. Best score: {best_score:.3f}"
+            )
             return best_params
 
         except Exception as e:
@@ -463,7 +546,7 @@ class BacktestingEngine:
                     "ta_base_weight": [0.3, 0.5, 0.7],
                     "min_technical_score": [40, 50, 60],
                     "min_fundamental_score": [40, 50, 60],
-                    "volume_threshold": [1.2, 1.5, 2.0]
+                    "volume_threshold": [1.2, 1.5, 2.0],
                 }
             else:
                 # Default technical strategy ranges
@@ -472,13 +555,15 @@ class BacktestingEngine:
                     "sma_long": [40, 50, 60],
                     "rsi_period": [10, 14, 18],
                     "rsi_oversold": [25, 30, 35],
-                    "rsi_overbought": [65, 70, 75]
+                    "rsi_overbought": [65, 70, 75],
                 }
 
         except Exception:
             return {}
 
-    def _create_test_strategy(self, base_strategy: BaseStrategy, test_params: Dict[str, Any]) -> BaseStrategy:
+    def _create_test_strategy(
+        self, base_strategy: BaseStrategy, test_params: Dict[str, Any]
+    ) -> BaseStrategy:
         """Create a test strategy with modified parameters."""
         try:
             # Clone strategy configuration
@@ -498,8 +583,13 @@ class BacktestingEngine:
             self.logger.error(f"Error creating test strategy: {e}")
             return base_strategy
 
-    async def _quick_backtest(self, strategy: BaseStrategy, symbol: str,
-                            data: pl.DataFrame, finviz_data: Optional[FinVizData]) -> Dict[str, Any]:
+    async def _quick_backtest(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        finviz_data: Optional[FinVizData],
+    ) -> Dict[str, Any]:
         """Run quick backtest for parameter optimization."""
         try:
             # Simplified backtest for speed
@@ -508,7 +598,9 @@ class BacktestingEngine:
 
             window_size = strategy.config.lookback_period
 
-            for i in range(window_size, min(data.height, window_size + 100)):  # Limit for speed
+            for i in range(
+                window_size, min(data.height, window_size + 100)
+            ):  # Limit for speed
                 window_data = data.slice(i - window_size, window_size + 1)
                 current_price = float(data.slice(i, 1).select("close").item())
                 current_time = data.slice(i, 1).select("timestamp").item()
@@ -516,27 +608,37 @@ class BacktestingEngine:
                 # Generate signal
                 try:
                     if isinstance(strategy, HybridStrategy):
-                        signal = await strategy.analyze(symbol, window_data, finviz_data)
+                        signal = await strategy.analyze(
+                            symbol, window_data, finviz_data
+                        )
                     else:
                         signal = await strategy.analyze(symbol, window_data)
                 except Exception:
                     continue
 
                 # Simple trade execution logic
-                if position is None and signal.action in [SignalType.BUY, SignalType.SELL]:
+                if position is None and signal.action in [
+                    SignalType.BUY,
+                    SignalType.SELL,
+                ]:
                     position = {
                         "entry_price": current_price,
                         "entry_time": current_time,
                         "side": "long" if signal.action == SignalType.BUY else "short",
-                        "quantity": 100  # Fixed quantity for speed
+                        "quantity": 100,  # Fixed quantity for speed
                     }
                 elif position and signal.action == SignalType.CLOSE:
                     # Close position
                     pnl = self._calculate_quick_pnl(position, current_price)
-                    trades.append({
-                        "pnl": pnl,
-                        "duration": (current_time - position["entry_time"]).total_seconds() / 3600
-                    })
+                    trades.append(
+                        {
+                            "pnl": pnl,
+                            "duration": (
+                                current_time - position["entry_time"]
+                            ).total_seconds()
+                            / 3600,
+                        }
+                    )
                     position = None
 
             # Calculate quick metrics
@@ -553,7 +655,7 @@ class BacktestingEngine:
                 "total_pnl": total_pnl,
                 "win_rate": win_rate,
                 "num_trades": len(trades),
-                "avg_duration": avg_duration
+                "avg_duration": avg_duration,
             }
 
         except Exception as e:
@@ -594,9 +696,16 @@ class BacktestingEngine:
         except Exception:
             return -1000
 
-    async def _process_signal(self, signal: Any, symbol: str, timestamp: datetime,
-                            current_price: float, portfolio: Dict, positions: Dict,
-                            result: DetailedBacktestResult) -> None:
+    async def _process_signal(
+        self,
+        signal: Any,
+        symbol: str,
+        timestamp: datetime,
+        current_price: float,
+        portfolio: Dict,
+        positions: Dict,
+        result: DetailedBacktestResult,
+    ) -> None:
         """Process trading signal and execute trades."""
         try:
             # Check if we can trade
@@ -604,17 +713,31 @@ class BacktestingEngine:
                 return
 
             # Handle entry signals
-            if (signal.action in [SignalType.BUY, SignalType.SELL] and
-                symbol not in positions):
+            if (
+                signal.action in [SignalType.BUY, SignalType.SELL]
+                and symbol not in positions
+            ):
 
                 await self._enter_position(
-                    signal, symbol, timestamp, current_price, portfolio, positions, result
+                    signal,
+                    symbol,
+                    timestamp,
+                    current_price,
+                    portfolio,
+                    positions,
+                    result,
                 )
 
             # Handle exit signals
             elif signal.action == SignalType.CLOSE and symbol in positions:
                 await self._exit_position(
-                    symbol, timestamp, current_price, portfolio, positions, result, "signal_exit"
+                    symbol,
+                    timestamp,
+                    current_price,
+                    portfolio,
+                    positions,
+                    result,
+                    "signal_exit",
                 )
 
             # Check stop loss and take profit for existing positions
@@ -626,9 +749,16 @@ class BacktestingEngine:
         except Exception as e:
             self.logger.error(f"Error processing signal: {e}")
 
-    async def _enter_position(self, signal: Any, symbol: str, timestamp: datetime,
-                            price: float, portfolio: Dict, positions: Dict,
-                            result: DetailedBacktestResult) -> None:
+    async def _enter_position(
+        self,
+        signal: Any,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        portfolio: Dict,
+        positions: Dict,
+        result: DetailedBacktestResult,
+    ) -> None:
         """Enter a new position."""
         try:
             # Check position limits
@@ -636,14 +766,16 @@ class BacktestingEngine:
                 return
 
             # Calculate position size
-            if hasattr(signal, 'position_size'):
+            if hasattr(signal, "position_size"):
                 size_fraction = signal.position_size
             else:
                 size_fraction = 0.1  # Default 10%
 
             position_value = portfolio["cash"] * size_fraction
-            commission = max(self.config.commission_per_trade,
-                           position_value * self.config.commission_percentage)
+            commission = max(
+                self.config.commission_per_trade,
+                position_value * self.config.commission_percentage,
+            )
 
             # Apply slippage
             slippage = price * self.config.slippage_percentage
@@ -663,26 +795,43 @@ class BacktestingEngine:
                 "entry_price": actual_price,
                 "quantity": quantity,
                 "side": "long" if signal.action == SignalType.BUY else "short",
-                "stop_loss": float(signal.stop_loss) if hasattr(signal, 'stop_loss') and signal.stop_loss else None,
-                "take_profit": float(signal.take_profit) if hasattr(signal, 'take_profit') and signal.take_profit else None,
-                "signal_confidence": getattr(signal, 'confidence', 50.0),
-                "strategy_name": getattr(signal, 'strategy_name', result.strategy_name),
+                "stop_loss": (
+                    float(signal.stop_loss)
+                    if hasattr(signal, "stop_loss") and signal.stop_loss
+                    else None
+                ),
+                "take_profit": (
+                    float(signal.take_profit)
+                    if hasattr(signal, "take_profit") and signal.take_profit
+                    else None
+                ),
+                "signal_confidence": getattr(signal, "confidence", 50.0),
+                "strategy_name": getattr(signal, "strategy_name", result.strategy_name),
                 "max_favorable": 0.0,
-                "max_adverse": 0.0
+                "max_adverse": 0.0,
             }
 
             # Update portfolio
-            portfolio["cash"] -= (position_value + commission)
+            portfolio["cash"] -= position_value + commission
             portfolio["positions_value"] += position_value
 
-            self.logger.debug(f"Entered {signal.action.value} position for {symbol} at {actual_price}")
+            self.logger.debug(
+                f"Entered {signal.action.value} position for {symbol} at {actual_price}"
+            )
 
         except Exception as e:
             self.logger.error(f"Error entering position: {e}")
 
-    async def _exit_position(self, symbol: str, timestamp: datetime, price: float,
-                           portfolio: Dict, positions: Dict, result: DetailedBacktestResult,
-                           exit_reason: str) -> None:
+    async def _exit_position(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        portfolio: Dict,
+        positions: Dict,
+        result: DetailedBacktestResult,
+        exit_reason: str,
+    ) -> None:
         """Exit an existing position."""
         try:
             if symbol not in positions:
@@ -705,8 +854,10 @@ class BacktestingEngine:
 
             # Commission
             trade_value = actual_price * position["quantity"]
-            commission = max(self.config.commission_per_trade,
-                           trade_value * self.config.commission_percentage)
+            commission = max(
+                self.config.commission_per_trade,
+                trade_value * self.config.commission_percentage,
+            )
 
             net_pnl = pnl - commission
             pnl_percentage = net_pnl / (position["entry_price"] * position["quantity"])
@@ -732,25 +883,36 @@ class BacktestingEngine:
                 strategy_name=position["strategy_name"],
                 signal_confidence=position["signal_confidence"],
                 max_favorable_excursion=position["max_favorable"],
-                max_adverse_excursion=position["max_adverse"]
+                max_adverse_excursion=position["max_adverse"],
             )
 
             result.trades.append(trade)
 
             # Update portfolio
             portfolio["cash"] += trade_value - commission
-            portfolio["positions_value"] -= position["entry_price"] * position["quantity"]
+            portfolio["positions_value"] -= (
+                position["entry_price"] * position["quantity"]
+            )
 
             # Remove position
             del positions[symbol]
 
-            self.logger.debug(f"Exited {symbol} position: {exit_reason}, PnL: {net_pnl:.2f}")
+            self.logger.debug(
+                f"Exited {symbol} position: {exit_reason}, PnL: {net_pnl:.2f}"
+            )
 
         except Exception as e:
             self.logger.error(f"Error exiting position: {e}")
 
-    async def _check_exit_conditions(self, symbol: str, timestamp: datetime, price: float,
-                                   portfolio: Dict, positions: Dict, result: DetailedBacktestResult) -> None:
+    async def _check_exit_conditions(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        portfolio: Dict,
+        positions: Dict,
+        result: DetailedBacktestResult,
+    ) -> None:
         """Check stop loss and take profit conditions."""
         try:
             if symbol not in positions:
@@ -769,19 +931,33 @@ class BacktestingEngine:
 
             # Check stop loss
             if position["stop_loss"]:
-                if ((position["side"] == "long" and price <= position["stop_loss"]) or
-                    (position["side"] == "short" and price >= position["stop_loss"])):
+                if (position["side"] == "long" and price <= position["stop_loss"]) or (
+                    position["side"] == "short" and price >= position["stop_loss"]
+                ):
                     await self._exit_position(
-                        symbol, timestamp, position["stop_loss"], portfolio, positions, result, "stop_loss"
+                        symbol,
+                        timestamp,
+                        position["stop_loss"],
+                        portfolio,
+                        positions,
+                        result,
+                        "stop_loss",
                     )
                     return
 
             # Check take profit
             if position["take_profit"]:
-                if ((position["side"] == "long" and price >= position["take_profit"]) or
-                    (position["side"] == "short" and price <= position["take_profit"])):
+                if (
+                    position["side"] == "long" and price >= position["take_profit"]
+                ) or (position["side"] == "short" and price <= position["take_profit"]):
                     await self._exit_position(
-                        symbol, timestamp, position["take_profit"], portfolio, positions, result, "take_profit"
+                        symbol,
+                        timestamp,
+                        position["take_profit"],
+                        portfolio,
+                        positions,
+                        result,
+                        "take_profit",
                     )
                     return
 
@@ -798,15 +974,17 @@ class BacktestingEngine:
             "peak_equity": self.config.initial_capital,
             "drawdown": 0.0,
             "daily_trades": 0,
-            "last_trade_date": None
+            "last_trade_date": None,
         }
 
     def _can_trade(self, portfolio: Dict, timestamp: datetime) -> bool:
         """Check if trading is allowed based on rules."""
         try:
             # Check daily trade limit
-            if (portfolio.get("last_trade_date") == timestamp.date() and
-                portfolio.get("daily_trades", 0) >= self.config.daily_trade_limit):
+            if (
+                portfolio.get("last_trade_date") == timestamp.date()
+                and portfolio.get("daily_trades", 0) >= self.config.daily_trade_limit
+            ):
                 return False
 
             # Check drawdown stop
@@ -823,9 +1001,14 @@ class BacktestingEngine:
         except Exception:
             return False
 
-    def _update_portfolio_snapshot(self, portfolio: Dict, positions: Dict,
-                                 timestamp: datetime, current_price: float,
-                                 result: DetailedBacktestResult) -> None:
+    def _update_portfolio_snapshot(
+        self,
+        portfolio: Dict,
+        positions: Dict,
+        timestamp: datetime,
+        current_price: float,
+        result: DetailedBacktestResult,
+    ) -> None:
         """Update portfolio snapshot for equity curve."""
         try:
             # Calculate current positions value
@@ -835,7 +1018,9 @@ class BacktestingEngine:
                     position_value = pos["quantity"] * current_price
                 else:
                     # Short position value
-                    position_value = pos["quantity"] * (2 * pos["entry_price"] - current_price)
+                    position_value = pos["quantity"] * (
+                        2 * pos["entry_price"] - current_price
+                    )
                 total_positions_value += position_value
 
             # Update portfolio
@@ -847,7 +1032,9 @@ class BacktestingEngine:
                 portfolio["peak_equity"] = portfolio["total_equity"]
                 portfolio["drawdown"] = 0.0
             else:
-                portfolio["drawdown"] = (portfolio["peak_equity"] - portfolio["total_equity"]) / portfolio["peak_equity"]
+                portfolio["drawdown"] = (
+                    portfolio["peak_equity"] - portfolio["total_equity"]
+                ) / portfolio["peak_equity"]
 
             # Daily P&L calculation
             daily_pnl = 0.0
@@ -867,7 +1054,11 @@ class BacktestingEngine:
                 open_positions=len(positions),
                 daily_pnl=daily_pnl,
                 drawdown=portfolio["drawdown"],
-                exposure=total_positions_value / portfolio["total_equity"] if portfolio["total_equity"] > 0 else 0.0
+                exposure=(
+                    total_positions_value / portfolio["total_equity"]
+                    if portfolio["total_equity"] > 0
+                    else 0.0
+                ),
             )
 
             result.portfolio_snapshots.append(snapshot)
@@ -875,8 +1066,13 @@ class BacktestingEngine:
         except Exception as e:
             self.logger.error(f"Error updating portfolio snapshot: {e}")
 
-    async def _close_remaining_positions(self, positions: Dict, data: pl.DataFrame,
-                                       portfolio: Dict, result: DetailedBacktestResult) -> None:
+    async def _close_remaining_positions(
+        self,
+        positions: Dict,
+        data: pl.DataFrame,
+        portfolio: Dict,
+        result: DetailedBacktestResult,
+    ) -> None:
         """Close any remaining positions at backtest end."""
         try:
             if not positions:
@@ -887,7 +1083,13 @@ class BacktestingEngine:
 
             for symbol in list(positions.keys()):
                 await self._exit_position(
-                    symbol, final_time, final_price, portfolio, positions, result, "backtest_end"
+                    symbol,
+                    final_time,
+                    final_price,
+                    portfolio,
+                    positions,
+                    result,
+                    "backtest_end",
                 )
 
         except Exception as e:
@@ -898,12 +1100,23 @@ class BacktestingEngine:
         try:
             if not result.trades or not result.portfolio_snapshots:
                 result.metrics = BacktestMetrics(
-                    total_return=0.0, annualized_return=0.0, sharpe_ratio=0.0,
-                    max_drawdown=0.0, win_rate=0.0, profit_factor=0.0,
-                    total_trades=0, winning_trades=0, losing_trades=0,
-                    average_win=0.0, average_loss=0.0, largest_win=0.0,
-                    largest_loss=0.0, avg_trade_duration=0.0, volatility=0.0,
-                    calmar_ratio=0.0, sortino_ratio=0.0
+                    total_return=0.0,
+                    annualized_return=0.0,
+                    sharpe_ratio=0.0,
+                    max_drawdown=0.0,
+                    win_rate=0.0,
+                    profit_factor=0.0,
+                    total_trades=0,
+                    winning_trades=0,
+                    losing_trades=0,
+                    average_win=0.0,
+                    average_loss=0.0,
+                    largest_win=0.0,
+                    largest_loss=0.0,
+                    avg_trade_duration=0.0,
+                    volatility=0.0,
+                    calmar_ratio=0.0,
+                    sortino_ratio=0.0,
                 )
                 return
 
@@ -911,24 +1124,38 @@ class BacktestingEngine:
             winning_trades = [t for t in result.trades if t.pnl > 0]
             losing_trades = [t for t in result.trades if t.pnl <= 0]
 
-            total_return = (result.portfolio_snapshots[-1].total_equity -
-                          self.config.initial_capital) / self.config.initial_capital
+            total_return = (
+                result.portfolio_snapshots[-1].total_equity
+                - self.config.initial_capital
+            ) / self.config.initial_capital
 
             win_rate = len(winning_trades) / len(result.trades)
 
             # P&L metrics
             total_profit = sum(t.pnl for t in winning_trades)
             total_loss = sum(abs(t.pnl) for t in losing_trades)
-            profit_factor = total_profit / total_loss if total_loss > 0 else float('inf')
+            profit_factor = (
+                total_profit / total_loss if total_loss > 0 else float("inf")
+            )
 
-            avg_win = sum(t.pnl for t in winning_trades) / len(winning_trades) if winning_trades else 0
-            avg_loss = sum(t.pnl for t in losing_trades) / len(losing_trades) if losing_trades else 0
+            avg_win = (
+                sum(t.pnl for t in winning_trades) / len(winning_trades)
+                if winning_trades
+                else 0
+            )
+            avg_loss = (
+                sum(t.pnl for t in losing_trades) / len(losing_trades)
+                if losing_trades
+                else 0
+            )
 
             largest_win = max(t.pnl for t in winning_trades) if winning_trades else 0
             largest_loss = min(t.pnl for t in losing_trades) if losing_trades else 0
 
             # Duration metrics
-            avg_duration = sum(t.duration_hours for t in result.trades) / len(result.trades)
+            avg_duration = sum(t.duration_hours for t in result.trades) / len(
+                result.trades
+            )
 
             # Equity curve analysis
             equity_values = [s.total_equity for s in result.portfolio_snapshots]
@@ -940,14 +1167,28 @@ class BacktestingEngine:
             years = (end_time - start_time).days / 365.25
 
             # Annualized return
-            annualized_return = (result.portfolio_snapshots[-1].total_equity /
-                               self.config.initial_capital) ** (1 / years) - 1 if years > 0 else 0
+            annualized_return = (
+                (
+                    result.portfolio_snapshots[-1].total_equity
+                    / self.config.initial_capital
+                )
+                ** (1 / years)
+                - 1
+                if years > 0
+                else 0
+            )
 
             # Volatility (annualized)
-            volatility = equity_returns.std() * np.sqrt(252) if len(equity_returns) > 1 else 0
+            volatility = (
+                equity_returns.std() * np.sqrt(252) if len(equity_returns) > 1 else 0
+            )
 
             # Risk metrics
-            sharpe_ratio = (annualized_return - self.config.risk_free_rate) / volatility if volatility > 0 else 0
+            sharpe_ratio = (
+                (annualized_return - self.config.risk_free_rate) / volatility
+                if volatility > 0
+                else 0
+            )
 
             # Maximum drawdown
             peak_values = pd.Series(equity_values).expanding().max()
@@ -959,8 +1200,16 @@ class BacktestingEngine:
 
             # Sortino ratio
             negative_returns = equity_returns[equity_returns < 0]
-            downside_deviation = negative_returns.std() * np.sqrt(252) if len(negative_returns) > 1 else 0
-            sortino_ratio = (annualized_return - self.config.risk_free_rate) / downside_deviation if downside_deviation > 0 else 0
+            downside_deviation = (
+                negative_returns.std() * np.sqrt(252)
+                if len(negative_returns) > 1
+                else 0
+            )
+            sortino_ratio = (
+                (annualized_return - self.config.risk_free_rate) / downside_deviation
+                if downside_deviation > 0
+                else 0
+            )
 
             result.metrics = BacktestMetrics(
                 total_return=total_return,
@@ -979,18 +1228,29 @@ class BacktestingEngine:
                 avg_trade_duration=avg_duration / 24,  # Convert to days
                 volatility=volatility,
                 calmar_ratio=calmar_ratio,
-                sortino_ratio=sortino_ratio
+                sortino_ratio=sortino_ratio,
             )
 
         except Exception as e:
             self.logger.error(f"Error calculating detailed metrics: {e}")
             result.metrics = BacktestMetrics(
-                total_return=0.0, annualized_return=0.0, sharpe_ratio=0.0,
-                max_drawdown=0.0, win_rate=0.0, profit_factor=0.0,
-                total_trades=0, winning_trades=0, losing_trades=0,
-                average_win=0.0, average_loss=0.0, largest_win=0.0,
-                largest_loss=0.0, avg_trade_duration=0.0, volatility=0.0,
-                calmar_ratio=0.0, sortino_ratio=0.0
+                total_return=0.0,
+                annualized_return=0.0,
+                sharpe_ratio=0.0,
+                max_drawdown=0.0,
+                win_rate=0.0,
+                profit_factor=0.0,
+                total_trades=0,
+                winning_trades=0,
+                losing_trades=0,
+                average_win=0.0,
+                average_loss=0.0,
+                largest_win=0.0,
+                largest_loss=0.0,
+                avg_trade_duration=0.0,
+                volatility=0.0,
+                calmar_ratio=0.0,
+                sortino_ratio=0.0,
             )
 
     def _analyze_trade_patterns(self, result: DetailedBacktestResult) -> None:
@@ -1011,8 +1271,8 @@ class BacktestingEngine:
                     "p50": np.percentile(pnl_values, 50),
                     "p75": np.percentile(pnl_values, 75),
                     "p90": np.percentile(pnl_values, 90),
-                    "p95": np.percentile(pnl_values, 95)
-                }
+                    "p95": np.percentile(pnl_values, 95),
+                },
             }
 
             # Holding period analysis
@@ -1022,12 +1282,14 @@ class BacktestingEngine:
                 "median_duration_hours": np.median(durations),
                 "min_duration_hours": min(durations),
                 "max_duration_hours": max(durations),
-                "duration_std": np.std(durations)
+                "duration_std": np.std(durations),
             }
 
             # Consecutive wins/losses
             consecutive_results = [1 if t.pnl > 0 else -1 for t in result.trades]
-            result.consecutive_wins, result.consecutive_losses = self._calculate_consecutive_streaks(consecutive_results)
+            result.consecutive_wins, result.consecutive_losses = (
+                self._calculate_consecutive_streaks(consecutive_results)
+            )
             result.max_consecutive_wins = max(result.consecutive_wins, 0)
             result.max_consecutive_losses = max(result.consecutive_losses, 0)
 
@@ -1074,19 +1336,26 @@ class BacktestingEngine:
             # Conditional Value at Risk (95%)
             var_threshold = result.var_95
             tail_returns = returns[returns <= var_threshold]
-            result.cvar_95 = float(tail_returns.mean()) if len(tail_returns) > 0 else 0.0
+            result.cvar_95 = (
+                float(tail_returns.mean()) if len(tail_returns) > 0 else 0.0
+            )
 
             # Tail ratio
             positive_returns = returns[returns > 0]
             negative_returns = returns[returns < 0]
             if len(positive_returns) > 0 and len(negative_returns) > 0:
-                result.tail_ratio = float(np.percentile(positive_returns, 95) / abs(np.percentile(negative_returns, 5)))
+                result.tail_ratio = float(
+                    np.percentile(positive_returns, 95)
+                    / abs(np.percentile(negative_returns, 5))
+                )
             else:
                 result.tail_ratio = 0.0
 
             # Gain to Pain ratio
             positive_sum = positive_returns.sum() if len(positive_returns) > 0 else 0
-            negative_sum = abs(negative_returns.sum()) if len(negative_returns) > 0 else 1
+            negative_sum = (
+                abs(negative_returns.sum()) if len(negative_returns) > 0 else 1
+            )
             result.gain_to_pain_ratio = positive_sum / negative_sum
 
         except Exception as e:
@@ -1102,7 +1371,7 @@ class BacktestingEngine:
             confidence_buckets = {
                 "low": [t for t in result.trades if t.signal_confidence < 60],
                 "medium": [t for t in result.trades if 60 <= t.signal_confidence < 80],
-                "high": [t for t in result.trades if t.signal_confidence >= 80]
+                "high": [t for t in result.trades if t.signal_confidence >= 80],
             }
 
             result.signal_accuracy = {}
@@ -1112,20 +1381,34 @@ class BacktestingEngine:
                     result.signal_accuracy[bucket] = accuracy
 
             # Confidence calibration analysis
-            confidence_ranges = [(0, 50), (50, 60), (60, 70), (70, 80), (80, 90), (90, 100)]
+            confidence_ranges = [
+                (0, 50),
+                (50, 60),
+                (60, 70),
+                (70, 80),
+                (80, 90),
+                (90, 100),
+            ]
             calibration_data = {}
 
             for min_conf, max_conf in confidence_ranges:
-                bucket_trades = [t for t in result.trades
-                               if min_conf <= t.signal_confidence < max_conf]
+                bucket_trades = [
+                    t
+                    for t in result.trades
+                    if min_conf <= t.signal_confidence < max_conf
+                ]
                 if bucket_trades:
-                    actual_accuracy = len([t for t in bucket_trades if t.pnl > 0]) / len(bucket_trades)
-                    expected_accuracy = (min_conf + max_conf) / 200  # Convert to 0-1 range
+                    actual_accuracy = len(
+                        [t for t in bucket_trades if t.pnl > 0]
+                    ) / len(bucket_trades)
+                    expected_accuracy = (
+                        min_conf + max_conf
+                    ) / 200  # Convert to 0-1 range
                     calibration_data[f"{min_conf}-{max_conf}"] = {
                         "expected": expected_accuracy,
                         "actual": actual_accuracy,
                         "trades": len(bucket_trades),
-                        "calibration_error": abs(actual_accuracy - expected_accuracy)
+                        "calibration_error": abs(actual_accuracy - expected_accuracy),
                     }
 
             result.confidence_calibration = calibration_data
@@ -1133,23 +1416,33 @@ class BacktestingEngine:
         except Exception as e:
             self.logger.error(f"Error analyzing signal quality: {e}")
 
-    def generate_backtest_report(self, result: DetailedBacktestResult) -> Dict[str, Any]:
+    def generate_backtest_report(
+        self, result: DetailedBacktestResult
+    ) -> Dict[str, Any]:
         """Generate comprehensive backtest report."""
         try:
             report = {
                 "strategy_info": {
                     "name": result.strategy_name,
                     "symbol": result.symbol,
-                    "start_date": result.start_date.isoformat() if result.start_date else None,
-                    "end_date": result.end_date.isoformat() if result.end_date else None,
-                    "duration_days": (result.end_date - result.start_date).days if result.start_date and result.end_date else 0
+                    "start_date": (
+                        result.start_date.isoformat() if result.start_date else None
+                    ),
+                    "end_date": (
+                        result.end_date.isoformat() if result.end_date else None
+                    ),
+                    "duration_days": (
+                        (result.end_date - result.start_date).days
+                        if result.start_date and result.end_date
+                        else 0
+                    ),
                 },
                 "performance_metrics": asdict(result.metrics) if result.metrics else {},
                 "risk_metrics": {
                     "var_95": result.var_95,
                     "cvar_95": result.cvar_95,
                     "tail_ratio": result.tail_ratio,
-                    "gain_to_pain_ratio": result.gain_to_pain_ratio
+                    "gain_to_pain_ratio": result.gain_to_pain_ratio,
                 },
                 "trade_analysis": {
                     "total_trades": len(result.trades),
@@ -1157,14 +1450,14 @@ class BacktestingEngine:
                     "holding_period": result.holding_period_analysis,
                     "consecutive_streaks": {
                         "max_wins": result.max_consecutive_wins,
-                        "max_losses": result.max_consecutive_losses
-                    }
+                        "max_losses": result.max_consecutive_losses,
+                    },
                 },
                 "signal_quality": {
                     "accuracy_by_confidence": result.signal_accuracy,
-                    "confidence_calibration": result.confidence_calibration
+                    "confidence_calibration": result.confidence_calibration,
                 },
-                "configuration": asdict(result.config) if result.config else {}
+                "configuration": asdict(result.config) if result.config else {},
             }
 
             # Add monthly/yearly breakdowns if available
@@ -1179,9 +1472,14 @@ class BacktestingEngine:
             self.logger.error(f"Error generating backtest report: {e}")
             return {"error": str(e)}
 
-    async def optimize_strategy_parameters(self, strategy: BaseStrategy, symbol: str,
-                                         data: pl.DataFrame, optimization_config: Dict[str, Any],
-                                         finviz_data: Optional[FinVizData] = None) -> Dict[str, Any]:
+    async def optimize_strategy_parameters(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        optimization_config: Dict[str, Any],
+        finviz_data: Optional[FinVizData] = None,
+    ) -> Dict[str, Any]:
         """
         Optimize strategy parameters using various methods.
 
@@ -1210,7 +1508,9 @@ class BacktestingEngine:
                     strategy, symbol, data, optimization_config, finviz_data, objective
                 )
             else:
-                self.logger.warning(f"Optimization method {method.value} not implemented, using grid search")
+                self.logger.warning(
+                    f"Optimization method {method.value} not implemented, using grid search"
+                )
                 return await self._grid_search_optimization(
                     strategy, symbol, data, optimization_config, finviz_data, objective
                 )
@@ -1219,9 +1519,15 @@ class BacktestingEngine:
             self.logger.error(f"Parameter optimization error: {e}")
             return {"error": str(e), "best_parameters": {}}
 
-    async def _grid_search_optimization(self, strategy: BaseStrategy, symbol: str,
-                                      data: pl.DataFrame, config: Dict[str, Any],
-                                      finviz_data: Optional[FinVizData], objective: str) -> Dict[str, Any]:
+    async def _grid_search_optimization(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        config: Dict[str, Any],
+        finviz_data: Optional[FinVizData],
+        objective: str,
+    ) -> Dict[str, Any]:
         """Perform grid search parameter optimization."""
         try:
             param_ranges = self._get_optimization_ranges(strategy)
@@ -1234,7 +1540,7 @@ class BacktestingEngine:
             test_data = data.slice(train_size, len(data) - train_size)
 
             best_params = {}
-            best_score = -float('inf')
+            best_score = -float("inf")
             optimization_results = []
 
             # Generate parameter combinations
@@ -1243,9 +1549,12 @@ class BacktestingEngine:
 
             if len(param_combinations) > max_combinations:
                 import random
+
                 param_combinations = random.sample(param_combinations, max_combinations)
 
-            self.logger.info(f"Testing {len(param_combinations)} parameter combinations")
+            self.logger.info(
+                f"Testing {len(param_combinations)} parameter combinations"
+            )
 
             # Test each combination
             for i, combination in enumerate(param_combinations):
@@ -1256,23 +1565,29 @@ class BacktestingEngine:
                     test_strategy = self._create_test_strategy(strategy, test_params)
 
                     # Quick backtest on training data
-                    train_result = await self._quick_backtest(test_strategy, symbol, train_data, finviz_data)
+                    train_result = await self._quick_backtest(
+                        test_strategy, symbol, train_data, finviz_data
+                    )
 
                     # Score the result
                     score = self._score_optimization_result(train_result, objective)
 
-                    optimization_results.append({
-                        "parameters": test_params,
-                        "score": score,
-                        "metrics": train_result
-                    })
+                    optimization_results.append(
+                        {
+                            "parameters": test_params,
+                            "score": score,
+                            "metrics": train_result,
+                        }
+                    )
 
                     if score > best_score:
                         best_score = score
                         best_params = test_params
 
                     if (i + 1) % 10 == 0:
-                        self.logger.info(f"Completed {i + 1}/{len(param_combinations)} combinations")
+                        self.logger.info(
+                            f"Completed {i + 1}/{len(param_combinations)} combinations"
+                        )
 
                 except Exception as e:
                     self.logger.warning(f"Optimization combination {i} failed: {e}")
@@ -1281,8 +1596,12 @@ class BacktestingEngine:
             # Validate best parameters on test data
             if best_params:
                 validation_strategy = self._create_test_strategy(strategy, best_params)
-                validation_result = await self._quick_backtest(validation_strategy, symbol, test_data, finviz_data)
-                validation_score = self._score_optimization_result(validation_result, objective)
+                validation_result = await self._quick_backtest(
+                    validation_strategy, symbol, test_data, finviz_data
+                )
+                validation_score = self._score_optimization_result(
+                    validation_result, objective
+                )
             else:
                 validation_score = 0.0
 
@@ -1290,17 +1609,25 @@ class BacktestingEngine:
                 "best_parameters": best_params,
                 "best_score": best_score,
                 "validation_score": validation_score,
-                "optimization_results": sorted(optimization_results, key=lambda x: x["score"], reverse=True)[:10],
-                "total_combinations_tested": len(param_combinations)
+                "optimization_results": sorted(
+                    optimization_results, key=lambda x: x["score"], reverse=True
+                )[:10],
+                "total_combinations_tested": len(param_combinations),
             }
 
         except Exception as e:
             self.logger.error(f"Grid search optimization error: {e}")
             return {"error": str(e), "best_parameters": {}}
 
-    async def _walk_forward_optimization(self, strategy: BaseStrategy, symbol: str,
-                                       data: pl.DataFrame, config: Dict[str, Any],
-                                       finviz_data: Optional[FinVizData], objective: str) -> Dict[str, Any]:
+    async def _walk_forward_optimization(
+        self,
+        strategy: BaseStrategy,
+        symbol: str,
+        data: pl.DataFrame,
+        config: Dict[str, Any],
+        finviz_data: Optional[FinVizData],
+        objective: str,
+    ) -> Dict[str, Any]:
         """Perform walk-forward optimization with out-of-sample testing."""
         try:
             param_ranges = self._get_optimization_ranges(strategy)
@@ -1314,7 +1641,7 @@ class BacktestingEngine:
 
             walk_forward_results = []
             best_params = {}
-            best_score = -float('inf')
+            best_score = -float("inf")
 
             # Generate parameter combinations
             param_combinations = list(product(*param_ranges.values()))
@@ -1322,6 +1649,7 @@ class BacktestingEngine:
 
             if len(param_combinations) > max_combinations:
                 import random
+
                 param_combinations = random.sample(param_combinations, max_combinations)
 
             # Walk-forward analysis
@@ -1335,33 +1663,45 @@ class BacktestingEngine:
 
                 # Optimize on training data
                 period_best_params = {}
-                period_best_score = -float('inf')
+                period_best_score = -float("inf")
 
                 for combination in param_combinations:
                     test_params = dict(zip(param_ranges.keys(), combination))
                     test_strategy = self._create_test_strategy(strategy, test_params)
-                    result = await self._quick_backtest(test_strategy, symbol, train_data, finviz_data)
+                    result = await self._quick_backtest(
+                        test_strategy, symbol, train_data, finviz_data
+                    )
 
                     if result and isinstance(result, dict):
                         score = self._score_optimization_result(result, objective)
                         if score > period_best_score:
                             period_best_score = score
-                            period_best_params = dict(zip(param_ranges.keys(), combination))
+                            period_best_params = dict(
+                                zip(param_ranges.keys(), combination)
+                            )
 
                 # Test on out-of-sample data
                 if period_best_params:
-                    test_strategy = self._create_test_strategy(strategy, period_best_params)
-                    oos_result = await self._quick_backtest(test_strategy, symbol, test_data, finviz_data)
+                    test_strategy = self._create_test_strategy(
+                        strategy, period_best_params
+                    )
+                    oos_result = await self._quick_backtest(
+                        test_strategy, symbol, test_data, finviz_data
+                    )
 
                     if oos_result:
-                        oos_score = self._score_optimization_result(oos_result, objective)
-                        walk_forward_results.append({
-                            "period": f"{start_idx}-{end_idx}",
-                            "best_params": period_best_params,
-                            "in_sample_score": period_best_score,
-                            "out_of_sample_score": oos_score,
-                            "oos_result": oos_result
-                        })
+                        oos_score = self._score_optimization_result(
+                            oos_result, objective
+                        )
+                        walk_forward_results.append(
+                            {
+                                "period": f"{start_idx}-{end_idx}",
+                                "best_params": period_best_params,
+                                "in_sample_score": period_best_score,
+                                "out_of_sample_score": oos_score,
+                                "oos_result": oos_result,
+                            }
+                        )
 
                         if oos_score > best_score:
                             best_score = oos_score
@@ -1384,16 +1724,16 @@ class BacktestingEngine:
                 "average_oos_score": avg_oos_score,
                 "stability": stability,
                 "walk_forward_results": walk_forward_results,
-                "total_periods": len(walk_forward_results)
+                "total_periods": len(walk_forward_results),
             }
 
         except Exception as e:
             self.logger.error(f"Walk-forward optimization error: {e}")
             return {"error": str(e), "best_parameters": {}}
 
-
-
-    def _score_optimization_result(self, result: Dict[str, Any], objective: str) -> float:
+    def _score_optimization_result(
+        self, result: Dict[str, Any], objective: str
+    ) -> float:
         """Score optimization result based on objective function."""
         try:
             if objective == "sharpe_ratio":
@@ -1409,14 +1749,18 @@ class BacktestingEngine:
                 return result.get("calmar_ratio", 0.0)
             else:
                 # Default composite score
-                return (result.get("total_pnl", 0.0) * result.get("win_rate", 0.0) *
-                       np.sqrt(result.get("num_trades", 1)))
+                return (
+                    result.get("total_pnl", 0.0)
+                    * result.get("win_rate", 0.0)
+                    * np.sqrt(result.get("num_trades", 1))
+                )
 
         except Exception:
             return 0.0
 
-    def export_results(self, result: DetailedBacktestResult,
-                      export_format: str = "json") -> str:
+    def export_results(
+        self, result: DetailedBacktestResult, export_format: str = "json"
+    ) -> str:
         """
         Export backtest results in specified format.
 
@@ -1448,22 +1792,28 @@ class BacktestingEngine:
                 "strategy_info": {
                     "name": result.strategy_name,
                     "symbol": result.symbol,
-                    "start_date": result.start_date.isoformat() if result.start_date else None,
-                    "end_date": result.end_date.isoformat() if result.end_date else None
+                    "start_date": (
+                        result.start_date.isoformat() if result.start_date else None
+                    ),
+                    "end_date": (
+                        result.end_date.isoformat() if result.end_date else None
+                    ),
                 },
                 "performance_metrics": asdict(result.metrics) if result.metrics else {},
                 "trades": [asdict(trade) for trade in result.trades],
-                "portfolio_snapshots": [asdict(snapshot) for snapshot in result.portfolio_snapshots],
+                "portfolio_snapshots": [
+                    asdict(snapshot) for snapshot in result.portfolio_snapshots
+                ],
                 "risk_metrics": {
                     "var_95": result.var_95,
                     "cvar_95": result.cvar_95,
                     "tail_ratio": result.tail_ratio,
-                    "gain_to_pain_ratio": result.gain_to_pain_ratio
+                    "gain_to_pain_ratio": result.gain_to_pain_ratio,
                 },
                 "trade_analysis": {
                     "trade_distribution": result.trade_distribution,
-                    "holding_period_analysis": result.holding_period_analysis
-                }
+                    "holding_period_analysis": result.holding_period_analysis,
+                },
             }
 
             return json.dumps(export_data, indent=2, default=str)
@@ -1497,14 +1847,22 @@ class BacktestingEngine:
             total_trades = result.metrics.total_trades if result.metrics else None
 
             # Format values
-            total_return_str = f"{total_return:.2%}" if total_return is not None else "N/A"
-            sharpe_ratio_str = f"{sharpe_ratio:.2f}" if sharpe_ratio is not None else "N/A"
-            max_drawdown_str = f"{max_drawdown:.2%}" if max_drawdown is not None else "N/A"
+            total_return_str = (
+                f"{total_return:.2%}" if total_return is not None else "N/A"
+            )
+            sharpe_ratio_str = (
+                f"{sharpe_ratio:.2f}" if sharpe_ratio is not None else "N/A"
+            )
+            max_drawdown_str = (
+                f"{max_drawdown:.2%}" if max_drawdown is not None else "N/A"
+            )
             win_rate_str = f"{win_rate:.1%}" if win_rate is not None else "N/A"
             total_trades_str = str(total_trades) if total_trades is not None else "N/A"
 
             # Determine color class
-            return_class = "positive" if total_return and total_return > 0 else "negative"
+            return_class = (
+                "positive" if total_return and total_return > 0 else "negative"
+            )
 
             html = f"""
             <html>

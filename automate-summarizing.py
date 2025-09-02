@@ -1,6 +1,7 @@
-import os
-import requests
 import json
+import os
+
+import requests
 
 prompt = """You are reading a file containing code with comments.
         Your job is to identify the comments that describe a task to be done.
@@ -24,20 +25,23 @@ prompt = """You are reading a file containing code with comments.
         Now, analyze the provided file content and output the JSON only.
         """
 
+
 # Define a function to summarize the contents of a file using the Ollama API
 def summarize_file(path):
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         content = f.read()
         # print(f'File content: {content}')
 
-    headers = {'Content-Type': 'application/json'}
+    headers = {"Content-Type": "application/json"}
     data = {
-        'model': 'llama3.1',
-        'prompt': f'{prompt}\n\nFile:\n{content}',
-        'stream': False
+        "model": "llama3.1",
+        "prompt": f"{prompt}\n\nFile:\n{content}",
+        "stream": False,
     }
 
-    response = requests.post('http://192.168.1.133:11434/api/generate', headers=headers, json=data)
+    response = requests.post(
+        "http://192.168.1.133:11434/api/generate", headers=headers, json=data
+    )
 
     if response.status_code == 200:
         try:
@@ -45,8 +49,8 @@ def summarize_file(path):
             response_data = response.json()
 
             # Check if response contains the expected structure
-            if 'response' in response_data:
-                return response_data['response']
+            if "response" in response_data:
+                return response_data["response"]
             else:
                 print(f"Unexpected response format: {response_data}")
                 return None
@@ -55,9 +59,9 @@ def summarize_file(path):
             print(f"Raw response: {response.text}")
             return None
     else:
-        print(f'Failed to generate summary for {path}')
-        print(f'Response status code: {response.status_code}')
-        print(f'Response text: {response.text}')
+        print(f"Failed to generate summary for {path}")
+        print(f"Response status code: {response.status_code}")
+        print(f"Response text: {response.text}")
         try:
             error_data = response.json()
             print(f'Error: {error_data["error"]}')
@@ -66,25 +70,26 @@ def summarize_file(path):
             print("Failed to parse error response as JSON")
         return None
 
+
 def write_summary_to_md(summary, path):
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         f.write(summary)
 
+
 # Main script
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     # Specify the directory to search for Python files
-    directory = '.'
-
+    directory = "."
 
     # Search for Python files in that directory
     for root, dirs, files in os.walk(directory):
         for file in files:
             if file.endswith(".py"):
                 path = os.path.join(root, file)
-                if 'venv' in path:
+                if "venv" in path:
                     continue
-                print(f'\nProcessing file: {path}')
+                print(f"\nProcessing file: {path}")
 
                 # Summarize the contents of the file using Ollama API
                 summary = summarize_file(path)
@@ -92,9 +97,9 @@ if __name__ == '__main__':
                 # Check if we got a valid response from Ollama API
                 if summary is not None:
                     # Write the summary to an MD file
-                    result = ''.join(path.split('.')[:-1])
-                    md_path = '.' + result + '_tasks.md'
-                    write_summary_to_md(summary, f'{md_path}')
-                    print(f'Tasks written to {md_path}')
+                    result = "".join(path.split(".")[:-1])
+                    md_path = "." + result + "_tasks.md"
+                    write_summary_to_md(summary, f"{md_path}")
+                    print(f"Tasks written to {md_path}")
                 else:
-                    print(f'Failed to generate tasks for {path}')
+                    print(f"Failed to generate tasks for {path}")

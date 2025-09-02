@@ -4,13 +4,14 @@ Simple Trading CLI Tool
 A straightforward command-line interface for interacting with the trading system.
 """
 
+import argparse
 import json
 import sys
 import uuid
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import requests
-import argparse
 
 
 class TradingCLI:
@@ -30,7 +31,7 @@ class TradingCLI:
             "strategy_engine": self.strategy_engine_url,
             "risk_manager": self.risk_manager_url,
             "trade_executor": self.trade_executor_url,
-            "scheduler": self.scheduler_url
+            "scheduler": self.scheduler_url,
         }
 
         status = {}
@@ -38,9 +39,15 @@ class TradingCLI:
             try:
                 response = requests.get(f"{url}/health", timeout=5)
                 if response.status_code == 200:
-                    status[service_name] = {"status": "healthy", "data": response.json()}
+                    status[service_name] = {
+                        "status": "healthy",
+                        "data": response.json(),
+                    }
                 else:
-                    status[service_name] = {"status": "unhealthy", "error": f"HTTP {response.status_code}"}
+                    status[service_name] = {
+                        "status": "unhealthy",
+                        "error": f"HTTP {response.status_code}",
+                    }
             except Exception as e:
                 status[service_name] = {"status": "error", "error": str(e)}
 
@@ -67,7 +74,9 @@ class TradingCLI:
     def get_active_orders(self) -> Dict[str, Any]:
         """Get active orders."""
         try:
-            response = requests.get(f"{self.trade_executor_url}/orders/active", timeout=10)
+            response = requests.get(
+                f"{self.trade_executor_url}/orders/active", timeout=10
+            )
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -76,16 +85,25 @@ class TradingCLI:
     def get_strategies(self) -> Dict[str, Any]:
         """Get available trading strategies."""
         try:
-            response = requests.get(f"{self.strategy_engine_url}/strategies", timeout=10)
+            response = requests.get(
+                f"{self.strategy_engine_url}/strategies", timeout=10
+            )
             response.raise_for_status()
             return response.json()
         except Exception as e:
             return {"error": str(e)}
 
-    def create_trade_signal(self, symbol: str, signal_type: str, confidence: float,
-                          price: Optional[float] = None, quantity: Optional[int] = None,
-                          stop_loss: Optional[float] = None, take_profit: Optional[float] = None,
-                          strategy_name: str = "manual") -> Dict[str, Any]:
+    def create_trade_signal(
+        self,
+        symbol: str,
+        signal_type: str,
+        confidence: float,
+        price: Optional[float] = None,
+        quantity: Optional[int] = None,
+        stop_loss: Optional[float] = None,
+        take_profit: Optional[float] = None,
+        strategy_name: str = "manual",
+    ) -> Dict[str, Any]:
         """Create and execute a trade signal."""
         signal_data = {
             "id": str(uuid.uuid4()),
@@ -94,10 +112,7 @@ class TradingCLI:
             "timestamp": datetime.utcnow().isoformat() + "Z",
             "confidence": confidence,
             "strategy_name": strategy_name,
-            "metadata": {
-                "created_by": "simple_cli",
-                "manual_trade": True
-            }
+            "metadata": {"created_by": "simple_cli", "manual_trade": True},
         }
 
         if price is not None:
@@ -113,19 +128,29 @@ class TradingCLI:
             response = requests.post(
                 f"{self.trade_executor_url}/signals/execute",
                 json=signal_data,
-                timeout=30
+                timeout=30,
             )
             response.raise_for_status()
-            return {"status": "success", "signal_id": signal_data["id"], "response": response.json()}
+            return {
+                "status": "success",
+                "signal_id": signal_data["id"],
+                "response": response.json(),
+            }
         except requests.exceptions.Timeout:
-            return {"status": "timeout", "signal_id": signal_data["id"], "message": "Signal submitted but response timed out"}
+            return {
+                "status": "timeout",
+                "signal_id": signal_data["id"],
+                "message": "Signal submitted but response timed out",
+            }
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
     def cancel_order(self, order_id: str) -> Dict[str, Any]:
         """Cancel an active order."""
         try:
-            response = requests.post(f"{self.trade_executor_url}/orders/{order_id}/cancel", timeout=10)
+            response = requests.post(
+                f"{self.trade_executor_url}/orders/{order_id}/cancel", timeout=10
+            )
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -134,7 +159,9 @@ class TradingCLI:
     def get_performance(self) -> Dict[str, Any]:
         """Get performance summary."""
         try:
-            response = requests.get(f"{self.trade_executor_url}/performance/summary", timeout=10)
+            response = requests.get(
+                f"{self.trade_executor_url}/performance/summary", timeout=10
+            )
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -164,7 +191,9 @@ def format_account_info(account: Dict[str, Any]) -> None:
     print(f"💵 Cash: ${acc_data.get('cash', 0):,.2f}")
     print(f"🔋 Buying Power: ${acc_data.get('buying_power', 0):,.2f}")
     print(f"📊 Day Trades: {acc_data.get('day_trades_count', 0)}")
-    print(f"🏷️  PDT Status: {'Yes' if acc_data.get('pattern_day_trader', False) else 'No'}")
+    print(
+        f"🏷️  PDT Status: {'Yes' if acc_data.get('pattern_day_trader', False) else 'No'}"
+    )
 
     positions = account.get("positions", {})
     print(f"📈 Active Positions: {positions.get('count', 0)}")
@@ -184,8 +213,12 @@ def format_positions(positions: Dict[str, Any]) -> None:
         print("📭 No active positions")
     else:
         for pos in positions.get("positions", []):
-            print(f"📈 {pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
-            print(f"   Current: ${pos['current_price']:.2f} | P&L: ${pos['unrealized_pnl']:+.2f}")
+            print(
+                f"📈 {pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}"
+            )
+            print(
+                f"   Current: ${pos['current_price']:.2f} | P&L: ${pos['unrealized_pnl']:+.2f}"
+            )
     print()
 
 
@@ -201,8 +234,12 @@ def format_orders(orders: Dict[str, Any]) -> None:
     else:
         for order in orders.get("orders", []):
             side_emoji = "🟢" if order["side"] == "buy" else "🔴"
-            print(f"{side_emoji} {order['symbol']} {order['side'].upper()} {order['quantity']} @ {order['order_type']}")
-            print(f"   Status: {order['status']} | Submitted: {order['submitted_at'][:19]}")
+            print(
+                f"{side_emoji} {order['symbol']} {order['side'].upper()} {order['quantity']} @ {order['order_type']}"
+            )
+            print(
+                f"   Status: {order['status']} | Submitted: {order['submitted_at'][:19]}"
+            )
     print()
 
 
@@ -216,23 +253,42 @@ def format_strategies(strategies: Dict[str, Any]) -> None:
     for strategy in strategies.get("strategies", []):
         print(f"🎯 {strategy['name']} ({strategy['mode']})")
         info = strategy.get("info", {})
-        print(f"   Confidence: {info.get('min_confidence', 0)}% | Position Size: {info.get('max_position_size', 0)*100:.0f}%")
-        print(f"   Stop Loss: {info.get('stop_loss_pct', 0)*100:.1f}% | Take Profit: {info.get('take_profit_pct', 0)*100:.1f}%")
+        print(
+            f"   Confidence: {info.get('min_confidence', 0)}% | Position Size: {info.get('max_position_size', 0)*100:.0f}%"
+        )
+        print(
+            f"   Stop Loss: {info.get('stop_loss_pct', 0)*100:.1f}% | Take Profit: {info.get('take_profit_pct', 0)*100:.1f}%"
+        )
     print()
 
 
 def main():
     parser = argparse.ArgumentParser(description="Simple Trading System CLI")
-    parser.add_argument("command", choices=[
-        "status", "account", "positions", "orders", "strategies", "trade", "cancel", "performance"
-    ], help="Command to execute")
+    parser.add_argument(
+        "command",
+        choices=[
+            "status",
+            "account",
+            "positions",
+            "orders",
+            "strategies",
+            "trade",
+            "cancel",
+            "performance",
+        ],
+        help="Command to execute",
+    )
 
     # Trade command arguments
     parser.add_argument("--symbol", help="Trading symbol (e.g., AAPL)")
-    parser.add_argument("--action", choices=["buy", "sell", "close"], help="Trade action")
+    parser.add_argument(
+        "--action", choices=["buy", "sell", "close"], help="Trade action"
+    )
     parser.add_argument("--quantity", type=int, help="Number of shares")
     parser.add_argument("--price", type=float, help="Limit price (optional)")
-    parser.add_argument("--confidence", type=float, default=0.8, help="Signal confidence (0.0-1.0)")
+    parser.add_argument(
+        "--confidence", type=float, default=0.8, help="Signal confidence (0.0-1.0)"
+    )
     parser.add_argument("--stop-loss", type=float, help="Stop loss price")
     parser.add_argument("--take-profit", type=float, help="Take profit price")
     parser.add_argument("--strategy", default="manual", help="Strategy name")
@@ -283,7 +339,7 @@ def main():
             quantity=args.quantity,
             stop_loss=args.stop_loss,
             take_profit=args.take_profit,
-            strategy_name=args.strategy
+            strategy_name=args.strategy,
         )
 
         if result["status"] == "success":

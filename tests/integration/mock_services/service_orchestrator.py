@@ -8,31 +8,30 @@ of services and provides a unified interface for testing.
 
 import asyncio
 import logging
+import multiprocessing as mp
+import signal
+import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable
-import sys
-import signal
-from concurrent.futures import ThreadPoolExecutor
-import multiprocessing as mp
+from typing import Any, Callable, Dict, List, Optional
 
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.config import get_config, Config
-from shared.models import TimeFrame
+from services.risk_manager.src.main import RiskManagerApp
+from services.scheduler.src.main import SchedulerApp
 
 # Import service modules
 from services.strategy_engine.src.main import StrategyEngineApp
-from services.risk_manager.src.main import RiskManagerApp
 from services.trade_executor.src.main import TradeExecutorApp
-from services.scheduler.src.main import SchedulerApp
+from shared.config import Config, get_config
+from shared.models import TimeFrame
 
 from .mock_data_collector import MockDataCollector, MockDataCollectorConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +100,7 @@ class ServiceOrchestrator:
             "strategy_engine",
             "risk_manager",
             "trade_executor",
-            "scheduler"
+            "scheduler",
         ]
 
         for name in service_names:
@@ -163,7 +162,7 @@ class ServiceOrchestrator:
             ("trade_executor", self.trade_executor),
             ("risk_manager", self.risk_manager),
             ("strategy_engine", self.strategy_engine),
-            ("mock_data_collector", self.mock_data_collector)
+            ("mock_data_collector", self.mock_data_collector),
         ]
 
         for service_name, service_instance in services_to_stop:
@@ -188,7 +187,7 @@ class ServiceOrchestrator:
                 available_symbols=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"],
                 redis_publish_interval=30,
                 simulate_screener=True,
-                screener_interval=300
+                screener_interval=300,
             )
 
             self.mock_data_collector = MockDataCollector(config)
@@ -305,9 +304,11 @@ class ServiceOrchestrator:
         logger.info(f"Stopping {service_name}...")
 
         try:
-            if hasattr(service_instance, 'stop') and callable(service_instance.stop):
+            if hasattr(service_instance, "stop") and callable(service_instance.stop):
                 await service_instance.stop()
-            elif hasattr(service_instance, 'shutdown') and callable(service_instance.shutdown):
+            elif hasattr(service_instance, "shutdown") and callable(
+                service_instance.shutdown
+            ):
                 await service_instance.shutdown()
 
             # Stop associated thread
@@ -354,7 +355,7 @@ class ServiceOrchestrator:
             "strategy_engine": self.strategy_engine,
             "risk_manager": self.risk_manager,
             "trade_executor": self.trade_executor,
-            "scheduler": self.scheduler
+            "scheduler": self.scheduler,
         }
 
         service_instance = service_map.get(service_name)
@@ -363,7 +364,9 @@ class ServiceOrchestrator:
             return {"status": "not_started", "error": "Service instance not found"}
 
         try:
-            if hasattr(service_instance, 'health_check') and callable(service_instance.health_check):
+            if hasattr(service_instance, "health_check") and callable(
+                service_instance.health_check
+            ):
                 return await service_instance.health_check()
             else:
                 # Basic health check based on thread status
@@ -381,15 +384,19 @@ class ServiceOrchestrator:
         status = {
             "orchestrator_running": self.is_running,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "services": {}
+            "services": {},
         }
 
         for service_name, service_status in self.services.items():
             status["services"][service_name] = {
                 "status": service_status.status,
-                "started_at": service_status.started_at.isoformat() if service_status.started_at else None,
+                "started_at": (
+                    service_status.started_at.isoformat()
+                    if service_status.started_at
+                    else None
+                ),
                 "error": service_status.error,
-                "health": service_status.health_data
+                "health": service_status.health_data,
             }
 
         return status
@@ -410,7 +417,9 @@ class ServiceOrchestrator:
                 if service_info["status"] == "running":
                     ready_count += 1
                 elif service_info["status"] == "error":
-                    logger.error(f"Service {service_name} has error: {service_info['error']}")
+                    logger.error(
+                        f"Service {service_name} has error: {service_info['error']}"
+                    )
                     return False
 
             logger.info(f"Services ready: {ready_count}/{total_count}")
@@ -426,7 +435,9 @@ class ServiceOrchestrator:
 
     async def simulate_trading_day(self, duration_minutes: int = 30):
         """Simulate a trading day by advancing time and triggering events."""
-        logger.info(f"🎭 Starting trading day simulation for {duration_minutes} minutes...")
+        logger.info(
+            f"🎭 Starting trading day simulation for {duration_minutes} minutes..."
+        )
 
         if not self.mock_data_collector:
             raise ValueError("Mock data collector not started")
@@ -434,6 +445,7 @@ class ServiceOrchestrator:
         try:
             # Reset simulation to market open
             from datetime import date, timedelta
+
             today = date.today()
             await self.mock_data_collector.reset_simulation_date(today)
 
@@ -454,13 +466,16 @@ class ServiceOrchestrator:
             raise
 
 
-async def create_service_orchestrator(config: Optional[Config] = None) -> ServiceOrchestrator:
+async def create_service_orchestrator(
+    config: Optional[Config] = None,
+) -> ServiceOrchestrator:
     """Factory function to create a service orchestrator."""
     orchestrator = ServiceOrchestrator(config)
     return orchestrator
 
 
 if __name__ == "__main__":
+
     async def main():
         orchestrator = await create_service_orchestrator()
 
@@ -472,12 +487,12 @@ if __name__ == "__main__":
                 await orchestrator.simulate_trading_day(5)
 
                 status = await orchestrator.get_service_status()
-                print("\n" + "="*50)
+                print("\n" + "=" * 50)
                 print("INTEGRATION TEST COMPLETED")
-                print("="*50)
+                print("=" * 50)
                 for service_name, service_info in status["services"].items():
                     print(f"{service_name}: {service_info['status']}")
-                print("="*50)
+                print("=" * 50)
 
             else:
                 logger.error("Services failed to start properly")

@@ -5,26 +5,27 @@ This module tests JWT token creation, validation, decoding, and security feature
 including expiration, invalid tokens, and user extraction functionality.
 """
 
-import pytest
-import jwt
 import os
-from datetime import datetime, timezone, timedelta
-from unittest.mock import patch, MagicMock
-
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock, patch
+
+import jwt
+import pytest
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 from shared.security.jwt_utils import (
-    JWTManager,
     JWTConfig,
+    JWTManager,
     JWTPayload,
-    extract_token_from_header,
-    extract_user_id_from_request_header,
-    validate_token_from_header,
-    get_default_jwt_manager,
     create_access_token,
     decode_token,
-    validate_token
+    extract_token_from_header,
+    extract_user_id_from_request_header,
+    get_default_jwt_manager,
+    validate_token,
+    validate_token_from_header,
 )
 
 
@@ -37,7 +38,7 @@ def jwt_config():
         access_token_expire_minutes=30,
         refresh_token_expire_days=7,
         issuer="test-trading-system",
-        audience="test-trading-api"
+        audience="test-trading-api",
     )
 
 
@@ -56,7 +57,7 @@ def sample_payload():
         "service": "trade_executor",
         "roles": ["trader", "user"],
         "permissions": ["read", "write", "execute"],
-        "session_id": "session_abc123"
+        "session_id": "session_abc123",
     }
 
 
@@ -69,7 +70,7 @@ class TestJWTConfig:
             secret_key="a-very-long-secret-key-for-testing-purposes",
             algorithm="HS256",
             access_token_expire_minutes=60,
-            refresh_token_expire_days=14
+            refresh_token_expire_days=14,
         )
         assert config.secret_key == "a-very-long-secret-key-for-testing-purposes"
         assert config.algorithm == "HS256"
@@ -129,14 +130,19 @@ class TestJWTManager:
 
     def test_default_config_loading(self):
         """Test loading default configuration from environment."""
-        with patch.dict(os.environ, {
-            'JWT_SECRET': 'test-env-secret-key-that-is-long-enough',
-            'JWT_ALGORITHM': 'HS512',
-            'JWT_ACCESS_TOKEN_EXPIRE_MINUTES': '45'
-        }):
+        with patch.dict(
+            os.environ,
+            {
+                "JWT_SECRET": "test-env-secret-key-that-is-long-enough",
+                "JWT_ALGORITHM": "HS512",
+                "JWT_ACCESS_TOKEN_EXPIRE_MINUTES": "45",
+            },
+        ):
             manager = JWTManager()
-            assert manager.config.secret_key == 'test-env-secret-key-that-is-long-enough'
-            assert manager.config.algorithm == 'HS512'
+            assert (
+                manager.config.secret_key == "test-env-secret-key-that-is-long-enough"
+            )
+            assert manager.config.algorithm == "HS512"
             assert manager.config.access_token_expire_minutes == 45
 
     def test_create_access_token(self, jwt_manager, sample_payload):
@@ -151,7 +157,7 @@ class TestJWTManager:
             jwt_manager.config.secret_key,
             algorithms=[jwt_manager.config.algorithm],
             audience=jwt_manager.config.audience,
-            issuer=jwt_manager.config.issuer
+            issuer=jwt_manager.config.issuer,
         )
         assert decoded["user_id"] == "test_user_123"
         assert decoded["username"] == "testuser"
@@ -161,8 +167,7 @@ class TestJWTManager:
     def test_create_refresh_token(self, jwt_manager):
         """Test refresh token creation."""
         token = jwt_manager.create_refresh_token(
-            user_id="test_user",
-            session_id="session_123"
+            user_id="test_user", session_id="session_123"
         )
         assert isinstance(token, str)
 
@@ -172,7 +177,7 @@ class TestJWTManager:
             jwt_manager.config.secret_key,
             algorithms=[jwt_manager.config.algorithm],
             audience=jwt_manager.config.audience,
-            issuer=jwt_manager.config.issuer
+            issuer=jwt_manager.config.issuer,
         )
         assert decoded["user_id"] == "test_user"
         assert decoded["session_id"] == "session_123"
@@ -195,8 +200,7 @@ class TestJWTManager:
         # Create token with past expiration
         past_time = datetime.now(timezone.utc) - timedelta(hours=1)
         token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(seconds=-3600)  # Expired
+            user_id="test_user", expires_delta=timedelta(seconds=-3600)  # Expired
         )
 
         payload = jwt_manager.decode_token(token)
@@ -204,12 +208,7 @@ class TestJWTManager:
 
     def test_decode_invalid_token(self, jwt_manager):
         """Test decoding invalid JWT token."""
-        invalid_tokens = [
-            "invalid.token.format",
-            "not_a_jwt_token",
-            "",
-            None
-        ]
+        invalid_tokens = ["invalid.token.format", "not_a_jwt_token", "", None]
 
         for invalid_token in invalid_tokens:
             if invalid_token is not None:
@@ -268,8 +267,7 @@ class TestJWTManager:
 
         # Create expired token
         expired_token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(seconds=-1)  # Already expired
+            user_id="test_user", expires_delta=timedelta(seconds=-1)  # Already expired
         )
         assert jwt_manager.is_token_expired(expired_token) is True
 
@@ -277,8 +275,7 @@ class TestJWTManager:
         """Test refreshing access token."""
         # Create refresh token
         refresh_token = jwt_manager.create_refresh_token(
-            user_id="test_user",
-            session_id="session_123"
+            user_id="test_user", session_id="session_123"
         )
 
         # Refresh the access token
@@ -345,7 +342,9 @@ class TestJWTUtilityFunctions:
     def test_global_jwt_manager(self):
         """Test global JWT manager functionality."""
         # Set up environment to avoid config validation errors
-        with patch.dict(os.environ, {'JWT_SECRET': 'test-global-jwt-secret-key-for-testing'}):
+        with patch.dict(
+            os.environ, {"JWT_SECRET": "test-global-jwt-secret-key-for-testing"}
+        ):
             # Test getting default manager
             manager1 = get_default_jwt_manager()
             manager2 = get_default_jwt_manager()
@@ -384,8 +383,7 @@ class TestJWTSecurity:
         """Test different algorithm configurations."""
         # Test with HS512
         config_512 = JWTConfig(
-            secret_key="test-secret-key-for-hs512-algorithm-testing",
-            algorithm="HS512"
+            secret_key="test-secret-key-for-hs512-algorithm-testing", algorithm="HS512"
         )
         manager_512 = JWTManager(config_512)
 
@@ -394,8 +392,7 @@ class TestJWTSecurity:
 
         # HS256 manager shouldn't validate HS512 token
         config_256 = JWTConfig(
-            secret_key="test-secret-key-for-hs512-algorithm-testing",
-            algorithm="HS256"
+            secret_key="test-secret-key-for-hs512-algorithm-testing", algorithm="HS256"
         )
         manager_256 = JWTManager(config_256)
         assert manager_256.validate_token(token) is False
@@ -416,7 +413,7 @@ class TestJWTSecurity:
                 jwt_manager.config.secret_key,
                 algorithms=[jwt_manager.config.algorithm],
                 audience="wrong-audience",
-                issuer=jwt_manager.config.issuer
+                issuer=jwt_manager.config.issuer,
             )
 
     def test_issuer_validation(self, jwt_manager):
@@ -434,22 +431,20 @@ class TestJWTSecurity:
                 jwt_manager.config.secret_key,
                 algorithms=[jwt_manager.config.algorithm],
                 audience=jwt_manager.config.audience,
-                issuer="wrong-issuer"
+                issuer="wrong-issuer",
             )
 
     def test_token_expiration_scenarios(self, jwt_manager):
         """Test various token expiration scenarios."""
         # Token that expires in 1 second
         short_lived_token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(seconds=1)
+            user_id="test_user", expires_delta=timedelta(seconds=1)
         )
         assert jwt_manager.validate_token(short_lived_token) is True
 
         # Already expired token
         expired_token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(seconds=-1)
+            user_id="test_user", expires_delta=timedelta(seconds=-1)
         )
         assert jwt_manager.validate_token(expired_token) is False
         assert jwt_manager.is_token_expired(expired_token) is True
@@ -458,8 +453,7 @@ class TestJWTSecurity:
         """Test custom token expiration."""
         # 2 hour token
         long_token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(hours=2)
+            user_id="test_user", expires_delta=timedelta(hours=2)
         )
 
         payload = jwt_manager.decode_token(long_token)
@@ -480,7 +474,7 @@ class TestJWTIntegration:
             user_id="trade_executor_service",
             service="trade_executor",
             roles=["service"],
-            permissions=["execute_trades", "read_market_data"]
+            permissions=["execute_trades", "read_market_data"],
         )
 
         payload = jwt_manager.decode_token(token)
@@ -497,7 +491,7 @@ class TestJWTIntegration:
             username="trader_bob",
             session_id=session_id,
             roles=["trader", "user"],
-            permissions=["read", "trade"]
+            permissions=["read", "trade"],
         )
 
         payload = jwt_manager.decode_token(token)
@@ -513,7 +507,7 @@ class TestJWTIntegration:
             user_id="api_user",
             api_key_id=api_key_id,
             roles=["api_user"],
-            permissions=["read_only"]
+            permissions=["read_only"],
         )
 
         payload = jwt_manager.decode_token(token)
@@ -525,8 +519,7 @@ class TestJWTIntegration:
         """Test complete token refresh flow."""
         # Create initial refresh token
         refresh_token = jwt_manager.create_refresh_token(
-            user_id="test_user",
-            session_id="session_123"
+            user_id="test_user", session_id="session_123"
         )
 
         # Use refresh token to get new access token
@@ -571,8 +564,7 @@ class TestJWTErrorHandling:
         """Test decoding with disabled expiration verification."""
         # Create expired token
         expired_token = jwt_manager.create_access_token(
-            user_id="test_user",
-            expires_delta=timedelta(seconds=-1)
+            user_id="test_user", expires_delta=timedelta(seconds=-1)
         )
 
         # Should fail with verification
@@ -588,30 +580,36 @@ class TestJWTErrorHandling:
 class TestJWTEnvironmentIntegration:
     """Test JWT integration with environment variables."""
 
-    @patch.dict(os.environ, {
-        'JWT_SECRET': 'environment-jwt-secret-key-for-testing',
-        'JWT_ALGORITHM': 'HS512',
-        'JWT_ISSUER': 'test-issuer',
-        'JWT_AUDIENCE': 'test-audience'
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "JWT_SECRET": "environment-jwt-secret-key-for-testing",
+            "JWT_ALGORITHM": "HS512",
+            "JWT_ISSUER": "test-issuer",
+            "JWT_AUDIENCE": "test-audience",
+        },
+    )
     def test_environment_config_loading(self):
         """Test loading JWT config from environment variables."""
         manager = JWTManager()
 
-        assert manager.config.secret_key == 'environment-jwt-secret-key-for-testing'
-        assert manager.config.algorithm == 'HS512'
-        assert manager.config.issuer == 'test-issuer'
-        assert manager.config.audience == 'test-audience'
+        assert manager.config.secret_key == "environment-jwt-secret-key-for-testing"
+        assert manager.config.algorithm == "HS512"
+        assert manager.config.issuer == "test-issuer"
+        assert manager.config.audience == "test-audience"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_jwt_secret_fallback(self):
         """Test fallback when JWT secret is missing."""
-        with patch('shared.security.jwt_utils.logger') as mock_logger:
+        with patch("shared.security.jwt_utils.logger") as mock_logger:
             # Test with empty JWT secret environment
             manager = JWTManager()
 
             # Should use default secret and may log warning
-            assert "default-jwt-secret" in manager.config.secret_key or len(manager.config.secret_key) >= 32
+            assert (
+                "default-jwt-secret" in manager.config.secret_key
+                or len(manager.config.secret_key) >= 32
+            )
 
 
 class TestJWTSecurityBestPractices:
@@ -627,7 +625,7 @@ class TestJWTSecurityBestPractices:
             jwt_manager.config.secret_key,
             algorithms=[jwt_manager.config.algorithm],
             audience=jwt_manager.config.audience,
-            issuer=jwt_manager.config.issuer
+            issuer=jwt_manager.config.issuer,
         )
 
         # Check required claims are present
@@ -659,7 +657,11 @@ class TestJWTSecurityBestPractices:
 
         # All creation times should be within the test execution window (with some tolerance)
         for creation_time in creation_times:
-            assert start_time - timedelta(seconds=1) <= creation_time <= end_time + timedelta(seconds=1)
+            assert (
+                start_time - timedelta(seconds=1)
+                <= creation_time
+                <= end_time + timedelta(seconds=1)
+            )
 
     def test_token_uniqueness(self, jwt_manager):
         """Test that each token is unique even with same payload."""

@@ -6,45 +6,45 @@ including Redis signal processing, WebSocket connections, and service lifecycle 
 """
 
 import asyncio
+import json
 import logging
 import os
 import signal
 import sys
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
-import json
+from typing import Any, Dict, Optional
 
 import redis.asyncio as redis
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 from prometheus_client import Counter, Gauge, generate_latest
 
 # Add parent directories to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-
-from shared.models import TradeSignal
-from shared.config import get_config
-from .execution_engine import ExecutionEngine
-# from .alpaca_client import AlpacaClient  # Removed unused import
-
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 # Configure logging
 import os
 from pathlib import Path
 
-log_file_path = os.getenv('LOG_FILE_PATH', 'data/logs/trade_executor.log')
+from shared.config import get_config
+from shared.models import TradeSignal
+
+from .execution_engine import ExecutionEngine
+
+# from .alpaca_client import AlpacaClient  # Removed unused import
+
+
+
+log_file_path = os.getenv("LOG_FILE_PATH", "data/logs/trade_executor.log")
 log_path = Path(log_file_path).parent
 log_path.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file_path, mode='a')
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler(log_file_path, mode="a")],
 )
 
 logger = logging.getLogger(__name__)
@@ -63,10 +63,10 @@ class TradeExecutorService:
         self._running = False
         self._websocket_connections = set()
         self._signal_processing_stats = {
-            'total_processed': 0,
-            'successful_executions': 0,
-            'failed_executions': 0,
-            'last_signal_time': None
+            "total_processed": 0,
+            "successful_executions": 0,
+            "failed_executions": 0,
+            "last_signal_time": None,
         }
         self._screener_watchlist = set()
 
@@ -76,11 +76,13 @@ class TradeExecutorService:
             logger.info("Initializing Trade Executor Service...")
 
             # Initialize Redis connection
-            redis_url = self.config.redis.url if hasattr(self.config, 'redis') else 'redis://localhost:6379'
+            redis_url = (
+                self.config.redis.url
+                if hasattr(self.config, "redis")
+                else "redis://localhost:6379"
+            )
             self._redis = redis.from_url(
-                redis_url,
-                max_connections=30,
-                retry_on_timeout=True
+                redis_url, max_connections=30, retry_on_timeout=True
             )
 
             # Initialize execution engine
@@ -107,13 +109,16 @@ class TradeExecutorService:
 
             # Test Alpaca
             alpaca_health = await self.execution_engine.alpaca_client.health_check()
-            if alpaca_health['status'] != 'healthy':
+            if alpaca_health["status"] != "healthy":
                 logger.warning(f"Alpaca connection issues: {alpaca_health}")
             else:
                 logger.info("Alpaca connection successful")
 
             # Test database
-            if hasattr(self.execution_engine, '_db_pool') and self.execution_engine._db_pool:
+            if (
+                hasattr(self.execution_engine, "_db_pool")
+                and self.execution_engine._db_pool
+            ):
                 async with self.execution_engine._db_pool.acquire() as conn:
                     await conn.fetchval("SELECT 1")
                 logger.info("Database connection successful")
@@ -148,7 +153,11 @@ class TradeExecutorService:
 
                 if message["type"] == "message":
                     try:
-                        channel = message["channel"].decode() if isinstance(message["channel"], bytes) else message["channel"]
+                        channel = (
+                            message["channel"].decode()
+                            if isinstance(message["channel"], bytes)
+                            else message["channel"]
+                        )
                         if channel.startswith("signals:"):
                             await self._process_signal_message(message)
                         elif channel == "screener:updates":
@@ -176,7 +185,9 @@ class TradeExecutorService:
             screener_type = data.get("screener_type", "unknown")
             stocks_data = data.get("data", [])
 
-            logger.info(f"Processing screener update: {screener_type} with {len(stocks_data)} stocks")
+            logger.info(
+                f"Processing screener update: {screener_type} with {len(stocks_data)} stocks"
+            )
 
             # Update watchlist with new symbols
             new_symbols = set()
@@ -189,10 +200,14 @@ class TradeExecutorService:
             previous_count = len(self._screener_watchlist)
             self._screener_watchlist.update(new_symbols)
 
-            logger.info(f"Watchlist updated: {previous_count} -> {len(self._screener_watchlist)} symbols")
+            logger.info(
+                f"Watchlist updated: {previous_count} -> {len(self._screener_watchlist)} symbols"
+            )
 
             # Notify execution engine about new symbols
-            if self.execution_engine and hasattr(self.execution_engine, 'update_watchlist'):
+            if self.execution_engine and hasattr(
+                self.execution_engine, "update_watchlist"
+            ):
                 await self.execution_engine.update_watchlist(list(new_symbols))
 
         except Exception as e:
@@ -205,42 +220,50 @@ class TradeExecutorService:
             channel = message["channel"].decode()
             data = json.loads(message["data"])
 
-            logger.info(f"Received signal on channel {channel}: {data.get('symbol', 'unknown')}")
+            logger.info(
+                f"Received signal on channel {channel}: {data.get('symbol', 'unknown')}"
+            )
 
             # Extract symbol from channel if not in data
-            if 'symbol' not in data and ':' in channel:
-                data['symbol'] = channel.split(':')[-1]
+            if "symbol" not in data and ":" in channel:
+                data["symbol"] = channel.split(":")[-1]
 
             # Create trade signal
             signal = TradeSignal(**data)
 
             # Update stats
-            self._signal_processing_stats['total_processed'] += 1
-            self._signal_processing_stats['last_signal_time'] = datetime.now(timezone.utc)
+            self._signal_processing_stats["total_processed"] += 1
+            self._signal_processing_stats["last_signal_time"] = datetime.now(
+                timezone.utc
+            )
 
             # Execute signal
             result = await self.execution_engine.execute_signal(signal)
 
             # Update execution stats
-            if result.get('success'):
-                self._signal_processing_stats['successful_executions'] += 1
+            if result.get("success"):
+                self._signal_processing_stats["successful_executions"] += 1
                 logger.info(f"Signal {signal.id} executed successfully")
             else:
-                self._signal_processing_stats['failed_executions'] += 1
-                logger.warning(f"Signal {signal.id} execution failed: {result.get('error')}")
+                self._signal_processing_stats["failed_executions"] += 1
+                logger.warning(
+                    f"Signal {signal.id} execution failed: {result.get('error')}"
+                )
 
             # Broadcast result to WebSocket clients
-            await self._broadcast_to_websockets({
-                'type': 'execution_result',
-                'signal_id': str(signal.id),
-                'symbol': signal.symbol,
-                'result': result,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            })
+            await self._broadcast_to_websockets(
+                {
+                    "type": "execution_result",
+                    "signal_id": str(signal.id),
+                    "symbol": signal.symbol,
+                    "result": result,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
         except Exception as e:
             logger.error(f"Failed to process signal message: {e}")
-            self._signal_processing_stats['failed_executions'] += 1
+            self._signal_processing_stats["failed_executions"] += 1
 
     async def start_status_broadcaster(self):
         """Start broadcasting system status updates."""
@@ -252,13 +275,14 @@ class TradeExecutorService:
 
                     # Publish to Redis
                     if self._redis:
-                        await self._redis.publish("system_status", json.dumps(status, default=str))
+                        await self._redis.publish(
+                            "system_status", json.dumps(status, default=str)
+                        )
 
                     # Broadcast to WebSocket clients
-                    await self._broadcast_to_websockets({
-                        'type': 'system_status',
-                        'data': status
-                    })
+                    await self._broadcast_to_websockets(
+                        {"type": "system_status", "data": status}
+                    )
 
                     # Wait 30 seconds
                     await asyncio.sleep(30)
@@ -277,47 +301,59 @@ class TradeExecutorService:
             account_summary = await self.execution_engine.get_account_summary()
 
             # Get active orders count
-            active_orders = await self.execution_engine.order_manager.get_active_orders()
+            active_orders = (
+                await self.execution_engine.order_manager.get_active_orders()
+            )
 
             # Get positions count
             positions = await self.execution_engine.position_tracker.get_all_positions()
 
             # Get performance summary
-            performance = await self.execution_engine.performance_tracker.get_performance_summary(days=1)
+            performance = (
+                await self.execution_engine.performance_tracker.get_performance_summary(
+                    days=1
+                )
+            )
 
             return {
-                'service': 'trade_executor',
-                'status': 'running',
-                'timestamp': datetime.now(timezone.utc),
-                'signal_processing': self._signal_processing_stats,
-                'account': {
-                    'equity': account_summary.get('account', {}).get('equity', 0),
-                    'buying_power': account_summary.get('account', {}).get('buying_power', 0),
-                    'day_trades': account_summary.get('account', {}).get('day_trades_count', 0)
+                "service": "trade_executor",
+                "status": "running",
+                "timestamp": datetime.now(timezone.utc),
+                "signal_processing": self._signal_processing_stats,
+                "account": {
+                    "equity": account_summary.get("account", {}).get("equity", 0),
+                    "buying_power": account_summary.get("account", {}).get(
+                        "buying_power", 0
+                    ),
+                    "day_trades": account_summary.get("account", {}).get(
+                        "day_trades_count", 0
+                    ),
                 },
-                'positions': {
-                    'count': len(positions),
-                    'total_value': account_summary.get('positions', {}).get('total_market_value', 0),
-                    'unrealized_pnl': account_summary.get('positions', {}).get('total_unrealized_pnl', 0)
+                "positions": {
+                    "count": len(positions),
+                    "total_value": account_summary.get("positions", {}).get(
+                        "total_market_value", 0
+                    ),
+                    "unrealized_pnl": account_summary.get("positions", {}).get(
+                        "total_unrealized_pnl", 0
+                    ),
                 },
-                'orders': {
-                    'active_count': len(active_orders)
+                "orders": {"active_count": len(active_orders)},
+                "performance_today": {
+                    "trades": performance.get("total_trades", 0),
+                    "pnl": performance.get("total_pnl", 0),
+                    "win_rate": performance.get("win_rate", 0),
                 },
-                'performance_today': {
-                    'trades': performance.get('total_trades', 0),
-                    'pnl': performance.get('total_pnl', 0),
-                    'win_rate': performance.get('win_rate', 0)
-                },
-                'websocket_connections': len(self._websocket_connections)
+                "websocket_connections": len(self._websocket_connections),
             }
 
         except Exception as e:
             logger.error(f"Failed to get system status: {e}")
             return {
-                'service': 'trade_executor',
-                'status': 'error',
-                'error': str(e),
-                'timestamp': datetime.now(timezone.utc)
+                "service": "trade_executor",
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now(timezone.utc),
             }
 
     async def _broadcast_to_websockets(self, message: Dict[str, Any]):
@@ -391,7 +427,7 @@ app = FastAPI(
     title="Trade Execution Service",
     description="Automated trade execution service with Alpaca API integration",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -415,10 +451,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
         # Send initial status
         status = await app.state.service._get_system_status()
-        await websocket.send_json({
-            'type': 'connection_established',
-            'status': status
-        })
+        await websocket.send_json({"type": "connection_established", "status": status})
 
         # Keep connection alive
         while True:
@@ -428,7 +461,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # Handle client messages if needed
                 if message == "ping":
-                    await websocket.send_json({'type': 'pong', 'timestamp': datetime.now(timezone.utc).isoformat()})
+                    await websocket.send_json(
+                        {
+                            "type": "pong",
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                    )
 
             except WebSocketDisconnect:
                 break
@@ -450,7 +488,7 @@ async def root():
         "service": "trade_executor",
         "status": "running",
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "version": "1.0.0"
+        "version": "1.0.0",
     }
 
 
@@ -458,25 +496,25 @@ async def root():
 async def health_check():
     """Health check endpoint."""
     try:
-        if not hasattr(app.state, 'service'):
+        if not hasattr(app.state, "service"):
             return {"status": "initializing"}
 
         # Get detailed health from execution engine
         health = await app.state.service.execution_engine.alpaca_client.health_check()
 
         return {
-            "status": "healthy" if health.get('status') == 'healthy' else "degraded",
+            "status": "healthy" if health.get("status") == "healthy" else "degraded",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "alpaca": health,
             "signal_processing": app.state.service._signal_processing_stats,
-            "websocket_connections": len(app.state.service._websocket_connections)
+            "websocket_connections": len(app.state.service._websocket_connections),
         }
 
     except Exception as e:
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -489,8 +527,13 @@ async def get_stats():
         return {
             "signal_processing": service._signal_processing_stats,
             "websocket_connections": len(service._websocket_connections),
-            "uptime_seconds": (datetime.now(timezone.utc) - service._signal_processing_stats.get('start_time', datetime.now(timezone.utc))).total_seconds(),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "uptime_seconds": (
+                datetime.now(timezone.utc)
+                - service._signal_processing_stats.get(
+                    "start_time", datetime.now(timezone.utc)
+                )
+            ).total_seconds(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     except Exception as e:
@@ -506,14 +549,14 @@ async def execute_signal_direct(signal: TradeSignal):
             "success": True,
             "signal_id": signal.id,
             "result": result,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Direct signal execution failed: {e}")
         return {
             "success": False,
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -532,14 +575,18 @@ async def emergency_stop():
 async def get_positions():
     """Get all positions."""
     try:
-        positions = await app.state.service.execution_engine.position_tracker.get_all_positions()
-        metrics = await app.state.service.execution_engine.position_tracker.calculate_portfolio_metrics()
+        positions = (
+            await app.state.service.execution_engine.position_tracker.get_all_positions()
+        )
+        metrics = (
+            await app.state.service.execution_engine.position_tracker.calculate_portfolio_metrics()
+        )
 
         return {
             "positions": positions,
             "metrics": metrics,
             "count": len(positions),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get positions: {e}")
@@ -550,7 +597,11 @@ async def get_positions():
 async def get_position(symbol: str):
     """Get position for specific symbol."""
     try:
-        position = await app.state.service.execution_engine.position_tracker.get_position(symbol)
+        position = (
+            await app.state.service.execution_engine.position_tracker.get_position(
+                symbol
+            )
+        )
         if not position:
             return {"error": "Position not found"}
         return position
@@ -576,11 +627,13 @@ async def close_position(symbol: str, percentage: float = 1.0):
 async def get_active_orders():
     """Get active orders."""
     try:
-        orders = await app.state.service.execution_engine.order_manager.get_active_orders()
+        orders = (
+            await app.state.service.execution_engine.order_manager.get_active_orders()
+        )
         return {
             "orders": [order.dict() for order in orders],
             "count": len(orders),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get active orders: {e}")
@@ -592,13 +645,14 @@ async def cancel_order(order_id: str):
     """Cancel an order."""
     try:
         from uuid import UUID
+
         success = await app.state.service.execution_engine.order_manager.cancel_order(
             UUID(order_id), "API cancellation request"
         )
         return {
             "success": success,
             "order_id": order_id,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to cancel order {order_id}: {e}")
@@ -609,7 +663,9 @@ async def cancel_order(order_id: str):
 async def get_performance_summary(days: int = 30):
     """Get performance summary."""
     try:
-        summary = await app.state.service.execution_engine.performance_tracker.get_performance_summary(days)
+        summary = await app.state.service.execution_engine.performance_tracker.get_performance_summary(
+            days
+        )
         return summary
     except Exception as e:
         logger.error(f"Failed to get performance summary: {e}")
@@ -620,7 +676,9 @@ async def get_performance_summary(days: int = 30):
 async def get_daily_performance():
     """Get daily performance."""
     try:
-        performance = await app.state.service.execution_engine.performance_tracker.calculate_daily_performance()
+        performance = (
+            await app.state.service.execution_engine.performance_tracker.calculate_daily_performance()
+        )
         return performance
     except Exception as e:
         logger.error(f"Failed to get daily performance: {e}")
@@ -639,18 +697,22 @@ async def get_risk_report():
 
 
 @app.get("/export/tradenote")
-async def export_tradenote(start_date: Optional[str] = None, end_date: Optional[str] = None, strategy: Optional[str] = None):
+async def export_tradenote(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    strategy: Optional[str] = None,
+):
     """Export trades for TradeNote."""
     try:
         from datetime import date, timezone
 
-        start_dt = date.fromisoformat(start_date) if start_date else datetime.now().date()
+        start_dt = (
+            date.fromisoformat(start_date) if start_date else datetime.now().date()
+        )
         end_dt = date.fromisoformat(end_date) if end_date else datetime.now().date()
 
         trades = await app.state.service.execution_engine.performance_tracker.export_for_tradenote(
-            start_date=start_dt,
-            end_date=end_dt,
-            strategy_name=strategy or "default"
+            start_date=start_dt, end_date=end_dt, strategy_name=strategy or "default"
         )
 
         return {
@@ -659,9 +721,9 @@ async def export_tradenote(start_date: Optional[str] = None, end_date: Optional[
             "export_params": {
                 "start_date": start_date,
                 "end_date": end_date,
-                "strategy": strategy
+                "strategy": strategy,
             },
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to export TradeNote data: {e}")
@@ -683,7 +745,9 @@ async def get_account():
 async def sync_positions():
     """Sync positions with Alpaca."""
     try:
-        result = await app.state.service.execution_engine.position_tracker.sync_with_alpaca()
+        result = (
+            await app.state.service.execution_engine.position_tracker.sync_with_alpaca()
+        )
         return result
     except Exception as e:
         logger.error(f"Failed to sync positions: {e}")
@@ -694,7 +758,9 @@ async def sync_positions():
 async def get_execution_metrics(symbol: Optional[str] = None, days: int = 30):
     """Get execution quality metrics."""
     try:
-        metrics = await app.state.service.execution_engine.get_execution_metrics(symbol or "SPY", days)
+        metrics = await app.state.service.execution_engine.get_execution_metrics(
+            symbol or "SPY", days
+        )
         return metrics
     except Exception as e:
         logger.error(f"Failed to get execution metrics: {e}")
@@ -707,15 +773,30 @@ orders_failed_counter = None
 execution_latency_gauge = None
 service_health_gauge = None
 
+
 def _initialize_metrics():
     """Initialize Prometheus metrics if not already done."""
     global orders_executed_counter, orders_failed_counter, execution_latency_gauge, service_health_gauge
 
     if orders_executed_counter is None:
-        orders_executed_counter = Counter('trade_executor_orders_executed_total', 'Total orders executed', ['symbol', 'side'])
-        orders_failed_counter = Counter('trade_executor_orders_failed_total', 'Total orders failed', ['symbol', 'reason'])
-        execution_latency_gauge = Gauge('trade_executor_execution_latency_seconds', 'Order execution latency')
-        service_health_gauge = Gauge('trade_executor_service_health', 'Health status of components', ['component'])
+        orders_executed_counter = Counter(
+            "trade_executor_orders_executed_total",
+            "Total orders executed",
+            ["symbol", "side"],
+        )
+        orders_failed_counter = Counter(
+            "trade_executor_orders_failed_total",
+            "Total orders failed",
+            ["symbol", "reason"],
+        )
+        execution_latency_gauge = Gauge(
+            "trade_executor_execution_latency_seconds", "Order execution latency"
+        )
+        service_health_gauge = Gauge(
+            "trade_executor_service_health",
+            "Health status of components",
+            ["component"],
+        )
 
 
 @app.get("/metrics")
@@ -726,12 +807,17 @@ async def get_prometheus_metrics():
         _initialize_metrics()
 
         # Update metrics before returning them
-        service_health_gauge.labels(component='alpaca').set(1 if hasattr(app.state, 'service') else 0)
-        service_health_gauge.labels(component='service').set(1)
+        service_health_gauge.labels(component="alpaca").set(
+            1 if hasattr(app.state, "service") else 0
+        )
+        service_health_gauge.labels(component="service").set(1)
 
         # Generate Prometheus format
         metrics_output = generate_latest()
-        return Response(content=metrics_output, media_type="text/plain; version=0.0.4; charset=utf-8")
+        return Response(
+            content=metrics_output,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
 
     except Exception as e:
         logger.error(f"Error generating metrics: {e}")
@@ -740,6 +826,7 @@ async def get_prometheus_metrics():
 
 def setup_signal_handlers(service: TradeExecutorService):
     """Setup graceful shutdown signal handlers."""
+
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}, initiating shutdown...")
         asyncio.create_task(service.cleanup())
@@ -784,7 +871,7 @@ async def main():
             port=port,
             log_level="info",
             access_log=True,
-            loop="asyncio"
+            loop="asyncio",
         )
 
         server = uvicorn.Server(uvicorn_config)

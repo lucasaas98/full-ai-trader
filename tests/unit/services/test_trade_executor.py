@@ -1,18 +1,25 @@
-import pytest
-import pytest_asyncio
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
+import pytest
+import pytest_asyncio
 
 from services.trade_executor.src.main import TradeExecutorService
-from shared.models import (
-    OrderRequest, OrderResponse, OrderSide, OrderType, OrderStatus,
-    Trade, Position, TradeSignal, SignalType
-)
 from shared.config import Config
+from shared.models import (
+    OrderRequest,
+    OrderResponse,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    Position,
+    SignalType,
+    Trade,
+    TradeSignal,
+)
 
 
 class TestTradeExecutorService:
@@ -52,7 +59,9 @@ class TestTradeExecutorService:
         """Mock database connection pool"""
         pool_mock = AsyncMock()
         connection_mock = AsyncMock()
-        pool_mock.acquire.return_value.__aenter__ = AsyncMock(return_value=connection_mock)
+        pool_mock.acquire.return_value.__aenter__ = AsyncMock(
+            return_value=connection_mock
+        )
         pool_mock.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
         connection_mock.execute = AsyncMock()
         connection_mock.fetch = AsyncMock()
@@ -83,7 +92,7 @@ class TestTradeExecutorService:
             price=Decimal("200.0"),
             time_in_force="day",
             stop_price=None,
-            client_order_id=None
+            client_order_id=None,
         )
 
     @pytest.fixture
@@ -99,14 +108,15 @@ class TestTradeExecutorService:
             stop_loss=Decimal("190.0"),
             take_profit=Decimal("220.0"),
             strategy_name="moving_average",
-            metadata={}
+            metadata={},
         )
 
     @pytest_asyncio.fixture
     async def service(self, mock_config, mock_redis, mock_db_pool, mock_alpaca_client):
         """Create TradeExecutorService instance for testing"""
-        with patch('main.get_config', return_value=mock_config), \
-             patch('main.aioredis.from_url', return_value=mock_redis):
+        with patch("main.get_config", return_value=mock_config), patch(
+            "main.aioredis.from_url", return_value=mock_redis
+        ):
             service = TradeExecutorService()
             # Mock the execution engine components
             service.execution_engine.alpaca_client = mock_alpaca_client
@@ -130,12 +140,16 @@ class TestTradeExecutorService:
             submitted_at=datetime.now(timezone.utc),
             filled_at=None,
             cancelled_at=None,
-            commission=None
+            commission=None,
         )
 
-        service.execution_engine.alpaca_client.place_order = AsyncMock(return_value=mock_order_response)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            return_value=mock_order_response
+        )
 
-        response = await service.execution_engine.alpaca_client.place_order(sample_order_request)
+        response = await service.execution_engine.alpaca_client.place_order(
+            sample_order_request
+        )
 
         assert response.broker_order_id == "order_123"
         assert response.status == OrderStatus.PENDING
@@ -145,19 +159,27 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_submit_order_alpaca_error(self, service, sample_order_request):
         """Test order submission with Alpaca API error"""
-        service.execution_engine.alpaca_client.place_order = AsyncMock(side_effect=Exception("Alpaca API error"))
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            side_effect=Exception("Alpaca API error")
+        )
 
         with pytest.raises(Exception, match="Alpaca API error"):
-            await service.execution_engine.alpaca_client.place_order(sample_order_request)
+            await service.execution_engine.alpaca_client.place_order(
+                sample_order_request
+            )
 
     @pytest.mark.asyncio
     async def test_submit_order_insufficient_funds(self, service, sample_order_request):
         """Test order submission with insufficient funds"""
         mock_error = Exception("Insufficient funds")
-        service.execution_engine.alpaca_client.place_order = AsyncMock(side_effect=mock_error)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            side_effect=mock_error
+        )
 
         with pytest.raises(Exception, match="Insufficient funds"):
-            await service.execution_engine.alpaca_client.place_order(sample_order_request)
+            await service.execution_engine.alpaca_client.place_order(
+                sample_order_request
+            )
 
     @pytest.mark.asyncio
     async def test_submit_order_invalid_symbol(self, service):
@@ -169,11 +191,13 @@ class TestTradeExecutorService:
             quantity=100,
             price=Decimal("200.0"),
             stop_price=None,
-            client_order_id=None
+            client_order_id=None,
         )
 
         alpaca_error = Exception("422 Unprocessable Entity: invalid symbol")
-        service.execution_engine.alpaca_client.place_order = AsyncMock(side_effect=alpaca_error)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            side_effect=alpaca_error
+        )
 
         with pytest.raises(Exception, match="invalid symbol"):
             await service.execution_engine.alpaca_client.place_order(invalid_order)
@@ -191,9 +215,13 @@ class TestTradeExecutorService:
         mock_alpaca_order.qty = 100
         mock_alpaca_order.filled_at = datetime.now(timezone.utc)
 
-        service.execution_engine.alpaca_client.get_order_by_id = AsyncMock(return_value=mock_alpaca_order)
+        service.execution_engine.alpaca_client.get_order_by_id = AsyncMock(
+            return_value=mock_alpaca_order
+        )
 
-        order_status = await service.execution_engine.alpaca_client.get_order_by_id("order_123")
+        order_status = await service.execution_engine.alpaca_client.get_order_by_id(
+            "order_123"
+        )
 
         assert order_status.id == "order_123"
         assert order_status.status == "filled"
@@ -203,25 +231,37 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_get_order_status_not_found(self, service):
         """Test order status retrieval for non-existent order"""
-        service.execution_engine.alpaca_client.get_order_by_id = AsyncMock(side_effect=Exception("Order not found"))
+        service.execution_engine.alpaca_client.get_order_by_id = AsyncMock(
+            side_effect=Exception("Order not found")
+        )
 
         with pytest.raises(Exception, match="Order not found"):
-            await service.execution_engine.alpaca_client.get_order_by_id("nonexistent_order")
+            await service.execution_engine.alpaca_client.get_order_by_id(
+                "nonexistent_order"
+            )
 
     @pytest.mark.asyncio
     async def test_cancel_order_success(self, service):
         """Test successful order cancellation"""
-        service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(return_value=True)
+        service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(
+            return_value=True
+        )
 
-        result = await service.execution_engine.alpaca_client.cancel_order_by_id("order_123")
+        result = await service.execution_engine.alpaca_client.cancel_order_by_id(
+            "order_123"
+        )
 
         assert result is True
-        service.execution_engine.alpaca_client.cancel_order_by_id.assert_called_once_with("order_123")
+        service.execution_engine.alpaca_client.cancel_order_by_id.assert_called_once_with(
+            "order_123"
+        )
 
     @pytest.mark.asyncio
     async def test_cancel_order_already_filled(self, service):
         """Test cancellation of already filled order"""
-        service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(side_effect=Exception("Order already filled"))
+        service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(
+            side_effect=Exception("Order already filled")
+        )
 
         with pytest.raises(Exception, match="Order already filled"):
             await service.execution_engine.alpaca_client.cancel_order_by_id("order_123")
@@ -233,28 +273,38 @@ class TestTradeExecutorService:
         mock_execution_result = {
             "success": True,
             "order_id": str(uuid4()),
-            "message": "Signal executed successfully"
+            "message": "Signal executed successfully",
         }
 
-        service.execution_engine.order_manager.process_signal = AsyncMock(return_value=mock_execution_result)
+        service.execution_engine.order_manager.process_signal = AsyncMock(
+            return_value=mock_execution_result
+        )
 
-        execution_result = await service.execution_engine.execute_signal(sample_trade_signal)
+        execution_result = await service.execution_engine.execute_signal(
+            sample_trade_signal
+        )
 
         assert execution_result["success"] is True
         assert "order_id" in execution_result
-        service.execution_engine.order_manager.process_signal.assert_called_once_with(sample_trade_signal)
+        service.execution_engine.order_manager.process_signal.assert_called_once_with(
+            sample_trade_signal
+        )
 
     @pytest.mark.asyncio
-    async def test_execute_trade_signal_risk_rejection(self, service, sample_trade_signal):
+    async def test_execute_trade_signal_risk_rejection(
+        self, service, sample_trade_signal
+    ):
         """Test trade signal execution rejected by risk manager"""
         # Mock order manager to simulate risk rejection
         mock_rejection_result = {
             "success": False,
             "error": "Exceeds risk limits",
-            "rejected_by": "risk_manager"
+            "rejected_by": "risk_manager",
         }
 
-        service.execution_engine.order_manager.process_signal = AsyncMock(return_value=mock_rejection_result)
+        service.execution_engine.order_manager.process_signal = AsyncMock(
+            return_value=mock_rejection_result
+        )
 
         result = await service.execution_engine.execute_signal(sample_trade_signal)
 
@@ -273,7 +323,7 @@ class TestTradeExecutorService:
             quantity=100,
             stop_loss=Decimal("190.0"),
             take_profit=Decimal("220.0"),
-            strategy_name="moving_average"
+            strategy_name="moving_average",
         )
 
         # Mock successful sell execution
@@ -282,10 +332,12 @@ class TestTradeExecutorService:
             "order_id": str(uuid4()),
             "side": "sell",
             "quantity": 100,
-            "message": "Sell signal executed successfully"
+            "message": "Sell signal executed successfully",
         }
 
-        service.execution_engine.order_manager.process_signal = AsyncMock(return_value=mock_execution_result)
+        service.execution_engine.order_manager.process_signal = AsyncMock(
+            return_value=mock_execution_result
+        )
 
         result = await service.execution_engine.execute_signal(signal)
 
@@ -306,17 +358,19 @@ class TestTradeExecutorService:
             strategy_name="moving_average",
             metadata={},
             stop_loss=Decimal("190.0"),
-            take_profit=Decimal("210.0")
+            take_profit=Decimal("210.0"),
         )
 
         # Mock no position rejection
         mock_rejection_result = {
             "success": False,
             "error": "No position exists for AAPL",
-            "rejected_by": "position_validator"
+            "rejected_by": "position_validator",
         }
 
-        service.execution_engine.order_manager.process_signal = AsyncMock(return_value=mock_rejection_result)
+        service.execution_engine.order_manager.process_signal = AsyncMock(
+            return_value=mock_rejection_result
+        )
 
         result = await service.execution_engine.execute_signal(signal)
 
@@ -333,16 +387,20 @@ class TestTradeExecutorService:
             quantity=100,
             price=Decimal("195.0"),
             stop_price=None,
-            client_order_id=None
+            client_order_id=None,
         )
 
         mock_alpaca_response = Mock()
         mock_alpaca_response.id = "limit_order_123"
         mock_alpaca_response.status = "accepted"
         mock_alpaca_response.limit_price = Decimal("195.0")
-        service.execution_engine.alpaca_client.place_order = AsyncMock(return_value=mock_alpaca_response)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            return_value=mock_alpaca_response
+        )
 
-        order_response = await service.execution_engine.alpaca_client.place_order(limit_order)
+        order_response = await service.execution_engine.alpaca_client.place_order(
+            limit_order
+        )
 
         assert order_response.status == OrderStatus.PENDING
         assert order_response.price == Decimal("195.0")
@@ -357,16 +415,20 @@ class TestTradeExecutorService:
             quantity=100,
             price=Decimal("190.0"),
             stop_price=Decimal("190.0"),
-            client_order_id=None
+            client_order_id=None,
         )
 
         mock_alpaca_response = Mock()
         mock_alpaca_response.id = "stop_order_123"
         mock_alpaca_response.status = "accepted"
         mock_alpaca_response.stop_price = Decimal("190.0")
-        service.execution_engine.alpaca_client.place_order = AsyncMock(return_value=mock_alpaca_response)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            return_value=mock_alpaca_response
+        )
 
-        order_response = await service.execution_engine.alpaca_client.place_order(stop_order)
+        order_response = await service.execution_engine.alpaca_client.place_order(
+            stop_order
+        )
 
         assert order_response.status == OrderStatus.PENDING
         assert order_response.order_type == OrderType.STOP
@@ -381,16 +443,20 @@ class TestTradeExecutorService:
             quantity=100,
             price=Decimal("200.0"),
             stop_price=Decimal("190.0"),  # Stop loss
-            client_order_id=None
+            client_order_id=None,
         )
 
         mock_alpaca_response = Mock()
         mock_alpaca_response.id = "bracket_order_123"
         mock_alpaca_response.status = "accepted"
         mock_alpaca_response.legs = [Mock(), Mock()]  # Stop loss and take profit legs
-        service.execution_engine.alpaca_client.place_order = AsyncMock(return_value=mock_alpaca_response)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            return_value=mock_alpaca_response
+        )
 
-        order_response = await service.execution_engine.alpaca_client.place_order(bracket_order)
+        order_response = await service.execution_engine.alpaca_client.place_order(
+            bracket_order
+        )
 
         assert order_response.status == OrderStatus.PENDING
         assert "bracket" in order_response.message.lower()
@@ -409,7 +475,9 @@ class TestTradeExecutorService:
         mock_account.multiplier = "4"
         mock_account.pattern_day_trader = False
 
-        service.execution_engine.alpaca_client.get_account = AsyncMock(return_value=mock_account)
+        service.execution_engine.alpaca_client.get_account = AsyncMock(
+            return_value=mock_account
+        )
 
         account_info = await service.execution_engine.alpaca_client.get_account()
 
@@ -420,7 +488,9 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_get_account_info_api_error(self, service):
         """Test account information retrieval with API error"""
-        service.execution_engine.alpaca_client.get_account = AsyncMock(side_effect=Exception("API error"))
+        service.execution_engine.alpaca_client.get_account = AsyncMock(
+            side_effect=Exception("API error")
+        )
 
         with pytest.raises(Exception, match="API error"):
             await service.execution_engine.alpaca_client.get_account()
@@ -435,7 +505,7 @@ class TestTradeExecutorService:
                 market_value="20000.00",
                 cost_basis="19000.00",
                 unrealized_pl="1000.00",
-                side="long"
+                side="long",
             ),
             Mock(
                 symbol="GOOGL",
@@ -443,11 +513,13 @@ class TestTradeExecutorService:
                 market_value="15000.00",
                 cost_basis="14500.00",
                 unrealized_pl="500.00",
-                side="long"
-            )
+                side="long",
+            ),
         ]
 
-        service.execution_engine.alpaca_client.get_all_positions = AsyncMock(return_value=mock_positions)
+        service.execution_engine.alpaca_client.get_all_positions = AsyncMock(
+            return_value=mock_positions
+        )
 
         positions = await service.execution_engine.alpaca_client.get_all_positions()
 
@@ -459,7 +531,9 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_get_positions_empty(self, service):
         """Test positions retrieval when no positions exist"""
-        service.execution_engine.alpaca_client.get_all_positions = AsyncMock(return_value=[])
+        service.execution_engine.alpaca_client.get_all_positions = AsyncMock(
+            return_value=[]
+        )
 
         positions = await service.execution_engine.alpaca_client.get_all_positions()
 
@@ -471,12 +545,18 @@ class TestTradeExecutorService:
         mock_close_response = Mock()
         mock_close_response.id = "close_order_123"
         mock_close_response.status = "filled"
-        service.execution_engine.alpaca_client.close_position = AsyncMock(return_value=mock_close_response)
+        service.execution_engine.alpaca_client.close_position = AsyncMock(
+            return_value=mock_close_response
+        )
 
-        result = await service.execution_engine.alpaca_client.close_position("AAPL", qty="100%")
+        result = await service.execution_engine.alpaca_client.close_position(
+            "AAPL", qty="100%"
+        )
 
         assert result is not None
-        service.execution_engine.alpaca_client.close_position.assert_called_once_with("AAPL", qty="100%")
+        service.execution_engine.alpaca_client.close_position.assert_called_once_with(
+            "AAPL", qty="100%"
+        )
 
     @pytest.mark.asyncio
     async def test_close_position_partial(self, service):
@@ -484,23 +564,33 @@ class TestTradeExecutorService:
         mock_close_response = Mock()
         mock_close_response.id = "partial_close_123"
         mock_close_response.status = "filled"
-        service.execution_engine.alpaca_client.close_position = AsyncMock(return_value=mock_close_response)
+        service.execution_engine.alpaca_client.close_position = AsyncMock(
+            return_value=mock_close_response
+        )
 
-        result = await service.execution_engine.alpaca_client.close_position("AAPL", qty="50%")
+        result = await service.execution_engine.alpaca_client.close_position(
+            "AAPL", qty="50%"
+        )
 
         assert result is not None
-        service.execution_engine.alpaca_client.close_position.assert_called_once_with("AAPL", qty="50%")
+        service.execution_engine.alpaca_client.close_position.assert_called_once_with(
+            "AAPL", qty="50%"
+        )
 
     @pytest.mark.asyncio
     async def test_close_position_not_found(self, service):
         """Test closing non-existent position"""
-        service.execution_engine.alpaca_client.close_position = AsyncMock(side_effect=Exception("404 Not Found"))
+        service.execution_engine.alpaca_client.close_position = AsyncMock(
+            side_effect=Exception("404 Not Found")
+        )
 
         with pytest.raises(Exception, match="404 Not Found"):
             await service.execution_engine.alpaca_client.close_position("NONEXISTENT")
 
     @pytest.mark.asyncio
-    async def test_order_execution_latency_tracking(self, service, sample_order_request):
+    async def test_order_execution_latency_tracking(
+        self, service, sample_order_request
+    ):
         """Test order execution latency tracking"""
         start_time = datetime.now(timezone.utc)
 
@@ -508,7 +598,9 @@ class TestTradeExecutorService:
         mock_alpaca_response.id = "latency_test_123"
         mock_alpaca_response.status = "filled"
         mock_alpaca_response.filled_at = start_time + timedelta(milliseconds=50)
-        service.execution_engine.alpaca_client.place_order = AsyncMock(return_value=mock_alpaca_response)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            return_value=mock_alpaca_response
+        )
 
         start_time = datetime.now(timezone.utc)
         await service.execution_engine.alpaca_client.place_order(sample_order_request)
@@ -517,8 +609,6 @@ class TestTradeExecutorService:
 
         # Verify latency is reasonable (less than 1000ms for mocked call)
         assert latency < 1000
-
-
 
     @pytest.mark.asyncio
     async def test_order_routing_optimization(self, service, sample_order_request):
@@ -529,11 +619,15 @@ class TestTradeExecutorService:
             "ask": 200.05,
             "bid_size": 1000,
             "ask_size": 800,
-            "volume": 2000000
+            "volume": 2000000,
         }
 
-        with patch.object(service, 'get_real_time_market_data', return_value=market_data):
-            routing_decision = await service.optimize_order_routing(sample_order_request)
+        with patch.object(
+            service, "get_real_time_market_data", return_value=market_data
+        ):
+            routing_decision = await service.optimize_order_routing(
+                sample_order_request
+            )
 
             assert "venue" in routing_decision
             assert "expected_cost" in routing_decision
@@ -549,11 +643,12 @@ class TestTradeExecutorService:
             quantity=10000,  # Large quantity
             price=Decimal("200.0"),
             stop_price=None,
-            client_order_id=None
+            client_order_id=None,
         )
 
-        with patch.object(service, 'get_average_daily_volume', return_value=50000000), \
-             patch.object(service, 'submit_order') as mock_submit:
+        with patch.object(
+            service, "get_average_daily_volume", return_value=50000000
+        ), patch.object(service, "submit_order") as mock_submit:
 
             # Mock successful order submissions
             mock_submit.return_value = OrderResponse(
@@ -569,7 +664,7 @@ class TestTradeExecutorService:
                 submitted_at=datetime.now(timezone.utc),
                 filled_at=None,
                 cancelled_at=None,
-                commission=None
+                commission=None,
             )
 
             fragment_orders = await service.fragment_large_order(large_order)
@@ -585,10 +680,12 @@ class TestTradeExecutorService:
         liquidity_analysis = {
             "lit_markets": {"total_size": 5000, "weighted_price": 200.02},
             "dark_pools": {"estimated_size": 2000, "estimated_price": 200.00},
-            "recommendation": "dark_pool"
+            "recommendation": "dark_pool",
         }
 
-        with patch.object(service, 'analyze_market_liquidity', return_value=liquidity_analysis):
+        with patch.object(
+            service, "analyze_market_liquidity", return_value=liquidity_analysis
+        ):
             routing = await service.smart_order_routing(sample_order_request)
 
             assert routing["recommended_venue"] == "dark_pool"
@@ -603,13 +700,19 @@ class TestTradeExecutorService:
             "historical_spread": 0.08,
             "volume_pattern": "increasing",
             "volatility": "low",
-            "recommendation": "execute_now"
+            "recommendation": "execute_now",
         }
 
-        with patch.object(service, 'analyze_market_microstructure', return_value=microstructure_data):
+        with patch.object(
+            service, "analyze_market_microstructure", return_value=microstructure_data
+        ):
             timing_decision = await service.optimize_order_timing(sample_order_request)
 
-            assert timing_decision["recommendation"] in ["execute_now", "delay", "split_execution"]
+            assert timing_decision["recommendation"] in [
+                "execute_now",
+                "delay",
+                "split_execution",
+            ]
 
     @pytest.mark.asyncio
     async def test_trade_reporting_and_analytics(self, service):
@@ -626,7 +729,7 @@ class TestTradeExecutorService:
                 commission=Decimal("1.0"),
                 strategy_name="moving_average",
                 pnl=Decimal("10.0"),
-                fees=Decimal("0.5")
+                fees=Decimal("0.5"),
             ),
             Trade(
                 id=uuid4(),
@@ -639,11 +742,11 @@ class TestTradeExecutorService:
                 commission=Decimal("1.0"),
                 strategy_name="moving_average",
                 pnl=Decimal("10.0"),
-                fees=Decimal("0.5")
-            )
+                fees=Decimal("0.5"),
+            ),
         ]
 
-        with patch.object(service, 'get_recent_trades', return_value=mock_trades):
+        with patch.object(service, "get_recent_trades", return_value=mock_trades):
             analytics = await service.generate_trade_analytics(days=7)
 
             assert analytics["total_trades"] == 2
@@ -659,10 +762,10 @@ class TestTradeExecutorService:
             "side": "buy",
             "quantity": 100,
             "fill_price": 199.80,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-        with patch.object(service, 'process_fill_notification') as mock_process:
+        with patch.object(service, "process_fill_notification") as mock_process:
             await service.handle_order_fill(fill_notification)
 
             mock_process.assert_called_once_with(fill_notification)
@@ -676,7 +779,7 @@ class TestTradeExecutorService:
             "total_quantity": 100,
             "filled_quantity": 30,
             "remaining_quantity": 70,
-            "fill_price": 199.80
+            "fill_price": 199.80,
         }
 
         await service.handle_partial_fill(partial_fill)
@@ -692,22 +795,28 @@ class TestTradeExecutorService:
             "invalid symbol",
             "market closed",
             "halted stock",
-            "invalid order type"
+            "invalid order type",
         ]
 
         for reason in rejection_reasons:
             alpaca_error = Exception(f"422 Unprocessable Entity: {reason}")
-            service.execution_engine.alpaca_client.place_order = AsyncMock(side_effect=alpaca_error)
+            service.execution_engine.alpaca_client.place_order = AsyncMock(
+                side_effect=alpaca_error
+            )
 
             with pytest.raises(Exception, match=reason):
-                await service.execution_engine.alpaca_client.place_order(sample_order_request)
+                await service.execution_engine.alpaca_client.place_order(
+                    sample_order_request
+                )
 
     @pytest.mark.asyncio
     async def test_order_timeout_handling(self, service, sample_order_request):
         """Test handling of order timeouts"""
         # Mock timeout scenario
-        with patch('asyncio.wait_for', side_effect=asyncio.TimeoutError()):
-            order_response = await service.submit_order_with_timeout(sample_order_request, timeout=5.0)
+        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+            order_response = await service.submit_order_with_timeout(
+                sample_order_request, timeout=5.0
+            )
 
             assert order_response.status == OrderStatus.REJECTED
             assert "timeout" in order_response.message.lower()
@@ -728,11 +837,15 @@ class TestTradeExecutorService:
             mock_response.status = "accepted"
             return mock_response
 
-        service.execution_engine.alpaca_client.place_order = AsyncMock(side_effect=mock_submit_with_retry)
+        service.execution_engine.alpaca_client.place_order = AsyncMock(
+            side_effect=mock_submit_with_retry
+        )
 
         # Mock retry mechanism since submit_order_with_retry might not exist
-        with patch('tenacity.retry', return_value=lambda f: f):
-            order_response = await service.execution_engine.alpaca_client.place_order(sample_order_request)
+        with patch("tenacity.retry", return_value=lambda f: f):
+            order_response = await service.execution_engine.alpaca_client.place_order(
+                sample_order_request
+            )
 
         assert order_response.status == OrderStatus.PENDING
         assert call_count == 3  # Should have retried 3 times
@@ -744,7 +857,7 @@ class TestTradeExecutorService:
             "symbol": "AAPL",
             "quantity": 100,
             "price": 200.0,
-            "side": "buy"
+            "side": "buy",
         }
 
         trading_costs = await service.calculate_trading_costs(order_details)
@@ -759,10 +872,14 @@ class TestTradeExecutorService:
     async def test_pre_market_trading_validation(self, service, sample_order_request):
         """Test pre-market trading validation"""
         # Mock pre-market hours
-        with patch.object(service.execution_engine, 'is_pre_market_hours', return_value=True):
+        with patch.object(
+            service.execution_engine, "is_pre_market_hours", return_value=True
+        ):
             # Mock validation method since it might not exist
             mock_validation = AsyncMock(return_value=True)
             service.execution_engine.validate_pre_market_order = mock_validation
 
-            is_valid = await service.execution_engine.validate_pre_market_order(sample_order_request)
+            is_valid = await service.execution_engine.validate_pre_market_order(
+                sample_order_request
+            )
             assert is_valid is True

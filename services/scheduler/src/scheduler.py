@@ -10,33 +10,32 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import datetime, time, timedelta
-
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Callable, Any
 from dataclasses import dataclass
+from datetime import datetime, time, timedelta
 from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set
+
+import httpx
+import psutil
 import pytz
+import redis.asyncio as redis
+from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.jobstores.redis import RedisJobStore
-from apscheduler.executors.asyncio import AsyncIOExecutor
-# import pandas_market_calendars as mcal  # Temporarily disabled due to version conflicts
-import redis.asyncio as redis
-import httpx
-import psutil
 from circuitbreaker import circuit
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from shared.market_hours import MarketHoursService
 
-
 logger = logging.getLogger(__name__)
 
 # Global scheduler instance reference for task execution
 _scheduler_instance = None
+
 
 async def execute_scheduled_task(task_id: str):
     """Global function for executing scheduled tasks without scheduler serialization issues."""
@@ -50,6 +49,7 @@ async def execute_scheduled_task(task_id: str):
 
 class ServiceStatus(str, Enum):
     """Service status enumeration."""
+
     STARTING = "starting"
     RUNNING = "running"
     STOPPING = "stopping"
@@ -60,6 +60,7 @@ class ServiceStatus(str, Enum):
 
 class TaskPriority(str, Enum):
     """Task priority levels."""
+
     CRITICAL = "critical"
     HIGH = "high"
     NORMAL = "normal"
@@ -69,6 +70,7 @@ class TaskPriority(str, Enum):
 @dataclass
 class ServiceInfo:
     """Service information container."""
+
     name: str
     url: str
     health_endpoint: str
@@ -82,6 +84,7 @@ class ServiceInfo:
 @dataclass
 class ScheduledTask:
     """Scheduled task information."""
+
     id: str
     name: str
     function: Callable
@@ -153,7 +156,7 @@ class SystemMonitor:
         """Get system resource metrics."""
         cpu_percent = psutil.cpu_percent(interval=1)
         memory = psutil.virtual_memory()
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
 
         # Redis metrics
         redis_info = await self.redis.info()
@@ -165,20 +168,20 @@ class SystemMonitor:
                 "total": memory.total,
                 "available": memory.available,
                 "percent": memory.percent,
-                "used": memory.used
+                "used": memory.used,
             },
             "disk": {
                 "total": disk.total,
                 "free": disk.free,
-                "percent": (disk.used / disk.total) * 100
+                "percent": (disk.used / disk.total) * 100,
             },
             "redis": {
                 "connected_clients": redis_info.get("connected_clients", 0),
                 "used_memory": redis_info.get("used_memory", 0),
                 "used_memory_human": redis_info.get("used_memory_human", "0"),
                 "keyspace_hits": redis_info.get("keyspace_hits", 0),
-                "keyspace_misses": redis_info.get("keyspace_misses", 0)
-            }
+                "keyspace_misses": redis_info.get("keyspace_misses", 0),
+            },
         }
 
 
@@ -191,11 +194,13 @@ class TaskQueue:
             TaskPriority.CRITICAL: "scheduler:queue:critical",
             TaskPriority.HIGH: "scheduler:queue:high",
             TaskPriority.NORMAL: "scheduler:queue:normal",
-            TaskPriority.LOW: "scheduler:queue:low"
+            TaskPriority.LOW: "scheduler:queue:low",
         }
         self.running_tasks: Set[str] = set()
 
-    async def enqueue_task(self, task_id: str, priority: TaskPriority = TaskPriority.NORMAL):
+    async def enqueue_task(
+        self, task_id: str, priority: TaskPriority = TaskPriority.NORMAL
+    ):
         """Add task to appropriate priority queue."""
         queue_name = self.queues[priority]
         if self.redis:
@@ -205,8 +210,12 @@ class TaskQueue:
     async def dequeue_task(self) -> Optional[str]:
         """Get next task from highest priority queue."""
         # Check queues in priority order
-        for priority in [TaskPriority.CRITICAL, TaskPriority.HIGH,
-                        TaskPriority.NORMAL, TaskPriority.LOW]:
+        for priority in [
+            TaskPriority.CRITICAL,
+            TaskPriority.HIGH,
+            TaskPriority.NORMAL,
+            TaskPriority.LOW,
+        ]:
             queue_name = self.queues[priority]
             if self.redis:
                 task_id = await self.redis.rpop(queue_name)  # type: ignore
@@ -230,7 +239,7 @@ class TaskQueue:
 class DataPipelineOrchestrator:
     """Orchestrates the data pipeline flow."""
 
-    def __init__(self, scheduler: 'TradingScheduler'):
+    def __init__(self, scheduler: "TradingScheduler"):
         self.scheduler = scheduler
         self.pipeline_steps = [
             "screener_scan",
@@ -238,14 +247,14 @@ class DataPipelineOrchestrator:
             "data_collection",
             "strategy_analysis",
             "risk_check",
-            "trade_execution"
+            "trade_execution",
         ]
         self.step_dependencies = {
             "ticker_selection": ["screener_scan"],
             "data_collection": ["ticker_selection"],
             "strategy_analysis": ["data_collection"],
             "risk_check": ["strategy_analysis"],
-            "trade_execution": ["risk_check"]
+            "trade_execution": ["risk_check"],
         }
 
     async def trigger_pipeline(self, trigger_reason: str = "scheduled"):
@@ -260,8 +269,7 @@ class DataPipelineOrchestrator:
         except Exception as e:
             logger.error(f"Pipeline execution failed: {e}")
             await self.scheduler.send_notification(
-                f"Data pipeline failed: {e}",
-                priority="high"
+                f"Data pipeline failed: {e}", priority="high"
             )
 
     async def _execute_pipeline_step(self, step: str):
@@ -326,8 +334,7 @@ class TradingScheduler:
 
         # Initialize Redis connection
         self.redis = redis.from_url(
-            self.config.redis.url,
-            max_connections=self.config.redis.max_connections
+            self.config.redis.url, max_connections=self.config.redis.max_connections
         )
 
         # Initialize components
@@ -337,22 +344,20 @@ class TradingScheduler:
 
         # Configure APScheduler
         jobstores = {
-            'default': RedisJobStore(
+            "default": RedisJobStore(
                 host=self.config.redis.host,
                 port=self.config.redis.port,
                 db=self.config.redis.database + 1,  # Use different DB for jobs
-                password=self.config.redis.password
+                password=self.config.redis.password,
             )
         }
 
-        executors = {
-            'default': AsyncIOExecutor()
-        }
+        executors = {"default": AsyncIOExecutor()}
 
         job_defaults = {
-            'coalesce': True,
-            'max_instances': 1,
-            'misfire_grace_time': 300  # 5 minutes
+            "coalesce": True,
+            "max_instances": 1,
+            "misfire_grace_time": 300,  # 5 minutes
         }
 
         # Get timezone - fallback to pytz if MarketHoursService doesn't expose it
@@ -365,7 +370,7 @@ class TradingScheduler:
             jobstores=jobstores,
             executors=executors,
             job_defaults=job_defaults,
-            timezone=scheduler_timezone
+            timezone=scheduler_timezone,
         )
 
         # Register services
@@ -383,26 +388,26 @@ class TradingScheduler:
                 name="data_collector",
                 url="http://trading_data_collector:9101",
                 health_endpoint="/health",
-                dependencies=[]
+                dependencies=[],
             ),
             ServiceInfo(
                 name="strategy_engine",
                 url="http://trading_strategy_engine:9102",
                 health_endpoint="/health",
-                dependencies=["data_collector"]
+                dependencies=["data_collector"],
             ),
             ServiceInfo(
                 name="risk_manager",
                 url="http://trading_risk_manager:9103",
                 health_endpoint="/health",
-                dependencies=["data_collector", "strategy_engine"]
+                dependencies=["data_collector", "strategy_engine"],
             ),
             ServiceInfo(
                 name="trade_executor",
                 url="http://trading_trade_executor:9104",
                 health_endpoint="/health",
-                dependencies=["risk_manager"]
-            )
+                dependencies=["risk_manager"],
+            ),
         ]
 
         for service in services:
@@ -412,6 +417,7 @@ class TradingScheduler:
 
     def _setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self.shutdown())
@@ -460,7 +466,7 @@ class TradingScheduler:
             function=self._run_finviz_scan,
             trigger=IntervalTrigger(minutes=5),
             priority=TaskPriority.HIGH,
-            market_hours_only=True
+            market_hours_only=True,
         )
 
         # Price updates - variable by timeframe
@@ -470,7 +476,7 @@ class TradingScheduler:
             function=self._run_price_updates,
             trigger=IntervalTrigger(minutes=1),
             priority=TaskPriority.CRITICAL,
-            market_hours_only=True
+            market_hours_only=True,
         )
 
         self.tasks["price_updates_5m"] = ScheduledTask(
@@ -479,7 +485,7 @@ class TradingScheduler:
             function=self._run_price_updates,
             trigger=IntervalTrigger(minutes=5),
             priority=TaskPriority.HIGH,
-            market_hours_only=True
+            market_hours_only=True,
         )
 
         # Strategy analysis - after each data update
@@ -490,7 +496,7 @@ class TradingScheduler:
             trigger=IntervalTrigger(minutes=2),
             priority=TaskPriority.HIGH,
             market_hours_only=True,
-            dependencies=["price_updates_1m"]
+            dependencies=["price_updates_1m"],
         )
 
         # Risk checks - continuous
@@ -500,7 +506,7 @@ class TradingScheduler:
             function=self._run_risk_check,
             trigger=IntervalTrigger(minutes=1),
             priority=TaskPriority.CRITICAL,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         # EOD reports - daily at market close
@@ -516,7 +522,7 @@ class TradingScheduler:
             function=self._run_eod_report,
             trigger=CronTrigger(hour=16, minute=5, timezone=schedule_timezone),
             priority=TaskPriority.NORMAL,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         # Health checks
@@ -526,7 +532,7 @@ class TradingScheduler:
             function=self._run_health_check,
             trigger=IntervalTrigger(seconds=30),
             priority=TaskPriority.NORMAL,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         # Portfolio sync
@@ -536,7 +542,7 @@ class TradingScheduler:
             function=self._run_portfolio_sync,
             trigger=IntervalTrigger(minutes=5),
             priority=TaskPriority.HIGH,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         # Maintenance tasks - weekend
@@ -546,7 +552,7 @@ class TradingScheduler:
             function=self._run_data_cleanup,
             trigger=CronTrigger(day_of_week=6, hour=2, minute=0),  # Saturday 2 AM
             priority=TaskPriority.LOW,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         self.tasks["database_maintenance"] = ScheduledTask(
@@ -555,7 +561,7 @@ class TradingScheduler:
             function=self._run_database_maintenance,
             trigger=CronTrigger(day_of_week=0, hour=3, minute=0),  # Sunday 3 AM
             priority=TaskPriority.LOW,
-            market_hours_only=False
+            market_hours_only=False,
         )
 
         # Add tasks to scheduler
@@ -567,7 +573,7 @@ class TradingScheduler:
                     args=[task.id],
                     id=task.id,
                     name=task.name,
-                    replace_existing=True
+                    replace_existing=True,
                 )
 
     async def _execute_task_wrapper(self, task_id: str):
@@ -601,7 +607,7 @@ class TradingScheduler:
             return
 
         start_time = datetime.now()
-        if hasattr(self, 'running_tasks'):
+        if hasattr(self, "running_tasks"):
             self.running_tasks.add(task_id)
 
         try:
@@ -628,25 +634,27 @@ class TradingScheduler:
             if task.retry_count < task.max_retries:
                 task.retry_count += 1
                 retry_delay = min(300, 30 * task.retry_count)  # Max 5 minutes
-                logger.info(f"Retrying task {task.name} in {retry_delay}s (attempt {task.retry_count})")
+                logger.info(
+                    f"Retrying task {task.name} in {retry_delay}s (attempt {task.retry_count})"
+                )
 
                 self.scheduler.add_job(
                     func=execute_scheduled_task,
-                    trigger='date',
+                    trigger="date",
                     run_date=datetime.now() + timedelta(seconds=retry_delay),
                     args=[task_id],
                     id=f"{task_id}_retry_{task.retry_count}",
-                    replace_existing=True
+                    replace_existing=True,
                 )
             else:
                 logger.error(f"Task {task.name} exceeded max retries")
                 await self.send_notification(
                     f"Task {task.name} failed after {task.max_retries} retries: {e}",
-                    priority="high"
+                    priority="high",
                 )
 
         finally:
-            if hasattr(self, 'running_tasks'):
+            if hasattr(self, "running_tasks"):
                 self.running_tasks.discard(task_id)
             task.last_run = start_time
 
@@ -679,16 +687,22 @@ class TradingScheduler:
         while self.is_running:
             try:
                 # Check service health
-                health_results = await self.monitor.check_all_services() if self.monitor else {}
+                health_results = (
+                    await self.monitor.check_all_services() if self.monitor else {}
+                )
 
                 # Check for failed services
-                failed_services = [name for name, healthy in health_results.items() if not healthy]
+                failed_services = [
+                    name for name, healthy in health_results.items() if not healthy
+                ]
                 if failed_services:
                     logger.warning(f"Failed services detected: {failed_services}")
                     await self._handle_service_failures(failed_services)
 
                 # Get system metrics
-                system_metrics = await self.monitor.get_system_metrics() if self.monitor else {}
+                system_metrics = (
+                    await self.monitor.get_system_metrics() if self.monitor else {}
+                )
                 await self._store_metrics(system_metrics)
 
                 # Check resource usage
@@ -704,7 +718,9 @@ class TradingScheduler:
         """Task execution loop for priority queue."""
         while self.is_running:
             try:
-                task_id = await self.task_queue.dequeue_task() if self.task_queue else None
+                task_id = (
+                    await self.task_queue.dequeue_task() if self.task_queue else None
+                )
                 if task_id:
                     await self._execute_task_wrapper(task_id)
                 else:
@@ -725,7 +741,9 @@ class TradingScheduler:
                             if dep in self.services:
                                 dep_service = self.services[dep]
                                 if dep_service.status != ServiceStatus.RUNNING:
-                                    logger.warning(f"Service {service_name} dependency {dep} is not running")
+                                    logger.warning(
+                                        f"Service {service_name} dependency {dep} is not running"
+                                    )
                                     await self._restart_service(dep)
 
                 await asyncio.sleep(60)  # Check every minute
@@ -747,11 +765,13 @@ class TradingScheduler:
                 logger.info(f"Attempting to restart service: {service_name}")
                 await self._restart_service(service_name)
             else:
-                logger.error(f"Service {service_name} has too many failures, marking as error")
+                logger.error(
+                    f"Service {service_name} has too many failures, marking as error"
+                )
                 service.status = ServiceStatus.ERROR
                 await self.send_notification(
                     f"Service {service_name} has failed repeatedly and needs manual intervention",
-                    priority="critical"
+                    priority="critical",
                 )
 
     async def _restart_service(self, service_name: str):
@@ -782,23 +802,22 @@ class TradingScheduler:
         try:
             if self.redis:
                 await self.redis.setex(
-                    "system:metrics:latest",
-                    300,  # 5 minutes TTL
-                    str(metrics)
+                    "system:metrics:latest", 300, str(metrics)  # 5 minutes TTL
                 )
 
             # Store in time series for historical tracking
             timestamp = datetime.now().timestamp()
             if self.redis:
                 await self.redis.zadd(
-                    "system:metrics:timeseries",
-                    {str(metrics): timestamp}
+                    "system:metrics:timeseries", {str(metrics): timestamp}
                 )
 
             # Keep only last 24 hours of metrics
             cutoff = timestamp - (24 * 3600)
             if self.redis:
-                await self.redis.zremrangebyscore("system:metrics:timeseries", 0, cutoff)
+                await self.redis.zremrangebyscore(
+                    "system:metrics:timeseries", 0, cutoff
+                )
 
         except Exception as e:
             logger.error(f"Failed to store metrics: {e}")
@@ -808,22 +827,20 @@ class TradingScheduler:
         # CPU check
         if metrics["cpu_percent"] > 80:
             await self.send_notification(
-                f"High CPU usage: {metrics['cpu_percent']:.1f}%",
-                priority="medium"
+                f"High CPU usage: {metrics['cpu_percent']:.1f}%", priority="medium"
             )
 
         # Memory check
         if metrics["memory"]["percent"] > 85:
             await self.send_notification(
                 f"High memory usage: {metrics['memory']['percent']:.1f}%",
-                priority="medium"
+                priority="medium",
             )
 
         # Disk check
         if metrics["disk"]["percent"] > 90:
             await self.send_notification(
-                f"High disk usage: {metrics['disk']['percent']:.1f}%",
-                priority="high"
+                f"High disk usage: {metrics['disk']['percent']:.1f}%", priority="high"
             )
 
     # Task implementations
@@ -832,8 +849,7 @@ class TradingScheduler:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.services['data_collector'].url}/finviz/scan",
-                    timeout=60.0
+                    f"{self.services['data_collector'].url}/finviz/scan", timeout=60.0
                 )
                 response.raise_for_status()
 
@@ -856,7 +872,7 @@ class TradingScheduler:
                 response = await client.post(
                     f"{self.services['data_collector'].url}/market-data/update",
                     json={"timeframe": timeframe},
-                    timeout=120.0
+                    timeout=120.0,
                 )
                 response.raise_for_status()
 
@@ -873,8 +889,7 @@ class TradingScheduler:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.services['strategy_engine'].url}/analyze",
-                    timeout=180.0
+                    f"{self.services['strategy_engine'].url}/analyze", timeout=180.0
                 )
                 response.raise_for_status()
 
@@ -898,14 +913,14 @@ class TradingScheduler:
                 "total_equity": "10000.00",
                 "positions": [],
                 "day_trades_count": 0,
-                "pattern_day_trader": False
+                "pattern_day_trader": False,
             }
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.services['risk_manager'].url}/monitor-portfolio",
                     timeout=60.0,
-                    json=portfolio_data
+                    json=portfolio_data,
                 )
                 response.raise_for_status()
 
@@ -923,8 +938,7 @@ class TradingScheduler:
             # Generate portfolio report
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    f"{self.services['strategy_engine'].url}/reports/eod",
-                    timeout=300.0
+                    f"{self.services['strategy_engine'].url}/reports/eod", timeout=300.0
                 )
                 response.raise_for_status()
 
@@ -934,8 +948,7 @@ class TradingScheduler:
 
             # Send notification
             await self.send_notification(
-                "Daily trading report generated",
-                priority="low"
+                "Daily trading report generated", priority="low"
             )
 
         except Exception as e:
@@ -945,7 +958,9 @@ class TradingScheduler:
     async def _run_health_check(self, task_id: str):
         """Execute health checks."""
         try:
-            health_results = await self.monitor.check_all_services() if self.monitor else {}
+            health_results = (
+                await self.monitor.check_all_services() if self.monitor else {}
+            )
             failed_count = sum(1 for healthy in health_results.values() if not healthy)
 
             if failed_count > 0:
@@ -964,23 +979,23 @@ class TradingScheduler:
             async with httpx.AsyncClient() as client:
                 # Call risk manager to sync portfolio data from Alpaca
                 response = await client.post(
-                    f"{self.services['risk_manager'].url}/sync-portfolio",
-                    timeout=60.0
+                    f"{self.services['risk_manager'].url}/sync-portfolio", timeout=60.0
                 )
                 response.raise_for_status()
                 sync_result = response.json()
 
                 # Also get positions from trade executor for consistency
                 positions_response = await client.get(
-                    f"{self.services['trade_executor'].url}/positions",
-                    timeout=60.0
+                    f"{self.services['trade_executor'].url}/positions", timeout=60.0
                 )
                 positions_response.raise_for_status()
 
             if self.redis:
                 await self.redis.setex(f"task:completion:{task_id}", 300, "completed")
 
-            logger.info(f"Portfolio sync completed successfully: {sync_result.get('message', 'Unknown status')}")
+            logger.info(
+                f"Portfolio sync completed successfully: {sync_result.get('message', 'Unknown status')}"
+            )
 
         except Exception as e:
             logger.error(f"Portfolio sync failed: {e}")
@@ -989,15 +1004,19 @@ class TradingScheduler:
     async def _run_data_cleanup(self, task_id: str):
         """Clean up old data files."""
         try:
-            import os
             import glob
+            import os
             from pathlib import Path
 
             data_path = Path(self.config.data.parquet_path)
-            cutoff_date = datetime.now() - timedelta(days=self.config.data.retention_days)
+            cutoff_date = datetime.now() - timedelta(
+                days=self.config.data.retention_days
+            )
 
             files_deleted = 0
-            for file_path in glob.glob(str(data_path / "**" / "*.parquet"), recursive=True):
+            for file_path in glob.glob(
+                str(data_path / "**" / "*.parquet"), recursive=True
+            ):
                 file_stat = os.stat(file_path)
                 if datetime.fromtimestamp(file_stat.st_mtime) < cutoff_date:
                     os.remove(file_path)
@@ -1104,9 +1123,11 @@ class TradingScheduler:
         return False
 
     # Task management methods
-    async def execute_task(self, task_id: str, priority: TaskPriority = TaskPriority.NORMAL):
+    async def execute_task(
+        self, task_id: str, priority: TaskPriority = TaskPriority.NORMAL
+    ):
         """Execute a task immediately or queue it."""
-        if hasattr(self, 'running_tasks') and task_id in self.running_tasks:
+        if hasattr(self, "running_tasks") and task_id in self.running_tasks:
             logger.warning(f"Task {task_id} is already running")
             return
 
@@ -1153,8 +1174,8 @@ class TradingScheduler:
                 logger.info(f"Updated task {task_id} {key} to {value}")
 
         # If enabled status changed, update scheduler
-        if 'enabled' in kwargs:
-            if kwargs['enabled']:
+        if "enabled" in kwargs:
+            if kwargs["enabled"]:
                 await self.resume_task(task_id)
             else:
                 await self.pause_task(task_id)
@@ -1166,6 +1187,7 @@ class TradingScheduler:
 
             # Reload config
             from shared.config import reload_config
+
             new_config = reload_config()
 
             # Update internal config reference
@@ -1194,7 +1216,7 @@ class TradingScheduler:
                 "message": message,
                 "priority": priority,
                 "timestamp": datetime.now().isoformat(),
-                "service": "scheduler"
+                "service": "scheduler",
             }
 
             # Store notification in Redis for other services to pick up
@@ -1217,7 +1239,9 @@ class TradingScheduler:
             if task.market_hours_only:
                 await self.pause_task(task_id)
 
-        await self.send_notification("System entered maintenance mode", priority="medium")
+        await self.send_notification(
+            "System entered maintenance mode", priority="medium"
+        )
 
     async def disable_maintenance_mode(self):
         """Disable maintenance mode."""
@@ -1229,7 +1253,9 @@ class TradingScheduler:
             if task.market_hours_only and task.enabled:
                 await self.resume_task(task_id)
 
-        await self.send_notification("System exited maintenance mode", priority="medium")
+        await self.send_notification(
+            "System exited maintenance mode", priority="medium"
+        )
 
     async def emergency_stop_all(self):
         """Emergency stop all trading activities."""
@@ -1243,8 +1269,7 @@ class TradingScheduler:
 
         # Send critical notification
         await self.send_notification(
-            "EMERGENCY STOP: All trading activities halted",
-            priority="critical"
+            "EMERGENCY STOP: All trading activities halted", priority="critical"
         )
 
     async def resume_trading(self):
@@ -1266,9 +1291,11 @@ class TradingScheduler:
         for name, service in self.services.items():
             service_status[name] = {
                 "status": service.status.value,
-                "last_check": service.last_check.isoformat() if service.last_check else None,
+                "last_check": (
+                    service.last_check.isoformat() if service.last_check else None
+                ),
                 "error_count": service.error_count,
-                "restart_count": service.restart_count
+                "restart_count": service.restart_count,
             }
 
         task_status = {}
@@ -1276,30 +1303,44 @@ class TradingScheduler:
             task_status[task_id] = {
                 "enabled": task.enabled,
                 "last_run": task.last_run.isoformat() if task.last_run else None,
-                "last_success": task.last_success.isoformat() if task.last_success else None,
+                "last_success": (
+                    task.last_success.isoformat() if task.last_success else None
+                ),
                 "error_count": task.error_count,
-                "retry_count": task.retry_count
+                "retry_count": task.retry_count,
             }
 
-        queue_lengths = await self.task_queue.get_queue_lengths() if self.task_queue else {}
+        queue_lengths = (
+            await self.task_queue.get_queue_lengths() if self.task_queue else {}
+        )
         metrics = await self.monitor.get_system_metrics() if self.monitor else {}
 
         return {
             "scheduler": {
                 "running": self.is_running,
                 "maintenance_mode": self.maintenance_mode,
-                "emergency_stop": self.emergency_stop
+                "emergency_stop": self.emergency_stop,
             },
             "market": {
                 "session": (await self.market_hours.get_current_session()).value,
-                "is_trading_day": await self.market_hours.is_trading_day(datetime.now().date()),
-                "next_open": (next_open.isoformat() if (next_open := await self.market_hours.get_next_market_open()) else None),
-                "next_close": (next_close.isoformat() if (next_close := await self.market_hours.get_next_market_close()) else None)
+                "is_trading_day": await self.market_hours.is_trading_day(
+                    datetime.now().date()
+                ),
+                "next_open": (
+                    next_open.isoformat()
+                    if (next_open := await self.market_hours.get_next_market_open())
+                    else None
+                ),
+                "next_close": (
+                    next_close.isoformat()
+                    if (next_close := await self.market_hours.get_next_market_close())
+                    else None
+                ),
             },
             "services": service_status,
             "tasks": task_status,
             "queues": queue_lengths,
-            "metrics": metrics
+            "metrics": metrics,
         }
 
     async def get_performance_report(self) -> Dict[str, Any]:
@@ -1310,7 +1351,9 @@ class TradingScheduler:
             "service_restart_counts": {
                 name: service.restart_count for name, service in self.services.items()
             },
-            "queue_lengths": await self.task_queue.get_queue_lengths() if self.task_queue else {}
+            "queue_lengths": (
+                await self.task_queue.get_queue_lengths() if self.task_queue else {}
+            ),
         }
 
     # Data pipeline control
@@ -1327,13 +1370,12 @@ class TradingScheduler:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.services['trade_executor'].url}/emergency/exit-all",
-                    timeout=60.0
+                    timeout=60.0,
                 )
                 response.raise_for_status()
 
             await self.send_notification(
-                "Emergency exit triggered - all positions closed",
-                priority="critical"
+                "Emergency exit triggered - all positions closed", priority="critical"
             )
 
         except Exception as e:
@@ -1416,7 +1458,9 @@ class TradingScheduler:
 
     # Circuit breaker decorators for external calls
     @circuit(failure_threshold=5, recovery_timeout=60)
-    async def _call_service_endpoint(self, url: str, timeout: float = 30.0) -> httpx.Response:
+    async def _call_service_endpoint(
+        self, url: str, timeout: float = 30.0
+    ) -> httpx.Response:
         """Make a circuit-breaker protected call to a service endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.get(url, timeout=timeout)
@@ -1438,7 +1482,9 @@ class SchedulerAPI:
         """Get performance metrics."""
         return await self.scheduler.get_performance_report()
 
-    async def trigger_task(self, task_id: str, priority: str = "normal") -> Dict[str, str]:
+    async def trigger_task(
+        self, task_id: str, priority: str = "normal"
+    ) -> Dict[str, str]:
         """Manually trigger a task."""
         try:
             task_priority = TaskPriority(priority)
@@ -1468,9 +1514,15 @@ class SchedulerAPI:
         try:
             success = await self.scheduler.restart_service(service_name)
             if success:
-                return {"status": "success", "message": f"Service {service_name} restarted"}
+                return {
+                    "status": "success",
+                    "message": f"Service {service_name} restarted",
+                }
             else:
-                return {"status": "error", "message": f"Failed to restart service {service_name}"}
+                return {
+                    "status": "error",
+                    "message": f"Failed to restart service {service_name}",
+                }
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -1530,8 +1582,7 @@ async def main():
 
     # Setup logging
     logging.basicConfig(
-        level=getattr(logging, config.logging.level),
-        format=config.logging.format
+        level=getattr(logging, config.logging.level), format=config.logging.format
     )
 
     # Create and initialize scheduler

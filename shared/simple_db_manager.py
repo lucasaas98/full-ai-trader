@@ -6,11 +6,11 @@ for services that need database access without SQLAlchemy dependencies.
 """
 
 import asyncio
+import json
 import logging
 import os
-from datetime import datetime, timedelta, date, timezone
-from typing import Dict, List, Optional, Any
-import json
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 
@@ -35,20 +35,20 @@ class SimpleDatabaseManager:
 
         try:
             # Try environment variables first (more reliable in containers)
-            host = os.getenv('DB_HOST', 'localhost')
-            port = int(os.getenv('DB_PORT', '5432'))
-            database = os.getenv('DB_NAME', 'trading_system')
-            user = os.getenv('DB_USER', 'trader')
-            password = os.getenv('DB_PASSWORD', '')
+            host = os.getenv("DB_HOST", "localhost")
+            port = int(os.getenv("DB_PORT", "5432"))
+            database = os.getenv("DB_NAME", "trading_system")
+            user = os.getenv("DB_USER", "trader")
+            password = os.getenv("DB_PASSWORD", "")
 
             # Fall back to config if env vars not available
-            if host == 'localhost' and hasattr(self.config, 'database'):
+            if host == "localhost" and hasattr(self.config, "database"):
                 db_config = self.config.database
-                host = getattr(db_config, 'host', host)
-                port = getattr(db_config, 'port', port)
-                database = getattr(db_config, 'name', database)
-                user = getattr(db_config, 'user', user)
-                password = getattr(db_config, 'password', password)
+                host = getattr(db_config, "host", host)
+                port = getattr(db_config, "port", port)
+                database = getattr(db_config, "name", database)
+                user = getattr(db_config, "user", user)
+                password = getattr(db_config, "password", password)
 
             logger.info(f"Connecting to database: {user}@{host}:{port}/{database}")
 
@@ -61,7 +61,7 @@ class SimpleDatabaseManager:
                 password=password,
                 min_size=1,
                 max_size=5,
-                command_timeout=60
+                command_timeout=60,
             )
 
             # Test connection
@@ -88,7 +88,9 @@ class SimpleDatabaseManager:
             logger.error(f"Database connection test failed: {e}")
             return False
 
-    async def get_portfolio_snapshots(self, start_date: datetime = None, end_date: datetime = None, limit: int = None) -> List[Dict[str, Any]]:
+    async def get_portfolio_snapshots(
+        self, start_date: datetime = None, end_date: datetime = None, limit: int = None
+    ) -> List[Dict[str, Any]]:
         """Get portfolio snapshots between dates or latest snapshots."""
         try:
             if not self.pool:
@@ -122,15 +124,19 @@ class SimpleDatabaseManager:
                 snapshots = []
                 for row in rows:
                     snapshot = {
-                        'id': row['id'],
-                        'account_id': row['account_id'],
-                        'timestamp': row['timestamp'],
-                        'cash': float(row['cash']) if row['cash'] else 0,
-                        'buying_power': float(row['buying_power']) if row['buying_power'] else 0,
-                        'total_equity': float(row['total_equity']) if row['total_equity'] else 0,
-                        'day_trades_count': row['day_trades_count'] or 0,
-                        'pattern_day_trader': row['pattern_day_trader'] or False,
-                        'data': row['data'] or {}
+                        "id": row["id"],
+                        "account_id": row["account_id"],
+                        "timestamp": row["timestamp"],
+                        "cash": float(row["cash"]) if row["cash"] else 0,
+                        "buying_power": (
+                            float(row["buying_power"]) if row["buying_power"] else 0
+                        ),
+                        "total_equity": (
+                            float(row["total_equity"]) if row["total_equity"] else 0
+                        ),
+                        "day_trades_count": row["day_trades_count"] or 0,
+                        "pattern_day_trader": row["pattern_day_trader"] or False,
+                        "data": row["data"] or {},
                     }
                     snapshots.append(snapshot)
 
@@ -165,25 +171,63 @@ class SimpleDatabaseManager:
                     return None
 
                 return {
-                    'id': row['id'],
-                    'timestamp': row['timestamp'],
-                    'total_exposure': float(row['total_exposure']) if row['total_exposure'] else 0,
-                    'cash_percentage': float(row['cash_percentage']) if row['cash_percentage'] else 0,
-                    'position_count': row['position_count'] or 0,
-                    'concentration_risk': float(row['concentration_risk']) if row['concentration_risk'] else 0,
-                    'portfolio_beta': float(row['portfolio_beta']) if row['portfolio_beta'] else 0,
-                    'portfolio_correlation': float(row['portfolio_correlation']) if row['portfolio_correlation'] else 0,
-                    'value_at_risk_1d': float(row['value_at_risk_1d']) if row['value_at_risk_1d'] else 0,
-                    'value_at_risk_5d': float(row['value_at_risk_5d']) if row['value_at_risk_5d'] else 0,
-                    'expected_shortfall_1d': float(row['expected_shortfall_1d']) if row['expected_shortfall_1d'] else 0,
-                    'expected_shortfall_5d': float(row['expected_shortfall_5d']) if row['expected_shortfall_5d'] else 0,
-                    'maximum_drawdown': float(row['maximum_drawdown']) if row['maximum_drawdown'] else 0,
-                    'current_drawdown': float(row['current_drawdown']) if row['current_drawdown'] else 0,
-                    'expected_shortfall': float(row['expected_shortfall']) if row['expected_shortfall'] else 0,
-                    'sharpe_ratio': float(row['sharpe_ratio']) if row['sharpe_ratio'] else 0,
-                    'max_drawdown': float(row['max_drawdown']) if row['max_drawdown'] else 0,
-                    'volatility': float(row['volatility']) if row['volatility'] else 0,
-                    'data': row['data'] or {}
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "total_exposure": (
+                        float(row["total_exposure"]) if row["total_exposure"] else 0
+                    ),
+                    "cash_percentage": (
+                        float(row["cash_percentage"]) if row["cash_percentage"] else 0
+                    ),
+                    "position_count": row["position_count"] or 0,
+                    "concentration_risk": (
+                        float(row["concentration_risk"])
+                        if row["concentration_risk"]
+                        else 0
+                    ),
+                    "portfolio_beta": (
+                        float(row["portfolio_beta"]) if row["portfolio_beta"] else 0
+                    ),
+                    "portfolio_correlation": (
+                        float(row["portfolio_correlation"])
+                        if row["portfolio_correlation"]
+                        else 0
+                    ),
+                    "value_at_risk_1d": (
+                        float(row["value_at_risk_1d"]) if row["value_at_risk_1d"] else 0
+                    ),
+                    "value_at_risk_5d": (
+                        float(row["value_at_risk_5d"]) if row["value_at_risk_5d"] else 0
+                    ),
+                    "expected_shortfall_1d": (
+                        float(row["expected_shortfall_1d"])
+                        if row["expected_shortfall_1d"]
+                        else 0
+                    ),
+                    "expected_shortfall_5d": (
+                        float(row["expected_shortfall_5d"])
+                        if row["expected_shortfall_5d"]
+                        else 0
+                    ),
+                    "maximum_drawdown": (
+                        float(row["maximum_drawdown"]) if row["maximum_drawdown"] else 0
+                    ),
+                    "current_drawdown": (
+                        float(row["current_drawdown"]) if row["current_drawdown"] else 0
+                    ),
+                    "expected_shortfall": (
+                        float(row["expected_shortfall"])
+                        if row["expected_shortfall"]
+                        else 0
+                    ),
+                    "sharpe_ratio": (
+                        float(row["sharpe_ratio"]) if row["sharpe_ratio"] else 0
+                    ),
+                    "max_drawdown": (
+                        float(row["max_drawdown"]) if row["max_drawdown"] else 0
+                    ),
+                    "volatility": float(row["volatility"]) if row["volatility"] else 0,
+                    "data": row["data"] or {},
                 }
 
         except Exception as e:
@@ -219,30 +263,50 @@ class SimpleDatabaseManager:
                 trade_row = await conn.fetchrow(trade_query, start_date)
 
                 # Calculate metrics
-                total_trades = trade_row['total_trades'] or 0
-                winning_trades = trade_row['winning_trades'] or 0
-                losing_trades = trade_row['losing_trades'] or 0
+                total_trades = trade_row["total_trades"] or 0
+                winning_trades = trade_row["winning_trades"] or 0
+                losing_trades = trade_row["losing_trades"] or 0
 
                 stats = {
-                    'total_trades': total_trades,
-                    'winning_trades': winning_trades,
-                    'losing_trades': losing_trades,
-                    'win_rate': (winning_trades / max(total_trades, 1)) if total_trades else 0,
-                    'avg_win': float(trade_row['avg_win']) if trade_row['avg_win'] else 0,
-                    'avg_loss': float(trade_row['avg_loss']) if trade_row['avg_loss'] else 0,
-                    'total_pnl': float(trade_row['total_pnl']) if trade_row['total_pnl'] else 0,
-                    'max_win': float(trade_row['max_win']) if trade_row['max_win'] else 0,
-                    'min_loss': float(trade_row['min_loss']) if trade_row['min_loss'] else 0,
-                    'total_commission': float(trade_row['total_commission']) if trade_row['total_commission'] else 0,
-                    'total_fees': float(trade_row['total_fees']) if trade_row['total_fees'] else 0,
-                    'period_days': days
+                    "total_trades": total_trades,
+                    "winning_trades": winning_trades,
+                    "losing_trades": losing_trades,
+                    "win_rate": (
+                        (winning_trades / max(total_trades, 1)) if total_trades else 0
+                    ),
+                    "avg_win": (
+                        float(trade_row["avg_win"]) if trade_row["avg_win"] else 0
+                    ),
+                    "avg_loss": (
+                        float(trade_row["avg_loss"]) if trade_row["avg_loss"] else 0
+                    ),
+                    "total_pnl": (
+                        float(trade_row["total_pnl"]) if trade_row["total_pnl"] else 0
+                    ),
+                    "max_win": (
+                        float(trade_row["max_win"]) if trade_row["max_win"] else 0
+                    ),
+                    "min_loss": (
+                        float(trade_row["min_loss"]) if trade_row["min_loss"] else 0
+                    ),
+                    "total_commission": (
+                        float(trade_row["total_commission"])
+                        if trade_row["total_commission"]
+                        else 0
+                    ),
+                    "total_fees": (
+                        float(trade_row["total_fees"]) if trade_row["total_fees"] else 0
+                    ),
+                    "period_days": days,
                 }
 
                 # Calculate profit factor
-                if trade_row['avg_loss'] and trade_row['avg_loss'] < 0:
-                    stats['profit_factor'] = abs(trade_row['avg_win'] or 0) / abs(trade_row['avg_loss'])
+                if trade_row["avg_loss"] and trade_row["avg_loss"] < 0:
+                    stats["profit_factor"] = abs(trade_row["avg_win"] or 0) / abs(
+                        trade_row["avg_loss"]
+                    )
                 else:
-                    stats['profit_factor'] = None
+                    stats["profit_factor"] = None
 
                 return stats
 
@@ -274,18 +338,20 @@ class SimpleDatabaseManager:
                 trades = []
                 for row in rows:
                     trade = {
-                        'id': str(row['id']),
-                        'symbol': row['symbol'],
-                        'side': row['side'],
-                        'quantity': int(row['quantity']),
-                        'price': float(row['price']),
-                        'commission': float(row['commission']) if row['commission'] else 0,
-                        'timestamp': row['timestamp'],
-                        'order_id': str(row['order_id']),
-                        'strategy_name': row['strategy_name'],
-                        'pnl': float(row['pnl']) if row['pnl'] else None,
-                        'fees': float(row['fees']) if row['fees'] else None,
-                        'data': row['data'] or {}
+                        "id": str(row["id"]),
+                        "symbol": row["symbol"],
+                        "side": row["side"],
+                        "quantity": int(row["quantity"]),
+                        "price": float(row["price"]),
+                        "commission": (
+                            float(row["commission"]) if row["commission"] else 0
+                        ),
+                        "timestamp": row["timestamp"],
+                        "order_id": str(row["order_id"]),
+                        "strategy_name": row["strategy_name"],
+                        "pnl": float(row["pnl"]) if row["pnl"] else None,
+                        "fees": float(row["fees"]) if row["fees"] else None,
+                        "data": row["data"] or {},
                     }
                     trades.append(trade)
 
@@ -310,7 +376,7 @@ class SimpleDatabaseManager:
                 """
 
                 rows = await conn.fetch(query)
-                return [row['table_name'] for row in rows]
+                return [row["table_name"] for row in rows]
 
         except Exception as e:
             logger.error(f"Failed to list tables: {e}")
@@ -325,7 +391,7 @@ class SimpleDatabaseManager:
             async with self.pool.acquire() as conn:
                 # Use parameterized query for table name (though asyncpg doesn't support table name parameters)
                 # We'll use string formatting but validate the table name first
-                if not table_name.replace('_', '').isalnum():
+                if not table_name.replace("_", "").isalnum():
                     logger.warning(f"Invalid table name: {table_name}")
                     return 0
 
@@ -353,7 +419,13 @@ class SimpleDatabaseManager:
         """Async context manager exit."""
         await self.close()
 
-    async def get_risk_events(self, start_date: datetime = None, end_date: datetime = None, days: int = 1, severity: str = None) -> List[Dict[str, Any]]:
+    async def get_risk_events(
+        self,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        days: int = 1,
+        severity: str = None,
+    ) -> List[Dict[str, Any]]:
         """Get risk events for the specified date range or number of days."""
         try:
             if not self.pool:
@@ -387,15 +459,15 @@ class SimpleDatabaseManager:
                 events = []
                 for row in rows:
                     event = {
-                        'id': str(row['id']) if row['id'] else None,
-                        'event_type': row['event_type'],
-                        'severity': row['severity'],
-                        'symbol': row['symbol'],
-                        'description': row['description'],
-                        'timestamp': row['timestamp'],
-                        'resolved_at': row['resolved_at'],
-                        'action_taken': row['action_taken'],
-                        'metadata': row['metadata'] or {}
+                        "id": str(row["id"]) if row["id"] else None,
+                        "event_type": row["event_type"],
+                        "severity": row["severity"],
+                        "symbol": row["symbol"],
+                        "description": row["description"],
+                        "timestamp": row["timestamp"],
+                        "resolved_at": row["resolved_at"],
+                        "action_taken": row["action_taken"],
+                        "metadata": row["metadata"] or {},
                     }
                     events.append(event)
 

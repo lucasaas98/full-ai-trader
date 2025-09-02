@@ -9,19 +9,32 @@ This module provides comprehensive risk management capabilities including:
 - Position management with stop losses and trailing stops
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
+
 import numpy as np
-import asyncio
 import polars as pl
 
 from shared.config import get_config
 from shared.models import (
-    Position, PortfolioState, PortfolioMetrics, TradeSignal, OrderRequest, OrderSide,
-    RiskEvent, RiskEventType, RiskSeverity, PositionSizing, PositionSizingMethod,
-    RiskFilter, TrailingStop, RiskLimits, TimeFrame
+    OrderRequest,
+    OrderSide,
+    PortfolioMetrics,
+    PortfolioState,
+    Position,
+    PositionSizing,
+    PositionSizingMethod,
+    RiskEvent,
+    RiskEventType,
+    RiskFilter,
+    RiskLimits,
+    RiskSeverity,
+    TimeFrame,
+    TradeSignal,
+    TrailingStop,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,10 +69,12 @@ class RiskManager:
         self._data_client = None
         asyncio.create_task(self._initialize_data_client())
 
-    async def validate_trade_request(self,
-                                   order_request: OrderRequest,
-                                   portfolio: PortfolioState,
-                                   signal: Optional[TradeSignal] = None) -> Tuple[bool, List[RiskFilter]]:
+    async def validate_trade_request(
+        self,
+        order_request: OrderRequest,
+        portfolio: PortfolioState,
+        signal: Optional[TradeSignal] = None,
+    ) -> Tuple[bool, List[RiskFilter]]:
         """
         Validate a trade request against all risk filters.
 
@@ -85,20 +100,28 @@ class RiskManager:
             filters.append(daily_loss_filter)
 
             # Position limit check
-            position_limit_filter = await self._check_position_limits(portfolio, order_request)
+            position_limit_filter = await self._check_position_limits(
+                portfolio, order_request
+            )
             filters.append(position_limit_filter)
 
             # Buying power check
-            buying_power_filter = await self._check_buying_power(portfolio, order_request)
+            buying_power_filter = await self._check_buying_power(
+                portfolio, order_request
+            )
             filters.append(buying_power_filter)
 
             # Position size check
-            position_size_filter = await self._check_position_size(portfolio, order_request)
+            position_size_filter = await self._check_position_size(
+                portfolio, order_request
+            )
             filters.append(position_size_filter)
 
             # Correlation check (for new positions)
             if order_request.side == OrderSide.BUY:
-                correlation_filter = await self._check_correlation(portfolio, order_request.symbol)
+                correlation_filter = await self._check_correlation(
+                    portfolio, order_request.symbol
+                )
                 filters.append(correlation_filter)
 
             # Volatility check
@@ -111,8 +134,10 @@ class RiskManager:
             # Log failed filters
             failed_filters = [f for f in filters if not f.passed]
             if failed_filters:
-                logger.warning(f"Trade validation failed for {order_request.symbol}: "
-                             f"{[f.filter_name for f in failed_filters]}")
+                logger.warning(
+                    f"Trade validation failed for {order_request.symbol}: "
+                    f"{[f.filter_name for f in failed_filters]}"
+                )
 
             return all_passed, filters
 
@@ -130,16 +155,18 @@ class RiskManager:
                 reason=f"Validation error: {str(e)}",
                 value=None,
                 limit=None,
-                severity=RiskSeverity.HIGH
+                severity=RiskSeverity.HIGH,
             )
             return False, [error_filter]
 
-    async def calculate_position_size(self,
-                                    symbol: str,
-                                    current_price: Decimal,
-                                    portfolio: PortfolioState,
-                                    confidence_score: Optional[float] = None,
-                                    signal: Optional[TradeSignal] = None) -> PositionSizing:
+    async def calculate_position_size(
+        self,
+        symbol: str,
+        current_price: Decimal,
+        portfolio: PortfolioState,
+        confidence_score: Optional[float] = None,
+        signal: Optional[TradeSignal] = None,
+    ) -> PositionSizing:
         """
         Calculate optimal position size based on risk parameters.
 
@@ -167,10 +194,16 @@ class RiskManager:
             volatility_adjustment = await self._calculate_volatility_adjustment(symbol)
 
             # Calculate adjusted position percentage
-            adjusted_percentage = base_percentage * Decimal(str(confidence_adjustment)) * Decimal(str(volatility_adjustment))
+            adjusted_percentage = (
+                base_percentage
+                * Decimal(str(confidence_adjustment))
+                * Decimal(str(volatility_adjustment))
+            )
 
             # Ensure we don't exceed limits
-            adjusted_percentage = min(adjusted_percentage, self.risk_limits.max_position_percentage)
+            adjusted_percentage = min(
+                adjusted_percentage, self.risk_limits.max_position_percentage
+            )
 
             # Calculate position value
             available_capital = portfolio.total_equity
@@ -179,13 +212,21 @@ class RiskManager:
             # Calculate number of shares
             shares = int(position_value / current_price)
             actual_position_value = Decimal(shares) * current_price
-            actual_percentage = actual_position_value / available_capital if available_capital > 0 else Decimal("0")
+            actual_percentage = (
+                actual_position_value / available_capital
+                if available_capital > 0
+                else Decimal("0")
+            )
 
             # Calculate risk metrics
-            stop_loss_price = current_price * (Decimal("1") - self.risk_limits.stop_loss_percentage)
+            stop_loss_price = current_price * (
+                Decimal("1") - self.risk_limits.stop_loss_percentage
+            )
             max_loss = (current_price - stop_loss_price) * Decimal(shares)
 
-            take_profit_price = current_price * (Decimal("1") + self.risk_limits.take_profit_percentage)
+            take_profit_price = current_price * (
+                Decimal("1") + self.risk_limits.take_profit_percentage
+            )
             max_gain = (take_profit_price - current_price) * Decimal(shares)
 
             risk_reward_ratio = float(max_gain / max_loss) if max_loss > 0 else 0.0
@@ -199,13 +240,15 @@ class RiskManager:
                 volatility_adjustment=volatility_adjustment,
                 sizing_method=PositionSizingMethod.CONFIDENCE_BASED,
                 max_loss_amount=max_loss,
-                risk_reward_ratio=risk_reward_ratio
+                risk_reward_ratio=risk_reward_ratio,
             )
 
         except Exception as e:
             logger.error(f"Error calculating position size for {symbol}: {e}")
             # Return minimal safe position as fallback
-            safe_shares = max(1, int((portfolio.total_equity * Decimal("0.01")) / current_price))
+            safe_shares = max(
+                1, int((portfolio.total_equity * Decimal("0.01")) / current_price)
+            )
             return PositionSizing(
                 symbol=symbol,
                 recommended_shares=safe_shares,
@@ -215,35 +258,49 @@ class RiskManager:
                 volatility_adjustment=0.5,
                 sizing_method=PositionSizingMethod.FIXED_PERCENTAGE,
                 max_loss_amount=Decimal(safe_shares) * current_price * Decimal("0.02"),
-                risk_reward_ratio=1.5
+                risk_reward_ratio=1.5,
             )
 
-    async def calculate_portfolio_metrics(self, portfolio: PortfolioState) -> PortfolioMetrics:
+    async def calculate_portfolio_metrics(
+        self, portfolio: PortfolioState
+    ) -> PortfolioMetrics:
         """Calculate comprehensive portfolio risk metrics."""
         try:
             # Check cache
-            if (self._portfolio_metrics_cache and
-                self._cache_timestamp and
-                datetime.now(timezone.utc) - self._cache_timestamp < self._cache_ttl):
+            if (
+                self._portfolio_metrics_cache
+                and self._cache_timestamp
+                and datetime.now(timezone.utc) - self._cache_timestamp < self._cache_ttl
+            ):
                 return self._portfolio_metrics_cache
 
             # Calculate basic metrics
             total_exposure = portfolio.total_market_value
-            cash_percentage = portfolio.cash / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("1")
+            cash_percentage = (
+                portfolio.cash / portfolio.total_equity
+                if portfolio.total_equity > 0
+                else Decimal("1")
+            )
             position_count = len([p for p in portfolio.positions if p.quantity != 0])
 
             # Calculate concentration risk
             concentration_risk = await self._calculate_concentration_risk(portfolio)
 
             # Calculate portfolio beta and correlation
-            portfolio_beta, avg_correlation = await self._calculate_portfolio_beta_correlation(portfolio)
+            portfolio_beta, avg_correlation = (
+                await self._calculate_portfolio_beta_correlation(portfolio)
+            )
 
             # Calculate VaR and Expected Shortfall
-            var_1d, var_5d, expected_shortfall = await self._calculate_var_metrics(portfolio)
+            var_1d, var_5d, expected_shortfall = await self._calculate_var_metrics(
+                portfolio
+            )
 
             # Calculate performance metrics
             sharpe_ratio = await self._calculate_sharpe_ratio(portfolio)
-            max_drawdown, current_drawdown = await self._calculate_drawdown_metrics(portfolio)
+            max_drawdown, current_drawdown = await self._calculate_drawdown_metrics(
+                portfolio
+            )
             volatility = await self._calculate_portfolio_volatility(portfolio)
 
             metrics = PortfolioMetrics(
@@ -259,7 +316,7 @@ class RiskManager:
                 sharpe_ratio=sharpe_ratio,
                 max_drawdown=max_drawdown,
                 current_drawdown=current_drawdown,
-                volatility=volatility
+                volatility=volatility,
             )
 
             # Cache the result
@@ -284,10 +341,12 @@ class RiskManager:
                 sharpe_ratio=0.0,
                 max_drawdown=Decimal("0"),
                 current_drawdown=Decimal("0"),
-                volatility=0.0
+                volatility=0.0,
             )
 
-    async def update_trailing_stops(self, portfolio: PortfolioState, market_prices: Dict[str, Decimal]) -> List[RiskEvent]:
+    async def update_trailing_stops(
+        self, portfolio: PortfolioState, market_prices: Dict[str, Decimal]
+    ) -> List[RiskEvent]:
         """Update trailing stops for all positions."""
         events = []
 
@@ -304,9 +363,10 @@ class RiskManager:
                     symbol=symbol,
                     enabled=True,
                     trail_percentage=self.risk_limits.stop_loss_percentage,
-                    current_stop_price=current_price * (Decimal("1") - self.risk_limits.stop_loss_percentage),
+                    current_stop_price=current_price
+                    * (Decimal("1") - self.risk_limits.stop_loss_percentage),
                     highest_price=current_price,
-                    entry_price=position.entry_price
+                    entry_price=position.entry_price,
                 )
 
             trailing_stop = self.trailing_stops[symbol]
@@ -314,7 +374,9 @@ class RiskManager:
             # Update highest price
             if current_price > trailing_stop.highest_price:
                 trailing_stop.highest_price = current_price
-                new_stop_price = current_price * (Decimal("1") - trailing_stop.trail_percentage)
+                new_stop_price = current_price * (
+                    Decimal("1") - trailing_stop.trail_percentage
+                )
 
                 # Only move stop up, never down
                 if new_stop_price > trailing_stop.current_stop_price:
@@ -322,7 +384,9 @@ class RiskManager:
                     trailing_stop.current_stop_price = new_stop_price
                     trailing_stop.last_updated = datetime.now(timezone.utc)
 
-                    logger.info(f"Updated trailing stop for {symbol}: {old_stop} -> {new_stop_price}")
+                    logger.info(
+                        f"Updated trailing stop for {symbol}: {old_stop} -> {new_stop_price}"
+                    )
 
             # Check if stop loss should be triggered
             if current_price <= trailing_stop.current_stop_price:
@@ -337,8 +401,8 @@ class RiskManager:
                         "stop_price": str(trailing_stop.current_stop_price),
                         "current_price": str(current_price),
                         "position_size": str(position.quantity),
-                        "unrealized_pnl": str(position.unrealized_pnl)
-                    }
+                        "unrealized_pnl": str(position.unrealized_pnl),
+                    },
                 )
                 events.append(event)
 
@@ -354,72 +418,85 @@ class RiskManager:
 
             # Check drawdown limits
             if metrics.current_drawdown > self.risk_limits.max_drawdown_percentage:
-                violations.append(RiskEvent(
-                    event_type=RiskEventType.PORTFOLIO_DRAWDOWN,
-                    severity=RiskSeverity.CRITICAL,
-                    symbol=None,
-                    description=f"Portfolio drawdown {metrics.current_drawdown:.2%} exceeds limit {self.risk_limits.max_drawdown_percentage:.2%}",
-                    resolved_at=None,
-                    action_taken=None,
-                    metadata={"current_drawdown": str(metrics.current_drawdown)}
-                ))
+                violations.append(
+                    RiskEvent(
+                        event_type=RiskEventType.PORTFOLIO_DRAWDOWN,
+                        severity=RiskSeverity.CRITICAL,
+                        symbol=None,
+                        description=f"Portfolio drawdown {metrics.current_drawdown:.2%} exceeds limit {self.risk_limits.max_drawdown_percentage:.2%}",
+                        resolved_at=None,
+                        action_taken=None,
+                        metadata={"current_drawdown": str(metrics.current_drawdown)},
+                    )
+                )
 
             # Check daily loss limit
             daily_loss_check = await self._check_daily_loss_limit(portfolio)
             if not daily_loss_check.passed:
-                violations.append(RiskEvent(
-                    event_type=RiskEventType.DAILY_LOSS_LIMIT,
-                    severity=RiskSeverity.HIGH,
-                    symbol=None,
-                    description=daily_loss_check.reason or "Daily loss limit exceeded",
-                    resolved_at=None,
-                    action_taken=None
-                ))
+                violations.append(
+                    RiskEvent(
+                        event_type=RiskEventType.DAILY_LOSS_LIMIT,
+                        severity=RiskSeverity.HIGH,
+                        symbol=None,
+                        description=daily_loss_check.reason
+                        or "Daily loss limit exceeded",
+                        resolved_at=None,
+                        action_taken=None,
+                    )
+                )
 
             # Check position concentration
             if metrics.concentration_risk > 0.8:  # High concentration threshold
-                violations.append(RiskEvent(
-                    event_type=RiskEventType.POSITION_SIZE_VIOLATION,
-                    severity=RiskSeverity.MEDIUM,
-                    symbol=None,
-                    description=f"High portfolio concentration risk: {metrics.concentration_risk:.2f}",
-                    resolved_at=None,
-                    action_taken=None,
-                    metadata={"concentration_risk": metrics.concentration_risk}
-                ))
+                violations.append(
+                    RiskEvent(
+                        event_type=RiskEventType.POSITION_SIZE_VIOLATION,
+                        severity=RiskSeverity.MEDIUM,
+                        symbol=None,
+                        description=f"High portfolio concentration risk: {metrics.concentration_risk:.2f}",
+                        resolved_at=None,
+                        action_taken=None,
+                        metadata={"concentration_risk": metrics.concentration_risk},
+                    )
+                )
 
             # Check correlation violations
             high_correlation_pairs = await self._find_high_correlation_pairs(portfolio)
             for pair, correlation in high_correlation_pairs:
-                violations.append(RiskEvent(
-                    event_type=RiskEventType.CORRELATION_BREACH,
-                    severity=RiskSeverity.MEDIUM,
-                    symbol=None,
-                    description=f"High correlation between {pair[0]} and {pair[1]}: {correlation:.2f}",
-                    resolved_at=None,
-                    action_taken=None,
-                    metadata={"pair": pair, "correlation": correlation}
-                ))
+                violations.append(
+                    RiskEvent(
+                        event_type=RiskEventType.CORRELATION_BREACH,
+                        severity=RiskSeverity.MEDIUM,
+                        symbol=None,
+                        description=f"High correlation between {pair[0]} and {pair[1]}: {correlation:.2f}",
+                        resolved_at=None,
+                        action_taken=None,
+                        metadata={"pair": pair, "correlation": correlation},
+                    )
+                )
 
             return violations
 
         except Exception as e:
             logger.error(f"Error checking risk violations: {e}")
-            return [RiskEvent(
-                event_type=RiskEventType.EMERGENCY_STOP,
-                severity=RiskSeverity.CRITICAL,
-                symbol=None,
-                description=f"Risk check error: {str(e)}",
-                resolved_at=None,
-                action_taken=None,
-                metadata={"error": str(e)}
-            )]
+            return [
+                RiskEvent(
+                    event_type=RiskEventType.EMERGENCY_STOP,
+                    severity=RiskSeverity.CRITICAL,
+                    symbol=None,
+                    description=f"Risk check error: {str(e)}",
+                    resolved_at=None,
+                    action_taken=None,
+                    metadata={"error": str(e)},
+                )
+            ]
 
-    async def calculate_stop_loss_take_profit(self,
-                                            symbol: str,
-                                            entry_price: Decimal,
-                                            side: OrderSide,
-                                            atr_multiplier: Optional[float] = None) -> Tuple[Decimal, Decimal]:
+    async def calculate_stop_loss_take_profit(
+        self,
+        symbol: str,
+        entry_price: Decimal,
+        side: OrderSide,
+        atr_multiplier: Optional[float] = None,
+    ) -> Tuple[Decimal, Decimal]:
         """
         Calculate stop loss and take profit levels.
 
@@ -454,7 +531,9 @@ class RiskManager:
             stop_loss = max(stop_loss, Decimal("0.01"))
             take_profit = max(take_profit, Decimal("0.01"))
 
-            logger.info(f"Calculated stops for {symbol}: SL={stop_loss}, TP={take_profit}")
+            logger.info(
+                f"Calculated stops for {symbol}: SL={stop_loss}, TP={take_profit}"
+            )
 
             return stop_loss, take_profit
 
@@ -466,7 +545,9 @@ class RiskManager:
             else:
                 return (entry_price * Decimal("1.02"), entry_price * Decimal("0.97"))
 
-    async def should_scale_out_position(self, position: Position, current_price: Decimal) -> Tuple[bool, float]:
+    async def should_scale_out_position(
+        self, position: Position, current_price: Decimal
+    ) -> Tuple[bool, float]:
         """
         Determine if a position should be partially closed (scaled out).
 
@@ -514,12 +595,14 @@ class RiskManager:
                 reason="Trading halted due to emergency stop",
                 value=None,
                 limit=None,
-                severity=RiskSeverity.CRITICAL
+                severity=RiskSeverity.CRITICAL,
             )
 
         # Check if portfolio loss exceeds emergency threshold
         if self.last_portfolio_snapshot:
-            loss_pct = (portfolio.total_equity - self.last_portfolio_snapshot.total_equity) / self.last_portfolio_snapshot.total_equity
+            loss_pct = (
+                portfolio.total_equity - self.last_portfolio_snapshot.total_equity
+            ) / self.last_portfolio_snapshot.total_equity
             if loss_pct <= -self.risk_limits.emergency_stop_percentage:
                 self.emergency_stop_active = True
                 return RiskFilter(
@@ -533,7 +616,7 @@ class RiskManager:
                     reason=f"Portfolio loss {loss_pct:.2%} exceeds emergency threshold {self.risk_limits.emergency_stop_percentage:.2%}",
                     value=float(loss_pct),
                     limit=float(-self.risk_limits.emergency_stop_percentage),
-                    severity=RiskSeverity.CRITICAL
+                    severity=RiskSeverity.CRITICAL,
                 )
 
         return RiskFilter(
@@ -546,14 +629,20 @@ class RiskManager:
             filter_name="emergency_stop",
             reason=None,
             value=None,
-            limit=None
+            limit=None,
         )
 
     async def _check_daily_loss_limit(self, portfolio: PortfolioState) -> RiskFilter:
         """Check daily loss limit."""
         if self.last_portfolio_snapshot:
-            daily_loss = portfolio.total_equity - self.last_portfolio_snapshot.total_equity
-            daily_loss_pct = daily_loss / self.last_portfolio_snapshot.total_equity if self.last_portfolio_snapshot.total_equity > 0 else Decimal("0")
+            daily_loss = (
+                portfolio.total_equity - self.last_portfolio_snapshot.total_equity
+            )
+            daily_loss_pct = (
+                daily_loss / self.last_portfolio_snapshot.total_equity
+                if self.last_portfolio_snapshot.total_equity > 0
+                else Decimal("0")
+            )
 
             if daily_loss_pct <= -self.risk_limits.max_daily_loss_percentage:
                 return RiskFilter(
@@ -567,7 +656,7 @@ class RiskManager:
                     reason=f"Daily loss {daily_loss_pct:.2%} exceeds limit {self.risk_limits.max_daily_loss_percentage:.2%}",
                     value=float(daily_loss_pct),
                     limit=float(-self.risk_limits.max_daily_loss_percentage),
-                    severity=RiskSeverity.HIGH
+                    severity=RiskSeverity.HIGH,
                 )
 
         return RiskFilter(
@@ -580,16 +669,21 @@ class RiskManager:
             filter_name="daily_loss_limit",
             reason=None,
             value=None,
-            limit=None
+            limit=None,
         )
 
-    async def _check_position_limits(self, portfolio: PortfolioState, order_request: OrderRequest) -> RiskFilter:
+    async def _check_position_limits(
+        self, portfolio: PortfolioState, order_request: OrderRequest
+    ) -> RiskFilter:
         """Check position count limits."""
         current_positions = len([p for p in portfolio.positions if p.quantity != 0])
 
         # If buying and would create new position
         if order_request.side == OrderSide.BUY:
-            existing_position = next((p for p in portfolio.positions if p.symbol == order_request.symbol), None)
+            existing_position = next(
+                (p for p in portfolio.positions if p.symbol == order_request.symbol),
+                None,
+            )
             if not existing_position or existing_position.quantity == 0:
                 if current_positions >= self.risk_limits.max_positions:
                     return RiskFilter(
@@ -603,7 +697,7 @@ class RiskManager:
                         reason=f"Position count would exceed limit: {current_positions + 1} > {self.risk_limits.max_positions}",
                         value=current_positions + 1,
                         limit=self.risk_limits.max_positions,
-                        severity=RiskSeverity.MEDIUM
+                        severity=RiskSeverity.MEDIUM,
                     )
 
         return RiskFilter(
@@ -616,14 +710,23 @@ class RiskManager:
             filter_name="position_count",
             reason=None,
             value=None,
-            limit=None
+            limit=None,
         )
 
-    async def _check_buying_power(self, portfolio: PortfolioState, order_request: OrderRequest) -> RiskFilter:
+    async def _check_buying_power(
+        self, portfolio: PortfolioState, order_request: OrderRequest
+    ) -> RiskFilter:
         """Check sufficient buying power."""
-        required_capital = order_request.quantity * order_request.price if order_request.price else Decimal("0")
+        required_capital = (
+            order_request.quantity * order_request.price
+            if order_request.price
+            else Decimal("0")
+        )
 
-        if order_request.side == OrderSide.BUY and required_capital > portfolio.buying_power:
+        if (
+            order_request.side == OrderSide.BUY
+            and required_capital > portfolio.buying_power
+        ):
             return RiskFilter(
                 name="buying_power",
                 max_position_size=None,
@@ -635,7 +738,7 @@ class RiskManager:
                 reason=f"Insufficient buying power: ${required_capital} > ${portfolio.buying_power}",
                 value=float(required_capital),
                 limit=float(portfolio.buying_power),
-                severity=RiskSeverity.MEDIUM
+                severity=RiskSeverity.MEDIUM,
             )
 
         return RiskFilter(
@@ -648,13 +751,23 @@ class RiskManager:
             filter_name="buying_power",
             reason=None,
             value=None,
-            limit=None
+            limit=None,
         )
 
-    async def _check_position_size(self, portfolio: PortfolioState, order_request: OrderRequest) -> RiskFilter:
+    async def _check_position_size(
+        self, portfolio: PortfolioState, order_request: OrderRequest
+    ) -> RiskFilter:
         """Check position size limits."""
-        position_value = order_request.quantity * order_request.price if order_request.price else Decimal("0")
-        position_pct = position_value / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("0")
+        position_value = (
+            order_request.quantity * order_request.price
+            if order_request.price
+            else Decimal("0")
+        )
+        position_pct = (
+            position_value / portfolio.total_equity
+            if portfolio.total_equity > 0
+            else Decimal("0")
+        )
 
         if position_pct > self.risk_limits.max_position_percentage:
             return RiskFilter(
@@ -668,7 +781,7 @@ class RiskManager:
                 reason=f"Position size {position_pct:.2%} exceeds limit {self.risk_limits.max_position_percentage:.2%}",
                 value=float(position_pct),
                 limit=float(self.risk_limits.max_position_percentage),
-                severity=RiskSeverity.MEDIUM
+                severity=RiskSeverity.MEDIUM,
             )
 
         return RiskFilter(
@@ -681,15 +794,23 @@ class RiskManager:
             filter_name="position_size",
             reason=None,
             value=None,
-            limit=None
+            limit=None,
         )
 
-    async def _check_correlation(self, portfolio: PortfolioState, new_symbol: str) -> RiskFilter:
+    async def _check_correlation(
+        self, portfolio: PortfolioState, new_symbol: str
+    ) -> RiskFilter:
         """Check correlation with existing positions."""
         try:
-            correlations = await self._calculate_symbol_correlations(portfolio, new_symbol)
+            correlations = await self._calculate_symbol_correlations(
+                portfolio, new_symbol
+            )
 
-            high_correlations = [corr for corr in correlations.values() if corr > self.risk_limits.max_correlation_threshold]
+            high_correlations = [
+                corr
+                for corr in correlations.values()
+                if corr > self.risk_limits.max_correlation_threshold
+            ]
 
             if high_correlations:
 
@@ -704,7 +825,7 @@ class RiskManager:
                     reason="High correlation with existing positions",
                     value=max(high_correlations),
                     limit=self.risk_limits.max_correlation_threshold,
-                    severity=RiskSeverity.MEDIUM
+                    severity=RiskSeverity.MEDIUM,
                 )
 
             return RiskFilter(
@@ -717,7 +838,7 @@ class RiskManager:
                 filter_name="correlation",
                 reason=None,
                 value=None,
-                limit=None
+                limit=None,
             )
 
         except Exception as e:
@@ -733,7 +854,7 @@ class RiskManager:
                 filter_name="correlation",
                 reason=None,
                 value=None,
-                limit=None
+                limit=None,
             )
 
     async def _check_volatility(self, symbol: str) -> RiskFilter:
@@ -753,7 +874,7 @@ class RiskManager:
                     reason=f"Symbol volatility {volatility:.2%} exceeds limit {self.risk_limits.max_position_volatility:.2%}",
                     value=volatility,
                     limit=self.risk_limits.max_position_volatility,
-                    severity=RiskSeverity.MEDIUM
+                    severity=RiskSeverity.MEDIUM,
                 )
 
             return RiskFilter(
@@ -766,7 +887,7 @@ class RiskManager:
                 filter_name="volatility_limit",
                 reason=None,
                 value=None,
-                limit=None
+                limit=None,
             )
 
         except Exception as e:
@@ -782,7 +903,7 @@ class RiskManager:
                 filter_name="volatility_limit",
                 reason=None,
                 value=None,
-                limit=None
+                limit=None,
             )
 
     async def _calculate_volatility_adjustment(self, symbol: str) -> float:
@@ -825,7 +946,9 @@ class RiskManager:
         # Normalize to 0-1 scale (1 = maximum concentration)
         return min(1.0, hhi)
 
-    async def _calculate_portfolio_beta_correlation(self, portfolio: PortfolioState) -> Tuple[float, float]:
+    async def _calculate_portfolio_beta_correlation(
+        self, portfolio: PortfolioState
+    ) -> Tuple[float, float]:
         """Calculate portfolio beta and average correlation."""
         try:
             # Calculate portfolio beta and correlation using historical data
@@ -844,16 +967,20 @@ class RiskManager:
                     # Calculate actual beta and correlation if we have market data
                     if spy_returns is not None:
                         # Get stock data and calculate beta
-                        stock_data = await self._get_historical_data(position.symbol, days=252)
+                        stock_data = await self._get_historical_data(
+                            position.symbol, days=252
+                        )
                         if stock_data is not None:
                             stock_returns = await self._calculate_returns(stock_data)
                             if stock_returns is not None and len(stock_returns) > 20:
                                 # Merge returns data on timestamp
-                                merged = stock_returns.select(["timestamp", "returns"]).join(
+                                merged = stock_returns.select(
+                                    ["timestamp", "returns"]
+                                ).join(
                                     spy_returns.select(["timestamp", "returns"]),
                                     on="timestamp",
                                     how="inner",
-                                    suffix="_market"
+                                    suffix="_market",
                                 )
 
                                 if len(merged) > 20:
@@ -862,18 +989,28 @@ class RiskManager:
                                     market_rets = merged["returns_market"].to_numpy()
 
                                     if len(stock_rets) > 0 and len(market_rets) > 0:
-                                        covariance = np.cov(stock_rets, market_rets)[0, 1]
+                                        covariance = np.cov(stock_rets, market_rets)[
+                                            0, 1
+                                        ]
                                         market_variance = np.var(market_rets)
 
                                         if market_variance > 0:
                                             beta = covariance / market_variance
-                                            beta_sum += max(0.1, min(3.0, beta))  # Clamp beta
+                                            beta_sum += max(
+                                                0.1, min(3.0, beta)
+                                            )  # Clamp beta
                                         else:
                                             beta_sum += 1.0
 
                                         # Correlation is already calculated
-                                        correlation = np.corrcoef(stock_rets, market_rets)[0, 1]
-                                        correlation_sum += abs(correlation) if not np.isnan(correlation) else 0.3
+                                        correlation = np.corrcoef(
+                                            stock_rets, market_rets
+                                        )[0, 1]
+                                        correlation_sum += (
+                                            abs(correlation)
+                                            if not np.isnan(correlation)
+                                            else 0.3
+                                        )
                                     else:
                                         beta_sum += 1.0
                                         correlation_sum += 0.3
@@ -902,7 +1039,9 @@ class RiskManager:
             logger.error(f"Error calculating portfolio beta/correlation: {e}")
             return 1.0, 0.0
 
-    async def _calculate_var_metrics(self, portfolio: PortfolioState) -> Tuple[Decimal, Decimal, Decimal]:
+    async def _calculate_var_metrics(
+        self, portfolio: PortfolioState
+    ) -> Tuple[Decimal, Decimal, Decimal]:
         """Calculate Value at Risk and Expected Shortfall."""
         try:
             # Simplified VaR calculation
@@ -912,7 +1051,12 @@ class RiskManager:
             volatility = await self._calculate_portfolio_volatility(portfolio)
 
             # 95% confidence level (1.645 standard deviations)
-            var_1d = portfolio_value * Decimal(str(volatility)) * Decimal("1.645") / Decimal(str(np.sqrt(252)))
+            var_1d = (
+                portfolio_value
+                * Decimal(str(volatility))
+                * Decimal("1.645")
+                / Decimal(str(np.sqrt(252)))
+            )
             var_5d = var_1d * Decimal(str(np.sqrt(5)))
 
             # Expected Shortfall (typically 1.3x VaR for normal distribution)
@@ -940,7 +1084,9 @@ class RiskManager:
                 if stock_data is not None:
                     returns_df = await self._calculate_returns(stock_data)
                     if returns_df is not None and len(returns_df) > 20:
-                        weight = float(position.market_value / portfolio.total_market_value)
+                        weight = float(
+                            position.market_value / portfolio.total_market_value
+                        )
                         returns_list = returns_df["returns"].to_list()
 
                         if not total_returns:
@@ -948,8 +1094,10 @@ class RiskManager:
                         else:
                             # Add weighted returns
                             min_len = min(len(total_returns), len(returns_list))
-                            total_returns = [total_returns[i] + returns_list[i] * weight
-                                           for i in range(min_len)]
+                            total_returns = [
+                                total_returns[i] + returns_list[i] * weight
+                                for i in range(min_len)
+                            ]
 
                         total_weights += weight
 
@@ -964,7 +1112,9 @@ class RiskManager:
             risk_free_rate = 0.02 / 252
 
             if std_return > 0:
-                sharpe_ratio = (mean_return - risk_free_rate) / std_return * np.sqrt(252)
+                sharpe_ratio = (
+                    (mean_return - risk_free_rate) / std_return * np.sqrt(252)
+                )
                 return float(sharpe_ratio)
 
             return 0.0
@@ -973,7 +1123,9 @@ class RiskManager:
             logger.error(f"Error calculating Sharpe ratio: {e}")
             return 0.0
 
-    async def _calculate_drawdown_metrics(self, portfolio: PortfolioState) -> Tuple[Decimal, Decimal]:
+    async def _calculate_drawdown_metrics(
+        self, portfolio: PortfolioState
+    ) -> Tuple[Decimal, Decimal]:
         """Calculate max drawdown and current drawdown."""
         try:
             # Calculate portfolio value series from historical data
@@ -983,7 +1135,7 @@ class RiskManager:
                 return Decimal("0"), Decimal("0")
 
             # Get the shortest data series among all positions
-            min_data_length = float('inf')
+            min_data_length = float("inf")
             position_data = {}
 
             for position in portfolio.positions:
@@ -992,7 +1144,7 @@ class RiskManager:
                     position_data[position.symbol] = stock_data
                     min_data_length = min(min_data_length, len(stock_data))
 
-            if not position_data or min_data_length == float('inf'):
+            if not position_data or min_data_length == float("inf"):
                 return Decimal("0"), Decimal("0")
 
             # Calculate portfolio values over time
@@ -1039,7 +1191,9 @@ class RiskManager:
             if not portfolio.positions or len(portfolio.positions) == 1:
                 # Single asset or empty portfolio
                 if portfolio.positions:
-                    return await self._get_symbol_volatility(portfolio.positions[0].symbol)
+                    return await self._get_symbol_volatility(
+                        portfolio.positions[0].symbol
+                    )
                 return 0.15
 
             # Get volatilities and weights for all positions
@@ -1063,7 +1217,9 @@ class RiskManager:
                         portfolio_variance += (weights[i] ** 2) * (volatilities[i] ** 2)
                     else:
                         # Covariance term
-                        correlation = await self._get_symbol_correlation(symbols[i], symbols[j])
+                        correlation = await self._get_symbol_correlation(
+                            symbols[i], symbols[j]
+                        )
                         covariance = correlation * volatilities[i] * volatilities[j]
                         portfolio_variance += 2 * weights[i] * weights[j] * covariance
 
@@ -1077,7 +1233,9 @@ class RiskManager:
             logger.error(f"Error calculating portfolio volatility: {e}")
             return 0.15
 
-    async def _find_high_correlation_pairs(self, portfolio: PortfolioState) -> List[Tuple[Tuple[str, str], float]]:
+    async def _find_high_correlation_pairs(
+        self, portfolio: PortfolioState
+    ) -> List[Tuple[Tuple[str, str], float]]:
         """Find pairs of positions with high correlation."""
         high_corr_pairs = []
 
@@ -1085,7 +1243,7 @@ class RiskManager:
             symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
 
             for i, symbol1 in enumerate(symbols):
-                for symbol2 in symbols[i+1:]:
+                for symbol2 in symbols[i + 1 :]:
                     correlation = await self._get_symbol_correlation(symbol1, symbol2)
                     if correlation > self.risk_limits.max_correlation_threshold:
                         high_corr_pairs.append(((symbol1, symbol2), correlation))
@@ -1096,14 +1254,18 @@ class RiskManager:
             logger.error(f"Error finding high correlation pairs: {e}")
             return []
 
-    async def _calculate_symbol_correlations(self, portfolio: PortfolioState, new_symbol: str) -> Dict[str, float]:
+    async def _calculate_symbol_correlations(
+        self, portfolio: PortfolioState, new_symbol: str
+    ) -> Dict[str, float]:
         """Calculate correlations between new symbol and existing positions."""
         correlations = {}
 
         try:
             for position in portfolio.positions:
                 if position.quantity != 0:
-                    correlation = await self._get_symbol_correlation(new_symbol, position.symbol)
+                    correlation = await self._get_symbol_correlation(
+                        new_symbol, position.symbol
+                    )
                     correlations[position.symbol] = correlation
 
             return correlations
@@ -1119,7 +1281,9 @@ class RiskManager:
                 return 1.0
 
             # Check cache first
-            cache_key = f"{symbol1}_{symbol2}" if symbol1 < symbol2 else f"{symbol2}_{symbol1}"
+            cache_key = (
+                f"{symbol1}_{symbol2}" if symbol1 < symbol2 else f"{symbol2}_{symbol1}"
+            )
             if cache_key in self._correlation_cache:
                 cached_time, cached_value = self._correlation_cache[cache_key]
                 cache_age = datetime.now() - cached_time
@@ -1128,7 +1292,9 @@ class RiskManager:
 
             # Get correlation from data collector service
             if self._data_client is not None:
-                correlation = await self._data_client.get_symbol_correlation(symbol1, symbol2, days=252)
+                correlation = await self._data_client.get_symbol_correlation(
+                    symbol1, symbol2, days=252
+                )
             else:
                 # Fallback to placeholder logic
                 correlation = 0.3 if len(set(symbol1) & set(symbol2)) > 1 else 0.1
@@ -1138,7 +1304,9 @@ class RiskManager:
             return correlation
 
         except Exception as e:
-            logger.error(f"Error getting correlation between {symbol1} and {symbol2}: {e}")
+            logger.error(
+                f"Error getting correlation between {symbol1} and {symbol2}: {e}"
+            )
             return 0.0
 
     async def _get_symbol_volatility(self, symbol: str) -> float:
@@ -1153,7 +1321,9 @@ class RiskManager:
 
             # Get volatility from data collector service
             if self._data_client is not None:
-                volatility = await self._data_client.get_symbol_volatility(symbol, days=252)
+                volatility = await self._data_client.get_symbol_volatility(
+                    symbol, days=252
+                )
             else:
                 # Fallback to symbol-based estimation
                 if any(char.isdigit() for char in symbol):
@@ -1202,7 +1372,9 @@ class RiskManager:
             from shared.clients import DataCollectorClient
 
             # Get data collector service URL from config or use default
-            data_collector_url = getattr(self.config, 'data_collector_url', "http://localhost:9101")
+            data_collector_url = getattr(
+                self.config, "data_collector_url", "http://localhost:9101"
+            )
 
             # Initialize HTTP client
             self._data_client = DataCollectorClient(base_url=data_collector_url)
@@ -1212,7 +1384,9 @@ class RiskManager:
             logger.error(f"Failed to initialize data collector client: {e}")
             # Continue without data client - will use fallback methods
 
-    async def _get_historical_data(self, symbol: str, days: int = 30) -> Optional[pl.DataFrame]:
+    async def _get_historical_data(
+        self, symbol: str, days: int = 30
+    ) -> Optional[pl.DataFrame]:
         """Get historical market data for a symbol."""
         try:
             if self._data_client is None:
@@ -1227,7 +1401,7 @@ class RiskManager:
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df is not None and len(df) > 0:
@@ -1246,9 +1420,9 @@ class RiskManager:
                 return None
 
             # Calculate daily returns
-            returns_df = df.with_columns([
-                pl.col("close").pct_change().alias("returns")
-            ]).drop_nulls()
+            returns_df = df.with_columns(
+                [pl.col("close").pct_change().alias("returns")]
+            ).drop_nulls()
 
             return returns_df
 

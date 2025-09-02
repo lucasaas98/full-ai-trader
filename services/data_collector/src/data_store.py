@@ -9,19 +9,23 @@ by ticker, timeframe, and date for optimal performance.
 import asyncio
 import logging
 import os
-
-from datetime import datetime, timedelta, date
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from concurrent.futures import ThreadPoolExecutor
-import threading
+from typing import Any, Dict, List, Optional, Tuple
 
 import polars as pl
 from pydantic import BaseModel, Field
 
-from shared.models import MarketData, TimeFrame, FinVizData, AssetType, TechnicalIndicators
-
+from shared.models import (
+    AssetType,
+    FinVizData,
+    MarketData,
+    TechnicalIndicators,
+    TimeFrame,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +33,17 @@ logger = logging.getLogger(__name__)
 class DataStoreConfig(BaseModel):
     """Configuration for data storage."""
 
-    base_path: str = Field(default="data/parquet", description="Base path for Parquet files")
+    base_path: str = Field(
+        default="data/parquet", description="Base path for Parquet files"
+    )
     compression: str = Field(default="snappy", description="Compression algorithm")
     max_file_size_mb: int = Field(default=100, description="Maximum file size in MB")
-    retention_days: int = Field(default=730, description="Data retention period in days")
-    enable_compression: bool = Field(default=True, description="Enable Parquet compression")
+    retention_days: int = Field(
+        default=730, description="Data retention period in days"
+    )
+    enable_compression: bool = Field(
+        default=True, description="Enable Parquet compression"
+    )
     batch_size: int = Field(default=10000, description="Batch size for data operations")
     max_workers: int = Field(default=4, description="Maximum worker threads for I/O")
 
@@ -63,7 +73,7 @@ class DataStore:
             "low": pl.Float64,
             "close": pl.Float64,
             "volume": pl.Int64,
-            "asset_type": pl.Utf8
+            "asset_type": pl.Utf8,
         }
 
         self.finviz_data_schema = {
@@ -77,7 +87,7 @@ class DataStore:
             "price": pl.Float64,
             "change": pl.Float64,
             "volume": pl.Int64,
-            "timestamp": pl.Datetime("us")
+            "timestamp": pl.Datetime("us"),
         }
 
         self.technical_indicators_schema = {
@@ -97,7 +107,7 @@ class DataStore:
             "bollinger_middle": pl.Float64,
             "bollinger_lower": pl.Float64,
             "atr": pl.Float64,
-            "volume_sma": pl.Float64
+            "volume_sma": pl.Float64,
         }
 
     def _ensure_base_directory(self):
@@ -114,7 +124,7 @@ class DataStore:
         ticker: str,
         timeframe: TimeFrame,
         date_obj: date,
-        data_type: str = "market_data"
+        data_type: str = "market_data",
     ) -> Path:
         """
         Get file path for ticker/timeframe/date combination.
@@ -134,7 +144,9 @@ class DataStore:
         filename = f"{date_obj.strftime('%Y-%m-%d')}.parquet"
         return ticker_dir / filename
 
-    def _get_screener_file_path(self, date_obj: date, screener_type: str = "momentum") -> Path:
+    def _get_screener_file_path(
+        self, date_obj: date, screener_type: str = "momentum"
+    ) -> Path:
         """Get file path for screener data."""
         screener_dir = self.base_path / "screener_data" / screener_type
         screener_dir.mkdir(parents=True, exist_ok=True)
@@ -150,17 +162,19 @@ class DataStore:
         # Convert to list of dictionaries
         records = []
         for md in data:
-            records.append({
-                "symbol": md.symbol,
-                "timestamp": md.timestamp,
-                "timeframe": md.timeframe.value,
-                "open": float(md.open),
-                "high": float(md.high),
-                "low": float(md.low),
-                "close": float(md.close),
-                "volume": md.volume,
-                "asset_type": md.asset_type.value
-            })
+            records.append(
+                {
+                    "symbol": md.symbol,
+                    "timestamp": md.timestamp,
+                    "timeframe": md.timeframe.value,
+                    "open": float(md.open),
+                    "high": float(md.high),
+                    "low": float(md.low),
+                    "close": float(md.close),
+                    "volume": md.volume,
+                    "asset_type": md.asset_type.value,
+                }
+            )
 
         return pl.DataFrame(records, schema=self.market_data_schema)
 
@@ -178,23 +192,29 @@ class DataStore:
                     "sector": fv.sector or "",
                     "industry": fv.industry or "",
                     "country": fv.country or "",
-                    "market_cap": str(fv.market_cap) if fv.market_cap is not None else "",
+                    "market_cap": (
+                        str(fv.market_cap) if fv.market_cap is not None else ""
+                    ),
                     "pe_ratio": float(fv.pe_ratio) if fv.pe_ratio is not None else None,
                     "price": float(fv.price) if fv.price is not None else None,
                     "change": float(fv.change) if fv.change is not None else None,
                     "volume": int(fv.volume) if fv.volume is not None else None,
-                    "timestamp": fv.timestamp
+                    "timestamp": fv.timestamp,
                 }
                 records.append(record)
 
                 # Log first record for debugging
                 if i == 0:
-                    logger.debug(f"First record data types: {[(k, type(v).__name__) for k, v in record.items()]}")
+                    logger.debug(
+                        f"First record data types: {[(k, type(v).__name__) for k, v in record.items()]}"
+                    )
                     logger.debug(f"First record values: {record}")
 
             except Exception as e:
                 logger.error(f"Error processing FinVizData record {i}: {e}")
-                logger.error(f"Problem record: symbol={fv.symbol}, price={fv.price}, change={fv.change}, volume={fv.volume}")
+                logger.error(
+                    f"Problem record: symbol={fv.symbol}, price={fv.price}, change={fv.change}, volume={fv.volume}"
+                )
                 continue
 
         try:
@@ -220,7 +240,9 @@ class DataStore:
             try:
                 logger.info("Attempting to create DataFrame without schema...")
                 df = pl.DataFrame(records)
-                logger.info(f"Successfully created DataFrame without schema, shape: {df.shape}")
+                logger.info(
+                    f"Successfully created DataFrame without schema, shape: {df.shape}"
+                )
                 return df
             except Exception as e2:
                 logger.error(f"Also failed without schema: {e2}")
@@ -235,9 +257,13 @@ class DataStore:
         for indicator in indicators_list:
             try:
                 # Handle both dict and object formats
-                if hasattr(indicator, '__dict__'):
+                if hasattr(indicator, "__dict__"):
                     # Pydantic model or object
-                    data = indicator.dict() if hasattr(indicator, 'dict') else indicator.__dict__
+                    data = (
+                        indicator.dict()
+                        if hasattr(indicator, "dict")
+                        else indicator.__dict__
+                    )
                 else:
                     # Dictionary
                     data = indicator
@@ -246,20 +272,72 @@ class DataStore:
                     "symbol": data.get("symbol", ""),
                     "timestamp": data.get("timestamp"),
                     "timeframe": data.get("timeframe", "1d"),
-                    "sma_20": float(data.get("sma_20")) if data.get("sma_20") is not None else None,
-                    "sma_50": float(data.get("sma_50")) if data.get("sma_50") is not None else None,
-                    "sma_200": float(data.get("sma_200")) if data.get("sma_200") is not None else None,
-                    "ema_12": float(data.get("ema_12")) if data.get("ema_12") is not None else None,
-                    "ema_26": float(data.get("ema_26")) if data.get("ema_26") is not None else None,
-                    "rsi": float(data.get("rsi")) if data.get("rsi") is not None else None,
-                    "macd": float(data.get("macd")) if data.get("macd") is not None else None,
-                    "macd_signal": float(data.get("macd_signal")) if data.get("macd_signal") is not None else None,
-                    "macd_histogram": float(data.get("macd_histogram")) if data.get("macd_histogram") is not None else None,
-                    "bollinger_upper": float(data.get("bollinger_upper")) if data.get("bollinger_upper") is not None else None,
-                    "bollinger_middle": float(data.get("bollinger_middle")) if data.get("bollinger_middle") is not None else None,
-                    "bollinger_lower": float(data.get("bollinger_lower")) if data.get("bollinger_lower") is not None else None,
-                    "atr": float(data.get("atr")) if data.get("atr") is not None else None,
-                    "volume_sma": float(data.get("volume_sma")) if data.get("volume_sma") is not None else None
+                    "sma_20": (
+                        float(data.get("sma_20"))
+                        if data.get("sma_20") is not None
+                        else None
+                    ),
+                    "sma_50": (
+                        float(data.get("sma_50"))
+                        if data.get("sma_50") is not None
+                        else None
+                    ),
+                    "sma_200": (
+                        float(data.get("sma_200"))
+                        if data.get("sma_200") is not None
+                        else None
+                    ),
+                    "ema_12": (
+                        float(data.get("ema_12"))
+                        if data.get("ema_12") is not None
+                        else None
+                    ),
+                    "ema_26": (
+                        float(data.get("ema_26"))
+                        if data.get("ema_26") is not None
+                        else None
+                    ),
+                    "rsi": (
+                        float(data.get("rsi")) if data.get("rsi") is not None else None
+                    ),
+                    "macd": (
+                        float(data.get("macd"))
+                        if data.get("macd") is not None
+                        else None
+                    ),
+                    "macd_signal": (
+                        float(data.get("macd_signal"))
+                        if data.get("macd_signal") is not None
+                        else None
+                    ),
+                    "macd_histogram": (
+                        float(data.get("macd_histogram"))
+                        if data.get("macd_histogram") is not None
+                        else None
+                    ),
+                    "bollinger_upper": (
+                        float(data.get("bollinger_upper"))
+                        if data.get("bollinger_upper") is not None
+                        else None
+                    ),
+                    "bollinger_middle": (
+                        float(data.get("bollinger_middle"))
+                        if data.get("bollinger_middle") is not None
+                        else None
+                    ),
+                    "bollinger_lower": (
+                        float(data.get("bollinger_lower"))
+                        if data.get("bollinger_lower") is not None
+                        else None
+                    ),
+                    "atr": (
+                        float(data.get("atr")) if data.get("atr") is not None else None
+                    ),
+                    "volume_sma": (
+                        float(data.get("volume_sma"))
+                        if data.get("volume_sma") is not None
+                        else None
+                    ),
                 }
                 records.append(record)
 
@@ -270,7 +348,9 @@ class DataStore:
 
         try:
             df = pl.DataFrame(records, schema=self.technical_indicators_schema)
-            logger.debug(f"Successfully created technical indicators DataFrame with shape {df.shape}")
+            logger.debug(
+                f"Successfully created technical indicators DataFrame with shape {df.shape}"
+            )
             return df
 
         except Exception as e:
@@ -282,16 +362,16 @@ class DataStore:
             # Try without schema as fallback
             try:
                 df = pl.DataFrame(records)
-                logger.info(f"Created technical indicators DataFrame without schema, shape: {df.shape}")
+                logger.info(
+                    f"Created technical indicators DataFrame without schema, shape: {df.shape}"
+                )
                 return df
             except Exception as e2:
                 logger.error(f"Also failed without schema: {e2}")
                 raise
 
     async def save_market_data(
-        self,
-        data: List[MarketData],
-        append: bool = True
+        self, data: List[MarketData], append: bool = True
     ) -> Dict[str, int]:
         """
         Save market data to Parquet files organized by ticker/timeframe/date.
@@ -335,17 +415,19 @@ class DataStore:
             # Create DataFrame for this group (without date column)
             group_data = []
             for row in group_rows:
-                group_data.append({
-                    "symbol": row["symbol"],
-                    "timestamp": row["timestamp"],
-                    "timeframe": row["timeframe"],
-                    "open": row["open"],
-                    "high": row["high"],
-                    "low": row["low"],
-                    "close": row["close"],
-                    "volume": row["volume"],
-                    "asset_type": row["asset_type"]
-                })
+                group_data.append(
+                    {
+                        "symbol": row["symbol"],
+                        "timestamp": row["timestamp"],
+                        "timeframe": row["timeframe"],
+                        "open": row["open"],
+                        "high": row["high"],
+                        "low": row["low"],
+                        "close": row["close"],
+                        "volume": row["volume"],
+                        "asset_type": row["asset_type"],
+                    }
+                )
 
             group_df = pl.DataFrame(group_data, schema=self.market_data_schema)
 
@@ -369,14 +451,16 @@ class DataStore:
             elif isinstance(result, Exception):
                 logger.error(f"Save task failed: {result}")
 
-        logger.info(f"Saved {stats['total_saved']} records to {stats['files_created']} new files and updated {stats['files_updated']} existing files")
+        logger.info(
+            f"Saved {stats['total_saved']} records to {stats['files_created']} new files and updated {stats['files_updated']} existing files"
+        )
         return stats
 
     async def save_screener_data(
         self,
         data: List[FinVizData],
         screener_type: str = "momentum",
-        append: bool = True
+        append: bool = True,
     ) -> int:
         """
         Save screener data to Parquet files.
@@ -393,7 +477,9 @@ class DataStore:
             return 0
 
         try:
-            logger.info(f"Attempting to save {len(data)} {screener_type} screener records")
+            logger.info(
+                f"Attempting to save {len(data)} {screener_type} screener records"
+            )
 
             # Convert to Polars DataFrame
             df = self._finviz_data_to_dataframe(data)
@@ -408,7 +494,9 @@ class DataStore:
 
             await self._save_dataframe_to_parquet(df, file_path, append)
 
-            logger.info(f"Successfully saved {len(data)} screener records to {file_path}")
+            logger.info(
+                f"Successfully saved {len(data)} screener records to {file_path}"
+            )
             return len(data)
 
         except Exception as e:
@@ -418,10 +506,7 @@ class DataStore:
             return 0
 
     async def save_technical_indicators(
-        self,
-        indicators_list: List,
-        timeframe: str = "1d",
-        append: bool = True
+        self, indicators_list: List, timeframe: str = "1d", append: bool = True
     ) -> int:
         """
         Save technical indicators to Parquet files organized by symbol/timeframe/date.
@@ -438,7 +523,9 @@ class DataStore:
             return 0
 
         try:
-            logger.info(f"Attempting to save {len(indicators_list)} technical indicators records")
+            logger.info(
+                f"Attempting to save {len(indicators_list)} technical indicators records"
+            )
 
             # Convert to Polars DataFrame
             df = self._technical_indicators_to_dataframe(indicators_list)
@@ -472,29 +559,41 @@ class DataStore:
                     for row in group_rows:
                         group_data.append({k: v for k, v in row.items() if k != "date"})
 
-                    group_df = pl.DataFrame(group_data, schema=self.technical_indicators_schema)
+                    group_df = pl.DataFrame(
+                        group_data, schema=self.technical_indicators_schema
+                    )
 
                     # Get file path for technical indicators
-                    file_path = self._get_technical_indicators_file_path(symbol, tf_str, date_obj)
+                    file_path = self._get_technical_indicators_file_path(
+                        symbol, tf_str, date_obj
+                    )
 
                     # Save to file
                     await self._save_dataframe_to_parquet(group_df, file_path, append)
                     total_saved += len(group_data)
 
-                    logger.debug(f"Saved {len(group_data)} indicators for {symbol} {tf_str} {date_obj}")
+                    logger.debug(
+                        f"Saved {len(group_data)} indicators for {symbol} {tf_str} {date_obj}"
+                    )
 
                 except Exception as e:
-                    logger.error(f"Failed to save indicators group {symbol} {tf_str} {date_obj}: {e}")
+                    logger.error(
+                        f"Failed to save indicators group {symbol} {tf_str} {date_obj}: {e}"
+                    )
                     continue
 
-            logger.info(f"Successfully saved {total_saved} technical indicators records")
+            logger.info(
+                f"Successfully saved {total_saved} technical indicators records"
+            )
             return total_saved
 
         except Exception as e:
             logger.error(f"Failed to save technical indicators: {e}")
             return 0
 
-    def _get_technical_indicators_file_path(self, symbol: str, timeframe: str, date_obj: date) -> Path:
+    def _get_technical_indicators_file_path(
+        self, symbol: str, timeframe: str, date_obj: date
+    ) -> Path:
         """Get file path for technical indicators data."""
         indicators_dir = self.base_path / "technical_indicators" / symbol / timeframe
         indicators_dir.mkdir(parents=True, exist_ok=True)
@@ -509,7 +608,7 @@ class DataStore:
         timeframe: TimeFrame,
         date_obj: date,
         append: bool,
-        data_type: str
+        data_type: str,
     ) -> Dict[str, Any]:
         """
         Save DataFrame to specific file with deduplication.
@@ -541,7 +640,9 @@ class DataStore:
                 final_df = deduplicated_df.sort("timestamp")
 
             except Exception as e:
-                logger.warning(f"Failed to read existing file {file_path}: {e}, overwriting")
+                logger.warning(
+                    f"Failed to read existing file {file_path}: {e}, overwriting"
+                )
                 final_df = df.sort("timestamp")
         else:
             final_df = df.sort("timestamp")
@@ -553,14 +654,11 @@ class DataStore:
             "records_saved": len(final_df),
             "file_created": not file_existed,
             "file_updated": file_existed,
-            "file_path": str(file_path)
+            "file_path": str(file_path),
         }
 
     async def _save_dataframe_to_parquet(
-        self,
-        df: pl.DataFrame,
-        file_path: Path,
-        append: bool = False
+        self, df: pl.DataFrame, file_path: Path, append: bool = False
     ) -> bool:
         """
         Save DataFrame to Parquet file asynchronously.
@@ -573,6 +671,7 @@ class DataStore:
         Returns:
             True if successful
         """
+
         def _write_file():
             with self._write_lock:
                 try:
@@ -582,13 +681,10 @@ class DataStore:
                         df.write_parquet(
                             file_path,
                             compression=self.config.compression,  # type: ignore
-                            use_pyarrow=True
+                            use_pyarrow=True,
                         )
                     else:
-                        df.write_parquet(
-                            file_path,
-                            use_pyarrow=True
-                        )
+                        df.write_parquet(file_path, use_pyarrow=True)
                     return True
                 except Exception as e:
                     logger.error(f"Failed to write Parquet file {file_path}: {e}")
@@ -604,7 +700,7 @@ class DataStore:
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> pl.DataFrame:
         """
         Load market data from Parquet files.
@@ -642,7 +738,9 @@ class DataStore:
             current_date += timedelta(days=1)
 
         if not file_paths:
-            logger.warning(f"No data files found for {ticker} {timeframe} between {start_date} and {end_date}")
+            logger.warning(
+                f"No data files found for {ticker} {timeframe} between {start_date} and {end_date}"
+            )
             return pl.DataFrame(schema=self.market_data_schema)
 
         # Load and combine data
@@ -663,8 +761,8 @@ class DataStore:
 
         # Filter by date range if needed
         combined_df = combined_df.filter(
-            (pl.col("timestamp").dt.date() >= start_date) &
-            (pl.col("timestamp").dt.date() <= end_date)
+            (pl.col("timestamp").dt.date() >= start_date)
+            & (pl.col("timestamp").dt.date() <= end_date)
         )
 
         # Sort by timestamp
@@ -681,7 +779,7 @@ class DataStore:
         tickers: List[str],
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
     ) -> pl.DataFrame:
         """
         Load market data for multiple tickers.
@@ -716,6 +814,7 @@ class DataStore:
 
     async def _load_parquet_file(self, file_path: Path) -> pl.DataFrame:
         """Load Parquet file asynchronously."""
+
         def _read_file():
             try:
                 return pl.read_parquet(file_path)
@@ -727,10 +826,7 @@ class DataStore:
         return await loop.run_in_executor(self._executor, _read_file)
 
     async def get_latest_data(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        limit: int = 100
+        self, ticker: str, timeframe: TimeFrame, limit: int = 100
     ) -> pl.DataFrame:
         """
         Get latest data for a ticker and timeframe.
@@ -756,9 +852,7 @@ class DataStore:
         return df.sort("timestamp", descending=True).head(limit)
 
     async def get_data_summary(
-        self,
-        ticker: Optional[str] = None,
-        timeframe: Optional[TimeFrame] = None
+        self, ticker: Optional[str] = None, timeframe: Optional[TimeFrame] = None
     ) -> Dict[str, Any]:
         """
         Get summary statistics about stored data.
@@ -770,6 +864,7 @@ class DataStore:
         Returns:
             Dictionary with data summary
         """
+
         def _scan_directory():
             summary = {
                 "total_files": 0,
@@ -778,7 +873,7 @@ class DataStore:
                 "timeframes": set(),
                 "date_range": {"earliest": None, "latest": None},
                 "files_by_ticker": {},
-                "files_by_timeframe": {}
+                "files_by_timeframe": {},
             }
 
             market_data_dir = self.base_path / "market_data"
@@ -819,10 +914,18 @@ class DataStore:
 
                         # Date range
                         try:
-                            file_date = datetime.strptime(file_path.stem, "%Y-%m-%d").date()
-                            if summary["date_range"]["earliest"] is None or file_date < summary["date_range"]["earliest"]:
+                            file_date = datetime.strptime(
+                                file_path.stem, "%Y-%m-%d"
+                            ).date()
+                            if (
+                                summary["date_range"]["earliest"] is None
+                                or file_date < summary["date_range"]["earliest"]
+                            ):
                                 summary["date_range"]["earliest"] = file_date
-                            if summary["date_range"]["latest"] is None or file_date > summary["date_range"]["latest"]:
+                            if (
+                                summary["date_range"]["latest"] is None
+                                or file_date > summary["date_range"]["latest"]
+                            ):
                                 summary["date_range"]["latest"] = file_date
                         except ValueError:
                             continue
@@ -836,7 +939,9 @@ class DataStore:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, _scan_directory)
 
-    async def cleanup_old_data(self, older_than_days: Optional[int] = None) -> Dict[str, int]:
+    async def cleanup_old_data(
+        self, older_than_days: Optional[int] = None
+    ) -> Dict[str, int]:
         """
         Clean up old data files based on retention policy.
 
@@ -868,10 +973,14 @@ class DataStore:
 
                         try:
                             # Extract date from filename
-                            file_date = datetime.strptime(file_path.stem, "%Y-%m-%d").date()
+                            file_date = datetime.strptime(
+                                file_path.stem, "%Y-%m-%d"
+                            ).date()
 
                             if file_date < cutoff_date:
-                                file_size = file_path.stat().st_size / (1024 * 1024)  # MB
+                                file_size = file_path.stat().st_size / (
+                                    1024 * 1024
+                                )  # MB
                                 file_path.unlink()
                                 stats["files_deleted"] += 1
                                 stats["space_freed_mb"] += file_size
@@ -884,7 +993,9 @@ class DataStore:
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(self._executor, _cleanup)
 
-        logger.info(f"Cleanup completed: deleted {result['files_deleted']} files, freed {result['space_freed_mb']:.2f} MB")
+        logger.info(
+            f"Cleanup completed: deleted {result['files_deleted']} files, freed {result['space_freed_mb']:.2f} MB"
+        )
         return result
 
     async def validate_data_integrity(
@@ -892,7 +1003,7 @@ class DataStore:
         ticker: str,
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """
         Validate data integrity for a ticker/timeframe combination.
@@ -911,51 +1022,57 @@ class DataStore:
         if df.is_empty():
             return {"valid": False, "error": "No data found"}
 
-        validation_results = {
-            "valid": True,
-            "total_records": len(df),
-            "issues": []
-        }
+        validation_results = {"valid": True, "total_records": len(df), "issues": []}
 
         try:
             # Check for missing values
             null_counts = df.null_count()
             for col, null_count in zip(df.columns, null_counts.row(0)):
                 if null_count > 0:
-                    validation_results["issues"].append(f"{col}: {null_count} null values")
+                    validation_results["issues"].append(
+                        f"{col}: {null_count} null values"
+                    )
 
             # Check for invalid OHLC relationships
             invalid_ohlc = df.filter(
-                (pl.col("high") < pl.col("low")) |
-                (pl.col("high") < pl.col("open")) |
-                (pl.col("high") < pl.col("close")) |
-                (pl.col("low") > pl.col("open")) |
-                (pl.col("low") > pl.col("close"))
+                (pl.col("high") < pl.col("low"))
+                | (pl.col("high") < pl.col("open"))
+                | (pl.col("high") < pl.col("close"))
+                | (pl.col("low") > pl.col("open"))
+                | (pl.col("low") > pl.col("close"))
             )
 
             if len(invalid_ohlc) > 0:
-                validation_results["issues"].append(f"Invalid OHLC relationships: {len(invalid_ohlc)} records")
+                validation_results["issues"].append(
+                    f"Invalid OHLC relationships: {len(invalid_ohlc)} records"
+                )
 
             # Check for negative prices
             negative_prices = df.filter(
-                (pl.col("open") <= 0) |
-                (pl.col("high") <= 0) |
-                (pl.col("low") <= 0) |
-                (pl.col("close") <= 0)
+                (pl.col("open") <= 0)
+                | (pl.col("high") <= 0)
+                | (pl.col("low") <= 0)
+                | (pl.col("close") <= 0)
             )
 
             if len(negative_prices) > 0:
-                validation_results["issues"].append(f"Negative/zero prices: {len(negative_prices)} records")
+                validation_results["issues"].append(
+                    f"Negative/zero prices: {len(negative_prices)} records"
+                )
 
             # Check for negative volume
             negative_volume = df.filter(pl.col("volume") < 0)
             if len(negative_volume) > 0:
-                validation_results["issues"].append(f"Negative volume: {len(negative_volume)} records")
+                validation_results["issues"].append(
+                    f"Negative volume: {len(negative_volume)} records"
+                )
 
             # Check for duplicates
             duplicates = df.filter(pl.col("timestamp").is_duplicated())
             if len(duplicates) > 0:
-                validation_results["issues"].append(f"Duplicate timestamps: {len(duplicates)} records")
+                validation_results["issues"].append(
+                    f"Duplicate timestamps: {len(duplicates)} records"
+                )
 
             validation_results["valid"] = len(validation_results["issues"]) == 0
 
@@ -967,9 +1084,7 @@ class DataStore:
         return validation_results
 
     async def get_available_data_range(
-        self,
-        ticker: str,
-        timeframe: TimeFrame
+        self, ticker: str, timeframe: TimeFrame
     ) -> Optional[Tuple[date, date]]:
         """
         Get the available date range for a ticker/timeframe.
@@ -1001,10 +1116,7 @@ class DataStore:
         return min(dates), max(dates)
 
     async def deduplicate_data(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        date_obj: Optional[date] = None
+        self, ticker: str, timeframe: TimeFrame, date_obj: Optional[date] = None
     ) -> int:
         """
         Remove duplicate records from stored data.
@@ -1035,7 +1147,9 @@ class DataStore:
         total_removed = 0
 
         for process_date in dates_to_process:
-            file_path = self._get_file_path(ticker, timeframe, process_date, "market_data")
+            file_path = self._get_file_path(
+                ticker, timeframe, process_date, "market_data"
+            )
 
             if not file_path.exists():
                 continue
@@ -1069,12 +1183,13 @@ class DataStore:
         Returns:
             Optimization statistics
         """
+
         def _optimize():
             stats = {
                 "files_processed": 0,
                 "files_removed": 0,
                 "space_saved_mb": 0.0,
-                "files_recompressed": 0
+                "files_recompressed": 0,
             }
 
             market_data_dir = self.base_path / "market_data"
@@ -1105,14 +1220,14 @@ class DataStore:
                                 # Remove empty files
                                 file_path.unlink()
                                 stats["files_removed"] += 1
-                                stats["space_saved_mb"] += float(original_size / (1024 * 1024))
+                                stats["space_saved_mb"] += float(
+                                    original_size / (1024 * 1024)
+                                )
                                 continue
 
                             # Rewrite with optimal settings
                             df.write_parquet(
-                                file_path,
-                                compression="snappy",
-                                use_pyarrow=True
+                                file_path, compression="snappy", use_pyarrow=True
                             )
 
                             new_size = file_path.stat().st_size
@@ -1134,7 +1249,7 @@ class DataStore:
         ticker: str,
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
     ) -> Dict[str, Any]:
         """
         Get statistical information about stored data.
@@ -1160,41 +1275,41 @@ class DataStore:
                 "record_count": len(df),
                 "date_range": {
                     "start": df["timestamp"].min(),
-                    "end": df["timestamp"].max()
+                    "end": df["timestamp"].max(),
                 },
                 "price_statistics": {
                     "open": {
                         "min": df["open"].min(),
                         "max": df["open"].max(),
                         "mean": df["open"].mean(),
-                        "std": df["open"].std()
+                        "std": df["open"].std(),
                     },
                     "high": {
                         "min": df["high"].min(),
                         "max": df["high"].max(),
                         "mean": df["high"].mean(),
-                        "std": df["high"].std()
+                        "std": df["high"].std(),
                     },
                     "low": {
                         "min": df["low"].min(),
                         "max": df["low"].max(),
                         "mean": df["low"].mean(),
-                        "std": df["low"].std()
+                        "std": df["low"].std(),
                     },
                     "close": {
                         "min": df["close"].min(),
                         "max": df["close"].max(),
                         "mean": df["close"].mean(),
-                        "std": df["close"].std()
-                    }
+                        "std": df["close"].std(),
+                    },
                 },
                 "volume_statistics": {
                     "min": df["volume"].min(),
                     "max": df["volume"].max(),
                     "mean": df["volume"].mean(),
                     "std": df["volume"].std(),
-                    "total": df["volume"].sum()
-                }
+                    "total": df["volume"].sum(),
+                },
             }
 
             return stats
@@ -1210,7 +1325,7 @@ class DataStore:
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
         format: str = "csv",
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
     ) -> str:
         """
         Export data to various formats.
@@ -1235,7 +1350,9 @@ class DataStore:
             export_dir = self.base_path / "exports"
             export_dir.mkdir(exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_path = str(export_dir / f"{ticker}_{timeframe.value}_{timestamp}.{format}")
+            output_path = str(
+                export_dir / f"{ticker}_{timeframe.value}_{timestamp}.{format}"
+            )
 
         def _write_export():
             if format.lower() == "csv":
@@ -1258,7 +1375,7 @@ class DataStore:
         ticker: str,
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
     ) -> List[Dict[str, Any]]:
         """
         Identify missing data gaps for a ticker/timeframe.
@@ -1282,7 +1399,7 @@ class DataStore:
             TimeFrame.FIVE_MINUTES: timedelta(minutes=5),
             TimeFrame.FIFTEEN_MINUTES: timedelta(minutes=15),
             TimeFrame.ONE_HOUR: timedelta(hours=1),
-            TimeFrame.ONE_DAY: timedelta(days=1)
+            TimeFrame.ONE_DAY: timedelta(days=1),
         }
 
         expected_interval = interval_map.get(timeframe)
@@ -1294,27 +1411,33 @@ class DataStore:
 
         for i in range(1, len(timestamps)):
             current_time = timestamps[i]
-            previous_time = timestamps[i-1]
+            previous_time = timestamps[i - 1]
             actual_gap = current_time - previous_time
 
             # Account for weekends and market hours for daily data
             if timeframe == TimeFrame.ONE_DAY:
-                expected_gap = self._calculate_expected_daily_gap(previous_time, current_time)
+                expected_gap = self._calculate_expected_daily_gap(
+                    previous_time, current_time
+                )
             else:
                 expected_gap = expected_interval
 
             if actual_gap > expected_gap * 2:  # Allow some tolerance
-                gaps.append({
-                    "start_time": previous_time,
-                    "end_time": current_time,
-                    "gap_duration": str(actual_gap),
-                    "expected_duration": str(expected_gap),
-                    "gap_ratio": actual_gap / expected_gap
-                })
+                gaps.append(
+                    {
+                        "start_time": previous_time,
+                        "end_time": current_time,
+                        "gap_duration": str(actual_gap),
+                        "expected_duration": str(expected_gap),
+                        "gap_ratio": actual_gap / expected_gap,
+                    }
+                )
 
         return gaps
 
-    def _calculate_expected_daily_gap(self, start_time: datetime, end_time: datetime) -> timedelta:
+    def _calculate_expected_daily_gap(
+        self, start_time: datetime, end_time: datetime
+    ) -> timedelta:
         """Calculate expected gap between daily data points accounting for weekends."""
         start_weekday = start_time.weekday()
         end_weekday = end_time.weekday()
@@ -1330,7 +1453,7 @@ class DataStore:
 
     def __del__(self):
         """Cleanup resources."""
-        if hasattr(self, '_executor'):
+        if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
 
 
@@ -1338,7 +1461,7 @@ class DataStore:
 async def batch_save_market_data(
     store: DataStore,
     data_by_symbol: Dict[str, List[MarketData]],
-    batch_size: int = 1000
+    batch_size: int = 1000,
 ) -> Dict[str, int]:
     """
     Save market data for multiple symbols in batches.
@@ -1355,7 +1478,9 @@ async def batch_save_market_data(
 
     # Process symbols in batches
     symbols = list(data_by_symbol.keys())
-    symbol_batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+    symbol_batches = [
+        symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)
+    ]
 
     for batch in symbol_batches:
         batch_data = []
@@ -1376,7 +1501,7 @@ async def get_combined_market_data(
     tickers: List[str],
     timeframe: TimeFrame,
     start_date: Optional[date] = None,
-    end_date: Optional[date] = None
+    end_date: Optional[date] = None,
 ) -> pl.DataFrame:
     """
     Get combined market data for multiple tickers.
@@ -1395,10 +1520,7 @@ async def get_combined_market_data(
 
 
 async def calculate_returns(
-    store: DataStore,
-    ticker: str,
-    timeframe: TimeFrame,
-    periods: int = 30
+    store: DataStore, ticker: str, timeframe: TimeFrame, periods: int = 30
 ) -> pl.DataFrame:
     """
     Calculate returns for a ticker.
@@ -1418,22 +1540,23 @@ async def calculate_returns(
         return pl.DataFrame()
 
     # Calculate returns
-    returns_df = df.with_columns([
-        (pl.col("close").pct_change().alias("returns")),
-        (pl.col("close").pct_change().cum_sum().alias("cumulative_returns")),
-        ((pl.col("high") / pl.col("low") - 1).alias("intraday_returns"))
-    ])
+    returns_df = df.with_columns(
+        [
+            (pl.col("close").pct_change().alias("returns")),
+            (pl.col("close").pct_change().cum_sum().alias("cumulative_returns")),
+            ((pl.col("high") / pl.col("low") - 1).alias("intraday_returns")),
+        ]
+    )
 
     return returns_df.drop_nulls()
 
 
 # Example usage and testing
 if __name__ == "__main__":
+
     async def main():
         config = DataStoreConfig(
-            base_path="test_data/parquet",
-            compression="snappy",
-            retention_days=365
+            base_path="test_data/parquet", compression="snappy", retention_days=365
         )
 
         store = DataStore(config)
@@ -1450,7 +1573,7 @@ if __name__ == "__main__":
                 close=Decimal("150.25"),
                 volume=1000000,
                 adjusted_close=Decimal("150.25"),
-                asset_type=AssetType.STOCK
+                asset_type=AssetType.STOCK,
             )
             for i in range(100)
         ]

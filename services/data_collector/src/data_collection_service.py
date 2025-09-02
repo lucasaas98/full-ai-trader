@@ -8,25 +8,25 @@ scheduling for a comprehensive market data collection system.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, time as dt_time, timezone
-from typing import Dict, List, Optional, Any, Set
+from datetime import datetime
+from datetime import time as dt_time
+from datetime import timedelta, timezone
+from typing import Any, Dict, List, Optional, Set
 
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
 import polars as pl
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import BaseModel, Field
 
-from shared.models import TimeFrame, FinVizData
 from shared.config import get_config
 from shared.market_hours import is_market_open
+from shared.models import FinVizData, TimeFrame
 
-from .finviz_screener import FinVizScreener, FinVizScreenerParams
-from .twelvedata_client import TwelveDataClient, TwelveDataConfig
 from .data_store import DataStore, DataStoreConfig
+from .finviz_screener import FinVizScreener, FinVizScreenerParams
 from .redis_client import RedisClient, RedisConfig
-
+from .twelvedata_client import TwelveDataClient, TwelveDataConfig
 
 logger = logging.getLogger(__name__)
 
@@ -39,30 +39,60 @@ class DataCollectionConfig(BaseModel):
     enable_finviz: bool = Field(default=True, description="Enable FinViz screener")
     enable_twelvedata: bool = Field(default=True, description="Enable TwelveData API")
     enable_redis: bool = Field(default=True, description="Enable Redis integration")
-    respect_market_hours: bool = Field(default=False, description="Skip intraday data updates outside market hours")
+    respect_market_hours: bool = Field(
+        default=False, description="Skip intraday data updates outside market hours"
+    )
 
     # Smart FinViz scheduling based on market proximity
-    enable_smart_finviz_scheduling: bool = Field(default=True, description="Enable smart FinViz scheduling based on market hours")
-    premarket_hours_before: int = Field(default=2, description="Hours before market open to start frequent scanning")
-    aftermarket_hours_after: int = Field(default=1, description="Hours after market close to continue frequent scanning")
-    off_hours_scan_interval: int = Field(default=3600, description="FinViz scan interval during off hours (seconds)")
-    weekend_scanning: bool = Field(default=False, description="Enable FinViz scanning on weekends")
+    enable_smart_finviz_scheduling: bool = Field(
+        default=True, description="Enable smart FinViz scheduling based on market hours"
+    )
+    premarket_hours_before: int = Field(
+        default=2, description="Hours before market open to start frequent scanning"
+    )
+    aftermarket_hours_after: int = Field(
+        default=1, description="Hours after market close to continue frequent scanning"
+    )
+    off_hours_scan_interval: int = Field(
+        default=3600, description="FinViz scan interval during off hours (seconds)"
+    )
+    weekend_scanning: bool = Field(
+        default=False, description="Enable FinViz scanning on weekends"
+    )
 
     # Scheduling intervals (in seconds)
     finviz_scan_interval: int = Field(default=300, description="FinViz scan interval")
-    price_update_interval_5m: int = Field(default=300, description="5-minute data update interval")
-    price_update_interval_15m: int = Field(default=900, description="15-minute data update interval")
-    price_update_interval_1h: int = Field(default=3600, description="1-hour data update interval")
-    price_update_interval_1d: int = Field(default=86400, description="Daily data update interval")
+    price_update_interval_5m: int = Field(
+        default=300, description="5-minute data update interval"
+    )
+    price_update_interval_15m: int = Field(
+        default=900, description="15-minute data update interval"
+    )
+    price_update_interval_1h: int = Field(
+        default=3600, description="1-hour data update interval"
+    )
+    price_update_interval_1d: int = Field(
+        default=86400, description="Daily data update interval"
+    )
 
     # Data collection settings
-    max_active_tickers: int = Field(default=50, description="Maximum active tickers to track")
-    historical_data_years: int = Field(default=2, description="Years of historical data to collect")
-    screener_result_limit: int = Field(default=20, description="Max results from screener")
+    max_active_tickers: int = Field(
+        default=50, description="Maximum active tickers to track"
+    )
+    historical_data_years: int = Field(
+        default=2, description="Years of historical data to collect"
+    )
+    screener_result_limit: int = Field(
+        default=20, description="Max results from screener"
+    )
 
     # Market hours
-    market_open_time: str = Field(default="09:30", description="Market open time (HH:MM)")
-    market_close_time: str = Field(default="16:00", description="Market close time (HH:MM)")
+    market_open_time: str = Field(
+        default="09:30", description="Market open time (HH:MM)"
+    )
+    market_close_time: str = Field(
+        default="16:00", description="Market close time (HH:MM)"
+    )
     timezone: str = Field(default="America/New_York", description="Market timezone")
 
     # Error handling
@@ -70,7 +100,9 @@ class DataCollectionConfig(BaseModel):
     retry_delay: float = Field(default=5.0, description="Delay between retries")
 
     # Performance settings
-    concurrent_downloads: int = Field(default=10, description="Concurrent data downloads")
+    concurrent_downloads: int = Field(
+        default=10, description="Concurrent data downloads"
+    )
     batch_size: int = Field(default=20, description="Batch size for API requests")
 
 
@@ -105,7 +137,7 @@ class DataCollectionService:
             "total_records_saved": 0,
             "errors": 0,
             "last_finviz_scan": None,
-            "last_price_update": None
+            "last_price_update": None,
         }
 
     async def initialize(self):
@@ -118,7 +150,7 @@ class DataCollectionService:
                 base_path=get_config().data.parquet_path,
                 compression=get_config().data.compression,
                 retention_days=get_config().data.retention_days,
-                batch_size=get_config().data.batch_size
+                batch_size=get_config().data.batch_size,
             )
             self.data_store = DataStore(data_store_config)
 
@@ -129,7 +161,7 @@ class DataCollectionService:
                     port=get_config().redis.port,
                     db=get_config().redis.database,
                     password=get_config().redis.password,
-                    max_connections=get_config().redis.max_connections
+                    max_connections=get_config().redis.max_connections,
                 )
                 self.redis_client = RedisClient(redis_config)
                 await self.redis_client.connect()
@@ -139,7 +171,7 @@ class DataCollectionService:
                 self.finviz_screener = FinVizScreener(
                     base_url=get_config().finviz.base_url,
                     rate_limit_interval=30.0,  # 30 seconds
-                    timeout=get_config().finviz.timeout
+                    timeout=get_config().finviz.timeout,
                 )
 
             # Initialize TwelveData client if enabled
@@ -149,7 +181,7 @@ class DataCollectionService:
                     base_url=get_config().twelvedata.base_url,
                     rate_limit_requests=get_config().twelvedata.rate_limit_requests,
                     rate_limit_period=get_config().twelvedata.rate_limit_period,
-                    timeout=get_config().twelvedata.timeout
+                    timeout=get_config().twelvedata.timeout,
                 )
                 self.twelvedata_client = TwelveDataClient(twelvedata_config)
 
@@ -185,7 +217,7 @@ class DataCollectionService:
                 await self.redis_client.set_system_status(
                     "data_collector",
                     "online",
-                    {"started_at": datetime.now(timezone.utc).isoformat()}
+                    {"started_at": datetime.now(timezone.utc).isoformat()},
                 )
 
             logger.info("Data collection service started successfully")
@@ -218,7 +250,7 @@ class DataCollectionService:
                 await self.redis_client.set_system_status(
                     "data_collector",
                     "offline",
-                    {"stopped_at": datetime.now(timezone.utc).isoformat()}
+                    {"stopped_at": datetime.now(timezone.utc).isoformat()},
                 )
 
             # Close connections
@@ -247,27 +279,37 @@ class DataCollectionService:
                 # Use smart scheduling that adjusts frequency based on market proximity
                 logger.info(f"Smart FinViz scheduling enabled:")
                 logger.info(f"  - Normal interval: {self.config.finviz_scan_interval}s")
-                logger.info(f"  - Off-hours interval: {self.config.off_hours_scan_interval}s")
-                logger.info(f"  - Premarket window: {self.config.premarket_hours_before}h before open")
-                logger.info(f"  - Aftermarket window: {self.config.aftermarket_hours_after}h after close")
+                logger.info(
+                    f"  - Off-hours interval: {self.config.off_hours_scan_interval}s"
+                )
+                logger.info(
+                    f"  - Premarket window: {self.config.premarket_hours_before}h before open"
+                )
+                logger.info(
+                    f"  - Aftermarket window: {self.config.aftermarket_hours_after}h after close"
+                )
                 logger.info(f"  - Weekend scanning: {self.config.weekend_scanning}")
 
                 self.scheduler.add_job(
                     self._smart_finviz_scan,
-                    IntervalTrigger(seconds=60),  # Check every minute to adjust scheduling
+                    IntervalTrigger(
+                        seconds=60
+                    ),  # Check every minute to adjust scheduling
                     id="smart_finviz_scan",
                     max_instances=1,
-                    coalesce=True
+                    coalesce=True,
                 )
             else:
                 # Traditional fixed interval scanning
-                logger.info(f"Traditional FinViz scheduling: {self.config.finviz_scan_interval}s interval")
+                logger.info(
+                    f"Traditional FinViz scheduling: {self.config.finviz_scan_interval}s interval"
+                )
                 self.scheduler.add_job(
                     self._run_finviz_scan,
                     IntervalTrigger(seconds=self.config.finviz_scan_interval),
                     id="finviz_scan",
                     max_instances=1,
-                    coalesce=True
+                    coalesce=True,
                 )
 
         # Price update jobs for different timeframes
@@ -280,7 +322,7 @@ class DataCollectionService:
                 IntervalTrigger(seconds=self.config.price_update_interval_5m),
                 args=[TimeFrame.FIVE_MINUTES],
                 id="price_update_5m",
-                max_instances=1
+                max_instances=1,
             )
 
             # 15-minute data updates
@@ -289,7 +331,7 @@ class DataCollectionService:
                 IntervalTrigger(seconds=self.config.price_update_interval_15m),
                 args=[TimeFrame.FIFTEEN_MINUTES],
                 id="price_update_15m",
-                max_instances=1
+                max_instances=1,
             )
 
             # Hourly data updates
@@ -298,7 +340,7 @@ class DataCollectionService:
                 IntervalTrigger(seconds=self.config.price_update_interval_1h),
                 args=[TimeFrame.ONE_HOUR],
                 id="price_update_1h",
-                max_instances=1
+                max_instances=1,
             )
 
             # Daily data updates (at market close)
@@ -307,7 +349,7 @@ class DataCollectionService:
                 CronTrigger(hour=16, minute=30, timezone=self.config.timezone),
                 args=[TimeFrame.ONE_DAY],
                 id="price_update_daily",
-                max_instances=1
+                max_instances=1,
             )
 
         # Maintenance jobs
@@ -315,14 +357,14 @@ class DataCollectionService:
             self._cleanup_old_data,
             CronTrigger(hour=2, minute=0),  # Daily at 2 AM
             id="cleanup_old_data",
-            max_instances=1
+            max_instances=1,
         )
 
         self.scheduler.add_job(
             self._validate_data_integrity,
             CronTrigger(hour=3, minute=0),  # Daily at 3 AM
             id="validate_data",
-            max_instances=1
+            max_instances=1,
         )
 
         # Health check job
@@ -330,7 +372,7 @@ class DataCollectionService:
             self._health_check,
             IntervalTrigger(minutes=5),
             id="health_check",
-            max_instances=1
+            max_instances=1,
         )
 
     async def _run_initial_collection(self):
@@ -366,7 +408,9 @@ class DataCollectionService:
                 summary = await self.data_store.get_data_summary()
                 async with self._ticker_lock:
                     self._active_tickers.update(summary.get("tickers", []))
-                logger.info(f"Loaded {len(self._active_tickers)} tickers from data store")
+                logger.info(
+                    f"Loaded {len(self._active_tickers)} tickers from data store"
+                )
             except Exception as e:
                 logger.error(f"Failed to load tickers from data store: {e}")
 
@@ -380,15 +424,24 @@ class DataCollectionService:
 
             # Define screening strategies - conservative approaches only
             screening_strategies = [
-                ("breakouts", lambda: self.finviz_screener.get_high_volume_breakouts(
-                    limit=max(10, self.config.screener_result_limit // 10)
-                )),
-                ("gappers", lambda: self.finviz_screener.get_gappers(
-                    limit=max(10, self.config.screener_result_limit // 10)
-                )),
-                ("low_floaters", lambda: self.finviz_screener.get_low_float_moving_stocks(
-                    limit=max(10, self.config.screener_result_limit // 10)
-                ))
+                (
+                    "breakouts",
+                    lambda: self.finviz_screener.get_high_volume_breakouts(
+                        limit=max(10, self.config.screener_result_limit // 10)
+                    ),
+                ),
+                (
+                    "gappers",
+                    lambda: self.finviz_screener.get_gappers(
+                        limit=max(10, self.config.screener_result_limit // 10)
+                    ),
+                ),
+                (
+                    "low_floaters",
+                    lambda: self.finviz_screener.get_low_float_moving_stocks(
+                        limit=max(10, self.config.screener_result_limit // 10)
+                    ),
+                ),
                 # ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
                 #     limit=max(10, self.config.screener_result_limit // 5)
                 # )),
@@ -417,11 +470,15 @@ class DataCollectionService:
                         all_new_tickers.update(strategy_tickers)
                         successful_screeners += 1
 
-                        logger.info(f"{strategy_name} screener found {data_count} stocks")
+                        logger.info(
+                            f"{strategy_name} screener found {data_count} stocks"
+                        )
                         # Save individual screener data with enhanced error handling
                         if self.data_store:
                             try:
-                                saved_count = await self.data_store.save_screener_data(result.data, strategy_name)
+                                saved_count = await self.data_store.save_screener_data(
+                                    result.data, strategy_name
+                                )
                             except Exception as e:
                                 # Continue processing even if save fails
                                 pass
@@ -434,7 +491,9 @@ class DataCollectionService:
 
             # If no stocks found from screeners, use fallback ticker lists
             if not all_stocks:
-                logger.warning("All FinViz screeners returned no results, using fallback tickers")
+                logger.warning(
+                    "All FinViz screeners returned no results, using fallback tickers"
+                )
                 await self._use_fallback_tickers()
                 return
 
@@ -461,8 +520,13 @@ class DataCollectionService:
                 # If we exceed max tickers, prioritize by volume
                 if len(combined_tickers) > self.config.max_active_tickers:
                     # Sort by volume and take top N
-                    sorted_stocks = sorted(final_stocks, key=lambda x: x.volume or 0, reverse=True)
-                    top_tickers = {stock.symbol for stock in sorted_stocks[:self.config.max_active_tickers]}
+                    sorted_stocks = sorted(
+                        final_stocks, key=lambda x: x.volume or 0, reverse=True
+                    )
+                    top_tickers = {
+                        stock.symbol
+                        for stock in sorted_stocks[: self.config.max_active_tickers]
+                    }
 
                     # Keep some existing tickers to maintain continuity
                     existing_to_keep = min(10, len(previously_active))
@@ -472,7 +536,9 @@ class DataCollectionService:
 
                         # Still might exceed limit, so trim again
                         if len(combined_tickers) > self.config.max_active_tickers:
-                            combined_tickers = set(list(combined_tickers)[:self.config.max_active_tickers])
+                            combined_tickers = set(
+                                list(combined_tickers)[: self.config.max_active_tickers]
+                            )
 
                 truly_new_tickers = combined_tickers - previously_active
                 self._active_tickers = combined_tickers
@@ -480,8 +546,12 @@ class DataCollectionService:
             # Immediately fetch historical data for new tickers discovered by FinViz
             # This ensures we have data ready when market opens, even for premarket discoveries
             if truly_new_tickers:
-                logger.info(f"Fetching historical data for {len(truly_new_tickers)} new tickers")
-                await self._download_historical_data_for_new_tickers(list(truly_new_tickers))
+                logger.info(
+                    f"Fetching historical data for {len(truly_new_tickers)} new tickers"
+                )
+                await self._download_historical_data_for_new_tickers(
+                    list(truly_new_tickers)
+                )
 
             # Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
@@ -491,20 +561,24 @@ class DataCollectionService:
                         "source": "finviz_multi_screener",
                         "strategies_used": successful_screeners,
                         "total_screened": len(final_stocks),
-                        "unique_tickers": len(unique_stocks)
-                    }
+                        "unique_tickers": len(unique_stocks),
+                    },
                 )
 
             # Publish screener update with combined results
             if self.redis_client:
-                await self.redis_client.publish_screener_update(final_stocks, "multi_strategy")
+                await self.redis_client.publish_screener_update(
+                    final_stocks, "multi_strategy"
+                )
                 logger.info("Successfully published screener update")
 
             self._stats["screener_runs"] += 1
             self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
 
-            logger.info(f"Multi-strategy FinViz scan completed: {len(final_stocks)} total stocks, "
-                       f"{len(truly_new_tickers)} new tickers from {successful_screeners} successful screeners")
+            logger.info(
+                f"Multi-strategy FinViz scan completed: {len(final_stocks)} total stocks, "
+                f"{len(truly_new_tickers)} new tickers from {successful_screeners} successful screeners"
+            )
 
         except Exception as e:
             logger.error(f"FinViz multi-screener scan failed: {e}")
@@ -515,7 +589,7 @@ class DataCollectionService:
                 await self.redis_client.publish_data_validation_alert(
                     "FINVIZ_SCREENER",
                     [f"Multi-screener scan failed: {str(e)}"],
-                    "error"
+                    "error",
                 )
 
     async def _use_fallback_tickers(self):
@@ -524,19 +598,43 @@ class DataCollectionService:
             # Define popular, liquid stocks as fallbacks
             fallback_tickers = [
                 # Large cap tech
-                "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA",
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "AMZN",
+                "NVDA",
+                "META",
+                "TSLA",
                 # Financial
-                "JPM", "BAC", "WFC", "GS", "MS",
+                "JPM",
+                "BAC",
+                "WFC",
+                "GS",
+                "MS",
                 # Healthcare
-                "JNJ", "UNH", "PFE", "ABBV", "TMO",
+                "JNJ",
+                "UNH",
+                "PFE",
+                "ABBV",
+                "TMO",
                 # Consumer
-                "PG", "KO", "PEP", "WMT", "HD",
+                "PG",
+                "KO",
+                "PEP",
+                "WMT",
+                "HD",
                 # ETFs for stability
-                "SPY", "QQQ", "IWM", "XLF", "XLK"
+                "SPY",
+                "QQQ",
+                "IWM",
+                "XLF",
+                "XLK",
             ]
 
             # Limit to max active tickers
-            selected_tickers = fallback_tickers[:min(len(fallback_tickers), self.config.max_active_tickers)]
+            selected_tickers = fallback_tickers[
+                : min(len(fallback_tickers), self.config.max_active_tickers)
+            ]
 
             async with self._ticker_lock:
                 previously_active = self._active_tickers.copy()
@@ -545,8 +643,12 @@ class DataCollectionService:
 
             # Immediately fetch historical data for new tickers
             if truly_new_tickers:
-                logger.info(f"Fetching historical data for {len(truly_new_tickers)} fallback tickers")
-                await self._download_historical_data_for_new_tickers(list(truly_new_tickers))
+                logger.info(
+                    f"Fetching historical data for {len(truly_new_tickers)} fallback tickers"
+                )
+                await self._download_historical_data_for_new_tickers(
+                    list(truly_new_tickers)
+                )
 
             # Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
@@ -555,14 +657,16 @@ class DataCollectionService:
                     {
                         "source": "fallback_tickers",
                         "reason": "screeners_returned_no_results",
-                        "total_tickers": len(selected_tickers)
-                    }
+                        "total_tickers": len(selected_tickers),
+                    },
                 )
 
             self._stats["screener_runs"] += 1
             self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
 
-            logger.info(f"Fallback tickers activated: {len(selected_tickers)} tickers, {len(truly_new_tickers)} new")
+            logger.info(
+                f"Fallback tickers activated: {len(selected_tickers)} tickers, {len(truly_new_tickers)} new"
+            )
 
         except Exception as e:
             logger.error(f"Fallback ticker selection failed: {e}")
@@ -583,14 +687,20 @@ class DataCollectionService:
         #   since FinViz provides premarket data and TwelveData historical data is always available
         # - When respect_market_hours=True, we skip intraday updates outside market hours (legacy behavior)
         # This allows us to prepare data for market open when new tickers are discovered premarket
-        if (self.config.respect_market_hours and
-            timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and
-            not await self._is_market_hours()):
-            logger.debug(f"Skipping {timeframe} update outside market hours (respect_market_hours=True)")
+        if (
+            self.config.respect_market_hours
+            and timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES]
+            and not await self._is_market_hours()
+        ):
+            logger.debug(
+                f"Skipping {timeframe} update outside market hours (respect_market_hours=True)"
+            )
             return
 
         try:
-            logger.info(f"Updating {timeframe} price data for {len(self._active_tickers)} tickers...")
+            logger.info(
+                f"Updating {timeframe} price data for {len(self._active_tickers)} tickers..."
+            )
 
             tickers_list = list(self._active_tickers)
 
@@ -605,22 +715,27 @@ class DataCollectionService:
 
                 # Calculate days back based on timeframe, minimum 2 days
                 days_map = {
-                    TimeFrame.FIVE_MINUTES: 2,    # Last 2 days
+                    TimeFrame.FIVE_MINUTES: 2,  # Last 2 days
                     TimeFrame.FIFTEEN_MINUTES: 3,  # Last 3 days
-                    TimeFrame.ONE_HOUR: 5         # Last 5 days
+                    TimeFrame.ONE_HOUR: 5,  # Last 5 days
                 }
                 days_back = days_map.get(timeframe, 2)
                 start_date = end_date - timedelta(days=days_back)
 
             # Fetch data in batches to respect API limits
             batch_size = min(self.config.batch_size, len(tickers_list))
-            batches = [tickers_list[i:i + batch_size] for i in range(0, len(tickers_list), batch_size)]
+            batches = [
+                tickers_list[i : i + batch_size]
+                for i in range(0, len(tickers_list), batch_size)
+            ]
 
             all_market_data = []
             successful_updates = 0
 
             for batch_num, batch_tickers in enumerate(batches, 1):
-                logger.info(f"Processing batch {batch_num}/{len(batches)} with {len(batch_tickers)} tickers")
+                logger.info(
+                    f"Processing batch {batch_num}/{len(batches)} with {len(batch_tickers)} tickers"
+                )
 
                 try:
                     # Fetch data for this batch
@@ -628,7 +743,7 @@ class DataCollectionService:
                         symbols=batch_tickers,
                         timeframe=timeframe,
                         start_date=start_date,
-                        end_date=end_date
+                        end_date=end_date,
                     )
 
                     # Process results
@@ -639,7 +754,9 @@ class DataCollectionService:
 
                             # Update last update time
                             if self.redis_client:
-                                await self.redis_client.update_last_update_time(ticker, timeframe)
+                                await self.redis_client.update_last_update_time(
+                                    ticker, timeframe
+                                )
 
                     # Small delay between batches
                     if batch_num < len(batches):
@@ -651,15 +768,21 @@ class DataCollectionService:
 
             # Save all collected data
             if all_market_data and self.data_store:
-                save_stats = await self.data_store.save_market_data(all_market_data, append=True)
+                save_stats = await self.data_store.save_market_data(
+                    all_market_data, append=True
+                )
                 self._stats["total_records_saved"] += save_stats["total_saved"]
 
-                logger.info(f"Saved {save_stats['total_saved']} {timeframe} records for {successful_updates} tickers")
+                logger.info(
+                    f"Saved {save_stats['total_saved']} {timeframe} records for {successful_updates} tickers"
+                )
 
                 # Publish update notification
                 if self.redis_client:
                     for ticker in set(md.symbol for md in all_market_data):
-                        ticker_data = [md for md in all_market_data if md.symbol == ticker]
+                        ticker_data = [
+                            md for md in all_market_data if md.symbol == ticker
+                        ]
                         await self.redis_client.publish_market_data_update(
                             ticker, timeframe, len(ticker_data), "scheduled_update"
                         )
@@ -669,7 +792,10 @@ class DataCollectionService:
                 latest_prices = {}
                 for data in all_market_data:
                     ticker = data.symbol
-                    if ticker not in latest_prices or data.timestamp > latest_prices[ticker].timestamp:
+                    if (
+                        ticker not in latest_prices
+                        or data.timestamp > latest_prices[ticker].timestamp
+                    ):
                         latest_prices[ticker] = data
 
                 if latest_prices:
@@ -689,7 +815,12 @@ class DataCollectionService:
 
         logger.info("Downloading historical data for active tickers...")
 
-        timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+        timeframes = [
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+            TimeFrame.ONE_DAY,
+        ]
 
         try:
             for ticker in list(self._active_tickers):
@@ -697,7 +828,9 @@ class DataCollectionService:
                     # Check if we already have recent data
                     has_recent_data = False
                     for tf in timeframes:
-                        date_range = await self.data_store.get_available_data_range(ticker, tf)
+                        date_range = await self.data_store.get_available_data_range(
+                            ticker, tf
+                        )
                         if date_range:
                             _, latest_date = date_range
                             if latest_date >= datetime.now().date() - timedelta(days=7):
@@ -705,7 +838,9 @@ class DataCollectionService:
                                 break
 
                     if has_recent_data:
-                        logger.debug(f"Skipping historical download for {ticker} - recent data exists")
+                        logger.debug(
+                            f"Skipping historical download for {ticker} - recent data exists"
+                        )
                         continue
 
                     logger.info(f"Downloading historical data for {ticker}")
@@ -713,22 +848,32 @@ class DataCollectionService:
                     # Download data for each timeframe
                     for timeframe in timeframes:
                         try:
-                            historical_data = await self.twelvedata_client.get_historical_data(
-                                ticker, timeframe, self.config.historical_data_years
+                            historical_data = (
+                                await self.twelvedata_client.get_historical_data(
+                                    ticker, timeframe, self.config.historical_data_years
+                                )
                             )
 
                             if historical_data:
-                                await self.data_store.save_market_data(historical_data, append=True)
-                                logger.info(f"Downloaded {len(historical_data)} {timeframe} records for {ticker}")
+                                await self.data_store.save_market_data(
+                                    historical_data, append=True
+                                )
+                                logger.info(
+                                    f"Downloaded {len(historical_data)} {timeframe} records for {ticker}"
+                                )
 
                             # Small delay between timeframes
                             await asyncio.sleep(1.0)
 
                         except Exception as e:
-                            logger.error(f"Failed to download historical data for {ticker}: {e}")
+                            logger.error(
+                                f"Failed to download historical data for {ticker}: {e}"
+                            )
 
                 except Exception as e:
-                    logger.error(f"Failed to download historical data for ticker {ticker}: {e}")
+                    logger.error(
+                        f"Failed to download historical data for ticker {ticker}: {e}"
+                    )
 
         except Exception as e:
             logger.error(f"Historical data download failed: {e}")
@@ -738,9 +883,16 @@ class DataCollectionService:
         if not self.twelvedata_client or not self.data_store or not new_tickers:
             return
 
-        logger.info(f"Downloading historical data for {len(new_tickers)} new tickers...")
+        logger.info(
+            f"Downloading historical data for {len(new_tickers)} new tickers..."
+        )
 
-        timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+        timeframes = [
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+            TimeFrame.ONE_DAY,
+        ]
 
         for ticker in new_tickers:
             try:
@@ -749,27 +901,39 @@ class DataCollectionService:
                 # Download data for each timeframe
                 for timeframe in timeframes:
                     try:
-                        historical_data = await self.twelvedata_client.get_historical_data(
-                            ticker, timeframe, self.config.historical_data_years
+                        historical_data = (
+                            await self.twelvedata_client.get_historical_data(
+                                ticker, timeframe, self.config.historical_data_years
+                            )
                         )
 
                         if historical_data:
-                            await self.data_store.save_market_data(historical_data, append=True)
-                            logger.info(f"Downloaded {len(historical_data)} {timeframe} records for {ticker}")
+                            await self.data_store.save_market_data(
+                                historical_data, append=True
+                            )
+                            logger.info(
+                                f"Downloaded {len(historical_data)} {timeframe} records for {ticker}"
+                            )
 
                         # Small delay between timeframes
                         await asyncio.sleep(1.0)
 
                     except Exception as e:
-                        logger.error(f"Failed to download historical data for {ticker}: {e}")
+                        logger.error(
+                            f"Failed to download historical data for {ticker}: {e}"
+                        )
 
                 # Delay between tickers to respect rate limits
                 await asyncio.sleep(2.0)
 
             except Exception as e:
-                logger.error(f"Failed to download historical data for ticker {ticker}: {e}")
+                logger.error(
+                    f"Failed to download historical data for ticker {ticker}: {e}"
+                )
 
-        logger.info(f"Completed historical data download for {len(new_tickers)} new tickers")
+        logger.info(
+            f"Completed historical data download for {len(new_tickers)} new tickers"
+        )
 
     async def _smart_finviz_scan(self):
         """Smart FinViz scanning that adjusts frequency based on market proximity."""
@@ -780,6 +944,7 @@ class DataCollectionService:
         try:
             # Get market status and next open/close times
             from shared.market_hours import get_market_status
+
             market_status = await get_market_status()
 
             current_time = datetime.now(timezone.utc)
@@ -798,7 +963,9 @@ class DataCollectionService:
 
             elif market_status.next_open:
                 # Calculate time until market opens
-                time_until_open = (market_status.next_open - current_time).total_seconds() / 3600  # hours
+                time_until_open = (
+                    market_status.next_open - current_time
+                ).total_seconds() / 3600  # hours
 
                 if time_until_open <= self.config.premarket_hours_before:
                     # Within premarket window - scan at normal frequency
@@ -813,10 +980,14 @@ class DataCollectionService:
                 # Check if we're in after-hours window
                 time_since_close = self._get_time_since_market_close(current_time)
 
-                if (time_since_close is not None and
-                    0 <= time_since_close <= self.config.aftermarket_hours_after):
+                if (
+                    time_since_close is not None
+                    and 0 <= time_since_close <= self.config.aftermarket_hours_after
+                ):
                     should_scan = True
-                    scan_reason = f"aftermarket_window_{time_since_close:.1f}h_since_close"
+                    scan_reason = (
+                        f"aftermarket_window_{time_since_close:.1f}h_since_close"
+                    )
                 else:
                     should_scan = self._should_scan_off_hours()
                     scan_reason = "off_hours_after_close"
@@ -828,27 +999,39 @@ class DataCollectionService:
 
             if should_scan:
                 # Track last scan time to avoid too frequent scans during normal hours
-                if not hasattr(self, '_last_finviz_scan'):
+                if not hasattr(self, "_last_finviz_scan"):
                     self._last_finviz_scan = datetime.min.replace(tzinfo=timezone.utc)
 
-                if scan_reason.startswith(("market_open", "premarket_window", "aftermarket_window")):
+                if scan_reason.startswith(
+                    ("market_open", "premarket_window", "aftermarket_window")
+                ):
                     # Normal frequency during active periods
-                    time_since_last = (current_time - self._last_finviz_scan).total_seconds()
+                    time_since_last = (
+                        current_time - self._last_finviz_scan
+                    ).total_seconds()
                     if time_since_last >= self.config.finviz_scan_interval:
                         await self._run_finviz_scan()
                         self._last_finviz_scan = current_time
                         logger.info(f"FinViz scan completed - reason: {scan_reason}")
                     else:
-                        logger.debug(f"FinViz scan skipped - too soon since last scan ({time_since_last:.0f}s ago)")
+                        logger.debug(
+                            f"FinViz scan skipped - too soon since last scan ({time_since_last:.0f}s ago)"
+                        )
                 else:
                     # Reduced frequency during off hours
-                    time_since_last = (current_time - self._last_finviz_scan).total_seconds()
+                    time_since_last = (
+                        current_time - self._last_finviz_scan
+                    ).total_seconds()
                     if time_since_last >= self.config.off_hours_scan_interval:
                         await self._run_finviz_scan()
                         self._last_finviz_scan = current_time
-                        logger.info(f"FinViz off-hours scan completed - reason: {scan_reason}")
+                        logger.info(
+                            f"FinViz off-hours scan completed - reason: {scan_reason}"
+                        )
                     else:
-                        logger.debug(f"FinViz off-hours scan skipped - too soon since last scan ({time_since_last:.0f}s ago)")
+                        logger.debug(
+                            f"FinViz off-hours scan skipped - too soon since last scan ({time_since_last:.0f}s ago)"
+                        )
             else:
                 logger.debug(f"FinViz scan skipped - reason: {scan_reason}")
 
@@ -859,7 +1042,7 @@ class DataCollectionService:
 
     def _should_scan_off_hours(self) -> bool:
         """Determine if we should scan during off-hours based on last scan time."""
-        if not hasattr(self, '_last_finviz_scan'):
+        if not hasattr(self, "_last_finviz_scan"):
             return True  # First scan
 
         current_time = datetime.now(timezone.utc)
@@ -871,13 +1054,17 @@ class DataCollectionService:
         """Get hours since market close, or None if unable to determine."""
         try:
             # Convert to ET for market hours calculation
-            et_time = current_time - timedelta(hours=5)  # Rough EST conversion (doesn't handle DST)
+            et_time = current_time - timedelta(
+                hours=5
+            )  # Rough EST conversion (doesn't handle DST)
 
             # Market typically closes at 4 PM ET on weekdays
             if et_time.weekday() >= 5:  # Weekend
                 return None
 
-            market_close_today = et_time.replace(hour=16, minute=0, second=0, microsecond=0)
+            market_close_today = et_time.replace(
+                hour=16, minute=0, second=0, microsecond=0
+            )
 
             # If current time is before 4 PM today, market hasn't closed yet today
             if et_time < market_close_today:
@@ -936,7 +1123,7 @@ class DataCollectionService:
                     "SYSTEM",
                     TimeFrame.ONE_DAY,
                     {"last_cleanup": cleanup_stats},
-                    ttl=86400  # 24 hours
+                    ttl=86400,  # 24 hours
                 )
 
         except Exception as e:
@@ -962,10 +1149,17 @@ class DataCollectionService:
                         if not validation.get("valid", True):
                             issues = validation.get("issues", [])
                             if issues:
-                                validation_issues.extend([f"{ticker} {timeframe}: {issue}" for issue in issues])
+                                validation_issues.extend(
+                                    [
+                                        f"{ticker} {timeframe}: {issue}"
+                                        for issue in issues
+                                    ]
+                                )
 
                     except Exception as e:
-                        validation_issues.append(f"{ticker} {timeframe}: Validation failed - {str(e)}")
+                        validation_issues.append(
+                            f"{ticker} {timeframe}: Validation failed - {str(e)}"
+                        )
 
             # Report validation issues
             if validation_issues:
@@ -973,9 +1167,7 @@ class DataCollectionService:
 
                 if self.redis_client:
                     await self.redis_client.publish_data_validation_alert(
-                        "DATA_VALIDATION",
-                        validation_issues,
-                        "warning"
+                        "DATA_VALIDATION", validation_issues, "warning"
                     )
             else:
                 logger.info("Data integrity validation passed")
@@ -988,7 +1180,7 @@ class DataCollectionService:
         health_status = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_status": "healthy",
-            "components": {}
+            "components": {},
         }
 
         try:
@@ -997,7 +1189,7 @@ class DataCollectionService:
                 finviz_healthy = await self.finviz_screener.validate_connection()
                 health_status["components"]["finviz"] = {
                     "status": "healthy" if finviz_healthy else "unhealthy",
-                    "last_scan": self._stats["last_finviz_scan"]
+                    "last_scan": self._stats["last_finviz_scan"],
                 }
                 if not finviz_healthy:
                     health_status["overall_status"] = "degraded"
@@ -1007,7 +1199,7 @@ class DataCollectionService:
                 twelvedata_healthy = await self.twelvedata_client.test_connection()
                 health_status["components"]["twelvedata"] = {
                     "status": "healthy" if twelvedata_healthy else "unhealthy",
-                    "last_update": self._stats["last_price_update"]
+                    "last_update": self._stats["last_price_update"],
                 }
                 if not twelvedata_healthy:
                     health_status["overall_status"] = "degraded"
@@ -1018,7 +1210,7 @@ class DataCollectionService:
                 health_status["components"]["redis"] = {
                     "status": "healthy" if redis_health["connected"] else "unhealthy",
                     "latency_ms": redis_health.get("latency_ms"),
-                    "memory_usage": redis_health.get("memory_usage")
+                    "memory_usage": redis_health.get("memory_usage"),
                 }
                 if not redis_health["connected"]:
                     health_status["overall_status"] = "degraded"
@@ -1031,7 +1223,7 @@ class DataCollectionService:
                         "status": "healthy",
                         "total_files": summary.get("total_files", 0),
                         "total_size_mb": summary.get("total_size_mb", 0),
-                        "tickers_count": len(summary.get("tickers", []))
+                        "tickers_count": len(summary.get("tickers", [])),
                     }
                 except Exception:
                     health_status["components"]["data_store"] = {"status": "unhealthy"}
@@ -1046,7 +1238,7 @@ class DataCollectionService:
                 await self.redis_client.set_system_status(
                     "data_collector_health",
                     health_status["overall_status"],
-                    health_status
+                    health_status,
                 )
 
             logger.debug(f"Health check completed: {health_status['overall_status']}")
@@ -1070,14 +1262,20 @@ class DataCollectionService:
             "active_tickers": list(self._active_tickers),
             "statistics": self._stats.copy(),
             "configuration": self.config.dict(),
-            "scheduler_jobs": [
-                {
-                    "id": job.id,
-                    "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
-                    "trigger": str(job.trigger)
-                }
-                for job in self.scheduler.get_jobs()
-            ] if self.scheduler else []
+            "scheduler_jobs": (
+                [
+                    {
+                        "id": job.id,
+                        "next_run": (
+                            job.next_run_time.isoformat() if job.next_run_time else None
+                        ),
+                        "trigger": str(job.trigger),
+                    }
+                    for job in self.scheduler.get_jobs()
+                ]
+                if self.scheduler
+                else []
+            ),
         }
 
     async def add_ticker(self, ticker: str, fetch_historical: bool = True):
@@ -1104,10 +1302,7 @@ class DataCollectionService:
         logger.info(f"Removed ticker {ticker} from tracking")
 
     async def get_ticker_data(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        days_back: int = 30
+        self, ticker: str, timeframe: TimeFrame, days_back: int = 30
     ) -> Optional[pl.DataFrame]:
         """
         Get recent data for a specific ticker.
@@ -1137,7 +1332,9 @@ class DataCollectionService:
             logger.error(f"Failed to get data for {ticker}: {e}")
             return None
 
-    async def force_ticker_update(self, ticker: str, timeframes: Optional[List[TimeFrame]] = None):
+    async def force_ticker_update(
+        self, ticker: str, timeframes: Optional[List[TimeFrame]] = None
+    ):
         """
         Force immediate update for a specific ticker.
 
@@ -1150,9 +1347,16 @@ class DataCollectionService:
             return
 
         if timeframes is None:
-            timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+            timeframes = [
+                TimeFrame.FIVE_MINUTES,
+                TimeFrame.FIFTEEN_MINUTES,
+                TimeFrame.ONE_HOUR,
+                TimeFrame.ONE_DAY,
+            ]
 
-        logger.info(f"Force updating {ticker} for timeframes: {[tf.value for tf in timeframes]}")
+        logger.info(
+            f"Force updating {ticker} for timeframes: {[tf.value for tf in timeframes]}"
+        )
 
         try:
             for timeframe in timeframes:
@@ -1166,7 +1370,9 @@ class DataCollectionService:
 
                 if data and self.data_store:
                     await self.data_store.save_market_data(data, append=True)
-                    logger.info(f"Force updated {len(data)} {timeframe} records for {ticker}")
+                    logger.info(
+                        f"Force updated {len(data)} {timeframe} records for {ticker}"
+                    )
 
                     # Publish update
                     if self.redis_client:
@@ -1186,7 +1392,7 @@ class DataCollectionService:
         self,
         screener_params: FinVizScreenerParams,
         limit: int = 15,
-        add_to_tracking: bool = False
+        add_to_tracking: bool = False,
     ) -> List[FinVizData]:
         """
         Run custom screener with specific parameters.
@@ -1204,7 +1410,9 @@ class DataCollectionService:
             return []
 
         try:
-            result = await self.finviz_screener.fetch_screener_data(screener_params, limit)
+            result = await self.finviz_screener.fetch_screener_data(
+                screener_params, limit
+            )
 
             if result.data:
                 # Save screener data
@@ -1217,20 +1425,26 @@ class DataCollectionService:
                     async with self._ticker_lock:
                         actually_new = []
                         for ticker in new_tickers:
-                            if len(self._active_tickers) < self.config.max_active_tickers:
+                            if (
+                                len(self._active_tickers)
+                                < self.config.max_active_tickers
+                            ):
                                 if ticker not in self._active_tickers:
                                     self._active_tickers.add(ticker)
                                     actually_new.append(ticker)
 
                     # Fetch historical data for truly new tickers
                     if actually_new:
-                        logger.info(f"Fetching historical data for {len(actually_new)} custom screener tickers")
-                        await self._download_historical_data_for_new_tickers(actually_new)
+                        logger.info(
+                            f"Fetching historical data for {len(actually_new)} custom screener tickers"
+                        )
+                        await self._download_historical_data_for_new_tickers(
+                            actually_new
+                        )
 
                     if self.redis_client:
                         await self.redis_client.publish_new_tickers(
-                            new_tickers,
-                            {"source": "custom_screener"}
+                            new_tickers, {"source": "custom_screener"}
                         )
 
                 logger.info(f"Custom screener found {len(result.data)} results")
@@ -1241,7 +1455,9 @@ class DataCollectionService:
             logger.error(f"Custom screener failed: {e}")
             return []
 
-    async def get_real_time_prices(self, tickers: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def get_real_time_prices(
+        self, tickers: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
         """
         Get real-time prices for tickers.
 
@@ -1277,18 +1493,24 @@ class DataCollectionService:
                     # Check if cache is recent (less than 5 minutes old)
                     try:
                         cache_time = datetime.fromisoformat(cached["timestamp"])
-                        if datetime.now(timezone.utc) - cache_time > timedelta(minutes=5):
+                        if datetime.now(timezone.utc) - cache_time > timedelta(
+                            minutes=5
+                        ):
                             fresh_data_needed.append(ticker)
                     except (KeyError, ValueError):
                         fresh_data_needed.append(ticker)
 
             # Fetch fresh data if needed
             if fresh_data_needed:
-                fresh_prices = await self.twelvedata_client.get_batch_real_time_prices(fresh_data_needed)
+                fresh_prices = await self.twelvedata_client.get_batch_real_time_prices(
+                    fresh_data_needed
+                )
 
                 # Update cache (filter out None values)
                 if self.redis_client:
-                    valid_prices = {k: v for k, v in fresh_prices.items() if v is not None}
+                    valid_prices = {
+                        k: v for k, v in fresh_prices.items() if v is not None
+                    }
                     if valid_prices:
                         await self.redis_client.batch_cache_prices(valid_prices, ttl=300)  # type: ignore
 
@@ -1302,7 +1524,7 @@ class DataCollectionService:
                             "open": float(price_data.open),
                             "high": float(price_data.high),
                             "low": float(price_data.low),
-                            "volume": price_data.volume
+                            "volume": price_data.volume,
                         }
 
             return cached_prices
@@ -1316,7 +1538,7 @@ class DataCollectionService:
         ticker: str,
         timeframe: TimeFrame,
         days_back: int = 30,
-        format: str = "csv"
+        format: str = "csv",
     ) -> Optional[str]:
         """
         Export data for a specific ticker.
@@ -1350,12 +1572,14 @@ class DataCollectionService:
 
     def __del__(self):
         """Cleanup on destruction."""
-        if hasattr(self, 'scheduler') and self.scheduler.running:
+        if hasattr(self, "scheduler") and self.scheduler.running:
             self.scheduler.shutdown(wait=False)
 
 
 # Utility functions for service management
-async def create_and_start_service(config: Optional[DataCollectionConfig] = None) -> DataCollectionService:
+async def create_and_start_service(
+    config: Optional[DataCollectionConfig] = None,
+) -> DataCollectionService:
     """
     Create and start data collection service.
 
@@ -1373,7 +1597,9 @@ async def create_and_start_service(config: Optional[DataCollectionConfig] = None
     return service
 
 
-async def run_service_with_graceful_shutdown(config: Optional[DataCollectionConfig] = None):
+async def run_service_with_graceful_shutdown(
+    config: Optional[DataCollectionConfig] = None,
+):
     """
     Run data collection service with graceful shutdown handling.
 
@@ -1400,11 +1626,12 @@ async def run_service_with_graceful_shutdown(config: Optional[DataCollectionConf
 
 # Example usage
 if __name__ == "__main__":
+
     async def main():
         # Configure logging
         logging.basicConfig(
             level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         )
 
         # Create service configuration
@@ -1414,7 +1641,7 @@ if __name__ == "__main__":
             enable_redis=True,
             finviz_scan_interval=300,  # 5 minutes
             max_active_tickers=30,
-            screener_result_limit=20
+            screener_result_limit=20,
         )
 
         # Run service

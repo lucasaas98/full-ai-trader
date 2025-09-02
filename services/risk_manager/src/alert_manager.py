@@ -7,17 +7,16 @@ alert systems including Gotify, Slack, and email notifications.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Set
-import aiohttp
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 import smtplib
+from datetime import datetime, timedelta, timezone
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Dict, List, Set
+
+import aiohttp
 
 from shared.config import get_config
-from shared.models import (
-    RiskEvent, RiskEventType, RiskSeverity, RiskAlert
-)
+from shared.models import RiskAlert, RiskEvent, RiskEventType, RiskSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -111,13 +110,19 @@ class AlertManager:
             # Send to all configured channels
             tasks = []
 
-            if self.notification_config.gotify_url and self.notification_config.gotify_token:
+            if (
+                self.notification_config.gotify_url
+                and self.notification_config.gotify_token
+            ):
                 tasks.append(self._send_gotify_alert(alert))
 
             if self.notification_config.slack_webhook_url:
                 tasks.append(self._send_slack_alert(alert))
 
-            if self.notification_config.email_smtp_host and self.notification_config.email_to:
+            if (
+                self.notification_config.email_smtp_host
+                and self.notification_config.email_to
+            ):
                 tasks.append(self._send_email_alert(alert))
 
             # Execute all notifications concurrently
@@ -125,7 +130,9 @@ class AlertManager:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
                 success_count = sum(1 for result in results if result is True)
-                logger.info(f"Critical alert sent to {success_count}/{len(tasks)} channels")
+                logger.info(
+                    f"Critical alert sent to {success_count}/{len(tasks)} channels"
+                )
 
         except Exception as e:
             logger.error(f"Error processing immediate alert: {e}")
@@ -142,7 +149,10 @@ class AlertManager:
             # Send batch to all channels
             success_count = 0
 
-            if self.notification_config.gotify_url and self.notification_config.gotify_token:
+            if (
+                self.notification_config.gotify_url
+                and self.notification_config.gotify_token
+            ):
                 if await self._send_gotify_notification(batch_notification):
                     success_count += 1
 
@@ -166,7 +176,7 @@ class AlertManager:
                 RiskSeverity.LOW: 2,
                 RiskSeverity.MEDIUM: 5,
                 RiskSeverity.HIGH: 8,
-                RiskSeverity.CRITICAL: 10
+                RiskSeverity.CRITICAL: 10,
             }
 
             payload = {
@@ -174,29 +184,31 @@ class AlertManager:
                 "message": alert.message,
                 "priority": priority_map.get(alert.severity, 5),
                 "extras": {
-                    "client::display": {
-                        "contentType": "text/markdown"
-                    },
+                    "client::display": {"contentType": "text/markdown"},
                     "alert_type": alert.alert_type,
                     "symbol": alert.symbol,
                     "timestamp": alert.timestamp.isoformat(),
-                    "metadata": alert.metadata
-                }
+                    "metadata": alert.metadata,
+                },
             }
 
             headers = {
                 "X-Gotify-Key": self.notification_config.gotify_token,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload, headers=headers, timeout=timeout) as response:
+                async with session.post(
+                    url, json=payload, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         logger.debug(f"Gotify alert sent successfully: {alert.title}")
                         return True
                     else:
-                        logger.warning(f"Gotify alert failed with status {response.status}")
+                        logger.warning(
+                            f"Gotify alert failed with status {response.status}"
+                        )
                         return False
 
         except Exception as e:
@@ -208,10 +220,10 @@ class AlertManager:
         try:
             # Color coding by severity
             color_map = {
-                RiskSeverity.LOW: "#36a64f",      # Green
-                RiskSeverity.MEDIUM: "#ff9800",   # Orange
-                RiskSeverity.HIGH: "#f44336",     # Red
-                RiskSeverity.CRITICAL: "#9c27b0"  # Purple
+                RiskSeverity.LOW: "#36a64f",  # Green
+                RiskSeverity.MEDIUM: "#ff9800",  # Orange
+                RiskSeverity.HIGH: "#f44336",  # Red
+                RiskSeverity.CRITICAL: "#9c27b0",  # Purple
             }
 
             # Create Slack payload
@@ -227,38 +239,42 @@ class AlertManager:
                             {
                                 "title": "Alert Type",
                                 "value": alert.alert_type,
-                                "short": True
+                                "short": True,
                             },
                             {
                                 "title": "Symbol",
                                 "value": alert.symbol or "Portfolio",
-                                "short": True
+                                "short": True,
                             },
                             {
                                 "title": "Time",
-                                "value": alert.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"),
-                                "short": True
+                                "value": alert.timestamp.strftime(
+                                    "%Y-%m-%d %H:%M:%S UTC"
+                                ),
+                                "short": True,
                             },
                             {
                                 "title": "Action Required",
                                 "value": "Yes" if alert.action_required else "No",
-                                "short": True
-                            }
+                                "short": True,
+                            },
                         ],
                         "footer": "Risk Management System",
-                        "ts": int(alert.timestamp.timestamp())
+                        "ts": int(alert.timestamp.timestamp()),
                     }
-                ]
+                ],
             }
 
             # Add metadata fields if present
             if alert.metadata:
                 for key, value in alert.metadata.items():
-                    payload["attachments"][0]["fields"].append({
-                        "title": key.replace("_", " ").title(),
-                        "value": str(value),
-                        "short": True
-                    })
+                    payload["attachments"][0]["fields"].append(
+                        {
+                            "title": key.replace("_", " ").title(),
+                            "value": str(value),
+                            "short": True,
+                        }
+                    )
 
             if not self.notification_config.slack_webhook_url:
                 logger.warning("Slack webhook URL not configured")
@@ -269,13 +285,15 @@ class AlertManager:
                 async with session.post(
                     self.notification_config.slack_webhook_url,
                     json=payload,
-                    timeout=timeout
+                    timeout=timeout,
                 ) as response:
                     if response.status == 200:
                         logger.debug(f"Slack alert sent successfully: {alert.title}")
                         return True
                     else:
-                        logger.warning(f"Slack alert failed with status {response.status}")
+                        logger.warning(
+                            f"Slack alert failed with status {response.status}"
+                        )
                         return False
 
         except Exception as e:
@@ -285,13 +303,15 @@ class AlertManager:
     async def _send_email_alert(self, alert: RiskAlert) -> bool:
         """Send alert via email."""
         try:
-            if not all([
-                self.notification_config.email_smtp_host,
-                self.notification_config.email_username,
-                self.notification_config.email_password,
-                self.notification_config.email_from,
-                self.notification_config.email_to
-            ]):
+            if not all(
+                [
+                    self.notification_config.email_smtp_host,
+                    self.notification_config.email_username,
+                    self.notification_config.email_password,
+                    self.notification_config.email_from,
+                    self.notification_config.email_to,
+                ]
+            ):
                 logger.warning("Email configuration incomplete, skipping email alert")
                 return False
 
@@ -325,25 +345,28 @@ class AlertManager:
                 logger.warning("SMTP host not configured")
                 return False
 
-            if not self.notification_config.email_username or not self.notification_config.email_password:
+            if (
+                not self.notification_config.email_username
+                or not self.notification_config.email_password
+            ):
                 logger.warning("SMTP credentials not configured")
                 return False
 
             # Send email
             with smtplib.SMTP(
                 self.notification_config.email_smtp_host,
-                self.notification_config.email_smtp_port
+                self.notification_config.email_smtp_port,
             ) as server:
                 server.starttls()
                 server.login(
                     self.notification_config.email_username,
-                    self.notification_config.email_password
+                    self.notification_config.email_password,
                 )
                 text = msg.as_string()
                 server.sendmail(
                     self.notification_config.email_from,
                     self.notification_config.email_to,
-                    text
+                    text,
                 )
 
             logger.debug(f"Email alert sent successfully: {alert.title}")
@@ -383,10 +406,10 @@ Message:
 
         # Color coding by severity
         color_map = {
-            RiskSeverity.LOW: "#4caf50",      # Green
-            RiskSeverity.MEDIUM: "#ff9800",   # Orange
-            RiskSeverity.HIGH: "#f44336",     # Red
-            RiskSeverity.CRITICAL: "#9c27b0"  # Purple
+            RiskSeverity.LOW: "#4caf50",  # Green
+            RiskSeverity.MEDIUM: "#ff9800",  # Orange
+            RiskSeverity.HIGH: "#f44336",  # Red
+            RiskSeverity.CRITICAL: "#9c27b0",  # Purple
         }
 
         color = color_map.get(alert.severity, "#ff9800")
@@ -473,18 +496,23 @@ Message:
     async def _send_gotify_notification(self, notification: Dict) -> bool:
         """Send notification via Gotify."""
         try:
-            if not self.notification_config.gotify_url or not self.notification_config.gotify_token:
+            if (
+                not self.notification_config.gotify_url
+                or not self.notification_config.gotify_token
+            ):
                 return False
 
             url = f"{self.notification_config.gotify_url}/message"
             headers = {
                 "X-Gotify-Key": self.notification_config.gotify_token,
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=notification, headers=headers, timeout=timeout) as response:
+                async with session.post(
+                    url, json=notification, headers=headers, timeout=timeout
+                ) as response:
                     return response.status == 200
 
         except Exception as e:
@@ -502,7 +530,7 @@ Message:
                 async with session.post(
                     self.notification_config.slack_webhook_url,
                     json=notification,
-                    timeout=timeout
+                    timeout=timeout,
                 ) as response:
                     return response.status == 200
 
@@ -542,8 +570,8 @@ Message:
                 2 if RiskSeverity.LOW in severity_counts else 0,
                 5 if RiskSeverity.MEDIUM in severity_counts else 0,
                 8 if RiskSeverity.HIGH in severity_counts else 0,
-                10 if RiskSeverity.CRITICAL in severity_counts else 0
-            )
+                10 if RiskSeverity.CRITICAL in severity_counts else 0,
+            ),
         }
 
     async def _should_send_alert(self, alert: RiskAlert) -> bool:
@@ -554,7 +582,9 @@ Message:
 
         # Check if we've sent this alert recently
         if alert_key in self.last_notification_times:
-            time_since_last = datetime.now(timezone.utc) - self.last_notification_times[alert_key]
+            time_since_last = (
+                datetime.now(timezone.utc) - self.last_notification_times[alert_key]
+            )
 
             # Different cooldowns based on severity
             if alert.severity == RiskSeverity.CRITICAL:
@@ -579,23 +609,29 @@ Message:
         if len(self.alert_history) > 1000:
             self.alert_history = self.alert_history[-1000:]
 
-    async def send_daily_risk_report(self, portfolio_metrics: Dict, risk_events: List[RiskEvent]) -> bool:
+    async def send_daily_risk_report(
+        self, portfolio_metrics: Dict, risk_events: List[RiskEvent]
+    ) -> bool:
         """Send daily risk management report."""
         try:
             # Create comprehensive daily report
             report = self._create_daily_report(portfolio_metrics, risk_events)
 
             # Send via email (primary channel for reports)
-            if self.notification_config.email_smtp_host and self.notification_config.email_to:
+            if (
+                self.notification_config.email_smtp_host
+                and self.notification_config.email_to
+            ):
                 return await self._send_daily_report_email(report)
 
             # Fallback to Gotify if email not configured
-            if self.notification_config.gotify_url and self.notification_config.gotify_token:
-                return await self._send_gotify_notification({
-                    "title": "Daily Risk Report",
-                    "message": report,
-                    "priority": 3
-                })
+            if (
+                self.notification_config.gotify_url
+                and self.notification_config.gotify_token
+            ):
+                return await self._send_gotify_notification(
+                    {"title": "Daily Risk Report", "message": report, "priority": 3}
+                )
 
             return False
 
@@ -603,7 +639,9 @@ Message:
             logger.error(f"Error sending daily risk report: {e}")
             return False
 
-    def _create_daily_report(self, portfolio_metrics: Dict, risk_events: List[RiskEvent]) -> str:
+    def _create_daily_report(
+        self, portfolio_metrics: Dict, risk_events: List[RiskEvent]
+    ) -> str:
         """Create daily risk report content."""
 
         report_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -661,7 +699,9 @@ Message:
                 return False
 
             msg = MIMEMultipart("alternative")
-            msg["Subject"] = f"Daily Risk Report - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            msg["Subject"] = (
+                f"Daily Risk Report - {datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+            )
             msg["From"] = self.notification_config.email_from
             msg["To"] = ", ".join(self.notification_config.email_to)
 
@@ -679,25 +719,28 @@ Message:
                 logger.warning("SMTP host not configured")
                 return False
 
-            if not self.notification_config.email_username or not self.notification_config.email_password:
+            if (
+                not self.notification_config.email_username
+                or not self.notification_config.email_password
+            ):
                 logger.warning("SMTP credentials not configured")
                 return False
 
             # Send email
             with smtplib.SMTP(
                 self.notification_config.email_smtp_host,
-                self.notification_config.email_smtp_port
+                self.notification_config.email_smtp_port,
             ) as server:
                 server.starttls()
                 server.login(
                     self.notification_config.email_username,
-                    self.notification_config.email_password
+                    self.notification_config.email_password,
                 )
                 text = msg.as_string()
                 server.sendmail(
                     self.notification_config.email_from,
                     self.notification_config.email_to,
-                    text
+                    text,
                 )
 
             logger.info("Daily risk report sent successfully")
@@ -718,7 +761,8 @@ Message:
 
         # Replace bold
         import re
-        html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
+
+        html = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", html)
 
         # Replace line breaks
         html = html.replace("\n", "<br>\n")
@@ -751,7 +795,7 @@ Message:
             title=f"EMERGENCY: {event.event_type.replace('_', ' ').title()}",
             message=f"CRITICAL RISK EVENT: {event.description}",
             action_required=True,
-            metadata=event.metadata
+            metadata=event.metadata,
         )
 
         # Send immediately to all channels
@@ -777,7 +821,7 @@ Message:
             "alerts_by_severity": severity_counts,
             "alerts_by_type": type_counts,
             "active_cooldowns": len(self.last_notification_times),
-            "queue_size": self.alert_queue.qsize()
+            "queue_size": self.alert_queue.qsize(),
         }
 
     async def process_alert_queue(self):
@@ -791,7 +835,7 @@ Message:
                 try:
                     alert = await asyncio.wait_for(
                         self.alert_queue.get(),
-                        timeout=self.batch_timeout.total_seconds()
+                        timeout=self.batch_timeout.total_seconds(),
                     )
                     batch.append(alert)
                 except asyncio.TimeoutError:
@@ -803,7 +847,10 @@ Message:
 
                 # Process batch if full or timeout reached
                 time_since_batch = datetime.now(timezone.utc) - last_batch_time
-                if len(batch) >= self.batch_size or time_since_batch >= self.batch_timeout:
+                if (
+                    len(batch) >= self.batch_size
+                    or time_since_batch >= self.batch_timeout
+                ):
                     await self._send_alert_batch(batch)
                     batch.clear()
                     last_batch_time = datetime.now(timezone.utc)
@@ -829,11 +876,14 @@ Message:
             title="Test Alert",
             message="This is a test alert from the Risk Management System",
             action_required=False,
-            metadata={"test": True}
+            metadata={"test": True},
         )
 
         # Test Gotify
-        if self.notification_config.gotify_url and self.notification_config.gotify_token:
+        if (
+            self.notification_config.gotify_url
+            and self.notification_config.gotify_token
+        ):
             results["gotify"] = await self._send_gotify_alert(test_alert)
 
         # Test Slack
@@ -841,8 +891,10 @@ Message:
             results["slack"] = await self._send_slack_alert(test_alert)
 
         # Test Email
-        if (self.notification_config.email_smtp_host and
-            self.notification_config.email_to):
+        if (
+            self.notification_config.email_smtp_host
+            and self.notification_config.email_to
+        ):
             results["email"] = await self._send_email_alert(test_alert)
 
         return results

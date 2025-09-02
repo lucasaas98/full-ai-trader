@@ -33,14 +33,14 @@ SUPPORTED_CHANNELS = [
 
 # Redis channels to monitor
 MONITORED_CHANNELS = [
-    "executions:all",           # All trade executions
-    "execution_errors:all",      # All execution errors
-    "signals:all",              # Trading signals
-    "alerts:*",                 # All system alerts
-    "risk:alerts",              # Risk management alerts
-    "portfolio:updates",        # Portfolio updates
-    "system:status",            # System status updates
-    "market:alerts",            # Market condition alerts
+    "executions:all",  # All trade executions
+    "execution_errors:all",  # All execution errors
+    "signals:all",  # Trading signals
+    "alerts:*",  # All system alerts
+    "risk:alerts",  # Risk management alerts
+    "portfolio:updates",  # Portfolio updates
+    "system:status",  # System status updates
+    "market:alerts",  # Market condition alerts
 ]
 
 __all__ = [

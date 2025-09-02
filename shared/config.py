@@ -6,10 +6,10 @@ with sensible defaults and validation.
 """
 
 from decimal import Decimal
-from typing import Optional, List
-from pydantic import Field
+from typing import List, Optional
+
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
 
 
 class DatabaseConfig(BaseSettings):
@@ -23,10 +23,7 @@ class DatabaseConfig(BaseSettings):
     pool_size: int = Field(default=10, alias="DB_POOL_SIZE")
     max_overflow: int = Field(default=20, alias="DB_MAX_OVERFLOW")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
     @property
     def url(self) -> str:
@@ -43,10 +40,7 @@ class RedisConfig(BaseSettings):
     password: Optional[str] = Field(None, alias="REDIS_PASSWORD")
     max_connections: int = Field(default=20, alias="REDIS_MAX_CONNECTIONS")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
     @property
     def url(self) -> str:
@@ -60,22 +54,23 @@ class AlpacaConfig(BaseSettings):
 
     api_key: str = Field(default="", alias="ALPACA_API_KEY")
     secret_key: str = Field(default="", alias="ALPACA_SECRET_KEY")
-    base_url: str = Field(default="https://paper-api.alpaca.markets", alias="ALPACA_BASE_URL")
-    data_url: str = Field(default="https://data.alpaca.markets", alias="ALPACA_DATA_URL")
+    base_url: str = Field(
+        default="https://paper-api.alpaca.markets", alias="ALPACA_BASE_URL"
+    )
+    data_url: str = Field(
+        default="https://data.alpaca.markets", alias="ALPACA_DATA_URL"
+    )
     paper_trading: bool = Field(default=True, alias="ALPACA_PAPER_TRADING")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator('base_url')
+    @field_validator("base_url")
     @classmethod
     def validate_base_url(cls, v):
         """Validate Alpaca base URL."""
         valid_urls = [
             "https://api.alpaca.markets",  # Live trading
-            "https://paper-api.alpaca.markets"  # Paper trading
+            "https://paper-api.alpaca.markets",  # Paper trading
         ]
         if v not in valid_urls:
             raise ValueError(f"Invalid Alpaca base URL. Must be one of: {valid_urls}")
@@ -86,15 +81,16 @@ class TwelveDataConfig(BaseSettings):
     """TwelveData API configuration."""
 
     api_key: str = Field(default="", alias="TWELVE_DATA_API_KEY")
-    base_url: str = Field(default="https://api.twelvedata.com", alias="TWELVE_DATA_BASE_URL")
+    base_url: str = Field(
+        default="https://api.twelvedata.com", alias="TWELVE_DATA_BASE_URL"
+    )
     rate_limit_requests: int = Field(default=800, alias="TWELVE_DATA_RATE_LIMIT")
-    rate_limit_period: int = Field(default=60, alias="TWELVE_DATA_RATE_PERIOD")  # seconds
+    rate_limit_period: int = Field(
+        default=60, alias="TWELVE_DATA_RATE_PERIOD"
+    )  # seconds
     timeout: int = Field(default=30, alias="TWELVE_DATA_TIMEOUT")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
 
 class FinVizConfig(BaseSettings):
@@ -103,30 +99,32 @@ class FinVizConfig(BaseSettings):
     api_key: Optional[str] = Field(None, alias="FINVIZ_API_KEY")
     base_url: str = Field(default="https://elite.finviz.com", alias="FINVIZ_BASE_URL")
     timeout: int = Field(default=30, alias="FINVIZ_TIMEOUT")
-    rate_limit_delay: float = Field(default=1.0, alias="FINVIZ_RATE_LIMIT_DELAY")  # seconds between requests
+    rate_limit_delay: float = Field(
+        default=1.0, alias="FINVIZ_RATE_LIMIT_DELAY"
+    )  # seconds between requests
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
 
 class JWTConfig(BaseSettings):
     """JWT authentication configuration."""
 
-    secret_key: str = Field(default="default-jwt-secret-change-in-production", alias="JWT_SECRET")
+    secret_key: str = Field(
+        default="default-jwt-secret-change-in-production", alias="JWT_SECRET"
+    )
     algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
-    access_token_expire_minutes: int = Field(default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES")
-    refresh_token_expire_days: int = Field(default=7, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS")
+    access_token_expire_minutes: int = Field(
+        default=30, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
+    )
+    refresh_token_expire_days: int = Field(
+        default=7, alias="JWT_REFRESH_TOKEN_EXPIRE_DAYS"
+    )
     issuer: str = Field(default="trading-system", alias="JWT_ISSUER")
     audience: str = Field(default="trading-api", alias="JWT_AUDIENCE")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator('secret_key')
+    @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v):
         """Validate JWT secret key strength."""
@@ -151,39 +149,47 @@ class NotificationConfig(BaseSettings):
     email_from: Optional[str] = Field(None, alias="EMAIL_FROM")
     email_to: Optional[List[str]] = Field(None, alias="EMAIL_TO")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator('email_to', mode='before')
+    @field_validator("email_to", mode="before")
     @classmethod
     def parse_email_list(cls, v):
         """Parse comma-separated email list."""
         if isinstance(v, str):
-            return [email.strip() for email in v.split(',') if email.strip()]
+            return [email.strip() for email in v.split(",") if email.strip()]
         return v
 
 
 class RiskConfig(BaseSettings):
     """Risk management configuration."""
 
-    max_position_size: Decimal = Field(default=Decimal("0.05"), alias="RISK_MAX_POSITION_SIZE")
-    max_portfolio_risk: Decimal = Field(default=Decimal("0.02"), alias="RISK_MAX_PORTFOLIO_RISK")
+    max_position_size: Decimal = Field(
+        default=Decimal("0.05"), alias="RISK_MAX_POSITION_SIZE"
+    )
+    max_portfolio_risk: Decimal = Field(
+        default=Decimal("0.02"), alias="RISK_MAX_PORTFOLIO_RISK"
+    )
     max_correlation: float = Field(default=0.7, alias="RISK_MAX_CORRELATION")
-    stop_loss_percentage: Decimal = Field(default=Decimal("0.02"), alias="RISK_STOP_LOSS_PCT")
-    take_profit_percentage: Decimal = Field(default=Decimal("0.06"), alias="RISK_TAKE_PROFIT_PCT")
+    stop_loss_percentage: Decimal = Field(
+        default=Decimal("0.02"), alias="RISK_STOP_LOSS_PCT"
+    )
+    take_profit_percentage: Decimal = Field(
+        default=Decimal("0.06"), alias="RISK_TAKE_PROFIT_PCT"
+    )
     max_daily_trades: int = Field(default=10, alias="RISK_MAX_DAILY_TRADES")
-    min_trade_amount: Decimal = Field(default=Decimal("100"), alias="RISK_MIN_TRADE_AMOUNT")
-    max_trade_amount: Decimal = Field(default=Decimal("10000"), alias="RISK_MAX_TRADE_AMOUNT")
-    drawdown_limit: Decimal = Field(default=Decimal("0.15"), alias="RISK_DRAWDOWN_LIMIT")
-
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
+    min_trade_amount: Decimal = Field(
+        default=Decimal("100"), alias="RISK_MIN_TRADE_AMOUNT"
+    )
+    max_trade_amount: Decimal = Field(
+        default=Decimal("10000"), alias="RISK_MAX_TRADE_AMOUNT"
+    )
+    drawdown_limit: Decimal = Field(
+        default=Decimal("0.15"), alias="RISK_DRAWDOWN_LIMIT"
     )
 
-    @field_validator('max_portfolio_risk', 'max_position_size', 'drawdown_limit')
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
+
+    @field_validator("max_portfolio_risk", "max_position_size", "drawdown_limit")
     @classmethod
     def validate_percentages(cls, v):
         """Validate percentage values are between 0 and 1."""
@@ -198,20 +204,19 @@ class LoggingConfig(BaseSettings):
     level: str = Field(default="INFO", alias="LOG_LEVEL")
     format: str = Field(
         default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        alias="LOG_FORMAT"
+        alias="LOG_FORMAT",
     )
-    file_path: str = Field(default="data/logs/trading_system.log", alias="LOG_FILE_PATH")
+    file_path: str = Field(
+        default="data/logs/trading_system.log", alias="LOG_FILE_PATH"
+    )
     max_file_size: int = Field(default=10485760, alias="LOG_MAX_FILE_SIZE")  # 10MB
     backup_count: int = Field(default=5, alias="LOG_BACKUP_COUNT")
     enable_console: bool = Field(default=True, alias="LOG_ENABLE_CONSOLE")
     enable_file: bool = Field(default=True, alias="LOG_ENABLE_FILE")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator('level')
+    @field_validator("level")
     @classmethod
     def validate_log_level(cls, v):
         """Validate log level."""
@@ -225,16 +230,28 @@ class SchedulerConfig(BaseSettings):
     """Scheduler configuration."""
 
     # Market data collection intervals
-    market_data_interval: int = Field(default=60, alias="SCHEDULER_MARKET_DATA_INTERVAL")  # seconds
-    finviz_scan_interval: int = Field(default=3600, alias="SCHEDULER_FINVIZ_SCAN_INTERVAL")  # seconds
+    market_data_interval: int = Field(
+        default=60, alias="SCHEDULER_MARKET_DATA_INTERVAL"
+    )  # seconds
+    finviz_scan_interval: int = Field(
+        default=3600, alias="SCHEDULER_FINVIZ_SCAN_INTERVAL"
+    )  # seconds
 
     # Strategy execution intervals
-    strategy_execution_interval: int = Field(default=300, alias="SCHEDULER_STRATEGY_INTERVAL")  # seconds
-    risk_check_interval: int = Field(default=60, alias="SCHEDULER_RISK_CHECK_INTERVAL")  # seconds
+    strategy_execution_interval: int = Field(
+        default=300, alias="SCHEDULER_STRATEGY_INTERVAL"
+    )  # seconds
+    risk_check_interval: int = Field(
+        default=60, alias="SCHEDULER_RISK_CHECK_INTERVAL"
+    )  # seconds
 
     # Portfolio monitoring
-    portfolio_sync_interval: int = Field(default=300, alias="SCHEDULER_PORTFOLIO_SYNC_INTERVAL")  # seconds
-    health_check_interval: int = Field(default=60, alias="SCHEDULER_HEALTH_CHECK_INTERVAL")  # seconds
+    portfolio_sync_interval: int = Field(
+        default=300, alias="SCHEDULER_PORTFOLIO_SYNC_INTERVAL"
+    )  # seconds
+    health_check_interval: int = Field(
+        default=60, alias="SCHEDULER_HEALTH_CHECK_INTERVAL"
+    )  # seconds
 
     # Trading hours
     trading_start_time: str = Field(default="09:30", alias="TRADING_START_TIME")
@@ -245,10 +262,7 @@ class SchedulerConfig(BaseSettings):
     trade_weekends: bool = Field(default=False, alias="TRADE_WEEKENDS")
     trade_holidays: bool = Field(default=False, alias="TRADE_HOLIDAYS")
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
 
 class DataConfig(BaseSettings):
@@ -262,21 +276,17 @@ class DataConfig(BaseSettings):
     # Data sources priority
     primary_data_source: str = Field(default="twelvedata", alias="PRIMARY_DATA_SOURCE")
     fallback_data_sources: List[str] = Field(
-        default=["alpaca"],
-        alias="FALLBACK_DATA_SOURCES"
+        default=["alpaca"], alias="FALLBACK_DATA_SOURCES"
     )
 
-    model_config = SettingsConfigDict(
-        env_prefix="",
-        case_sensitive=False
-    )
+    model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator('fallback_data_sources', mode='before')
+    @field_validator("fallback_data_sources", mode="before")
     @classmethod
     def parse_data_sources(cls, v):
         """Parse comma-separated data sources list."""
         if isinstance(v, str):
-            return [source.strip() for source in v.split(',') if source.strip()]
+            return [source.strip() for source in v.split(",") if source.strip()]
         return v
 
 
@@ -288,7 +298,9 @@ class Config(BaseSettings):
     debug: bool = Field(default=False, alias="DEBUG")
 
     # Service URLs
-    data_collector_url: str = Field(default="http://localhost:9101", alias="DATA_COLLECTOR_URL")
+    data_collector_url: str = Field(
+        default="http://localhost:9101", alias="DATA_COLLECTOR_URL"
+    )
 
     @property
     def database(self) -> DatabaseConfig:
@@ -358,11 +370,17 @@ class Config(BaseSettings):
     health_check_enabled: bool = Field(default=True, alias="HEALTH_CHECK_ENABLED")
     metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
 
-    @field_validator('environment')
+    @field_validator("environment")
     @classmethod
     def validate_environment(cls, v):
         """Validate environment."""
-        valid_envs = ["development", "testing", "staging", "production", "integration_test"]
+        valid_envs = [
+            "development",
+            "testing",
+            "staging",
+            "production",
+            "integration_test",
+        ]
         if v not in valid_envs:
             raise ValueError(f"Invalid environment. Must be one of: {valid_envs}")
         return v
@@ -378,10 +396,7 @@ class Config(BaseSettings):
         return self.environment == "development"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra='ignore'
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
 

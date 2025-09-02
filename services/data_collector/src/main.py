@@ -10,11 +10,10 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import datetime, date, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from typing import Dict, Any
 from pydantic import ValidationError
 
 # Add the parent directory to Python path for imports
@@ -23,10 +22,10 @@ sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 from shared.config import get_config
 from shared.models import TimeFrame
 
-from .data_collection_service import DataCollectionService, DataCollectionConfig
-from .scheduler_service import SchedulerService
+from .data_collection_service import DataCollectionConfig, DataCollectionService
 from .data_store import DataStore, DataStoreConfig
 from .http_server import DataCollectorHTTPServer
+from .scheduler_service import SchedulerService
 
 
 # Configure logging
@@ -43,11 +42,21 @@ def setup_logging():
         level=getattr(logging, log_config.level),
         format=log_config.format,
         handlers=[
-            h for h in [
-                logging.StreamHandler(sys.stdout) if log_config.enable_console else None,
-                logging.FileHandler(log_config.file_path) if log_config.enable_file else None
-            ] if h is not None
-        ]
+            h
+            for h in [
+                (
+                    logging.StreamHandler(sys.stdout)
+                    if log_config.enable_console
+                    else None
+                ),
+                (
+                    logging.FileHandler(log_config.file_path)
+                    if log_config.enable_file
+                    else None
+                ),
+            ]
+            if h is not None
+        ],
     )
 
     return logging.getLogger(__name__)
@@ -76,29 +85,25 @@ class DataCollectorApp:
                 enable_finviz=True,
                 enable_twelvedata=bool(base_config.twelvedata.api_key),
                 enable_redis=True,
-
                 # Scheduling intervals from base config
                 finviz_scan_interval=base_config.scheduler.finviz_scan_interval,
-                price_update_interval_5m=300,   # 5 minutes
+                price_update_interval_5m=300,  # 5 minutes
                 price_update_interval_15m=900,  # 15 minutes
                 price_update_interval_1h=3600,  # 1 hour
-                price_update_interval_1d=86400, # 1 day
-
+                price_update_interval_1d=86400,  # 1 day
                 # Data settings
                 max_active_tickers=50,
                 historical_data_years=2,
                 screener_result_limit=20,
-
                 # Market hours
                 market_open_time=base_config.scheduler.trading_start_time,
                 market_close_time=base_config.scheduler.trading_end_time,
                 timezone=base_config.scheduler.timezone,
-
                 # Performance
                 max_retries=3,
                 retry_delay=5.0,
                 concurrent_downloads=10,
-                batch_size=20
+                batch_size=20,
             )
 
             return config
@@ -121,11 +126,10 @@ class DataCollectorApp:
 
             # Initialize and start HTTP server
             import os
-            port = int(os.environ.get('SERVICE_PORT', 9101))
+
+            port = int(os.environ.get("SERVICE_PORT", 9101))
             self.http_server = DataCollectorHTTPServer(
-                data_service=self.data_service,
-                port=port,
-                host="0.0.0.0"
+                data_service=self.data_service, port=port, host="0.0.0.0"
             )
             await self.http_server.start()
 
@@ -190,8 +194,11 @@ class DataCollectorApp:
 
     def _setup_signal_handlers(self):
         """Set up signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
-            self.logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            self.logger.info(
+                f"Received signal {signum}, initiating graceful shutdown..."
+            )
             asyncio.create_task(self.stop())
 
         signal.signal(signal.SIGINT, signal_handler)
@@ -204,7 +211,7 @@ class DataCollectorApp:
             "service": "data_collector",
             "status": "unknown",
             "components": {},
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -217,12 +224,14 @@ class DataCollectorApp:
             health_info["components"]["data_service"] = {
                 "status": "healthy" if service_status["is_running"] else "unhealthy",
                 "active_tickers": service_status["active_tickers_count"],
-                "statistics": service_status["statistics"]
+                "statistics": service_status["statistics"],
             }
 
             # Check individual components
             if self.data_service.finviz_screener:
-                finviz_healthy = await self.data_service.finviz_screener.validate_connection()
+                finviz_healthy = (
+                    await self.data_service.finviz_screener.validate_connection()
+                )
                 health_info["components"]["finviz"] = {
                     "status": "healthy" if finviz_healthy else "unhealthy"
                 }
@@ -231,7 +240,9 @@ class DataCollectorApp:
                     health_info["errors"].append("FinViz connection failed")
 
             if self.data_service.twelvedata_client:
-                twelvedata_healthy = await self.data_service.twelvedata_client.test_connection()
+                twelvedata_healthy = (
+                    await self.data_service.twelvedata_client.test_connection()
+                )
                 health_info["components"]["twelvedata"] = {
                     "status": "healthy" if twelvedata_healthy else "unhealthy"
                 }
@@ -252,7 +263,7 @@ class DataCollectorApp:
                     health_info["components"]["data_store"] = {
                         "status": "healthy",
                         "total_files": summary.get("total_files", 0),
-                        "total_size_mb": summary.get("total_size_mb", 0)
+                        "total_size_mb": summary.get("total_size_mb", 0),
                     }
                 except Exception as e:
                     health_info["components"]["data_store"] = {"status": "unhealthy"}
@@ -260,7 +271,8 @@ class DataCollectorApp:
 
             # Determine overall status
             component_statuses = [
-                comp.get("status") for comp in health_info["components"].values()
+                comp.get("status")
+                for comp in health_info["components"].values()
                 if isinstance(comp, dict) and "status" in comp
             ]
 
@@ -293,27 +305,29 @@ async def run_health_check():
         print(f"Overall Status: {health['status']}")
         print(f"Timestamp: {health['timestamp']}")
 
-        if health['components']:
+        if health["components"]:
             print("\nComponent Status:")
-            for component, status in health['components'].items():
+            for component, status in health["components"].items():
                 if isinstance(status, dict):
                     print(f"  {component}: {status.get('status', 'unknown')}")
                 else:
                     print(f"  {component}: {status}")
 
-        if health['errors']:
+        if health["errors"]:
             print("\nErrors:")
-            for error in health['errors']:
+            for error in health["errors"]:
                 print(f"  - {error}")
 
-        return health['status'] == "healthy"
+        return health["status"] == "healthy"
 
     except Exception as e:
         print(f"Health check failed: {e}")
         return False
 
 
-async def run_data_export(ticker: str, timeframe: str, days: int = 30, format: str = "csv"):
+async def run_data_export(
+    ticker: str, timeframe: str, days: int = 30, format: str = "csv"
+):
     """Run data export utility."""
     setup_logging()
 
@@ -323,7 +337,7 @@ async def run_data_export(ticker: str, timeframe: str, days: int = 30, format: s
             "5m": TimeFrame.FIVE_MINUTES,
             "15m": TimeFrame.FIFTEEN_MINUTES,
             "1h": TimeFrame.ONE_HOUR,
-            "1d": TimeFrame.ONE_DAY
+            "1d": TimeFrame.ONE_DAY,
         }
 
         timeframe_enum = tf_map.get(timeframe.lower())
@@ -345,7 +359,7 @@ async def run_data_export(ticker: str, timeframe: str, days: int = 30, format: s
             timeframe=timeframe_enum,
             start_date=start_date,
             end_date=end_date,
-            format=format
+            format=format,
         )
 
         if export_path:
@@ -378,12 +392,14 @@ async def run_data_summary():
         print(f"Tracked tickers: {len(summary.get('tickers', []))}")
         print(f"Available timeframes: {summary.get('timeframes', [])}")
 
-        if summary.get('date_range', {}).get('earliest'):
-            print(f"Date range: {summary['date_range']['earliest']} to {summary['date_range']['latest']}")
+        if summary.get("date_range", {}).get("earliest"):
+            print(
+                f"Date range: {summary['date_range']['earliest']} to {summary['date_range']['latest']}"
+            )
 
-        if summary.get('tickers'):
+        if summary.get("tickers"):
             print(f"Tickers: {', '.join(summary['tickers'][:10])}")
-            if len(summary['tickers']) > 10:
+            if len(summary["tickers"]) > 10:
                 print(f"... and {len(summary['tickers']) - 10} more")
 
         return True
@@ -426,7 +442,9 @@ async def main():
             print("  python main.py                    - Start the service")
             print("  python main.py health             - Run health check")
             print("  python main.py summary            - Show data summary")
-            print("  python main.py export TICKER TF   - Export data (TF: 5m,15m,1h,1d)")
+            print(
+                "  python main.py export TICKER TF   - Export data (TF: 5m,15m,1h,1d)"
+            )
             print("  python main.py help               - Show this help")
             sys.exit(0)
 

@@ -8,19 +8,24 @@ This module handles all database operations for the risk management service incl
 - Performance tracking
 """
 
-import logging
-from datetime import datetime, timedelta, date, timezone
-from decimal import Decimal
-from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
 import json
+import logging
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
 from shared.config import get_config
 from shared.models import (
-    RiskEvent, PortfolioState, PortfolioMetrics,
-    PositionRisk, RiskAlert, DailyRiskReport
+    DailyRiskReport,
+    PortfolioMetrics,
+    PortfolioState,
+    PositionRisk,
+    RiskAlert,
+    RiskEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,22 +45,20 @@ class RiskDatabaseManager:
         """Initialize database connection and create tables."""
         try:
             # Create async engine
-            db_url = getattr(self.db_config, 'url', 'postgresql://localhost/trading')
+            db_url = getattr(self.db_config, "url", "postgresql://localhost/trading")
             if not db_url.startswith("postgresql+asyncpg://"):
                 db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
 
             self.engine = create_async_engine(
                 db_url,
-                pool_size=getattr(self.db_config, 'pool_size', 10),
-                max_overflow=getattr(self.db_config, 'max_overflow', 20),
-                echo=getattr(self.config, 'debug', False)
+                pool_size=getattr(self.db_config, "pool_size", 10),
+                max_overflow=getattr(self.db_config, "max_overflow", 20),
+                echo=getattr(self.config, "debug", False),
             )
 
             # Create session factory
             self.session_factory = async_sessionmaker(
-                bind=self.engine,
-                class_=AsyncSession,
-                expire_on_commit=False
+                bind=self.engine, class_=AsyncSession, expire_on_commit=False
             )
 
             # Create additional tables if needed
@@ -77,7 +80,7 @@ class RiskDatabaseManager:
         """Create additional risk management tables."""
         # Split SQL into individual statements for asyncpg compatibility
         sql_statements = [
-            "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"",
+            'CREATE EXTENSION IF NOT EXISTS "uuid-ossp"',
             "CREATE SCHEMA IF NOT EXISTS risk",
             """CREATE TABLE IF NOT EXISTS risk.risk_events (
                 id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -194,7 +197,7 @@ class RiskDatabaseManager:
             "CREATE INDEX IF NOT EXISTS idx_risk_alerts_timestamp ON risk.risk_alerts(timestamp DESC)",
             "CREATE INDEX IF NOT EXISTS idx_risk_alerts_severity ON risk.risk_alerts(severity, acknowledged)",
             "CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON risk.daily_reports(report_date DESC)",
-            "CREATE INDEX IF NOT EXISTS idx_trailing_stops_symbol ON risk.trailing_stops(symbol)"
+            "CREATE INDEX IF NOT EXISTS idx_trailing_stops_symbol ON risk.trailing_stops(symbol)",
         ]
 
         try:
@@ -226,17 +229,28 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': str(event.id or uuid4()),
-                    'p2': event.event_type.value if hasattr(event.event_type, 'value') else str(event.event_type),
-                    'p3': event.severity.value if hasattr(event.severity, 'value') else str(event.severity),
-                    'p4': event.symbol,
-                    'p5': event.description,
-                    'p6': event.timestamp,
-                    'p7': event.resolved_at,
-                    'p8': event.action_taken,
-                    'p9': json.dumps(event.metadata) if event.metadata else None
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": str(event.id or uuid4()),
+                        "p2": (
+                            event.event_type.value
+                            if hasattr(event.event_type, "value")
+                            else str(event.event_type)
+                        ),
+                        "p3": (
+                            event.severity.value
+                            if hasattr(event.severity, "value")
+                            else str(event.severity)
+                        ),
+                        "p4": event.symbol,
+                        "p5": event.description,
+                        "p6": event.timestamp,
+                        "p7": event.resolved_at,
+                        "p8": event.action_taken,
+                        "p9": json.dumps(event.metadata) if event.metadata else None,
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -262,39 +276,46 @@ class RiskDatabaseManager:
             # Convert positions to JSON and calculate additional metrics
             positions_data = [
                 {
-                    'symbol': pos.symbol,
-                    'quantity': float(pos.quantity),
-                    'market_value': float(pos.market_value),
-                    'unrealized_pnl': float(pos.unrealized_pnl or 0),
-                    'cost_basis': float(pos.cost_basis or 0),
-                    'side': 'long' if pos.quantity > 0 else 'short'
+                    "symbol": pos.symbol,
+                    "quantity": float(pos.quantity),
+                    "market_value": float(pos.market_value),
+                    "unrealized_pnl": float(pos.unrealized_pnl or 0),
+                    "cost_basis": float(pos.cost_basis or 0),
+                    "side": "long" if pos.quantity > 0 else "short",
                 }
                 for pos in portfolio.positions
             ]
 
             # Calculate total market value and unrealized P&L
-            total_market_value = sum(float(pos.market_value) for pos in portfolio.positions)
-            total_unrealized_pnl = sum(float(pos.unrealized_pnl or 0) for pos in portfolio.positions)
+            total_market_value = sum(
+                float(pos.market_value) for pos in portfolio.positions
+            )
+            total_unrealized_pnl = sum(
+                float(pos.unrealized_pnl or 0) for pos in portfolio.positions
+            )
 
             # Store additional data in the JSON field
             portfolio_data = {
-                'positions': positions_data,
-                'total_market_value': total_market_value,
-                'total_unrealized_pnl': total_unrealized_pnl,
-                'position_count': len(portfolio.positions)
+                "positions": positions_data,
+                "total_market_value": total_market_value,
+                "total_unrealized_pnl": total_unrealized_pnl,
+                "position_count": len(portfolio.positions),
             }
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': portfolio.account_id,
-                    'p2': portfolio.timestamp,
-                    'p3': float(portfolio.cash),
-                    'p4': float(portfolio.buying_power),
-                    'p5': float(portfolio.total_equity),
-                    'p6': portfolio.day_trades_count,
-                    'p7': portfolio.pattern_day_trader,
-                    'p8': json.dumps(portfolio_data)
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": portfolio.account_id,
+                        "p2": portfolio.timestamp,
+                        "p3": float(portfolio.cash),
+                        "p4": float(portfolio.buying_power),
+                        "p5": float(portfolio.total_equity),
+                        "p6": portfolio.day_trades_count,
+                        "p7": portfolio.pattern_day_trader,
+                        "p8": json.dumps(portfolio_data),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -320,22 +341,25 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': metrics.timestamp,
-                    'p2': float(metrics.total_exposure),
-                    'p3': float(metrics.cash_percentage),
-                    'p4': metrics.position_count,
-                    'p5': float(metrics.concentration_risk),
-                    'p6': float(metrics.portfolio_beta),
-                    'p7': float(metrics.portfolio_correlation),
-                    'p8': float(metrics.value_at_risk_1d),
-                    'p9': float(metrics.value_at_risk_5d),
-                    'p10': float(metrics.expected_shortfall),
-                    'p11': float(metrics.sharpe_ratio),
-                    'p12': float(metrics.max_drawdown),
-                    'p13': float(metrics.current_drawdown),
-                    'p14': float(metrics.volatility)
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": metrics.timestamp,
+                        "p2": float(metrics.total_exposure),
+                        "p3": float(metrics.cash_percentage),
+                        "p4": metrics.position_count,
+                        "p5": float(metrics.concentration_risk),
+                        "p6": float(metrics.portfolio_beta),
+                        "p7": float(metrics.portfolio_correlation),
+                        "p8": float(metrics.value_at_risk_1d),
+                        "p9": float(metrics.value_at_risk_5d),
+                        "p10": float(metrics.expected_shortfall),
+                        "p11": float(metrics.sharpe_ratio),
+                        "p12": float(metrics.max_drawdown),
+                        "p13": float(metrics.current_drawdown),
+                        "p14": float(metrics.volatility),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -360,19 +384,58 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': position_risk.symbol,
-                    'p2': float(position_risk.position_size) if position_risk.position_size is not None else 0.0,
-                    'p3': float(position_risk.portfolio_percentage) if position_risk.portfolio_percentage is not None else 0.0,
-                    'p4': float(position_risk.volatility) if position_risk.volatility is not None else 0.0,
-                    'p5': float(position_risk.beta) if position_risk.beta is not None else 0.0,
-                    'p6': float(position_risk.var_1d) if position_risk.var_1d is not None else 0.0,
-                    'p7': float(position_risk.expected_return) if position_risk.expected_return is not None else 0.0,
-                    'p8': float(position_risk.sharpe_ratio) if position_risk.sharpe_ratio is not None else 0.0,
-                    'p9': float(position_risk.correlation_with_portfolio) if position_risk.correlation_with_portfolio is not None else 0.0,
-                    'p10': position_risk.sector,
-                    'p11': float(position_risk.risk_score) if position_risk.risk_score is not None else 0.0
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": position_risk.symbol,
+                        "p2": (
+                            float(position_risk.position_size)
+                            if position_risk.position_size is not None
+                            else 0.0
+                        ),
+                        "p3": (
+                            float(position_risk.portfolio_percentage)
+                            if position_risk.portfolio_percentage is not None
+                            else 0.0
+                        ),
+                        "p4": (
+                            float(position_risk.volatility)
+                            if position_risk.volatility is not None
+                            else 0.0
+                        ),
+                        "p5": (
+                            float(position_risk.beta)
+                            if position_risk.beta is not None
+                            else 0.0
+                        ),
+                        "p6": (
+                            float(position_risk.var_1d)
+                            if position_risk.var_1d is not None
+                            else 0.0
+                        ),
+                        "p7": (
+                            float(position_risk.expected_return)
+                            if position_risk.expected_return is not None
+                            else 0.0
+                        ),
+                        "p8": (
+                            float(position_risk.sharpe_ratio)
+                            if position_risk.sharpe_ratio is not None
+                            else 0.0
+                        ),
+                        "p9": (
+                            float(position_risk.correlation_with_portfolio)
+                            if position_risk.correlation_with_portfolio is not None
+                            else 0.0
+                        ),
+                        "p10": position_risk.sector,
+                        "p11": (
+                            float(position_risk.risk_score)
+                            if position_risk.risk_score is not None
+                            else 0.0
+                        ),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -396,18 +459,29 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': alert.alert_type.value if hasattr(alert.alert_type, 'value') else str(alert.alert_type),
-                    'p2': alert.severity.value if hasattr(alert.severity, 'value') else str(alert.severity),
-                    'p3': alert.symbol,
-                    'p4': alert.title,
-                    'p5': alert.message,
-                    'p6': alert.timestamp,
-                    'p7': alert.acknowledged,
-                    'p8': alert.action_required,
-                    'p9': None,  # acknowledged_at not in model
-                    'p10': None  # acknowledged_by not in model
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": (
+                            alert.alert_type.value
+                            if hasattr(alert.alert_type, "value")
+                            else str(alert.alert_type)
+                        ),
+                        "p2": (
+                            alert.severity.value
+                            if hasattr(alert.severity, "value")
+                            else str(alert.severity)
+                        ),
+                        "p3": alert.symbol,
+                        "p4": alert.title,
+                        "p5": alert.message,
+                        "p6": alert.timestamp,
+                        "p7": alert.acknowledged,
+                        "p8": alert.action_required,
+                        "p9": None,  # acknowledged_at not in model
+                        "p10": None,  # acknowledged_by not in model
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -446,25 +520,34 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': report.date,
-                    'p2': float(report.portfolio_value),
-                    'p3': float(report.daily_pnl),
-                    'p4': float(report.daily_return),
-                    'p5': float(report.max_drawdown),
-                    'p6': float(report.current_drawdown),
-                    'p7': float(report.volatility),
-                    'p8': float(report.sharpe_ratio),
-                    'p9': float(report.var_1d),
-                    'p10': report.total_trades,
-                    'p11': report.winning_trades,
-                    'p12': len(report.risk_events),  # Use length of risk_events list
-                    'p13': json.dumps({
-                        'risk_events': [e.dict() for e in report.risk_events],
-                        'position_risks': [p.dict() for p in report.position_risks],
-                        'compliance_violations': report.compliance_violations
-                    })
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": report.date,
+                        "p2": float(report.portfolio_value),
+                        "p3": float(report.daily_pnl),
+                        "p4": float(report.daily_return),
+                        "p5": float(report.max_drawdown),
+                        "p6": float(report.current_drawdown),
+                        "p7": float(report.volatility),
+                        "p8": float(report.sharpe_ratio),
+                        "p9": float(report.var_1d),
+                        "p10": report.total_trades,
+                        "p11": report.winning_trades,
+                        "p12": len(
+                            report.risk_events
+                        ),  # Use length of risk_events list
+                        "p13": json.dumps(
+                            {
+                                "risk_events": [e.dict() for e in report.risk_events],
+                                "position_risks": [
+                                    p.dict() for p in report.position_risks
+                                ],
+                                "compliance_violations": report.compliance_violations,
+                            }
+                        ),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -479,7 +562,7 @@ class RiskDatabaseManager:
         event_type: Optional[str] = None,
         severity: Optional[str] = None,
         symbol: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Retrieve risk events from the database."""
         try:
@@ -514,7 +597,11 @@ class RiskDatabaseManager:
                 conditions.append(f" AND symbol = ${param_count}")
                 params.append(symbol)
 
-            query = base_query + "".join(conditions) + f" ORDER BY timestamp DESC LIMIT ${param_count + 1}"
+            query = (
+                base_query
+                + "".join(conditions)
+                + f" ORDER BY timestamp DESC LIMIT ${param_count + 1}"
+            )
             params.append(limit)
 
             if not self.session_factory:
@@ -526,18 +613,22 @@ class RiskDatabaseManager:
 
                 events = []
                 for row in rows:
-                    events.append({
-                        'id': str(row.id),
-                        'event_type': row.event_type,
-                        'severity': row.severity,
-                        'symbol': row.symbol,
-                        'description': row.description,
-                        'timestamp': row.timestamp,
-                        'resolved_at': row.resolved_at,
-                        'action_taken': row.action_taken,
-                        'metadata': json.loads(row.metadata) if row.metadata else None,
-                        'created_at': row.created_at
-                    })
+                    events.append(
+                        {
+                            "id": str(row.id),
+                            "event_type": row.event_type,
+                            "severity": row.severity,
+                            "symbol": row.symbol,
+                            "description": row.description,
+                            "timestamp": row.timestamp,
+                            "resolved_at": row.resolved_at,
+                            "action_taken": row.action_taken,
+                            "metadata": (
+                                json.loads(row.metadata) if row.metadata else None
+                            ),
+                            "created_at": row.created_at,
+                        }
+                    )
 
                 return events
 
@@ -550,7 +641,7 @@ class RiskDatabaseManager:
         account_id: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """Retrieve portfolio snapshots from the database."""
         try:
@@ -575,7 +666,11 @@ class RiskDatabaseManager:
                 conditions.append(f" AND timestamp <= ${param_count}")
                 params.append(end_date)
 
-            query = base_query + "".join(conditions) + f" ORDER BY timestamp DESC LIMIT ${param_count + 1}"
+            query = (
+                base_query
+                + "".join(conditions)
+                + f" ORDER BY timestamp DESC LIMIT ${param_count + 1}"
+            )
             params.append(limit)
 
             if not self.session_factory:
@@ -587,20 +682,24 @@ class RiskDatabaseManager:
 
                 snapshots = []
                 for row in rows:
-                    snapshots.append({
-                        'id': str(row.id),
-                        'account_id': row.account_id,
-                        'timestamp': row.timestamp,
-                        'cash': float(row.cash),
-                        'buying_power': float(row.buying_power),
-                        'total_equity': float(row.total_equity),
-                        'total_market_value': float(row.total_market_value),
-                        'total_unrealized_pnl': float(row.total_unrealized_pnl),
-                        'day_trades_count': row.day_trades_count,
-                        'pattern_day_trader': row.pattern_day_trader,
-                        'positions': json.loads(row.positions) if row.positions else [],
-                        'created_at': row.created_at
-                    })
+                    snapshots.append(
+                        {
+                            "id": str(row.id),
+                            "account_id": row.account_id,
+                            "timestamp": row.timestamp,
+                            "cash": float(row.cash),
+                            "buying_power": float(row.buying_power),
+                            "total_equity": float(row.total_equity),
+                            "total_market_value": float(row.total_market_value),
+                            "total_unrealized_pnl": float(row.total_unrealized_pnl),
+                            "day_trades_count": row.day_trades_count,
+                            "pattern_day_trader": row.pattern_day_trader,
+                            "positions": (
+                                json.loads(row.positions) if row.positions else []
+                            ),
+                            "created_at": row.created_at,
+                        }
+                    )
 
                 return snapshots
 
@@ -626,22 +725,22 @@ class RiskDatabaseManager:
 
                 if row:
                     return {
-                        'id': str(row.id),
-                        'timestamp': row.timestamp,
-                        'total_exposure': float(row.total_exposure),
-                        'cash_percentage': float(row.cash_percentage),
-                        'position_count': row.position_count,
-                        'concentration_risk': float(row.concentration_risk),
-                        'portfolio_beta': float(row.portfolio_beta),
-                        'portfolio_correlation': float(row.portfolio_correlation),
-                        'value_at_risk_1d': float(row.value_at_risk_1d),
-                        'value_at_risk_5d': float(row.value_at_risk_5d),
-                        'expected_shortfall': float(row.expected_shortfall),
-                        'sharpe_ratio': float(row.sharpe_ratio),
-                        'max_drawdown': float(row.max_drawdown),
-                        'current_drawdown': float(row.current_drawdown),
-                        'volatility': float(row.volatility),
-                        'created_at': row.created_at
+                        "id": str(row.id),
+                        "timestamp": row.timestamp,
+                        "total_exposure": float(row.total_exposure),
+                        "cash_percentage": float(row.cash_percentage),
+                        "position_count": row.position_count,
+                        "concentration_risk": float(row.concentration_risk),
+                        "portfolio_beta": float(row.portfolio_beta),
+                        "portfolio_correlation": float(row.portfolio_correlation),
+                        "value_at_risk_1d": float(row.value_at_risk_1d),
+                        "value_at_risk_5d": float(row.value_at_risk_5d),
+                        "expected_shortfall": float(row.expected_shortfall),
+                        "sharpe_ratio": float(row.sharpe_ratio),
+                        "max_drawdown": float(row.max_drawdown),
+                        "current_drawdown": float(row.current_drawdown),
+                        "volatility": float(row.volatility),
+                        "created_at": row.created_at,
                     }
 
                 return None
@@ -671,26 +770,30 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                result = await session.execute(text(query), {'p1': limit})
+                result = await session.execute(text(query), {"p1": limit})
                 rows = result.fetchall()
 
                 alerts = []
                 for row in rows:
-                    alerts.append({
-                        'id': str(row.id),
-                        'alert_type': row.alert_type,
-                        'severity': row.severity,
-                        'symbol': row.symbol,
-                        'title': row.title,
-                        'message': row.message,
-                        'timestamp': row.timestamp,
-                        'acknowledged': row.acknowledged,
-                        'acknowledged_at': row.acknowledged_at,
-                        'acknowledged_by': row.acknowledged_by,
-                        'action_required': row.action_required,
-                        'metadata': json.loads(row.metadata) if row.metadata else None,
-                        'created_at': row.created_at
-                    })
+                    alerts.append(
+                        {
+                            "id": str(row.id),
+                            "alert_type": row.alert_type,
+                            "severity": row.severity,
+                            "symbol": row.symbol,
+                            "title": row.title,
+                            "message": row.message,
+                            "timestamp": row.timestamp,
+                            "acknowledged": row.acknowledged,
+                            "acknowledged_at": row.acknowledged_at,
+                            "acknowledged_by": row.acknowledged_by,
+                            "action_required": row.action_required,
+                            "metadata": (
+                                json.loads(row.metadata) if row.metadata else None
+                            ),
+                            "created_at": row.created_at,
+                        }
+                    )
 
                 return alerts
 
@@ -711,7 +814,7 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(update_sql), {'p1': str(alert_id)})
+                await session.execute(text(update_sql), {"p1": str(alert_id)})
                 await session.commit()
                 return True
 
@@ -731,27 +834,33 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                result = await session.execute(text(query), {'p1': report_date})
+                result = await session.execute(text(query), {"p1": report_date})
                 row = result.fetchone()
 
                 if row:
                     return {
-                        'id': str(row.id),
-                        'report_date': row.report_date,
-                        'portfolio_value': float(row.portfolio_value),
-                        'daily_pnl': float(row.daily_pnl),
-                        'daily_return': float(row.daily_return),
-                        'max_drawdown': float(row.max_drawdown),
-                        'current_drawdown': float(row.current_drawdown),
-                        'volatility': float(row.volatility),
-                        'sharpe_ratio': float(row.sharpe_ratio),
-                        'var_1d': float(row.var_1d),
-                        'total_trades': row.total_trades,
-                        'winning_trades': row.winning_trades,
-                        'risk_events_count': row.risk_events_count,
-                        'compliance_violations': json.loads(row.compliance_violations) if row.compliance_violations else None,
-                        'report_data': json.loads(row.report_data) if row.report_data else None,
-                        'created_at': row.created_at
+                        "id": str(row.id),
+                        "report_date": row.report_date,
+                        "portfolio_value": float(row.portfolio_value),
+                        "daily_pnl": float(row.daily_pnl),
+                        "daily_return": float(row.daily_return),
+                        "max_drawdown": float(row.max_drawdown),
+                        "current_drawdown": float(row.current_drawdown),
+                        "volatility": float(row.volatility),
+                        "sharpe_ratio": float(row.sharpe_ratio),
+                        "var_1d": float(row.var_1d),
+                        "total_trades": row.total_trades,
+                        "winning_trades": row.winning_trades,
+                        "risk_events_count": row.risk_events_count,
+                        "compliance_violations": (
+                            json.loads(row.compliance_violations)
+                            if row.compliance_violations
+                            else None
+                        ),
+                        "report_data": (
+                            json.loads(row.report_data) if row.report_data else None
+                        ),
+                        "created_at": row.created_at,
                     }
 
                 return None
@@ -760,12 +869,14 @@ class RiskDatabaseManager:
             logger.error(f"Error retrieving daily report: {e}")
             return None
 
-    async def get_trailing_stops(self, symbol: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_trailing_stops(
+        self, symbol: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Get trailing stop configurations."""
         try:
             if symbol:
                 query = "SELECT * FROM trailing_stops WHERE symbol = :p1"
-                params = {'p1': symbol}
+                params = {"p1": symbol}
             else:
                 query = "SELECT * FROM trailing_stops WHERE enabled = TRUE"
                 params = {}
@@ -779,17 +890,19 @@ class RiskDatabaseManager:
 
                 stops = []
                 for row in rows:
-                    stops.append({
-                        'id': str(row.id),
-                        'symbol': row.symbol,
-                        'enabled': row.enabled,
-                        'trail_percentage': float(row.trail_percentage),
-                        'current_stop_price': float(row.current_stop_price),
-                        'highest_price': float(row.highest_price),
-                        'entry_price': float(row.entry_price),
-                        'last_updated': row.last_updated,
-                        'created_at': row.created_at
-                    })
+                    stops.append(
+                        {
+                            "id": str(row.id),
+                            "symbol": row.symbol,
+                            "enabled": row.enabled,
+                            "trail_percentage": float(row.trail_percentage),
+                            "current_stop_price": float(row.current_stop_price),
+                            "highest_price": float(row.highest_price),
+                            "entry_price": float(row.entry_price),
+                            "last_updated": row.last_updated,
+                            "created_at": row.created_at,
+                        }
+                    )
 
                 return stops
 
@@ -797,7 +910,9 @@ class RiskDatabaseManager:
             logger.error(f"Error retrieving trailing stops: {e}")
             return []
 
-    async def update_trailing_stop(self, symbol: str, stop_price: Decimal, highest_price: Decimal) -> bool:
+    async def update_trailing_stop(
+        self, symbol: str, stop_price: Decimal, highest_price: Decimal
+    ) -> bool:
         """Update trailing stop for a symbol."""
         try:
             update_sql = """
@@ -812,11 +927,10 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(update_sql), {
-                    'p1': float(stop_price),
-                    'p2': float(highest_price),
-                    'p3': symbol
-                })
+                await session.execute(
+                    text(update_sql),
+                    {"p1": float(stop_price), "p2": float(highest_price), "p3": symbol},
+                )
                 await session.commit()
                 return True
 
@@ -824,9 +938,15 @@ class RiskDatabaseManager:
             logger.error(f"Error updating trailing stop: {e}")
             return False
 
-    async def store_trailing_stop(self, symbol: str, enabled: bool, trail_percentage: Decimal,
-                                current_stop_price: Decimal, highest_price: Decimal,
-                                entry_price: Decimal) -> bool:
+    async def store_trailing_stop(
+        self,
+        symbol: str,
+        enabled: bool,
+        trail_percentage: Decimal,
+        current_stop_price: Decimal,
+        highest_price: Decimal,
+        entry_price: Decimal,
+    ) -> bool:
         """Store or update trailing stop configuration."""
         try:
             upsert_sql = """
@@ -849,14 +969,17 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(upsert_sql), {
-                    'p1': symbol,
-                    'p2': enabled,
-                    'p3': float(trail_percentage),
-                    'p4': float(current_stop_price),
-                    'p5': float(highest_price),
-                    'p6': float(entry_price)
-                })
+                await session.execute(
+                    text(upsert_sql),
+                    {
+                        "p1": symbol,
+                        "p2": enabled,
+                        "p3": float(trail_percentage),
+                        "p4": float(current_stop_price),
+                        "p5": float(highest_price),
+                        "p6": float(entry_price),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -864,12 +987,20 @@ class RiskDatabaseManager:
             logger.error(f"Error storing trailing stop: {e}")
             return False
 
-    async def store_position_sizing_history(self, symbol: str, signal_timestamp: datetime,
-                                          recommended_shares: int, recommended_value: Decimal,
-                                          position_percentage: Decimal, confidence_score: Optional[Decimal],
-                                          volatility_adjustment: Decimal, sizing_method: str,
-                                          max_loss_amount: Decimal, risk_reward_ratio: Decimal,
-                                          portfolio_value: Decimal) -> bool:
+    async def store_position_sizing_history(
+        self,
+        symbol: str,
+        signal_timestamp: datetime,
+        recommended_shares: int,
+        recommended_value: Decimal,
+        position_percentage: Decimal,
+        confidence_score: Optional[Decimal],
+        volatility_adjustment: Decimal,
+        sizing_method: str,
+        max_loss_amount: Decimal,
+        risk_reward_ratio: Decimal,
+        portfolio_value: Decimal,
+    ) -> bool:
         """Store position sizing history."""
         try:
             insert_sql = """
@@ -886,19 +1017,22 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': symbol,
-                    'p2': signal_timestamp,
-                    'p3': recommended_shares,
-                    'p4': float(recommended_value),
-                    'p5': float(position_percentage),
-                    'p6': float(confidence_score) if confidence_score else None,
-                    'p7': float(volatility_adjustment),
-                    'p8': sizing_method,
-                    'p9': float(max_loss_amount),
-                    'p10': float(risk_reward_ratio),
-                    'p11': float(portfolio_value)
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": symbol,
+                        "p2": signal_timestamp,
+                        "p3": recommended_shares,
+                        "p4": float(recommended_value),
+                        "p5": float(position_percentage),
+                        "p6": float(confidence_score) if confidence_score else None,
+                        "p7": float(volatility_adjustment),
+                        "p8": sizing_method,
+                        "p9": float(max_loss_amount),
+                        "p10": float(risk_reward_ratio),
+                        "p11": float(portfolio_value),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -906,9 +1040,14 @@ class RiskDatabaseManager:
             logger.error(f"Error storing position sizing history: {e}")
             return False
 
-    async def store_circuit_breaker_event(self, trigger_type: str, trigger_value: Optional[Decimal],
-                                        threshold_value: Optional[Decimal], duration_minutes: int = 15,
-                                        portfolio_impact: Optional[Dict] = None) -> bool:
+    async def store_circuit_breaker_event(
+        self,
+        trigger_type: str,
+        trigger_value: Optional[Decimal],
+        threshold_value: Optional[Decimal],
+        duration_minutes: int = 15,
+        portfolio_impact: Optional[Dict] = None,
+    ) -> bool:
         """Store circuit breaker activation event."""
         try:
             insert_sql = """
@@ -923,13 +1062,18 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(insert_sql), {
-                    'p1': trigger_type,
-                    'p2': float(trigger_value) if trigger_value else None,
-                    'p3': float(threshold_value) if threshold_value else None,
-                    'p4': duration_minutes,
-                    'p5': json.dumps(portfolio_impact) if portfolio_impact else None
-                })
+                await session.execute(
+                    text(insert_sql),
+                    {
+                        "p1": trigger_type,
+                        "p2": float(trigger_value) if trigger_value else None,
+                        "p3": float(threshold_value) if threshold_value else None,
+                        "p4": duration_minutes,
+                        "p5": (
+                            json.dumps(portfolio_impact) if portfolio_impact else None
+                        ),
+                    },
+                )
                 await session.commit()
                 return True
 
@@ -956,16 +1100,28 @@ class RiskDatabaseManager:
 
                 breakers = []
                 for row in rows:
-                    breakers.append({
-                        'id': str(row.id),
-                        'trigger_timestamp': row.trigger_timestamp,
-                        'trigger_type': row.trigger_type,
-                        'trigger_value': float(row.trigger_value) if row.trigger_value else None,
-                        'threshold_value': float(row.threshold_value) if row.threshold_value else None,
-                        'duration_minutes': row.duration_minutes,
-                        'portfolio_impact': json.loads(row.portfolio_impact) if row.portfolio_impact else None,
-                        'created_at': row.created_at
-                    })
+                    breakers.append(
+                        {
+                            "id": str(row.id),
+                            "trigger_timestamp": row.trigger_timestamp,
+                            "trigger_type": row.trigger_type,
+                            "trigger_value": (
+                                float(row.trigger_value) if row.trigger_value else None
+                            ),
+                            "threshold_value": (
+                                float(row.threshold_value)
+                                if row.threshold_value
+                                else None
+                            ),
+                            "duration_minutes": row.duration_minutes,
+                            "portfolio_impact": (
+                                json.loads(row.portfolio_impact)
+                                if row.portfolio_impact
+                                else None
+                            ),
+                            "created_at": row.created_at,
+                        }
+                    )
 
                 return breakers
 
@@ -973,7 +1129,9 @@ class RiskDatabaseManager:
             logger.error(f"Error retrieving active circuit breakers: {e}")
             return []
 
-    async def deactivate_circuit_breaker(self, breaker_id: UUID, deactivated_by: str) -> bool:
+    async def deactivate_circuit_breaker(
+        self, breaker_id: UUID, deactivated_by: str
+    ) -> bool:
         """Deactivate a circuit breaker."""
         try:
             update_sql = """
@@ -986,7 +1144,7 @@ class RiskDatabaseManager:
                 raise RuntimeError("Database session factory not initialized")
 
             async with self.session_factory() as session:
-                await session.execute(text(update_sql), {'p1': breaker_id})
+                await session.execute(text(update_sql), {"p1": breaker_id})
                 await session.commit()
                 return True
 
@@ -1027,11 +1185,15 @@ class RiskDatabaseManager:
 
             async with self.session_factory() as session:
                 # Get events statistics
-                events_result = await session.execute(text(events_query), {'p1': start_date})
+                events_result = await session.execute(
+                    text(events_query), {"p1": start_date}
+                )
                 events_rows = events_result.fetchall()
 
                 # Get metrics statistics
-                metrics_result = await session.execute(text(metrics_query), {'p1': start_date})
+                metrics_result = await session.execute(
+                    text(metrics_query), {"p1": start_date}
+                )
                 metrics_row = metrics_result.fetchone()
 
                 # Process events data
@@ -1039,8 +1201,12 @@ class RiskDatabaseManager:
                 events_by_severity = {}
 
                 for row in events_rows:
-                    events_by_type[row.event_type] = events_by_type.get(row.event_type, 0) + row.count
-                    events_by_severity[row.severity] = events_by_severity.get(row.severity, 0) + row.count
+                    events_by_type[row.event_type] = (
+                        events_by_type.get(row.event_type, 0) + row.count
+                    )
+                    events_by_severity[row.severity] = (
+                        events_by_severity.get(row.severity, 0) + row.count
+                    )
 
                 # Compile statistics
                 statistics = {
@@ -1049,12 +1215,32 @@ class RiskDatabaseManager:
                     "events_by_severity": events_by_severity,
                     "total_events": sum(events_by_type.values()),
                     "metrics": {
-                        "avg_volatility": float(metrics_row.avg_volatility) if metrics_row and metrics_row.avg_volatility else 0.0,
-                        "avg_sharpe_ratio": float(metrics_row.avg_sharpe_ratio) if metrics_row and metrics_row.avg_sharpe_ratio else 0.0,
-                        "avg_concentration_risk": float(metrics_row.avg_concentration_risk) if metrics_row and metrics_row.avg_concentration_risk else 0.0,
-                        "max_drawdown_period": float(metrics_row.max_drawdown_period) if metrics_row and metrics_row.max_drawdown_period else 0.0,
-                        "avg_beta": float(metrics_row.avg_beta) if metrics_row and metrics_row.avg_beta else 1.0
-                    }
+                        "avg_volatility": (
+                            float(metrics_row.avg_volatility)
+                            if metrics_row and metrics_row.avg_volatility
+                            else 0.0
+                        ),
+                        "avg_sharpe_ratio": (
+                            float(metrics_row.avg_sharpe_ratio)
+                            if metrics_row and metrics_row.avg_sharpe_ratio
+                            else 0.0
+                        ),
+                        "avg_concentration_risk": (
+                            float(metrics_row.avg_concentration_risk)
+                            if metrics_row and metrics_row.avg_concentration_risk
+                            else 0.0
+                        ),
+                        "max_drawdown_period": (
+                            float(metrics_row.max_drawdown_period)
+                            if metrics_row and metrics_row.max_drawdown_period
+                            else 0.0
+                        ),
+                        "avg_beta": (
+                            float(metrics_row.avg_beta)
+                            if metrics_row and metrics_row.avg_beta
+                            else 1.0
+                        ),
+                    },
                 }
 
                 return statistics
@@ -1066,7 +1252,7 @@ class RiskDatabaseManager:
                 "events_by_type": {},
                 "events_by_severity": {},
                 "total_events": 0,
-                "metrics": {}
+                "metrics": {},
             }
 
     async def cleanup_old_data(self, retention_days: int = 365) -> int:
@@ -1079,7 +1265,7 @@ class RiskDatabaseManager:
                 "DELETE FROM portfolio_snapshots WHERE created_at < :p1",
                 "DELETE FROM portfolio_metrics WHERE created_at < :p1",
                 "DELETE FROM position_risks WHERE created_at < :p1",
-                "DELETE FROM risk_alerts WHERE created_at < :p1 AND acknowledged = TRUE"
+                "DELETE FROM risk_alerts WHERE created_at < :p1 AND acknowledged = TRUE",
             ]
 
             total_deleted = 0

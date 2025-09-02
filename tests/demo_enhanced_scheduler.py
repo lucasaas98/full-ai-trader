@@ -21,8 +21,8 @@ from typing import Dict, List
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from shared.models import TimeFrame
 from services.data_collector.src.scheduler_service import calculate_optimal_intervals
+from shared.models import TimeFrame
 
 
 def demonstrate_basic_usage():
@@ -33,19 +33,21 @@ def demonstrate_basic_usage():
 
     # Basic configuration
     api_limits = {
-        "twelvedata": 800,      # TwelveData API
-        "finviz": 100,          # FinViz screener
-        "redis": 10000          # Redis cache
+        "twelvedata": 800,  # TwelveData API
+        "finviz": 100,  # FinViz screener
+        "redis": 10000,  # Redis cache
     }
 
     active_tickers = 25
-    timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES,
-                  TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+    timeframes = [
+        TimeFrame.FIVE_MINUTES,
+        TimeFrame.FIFTEEN_MINUTES,
+        TimeFrame.ONE_HOUR,
+        TimeFrame.ONE_DAY,
+    ]
 
     intervals = calculate_optimal_intervals(
-        api_rate_limits=api_limits,
-        active_tickers=active_tickers,
-        timeframes=timeframes
+        api_rate_limits=api_limits, active_tickers=active_tickers, timeframes=timeframes
     )
 
     print(f"Configuration:")
@@ -76,7 +78,7 @@ def demonstrate_volatility_adjustment():
         (0.5, "Calm market"),
         (1.0, "Normal market"),
         (1.5, "Volatile market"),
-        (2.0, "High volatility")
+        (2.0, "High volatility"),
     ]
 
     print(f"Configuration: {active_tickers} tickers, API limit: 500 req/min")
@@ -87,7 +89,7 @@ def demonstrate_volatility_adjustment():
             api_rate_limits=api_limits,
             active_tickers=active_tickers,
             timeframes=timeframes,
-            market_volatility=volatility
+            market_volatility=volatility,
         )
 
         print(f"{description} (volatility={volatility}):")
@@ -109,16 +111,22 @@ def demonstrate_priority_weights():
 
     priority_scenarios = [
         (None, "Default priorities"),
-        ({
-            TimeFrame.FIVE_MINUTES: 5.0,      # Very high priority
-            TimeFrame.FIFTEEN_MINUTES: 2.0,   # Medium priority
-            TimeFrame.ONE_HOUR: 1.0           # Low priority
-        }, "Day trading focus"),
-        ({
-            TimeFrame.FIVE_MINUTES: 1.0,      # Low priority
-            TimeFrame.FIFTEEN_MINUTES: 3.0,   # High priority
-            TimeFrame.ONE_HOUR: 4.0           # Very high priority
-        }, "Swing trading focus")
+        (
+            {
+                TimeFrame.FIVE_MINUTES: 5.0,  # Very high priority
+                TimeFrame.FIFTEEN_MINUTES: 2.0,  # Medium priority
+                TimeFrame.ONE_HOUR: 1.0,  # Low priority
+            },
+            "Day trading focus",
+        ),
+        (
+            {
+                TimeFrame.FIVE_MINUTES: 1.0,  # Low priority
+                TimeFrame.FIFTEEN_MINUTES: 3.0,  # High priority
+                TimeFrame.ONE_HOUR: 4.0,  # Very high priority
+            },
+            "Swing trading focus",
+        ),
     ]
 
     print(f"Configuration: {active_tickers} tickers, API limit: 400 req/min")
@@ -129,7 +137,7 @@ def demonstrate_priority_weights():
             api_rate_limits=api_limits,
             active_tickers=active_tickers,
             timeframes=timeframes,
-            priority_weights=weights
+            priority_weights=weights,
         )
 
         print(f"{description}:")
@@ -159,11 +167,14 @@ def demonstrate_rate_limit_constraints():
         ({"standard_api": 500}, "Standard API (500 req/min)"),
         ({"basic_api": 100}, "Basic API (100 req/min)"),
         ({"free_api": 25}, "Free tier API (25 req/min)"),
-        ({
-            "primary_api": 800,
-            "backup_api": 50,      # Most restrictive
-            "cache_api": 5000
-        }, "Mixed APIs (constrained by backup)")
+        (
+            {
+                "primary_api": 800,
+                "backup_api": 50,  # Most restrictive
+                "cache_api": 5000,
+            },
+            "Mixed APIs (constrained by backup)",
+        ),
     ]
 
     print(f"Configuration: {active_tickers} tickers, normal volatility")
@@ -173,7 +184,7 @@ def demonstrate_rate_limit_constraints():
         intervals = calculate_optimal_intervals(
             api_rate_limits=api_limits,
             active_tickers=active_tickers,
-            timeframes=timeframes
+            timeframes=timeframes,
         )
 
         print(f"{description}:")
@@ -188,7 +199,9 @@ def demonstrate_rate_limit_constraints():
             batches_needed = max(1, (active_tickers + batch_size - 1) // batch_size)
             req_per_min = round(60 / interval * batches_needed, 1)
 
-            print(f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>2}m {seconds:>2}s) -> ~{req_per_min} req/min")
+            print(
+                f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>2}m {seconds:>2}s) -> ~{req_per_min} req/min"
+            )
         print()
 
 
@@ -205,25 +218,33 @@ def demonstrate_scaling_behavior():
 
     print(f"Configuration: API limit 300 req/min, normal volatility")
     print()
-    print(f"{'Tickers':<8} {'5min Interval':<15} {'1h Interval':<15} {'Req/Min (5m)':<12}")
+    print(
+        f"{'Tickers':<8} {'5min Interval':<15} {'1h Interval':<15} {'Req/Min (5m)':<12}"
+    )
     print("-" * 60)
 
     for ticker_count in ticker_scenarios:
         intervals = calculate_optimal_intervals(
             api_rate_limits=api_limits,
             active_tickers=ticker_count,
-            timeframes=timeframes
+            timeframes=timeframes,
         )
 
         # Calculate request rate for 5-minute timeframe
         interval_5m = intervals[TimeFrame.FIVE_MINUTES]
         batch_size = min(25, max(5, ticker_count // 20)) if ticker_count > 0 else 1
-        batches_needed = max(1, (ticker_count + batch_size - 1) // batch_size) if ticker_count > 0 else 1
+        batches_needed = (
+            max(1, (ticker_count + batch_size - 1) // batch_size)
+            if ticker_count > 0
+            else 1
+        )
         req_per_min = round(60 / interval_5m * batches_needed, 1)
 
         interval_1h = intervals[TimeFrame.ONE_HOUR]
 
-        print(f"{ticker_count:<8} {interval_5m}s ({interval_5m//60}m)    {interval_1h}s ({interval_1h//60}m)     {req_per_min}")
+        print(
+            f"{ticker_count:<8} {interval_5m}s ({interval_5m//60}m)    {interval_1h}s ({interval_1h//60}m)     {req_per_min}"
+        )
 
     print()
 
@@ -240,11 +261,8 @@ def demonstrate_real_world_scenarios():
             "api_limits": {"free_api": 50},
             "tickers": 15,
             "volatility": 1.8,
-            "priorities": {
-                TimeFrame.FIVE_MINUTES: 5.0,
-                TimeFrame.FIFTEEN_MINUTES: 2.0
-            },
-            "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES]
+            "priorities": {TimeFrame.FIVE_MINUTES: 5.0, TimeFrame.FIFTEEN_MINUTES: 2.0},
+            "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES],
         },
         {
             "name": "Small Hedge Fund",
@@ -254,9 +272,13 @@ def demonstrate_real_world_scenarios():
             "priorities": {
                 TimeFrame.FIVE_MINUTES: 3.0,
                 TimeFrame.FIFTEEN_MINUTES: 4.0,
-                TimeFrame.ONE_HOUR: 3.0
+                TimeFrame.ONE_HOUR: 3.0,
             },
-            "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR]
+            "timeframes": [
+                TimeFrame.FIVE_MINUTES,
+                TimeFrame.FIFTEEN_MINUTES,
+                TimeFrame.ONE_HOUR,
+            ],
         },
         {
             "name": "Research Institution",
@@ -266,10 +288,14 @@ def demonstrate_real_world_scenarios():
             "priorities": {
                 TimeFrame.FIFTEEN_MINUTES: 2.0,
                 TimeFrame.ONE_HOUR: 3.0,
-                TimeFrame.ONE_DAY: 4.0
+                TimeFrame.ONE_DAY: 4.0,
             },
-            "timeframes": [TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
-        }
+            "timeframes": [
+                TimeFrame.FIFTEEN_MINUTES,
+                TimeFrame.ONE_HOUR,
+                TimeFrame.ONE_DAY,
+            ],
+        },
     ]
 
     for scenario in scenarios:
@@ -278,7 +304,7 @@ def demonstrate_real_world_scenarios():
             active_tickers=scenario["tickers"],
             timeframes=scenario["timeframes"],
             market_volatility=scenario["volatility"],
-            priority_weights=scenario["priorities"]
+            priority_weights=scenario["priorities"],
         )
 
         print(f"{scenario['name']}:")
@@ -291,7 +317,9 @@ def demonstrate_real_world_scenarios():
         for timeframe, interval in intervals.items():
             minutes = interval // 60
             seconds = interval % 60
-            print(f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>2}m {seconds:>2}s)")
+            print(
+                f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>2}m {seconds:>2}s)"
+            )
         print()
 
 
@@ -308,12 +336,10 @@ def demonstrate_algorithm_improvements():
             TimeFrame.FIVE_MINUTES: 300,
             TimeFrame.FIFTEEN_MINUTES: 900,
             TimeFrame.ONE_HOUR: 3600,
-            TimeFrame.ONE_DAY: 86400
+            TimeFrame.ONE_DAY: 86400,
         }
 
-        requests_per_update = {
-            tf: max(1, active_tickers // 100) for tf in timeframes
-        }
+        requests_per_update = {tf: max(1, active_tickers // 100) for tf in timeframes}
 
         optimal_intervals = {}
         for timeframe in timeframes:
@@ -331,15 +357,15 @@ def demonstrate_algorithm_improvements():
             "api_limits": {"api": 100},
             "tickers": 150,
             "volatility": 2.0,
-            "priorities": {TimeFrame.FIVE_MINUTES: 4.0, TimeFrame.ONE_HOUR: 1.0}
+            "priorities": {TimeFrame.FIVE_MINUTES: 4.0, TimeFrame.ONE_HOUR: 1.0},
         },
         {
             "name": "Mixed API providers",
             "api_limits": {"fast": 1000, "slow": 25, "medium": 300},
             "tickers": 80,
             "volatility": 1.3,
-            "priorities": {TimeFrame.FIVE_MINUTES: 3.0, TimeFrame.ONE_HOUR: 2.0}
-        }
+            "priorities": {TimeFrame.FIVE_MINUTES: 3.0, TimeFrame.ONE_HOUR: 2.0},
+        },
     ]
 
     timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
@@ -351,25 +377,31 @@ def demonstrate_algorithm_improvements():
 
         # Old simple calculation
         old_intervals = simple_calculate_optimal_intervals(
-            case['api_limits'], case['tickers'], timeframes
+            case["api_limits"], case["tickers"], timeframes
         )
 
         # New enhanced calculation
         new_intervals = calculate_optimal_intervals(
-            api_rate_limits=case['api_limits'],
-            active_tickers=case['tickers'],
+            api_rate_limits=case["api_limits"],
+            active_tickers=case["tickers"],
             timeframes=timeframes,
-            market_volatility=case['volatility'],
-            priority_weights=case['priorities']
+            market_volatility=case["volatility"],
+            priority_weights=case["priorities"],
         )
 
         print("  Results comparison:")
         for timeframe in timeframes:
             old_min = old_intervals[timeframe] // 60
             new_min = new_intervals[timeframe] // 60
-            improvement = "SMARTER" if new_intervals[timeframe] != old_intervals[timeframe] else "SAME"
+            improvement = (
+                "SMARTER"
+                if new_intervals[timeframe] != old_intervals[timeframe]
+                else "SAME"
+            )
 
-            print(f"    {timeframe.value:>15}: Old={old_min:>3}m, Enhanced={new_min:>3}m ({improvement})")
+            print(
+                f"    {timeframe.value:>15}: Old={old_min:>3}m, Enhanced={new_min:>3}m ({improvement})"
+            )
         print()
 
 
@@ -384,7 +416,9 @@ def demonstrate_rate_limit_safety():
     active_tickers = 100
     timeframes = [TimeFrame.FIVE_MINUTES]
 
-    print(f"Challenge: {active_tickers} tickers with only {list(api_limits.values())[0]} req/min API limit")
+    print(
+        f"Challenge: {active_tickers} tickers with only {list(api_limits.values())[0]} req/min API limit"
+    )
     print()
 
     for volatility in [0.8, 1.0, 1.5, 2.0]:
@@ -392,7 +426,7 @@ def demonstrate_rate_limit_safety():
             api_rate_limits=api_limits,
             active_tickers=active_tickers,
             timeframes=timeframes,
-            market_volatility=volatility
+            market_volatility=volatility,
         )
 
         interval = intervals[TimeFrame.FIVE_MINUTES]
@@ -404,7 +438,9 @@ def demonstrate_rate_limit_safety():
 
         safety_margin = (30 - actual_req_per_min) / 30 * 100
 
-        print(f"Volatility {volatility}: {interval}s interval -> {actual_req_per_min} req/min ({safety_margin:.1f}% safety margin)")
+        print(
+            f"Volatility {volatility}: {interval}s interval -> {actual_req_per_min} req/min ({safety_margin:.1f}% safety margin)"
+        )
 
     print()
 
@@ -425,9 +461,7 @@ def demonstrate_batch_optimization():
 
     for tickers in ticker_counts:
         intervals = calculate_optimal_intervals(
-            api_rate_limits=api_limits,
-            active_tickers=tickers,
-            timeframes=timeframes
+            api_rate_limits=api_limits, active_tickers=tickers, timeframes=timeframes
         )
 
         # Calculate what batch size the algorithm chose
@@ -442,10 +476,14 @@ def demonstrate_batch_optimization():
         else:
             batch_size = min(50, tickers)
 
-        batches_needed = max(1, (tickers + batch_size - 1) // batch_size) if tickers > 0 else 1
+        batches_needed = (
+            max(1, (tickers + batch_size - 1) // batch_size) if tickers > 0 else 1
+        )
         interval = intervals[TimeFrame.FIVE_MINUTES]
 
-        print(f"{tickers:>8} -> {batch_size:>8} -> {batches_needed:>8} -> {interval}s ({interval//60}m)")
+        print(
+            f"{tickers:>8} -> {batch_size:>8} -> {batches_needed:>8} -> {interval}s ({interval//60}m)"
+        )
 
     print()
 
@@ -462,12 +500,16 @@ def benchmark_performance():
     test_cases = [
         {"tickers": 50, "iterations": 1000, "name": "Small scale"},
         {"tickers": 500, "iterations": 500, "name": "Medium scale"},
-        {"tickers": 2000, "iterations": 100, "name": "Large scale"}
+        {"tickers": 2000, "iterations": 100, "name": "Large scale"},
     ]
 
     api_limits = {"api1": 800, "api2": 200, "api3": 1000}
-    timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES,
-                  TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+    timeframes = [
+        TimeFrame.FIVE_MINUTES,
+        TimeFrame.FIFTEEN_MINUTES,
+        TimeFrame.ONE_HOUR,
+        TimeFrame.ONE_DAY,
+    ]
 
     for case in test_cases:
         start_time = time.perf_counter()
@@ -478,7 +520,7 @@ def benchmark_performance():
                 active_tickers=case["tickers"],
                 timeframes=timeframes,
                 market_volatility=1.2,
-                priority_weights={tf: 2.0 for tf in timeframes}
+                priority_weights={tf: 2.0 for tf in timeframes},
             )
 
         end_time = time.perf_counter()
@@ -530,6 +572,7 @@ def main():
     except Exception as e:
         print(f"Demonstration failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 

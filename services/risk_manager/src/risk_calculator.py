@@ -10,17 +10,18 @@ This module provides comprehensive risk calculations using real market data incl
 """
 
 import logging
+import math
+import statistics
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
-import math
-import statistics
+
 import numpy as np
 import pandas as pd
 from scipy import stats
 
 from shared.config import get_config
-from shared.models import Position, PortfolioState
+from shared.models import PortfolioState, Position
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +84,13 @@ class RiskCalculator:
         self.cache_timestamp: Optional[datetime] = None
         self.cache_ttl = timedelta(hours=1)
 
-    async def calculate_portfolio_var(self,
-                                    portfolio: PortfolioState,
-                                    confidence_level: float = 0.95,
-                                    method: str = "historical",
-                                    holding_period: int = 1) -> Tuple[Decimal, Decimal]:
+    async def calculate_portfolio_var(
+        self,
+        portfolio: PortfolioState,
+        confidence_level: float = 0.95,
+        method: str = "historical",
+        holding_period: int = 1,
+    ) -> Tuple[Decimal, Decimal]:
         """
         Calculate Value at Risk for the portfolio.
 
@@ -114,29 +117,43 @@ class RiskCalculator:
 
             # Calculate VaR based on method
             if method == "historical":
-                var, es = await self._historical_var(portfolio, market_data, confidence_level, holding_period)
+                var, es = await self._historical_var(
+                    portfolio, market_data, confidence_level, holding_period
+                )
             elif method == "parametric":
-                var, es = await self._parametric_var(portfolio, market_data, confidence_level, holding_period)
+                var, es = await self._parametric_var(
+                    portfolio, market_data, confidence_level, holding_period
+                )
             elif method == "monte_carlo":
-                var, es = await self._monte_carlo_var(portfolio, market_data, confidence_level, holding_period)
+                var, es = await self._monte_carlo_var(
+                    portfolio, market_data, confidence_level, holding_period
+                )
             else:
                 logger.warning(f"Unknown VaR method: {method}, using historical")
-                var, es = await self._historical_var(portfolio, market_data, confidence_level, holding_period)
+                var, es = await self._historical_var(
+                    portfolio, market_data, confidence_level, holding_period
+                )
 
-            logger.debug(f"Portfolio VaR ({method}, {confidence_level:.0%}): ${var}, ES: ${es}")
+            logger.debug(
+                f"Portfolio VaR ({method}, {confidence_level:.0%}): ${var}, ES: ${es}"
+            )
             return var, es
 
         except Exception as e:
             logger.error(f"Error calculating portfolio VaR: {e}")
             return await self._fallback_var_calculation(portfolio, confidence_level)
 
-    async def calculate_correlation_matrix(self, symbols: List[str], days: int = 60) -> pd.DataFrame:
+    async def calculate_correlation_matrix(
+        self, symbols: List[str], days: int = 60
+    ) -> pd.DataFrame:
         """Calculate correlation matrix for given symbols."""
         try:
             # Check cache
-            if (self.correlation_matrix_cache is not None and
-                self.cache_timestamp and
-                datetime.now(timezone.utc) - self.cache_timestamp < self.cache_ttl):
+            if (
+                self.correlation_matrix_cache is not None
+                and self.cache_timestamp
+                and datetime.now(timezone.utc) - self.cache_timestamp < self.cache_ttl
+            ):
                 return self.correlation_matrix_cache.loc[symbols, symbols]
 
             # Get price data for all symbols
@@ -148,7 +165,9 @@ class RiskCalculator:
 
             if len(price_data) < 2:
                 # Return identity matrix if insufficient data
-                return pd.DataFrame(np.eye(len(symbols)), index=symbols, columns=symbols)
+                return pd.DataFrame(
+                    np.eye(len(symbols)), index=symbols, columns=symbols
+                )
 
             # Create returns DataFrame
             returns_df = pd.DataFrame(price_data)
@@ -200,7 +219,9 @@ class RiskCalculator:
 
             # Calculate portfolio volatility
             weights_array = np.array([weights.get(symbol, 0.0) for symbol in symbols])
-            portfolio_variance = np.dot(weights_array.T, np.dot(cov_matrix, weights_array))
+            portfolio_variance = np.dot(
+                weights_array.T, np.dot(cov_matrix, weights_array)
+            )
             portfolio_volatility = np.sqrt(portfolio_variance)
 
             return float(portfolio_volatility)
@@ -209,7 +230,9 @@ class RiskCalculator:
             logger.error(f"Error calculating portfolio volatility: {e}")
             return 0.15  # Default volatility
 
-    async def calculate_portfolio_beta(self, portfolio: PortfolioState, benchmark: str = "SPY") -> float:
+    async def calculate_portfolio_beta(
+        self, portfolio: PortfolioState, benchmark: str = "SPY"
+    ) -> float:
         """Calculate portfolio beta relative to benchmark."""
         try:
             symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
@@ -234,7 +257,9 @@ class RiskCalculator:
             logger.error(f"Error calculating portfolio beta: {e}")
             return 1.0
 
-    async def stress_test_portfolio(self, portfolio: PortfolioState, scenarios: List[Dict]) -> Dict:
+    async def stress_test_portfolio(
+        self, portfolio: PortfolioState, scenarios: List[Dict]
+    ) -> Dict:
         """
         Perform stress testing on portfolio under various scenarios.
 
@@ -262,14 +287,22 @@ class RiskCalculator:
                     shock = market_shocks.get(symbol, 0.0)  # Default no shock
 
                     # Calculate P&L under shock
-                    shocked_price = position.current_price * (Decimal("1") + Decimal(str(shock)))
-                    position_pnl = (shocked_price - position.current_price) * Decimal(position.quantity)
+                    shocked_price = position.current_price * (
+                        Decimal("1") + Decimal(str(shock))
+                    )
+                    position_pnl = (shocked_price - position.current_price) * Decimal(
+                        position.quantity
+                    )
                     scenario_pnl += position_pnl
 
                 results[scenario_name] = {
                     "total_pnl": str(scenario_pnl),
-                    "pnl_percentage": float(scenario_pnl / portfolio.total_equity) if portfolio.total_equity > 0 else 0.0,
-                    "scenario_details": scenario
+                    "pnl_percentage": (
+                        float(scenario_pnl / portfolio.total_equity)
+                        if portfolio.total_equity > 0
+                        else 0.0
+                    ),
+                    "scenario_details": scenario,
                 }
 
             return results
@@ -291,7 +324,7 @@ class RiskCalculator:
                 "portfolio_liquidity_score": 0.0,
                 "position_liquidity": {},
                 "illiquid_positions": [],
-                "concentration_risk": 0.0
+                "concentration_risk": 0.0,
             }
 
             total_value = float(portfolio.total_equity)
@@ -314,16 +347,18 @@ class RiskCalculator:
                 liquidity_metrics["position_liquidity"][symbol] = {
                     "score": liquidity_score,
                     "weight": position_weight,
-                    "market_value": float(position.market_value)
+                    "market_value": float(position.market_value),
                 }
 
                 # Flag illiquid positions
                 if liquidity_score < 0.3 and position_weight > illiquid_threshold:
-                    liquidity_metrics["illiquid_positions"].append({
-                        "symbol": symbol,
-                        "weight": position_weight,
-                        "liquidity_score": liquidity_score
-                    })
+                    liquidity_metrics["illiquid_positions"].append(
+                        {
+                            "symbol": symbol,
+                            "weight": position_weight,
+                            "liquidity_score": liquidity_score,
+                        }
+                    )
 
             # Calculate portfolio-weighted liquidity score
             weighted_score = 0.0
@@ -332,8 +367,11 @@ class RiskCalculator:
 
             liquidity_metrics["portfolio_liquidity_score"] = weighted_score
             liquidity_metrics["concentration_risk"] = max(
-                [data["weight"] for data in liquidity_metrics["position_liquidity"].values()],
-                default=0.0
+                [
+                    data["weight"]
+                    for data in liquidity_metrics["position_liquidity"].values()
+                ],
+                default=0.0,
             )
 
             return liquidity_metrics
@@ -346,8 +384,8 @@ class RiskCalculator:
         """Calculate liquidity score for a position (0-1, higher is more liquid)."""
         # TODO: Add comprehensive tests for position liquidity scoring
         # Simple implementation - in production, use real market data
-        liquid_symbols = {'SPY', 'QQQ', 'IWM', 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'}
-        moderate_liquid = {'JPM', 'BAC', 'WFC', 'GS', 'C'}
+        liquid_symbols = {"SPY", "QQQ", "IWM", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"}
+        moderate_liquid = {"JPM", "BAC", "WFC", "GS", "C"}
 
         if symbol in liquid_symbols:
             return 0.9
@@ -356,7 +394,12 @@ class RiskCalculator:
         else:
             return 0.5  # Default moderate liquidity
 
-    async def backtest_var_model(self, portfolio_history: List[Dict], var_predictions: List[float], confidence_level: float = 0.95) -> Dict:
+    async def backtest_var_model(
+        self,
+        portfolio_history: List[Dict],
+        var_predictions: List[float],
+        confidence_level: float = 0.95,
+    ) -> Dict:
         """
         Backtest VaR model performance using historical data.
 
@@ -370,7 +413,10 @@ class RiskCalculator:
         """
         # TODO: Add comprehensive tests for VaR backtesting
         try:
-            if len(portfolio_history) != len(var_predictions) or len(portfolio_history) < 2:
+            if (
+                len(portfolio_history) != len(var_predictions)
+                or len(portfolio_history) < 2
+            ):
                 return {"error": "Insufficient or mismatched data for backtesting"}
 
             violations = 0
@@ -379,7 +425,7 @@ class RiskCalculator:
 
             # Calculate actual portfolio returns
             for i in range(1, len(portfolio_history)):
-                prev_value = portfolio_history[i-1].get("total_equity", 0)
+                prev_value = portfolio_history[i - 1].get("total_equity", 0)
                 curr_value = portfolio_history[i].get("total_equity", 0)
 
                 if prev_value > 0:
@@ -387,22 +433,38 @@ class RiskCalculator:
                     actual_returns.append(actual_return)
 
                     # Check for VaR violations (losses exceeding VaR)
-                    if i-1 < len(var_predictions):
-                        var_threshold = var_predictions[i-1] / prev_value  # Convert to return
+                    if i - 1 < len(var_predictions):
+                        var_threshold = (
+                            var_predictions[i - 1] / prev_value
+                        )  # Convert to return
                         if actual_return < -abs(var_threshold):
                             violations += 1
 
             # Calculate backtesting statistics
-            violation_rate = violations / total_observations if total_observations > 0 else 0
+            violation_rate = (
+                violations / total_observations if total_observations > 0 else 0
+            )
             expected_violation_rate = 1 - confidence_level
 
             # Kupiec test for coverage
-            kupiec_stat = -2 * np.log(
-                ((expected_violation_rate ** violations) *
-                 ((1 - expected_violation_rate) ** (total_observations - violations))) /
-                ((violation_rate ** violations) *
-                 ((1 - violation_rate) ** (total_observations - violations)))
-            ) if violation_rate > 0 and violation_rate < 1 else 0
+            kupiec_stat = (
+                -2
+                * np.log(
+                    (
+                        (expected_violation_rate**violations)
+                        * (
+                            (1 - expected_violation_rate)
+                            ** (total_observations - violations)
+                        )
+                    )
+                    / (
+                        (violation_rate**violations)
+                        * ((1 - violation_rate) ** (total_observations - violations))
+                    )
+                )
+                if violation_rate > 0 and violation_rate < 1
+                else 0
+            )
 
             return {
                 "total_observations": total_observations,
@@ -411,15 +473,22 @@ class RiskCalculator:
                 "expected_violation_rate": expected_violation_rate,
                 "kupiec_statistic": kupiec_stat,
                 "model_adequate": abs(violation_rate - expected_violation_rate) < 0.05,
-                "average_actual_return": np.mean(actual_returns) if actual_returns else 0,
-                "volatility": np.std(actual_returns) if actual_returns else 0
+                "average_actual_return": (
+                    np.mean(actual_returns) if actual_returns else 0
+                ),
+                "volatility": np.std(actual_returns) if actual_returns else 0,
             }
 
         except Exception as e:
             logger.error(f"Error in VaR backtesting: {e}")
             return {"error": str(e)}
 
-    async def calculate_risk_adjusted_returns(self, portfolio: PortfolioState, benchmark_returns: List[float] = None, risk_free_rate: float = 0.02) -> Dict:
+    async def calculate_risk_adjusted_returns(
+        self,
+        portfolio: PortfolioState,
+        benchmark_returns: List[float] = None,
+        risk_free_rate: float = 0.02,
+    ) -> Dict:
         """
         Calculate risk-adjusted return metrics.
 
@@ -450,25 +519,39 @@ class RiskCalculator:
             mean_return = np.mean(returns_array)
             volatility = np.std(returns_array)
             downside_returns = returns_array[returns_array < 0]
-            downside_volatility = np.std(downside_returns) if len(downside_returns) > 0 else 0
+            downside_volatility = (
+                np.std(downside_returns) if len(downside_returns) > 0 else 0
+            )
 
             # Sharpe Ratio
-            sharpe_ratio = (mean_return - daily_risk_free) / volatility if volatility > 0 else 0
+            sharpe_ratio = (
+                (mean_return - daily_risk_free) / volatility if volatility > 0 else 0
+            )
 
             # Sortino Ratio
-            sortino_ratio = (mean_return - daily_risk_free) / downside_volatility if downside_volatility > 0 else 0
+            sortino_ratio = (
+                (mean_return - daily_risk_free) / downside_volatility
+                if downside_volatility > 0
+                else 0
+            )
 
             # Calmar Ratio (return/max drawdown)
             max_dd, _, _ = await self.calculate_maximum_drawdown(portfolio_returns)
-            calmar_ratio = (mean_return * 252) / abs(max_dd) if abs(max_dd) > 0.01 else 0
+            calmar_ratio = (
+                (mean_return * 252) / abs(max_dd) if abs(max_dd) > 0.01 else 0
+            )
 
             # Information Ratio (if benchmark provided)
             information_ratio = 0
             if benchmark_returns and len(benchmark_returns) >= len(returns_array):
-                benchmark_array = np.array(benchmark_returns[:len(returns_array)])
+                benchmark_array = np.array(benchmark_returns[: len(returns_array)])
                 excess_returns = returns_array - benchmark_array
                 tracking_error = np.std(excess_returns)
-                information_ratio = np.mean(excess_returns) / tracking_error if tracking_error > 0 else 0
+                information_ratio = (
+                    np.mean(excess_returns) / tracking_error
+                    if tracking_error > 0
+                    else 0
+                )
 
             return {
                 "mean_return": float(mean_return * 252),  # Annualized
@@ -476,9 +559,11 @@ class RiskCalculator:
                 "sharpe_ratio": float(sharpe_ratio * np.sqrt(252)),  # Annualized
                 "sortino_ratio": float(sortino_ratio * np.sqrt(252)),  # Annualized
                 "calmar_ratio": float(calmar_ratio),
-                "information_ratio": float(information_ratio * np.sqrt(252)),  # Annualized
+                "information_ratio": float(
+                    information_ratio * np.sqrt(252)
+                ),  # Annualized
                 "max_drawdown": float(max_dd),
-                "downside_volatility": float(downside_volatility * np.sqrt(252))
+                "downside_volatility": float(downside_volatility * np.sqrt(252)),
             }
 
         except Exception as e:
@@ -502,7 +587,7 @@ class RiskCalculator:
                 "portfolio_gamma": 0.0,
                 "portfolio_theta": 0.0,
                 "portfolio_vega": 0.0,
-                "position_greeks": {}
+                "position_greeks": {},
             }
 
             if not options_positions:
@@ -523,8 +608,12 @@ class RiskCalculator:
 
                 # Calculate Greeks using Black-Scholes approximations
                 greeks = self._calculate_black_scholes_greeks(
-                    underlying_price, strike, time_to_expiry,
-                    risk_free_rate, volatility, option_type
+                    underlying_price,
+                    strike,
+                    time_to_expiry,
+                    risk_free_rate,
+                    volatility,
+                    option_type,
                 )
 
                 # Scale by position size
@@ -532,7 +621,7 @@ class RiskCalculator:
                     "delta": greeks["delta"] * quantity,
                     "gamma": greeks["gamma"] * quantity,
                     "theta": greeks["theta"] * quantity,
-                    "vega": greeks["vega"] * quantity
+                    "vega": greeks["vega"] * quantity,
                 }
 
                 greeks_summary["position_greeks"][symbol] = position_greeks
@@ -549,31 +638,45 @@ class RiskCalculator:
             logger.error(f"Error calculating options Greeks: {e}")
             return {"error": str(e)}
 
-    def _calculate_black_scholes_greeks(self, S: float, K: float, T: float, r: float, sigma: float, option_type: str = "call") -> Dict:
+    def _calculate_black_scholes_greeks(
+        self,
+        S: float,
+        K: float,
+        T: float,
+        r: float,
+        sigma: float,
+        option_type: str = "call",
+    ) -> Dict:
         """Calculate Black-Scholes Greeks."""
         # TODO: Add comprehensive tests for Black-Scholes Greeks
         try:
             if T <= 0 or sigma <= 0:
                 return {"delta": 0, "gamma": 0, "theta": 0, "vega": 0}
 
-            d1 = (np.log(S/K) + (r + 0.5*sigma**2)*T) / (sigma*np.sqrt(T))
-            d2 = d1 - sigma*np.sqrt(T)
+            d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+            d2 = d1 - sigma * np.sqrt(T)
 
             if option_type.lower() == "call":
                 delta = stats.norm.cdf(d1)
-                theta = -(S*stats.norm.pdf(d1)*sigma/(2*np.sqrt(T)) + r*K*np.exp(-r*T)*stats.norm.cdf(d2))
+                theta = -(
+                    S * stats.norm.pdf(d1) * sigma / (2 * np.sqrt(T))
+                    + r * K * np.exp(-r * T) * stats.norm.cdf(d2)
+                )
             else:  # put
                 delta = stats.norm.cdf(d1) - 1
-                theta = -(S*stats.norm.pdf(d1)*sigma/(2*np.sqrt(T)) - r*K*np.exp(-r*T)*stats.norm.cdf(-d2))
+                theta = -(
+                    S * stats.norm.pdf(d1) * sigma / (2 * np.sqrt(T))
+                    - r * K * np.exp(-r * T) * stats.norm.cdf(-d2)
+                )
 
-            gamma = stats.norm.pdf(d1) / (S*sigma*np.sqrt(T))
-            vega = S*stats.norm.pdf(d1)*np.sqrt(T)
+            gamma = stats.norm.pdf(d1) / (S * sigma * np.sqrt(T))
+            vega = S * stats.norm.pdf(d1) * np.sqrt(T)
 
             return {
                 "delta": delta,
                 "gamma": gamma,
                 "theta": theta / 365.0,  # Per day
-                "vega": vega / 100.0     # Per 1% volatility change
+                "vega": vega / 100.0,  # Per 1% volatility change
             }
 
         except Exception as e:
@@ -595,29 +698,35 @@ class RiskCalculator:
                     "name": "market_crash_2008",
                     "description": "2008-style market crash",
                     "shocks": {"SPY": -0.37, "QQQ": -0.42, "IWM": -0.33},
-                    "correlation_shock": 0.8  # Correlations increase in crisis
+                    "correlation_shock": 0.8,  # Correlations increase in crisis
                 },
                 {
                     "name": "tech_bubble_burst",
                     "description": "Technology sector crash",
-                    "shocks": {"AAPL": -0.5, "MSFT": -0.45, "GOOGL": -0.6, "TSLA": -0.7, "QQQ": -0.4}
+                    "shocks": {
+                        "AAPL": -0.5,
+                        "MSFT": -0.45,
+                        "GOOGL": -0.6,
+                        "TSLA": -0.7,
+                        "QQQ": -0.4,
+                    },
                 },
                 {
                     "name": "interest_rate_shock",
                     "description": "Rapid interest rate increase",
-                    "shocks": {"SPY": -0.15, "bonds": -0.25, "real_estate": -0.3}
+                    "shocks": {"SPY": -0.15, "bonds": -0.25, "real_estate": -0.3},
                 },
                 {
                     "name": "volatility_spike",
                     "description": "VIX spikes to 40+",
-                    "volatility_multiplier": 2.5
+                    "volatility_multiplier": 2.5,
                 },
                 {
                     "name": "liquidity_crisis",
                     "description": "Liquidity dries up",
                     "bid_ask_widening": 3.0,
-                    "general_shock": -0.2
-                }
+                    "general_shock": -0.2,
+                },
             ]
 
             results = {}
@@ -649,7 +758,11 @@ class RiskCalculator:
                     if "volatility_multiplier" in scenario:
                         # Simulate higher volatility impact
                         daily_vol = 0.02  # Assume 2% daily vol
-                        vol_shock = daily_vol * (scenario["volatility_multiplier"] - 1) * np.random.normal(0, 1)
+                        vol_shock = (
+                            daily_vol
+                            * (scenario["volatility_multiplier"] - 1)
+                            * np.random.normal(0, 1)
+                        )
                         shock += vol_shock
 
                     # Calculate position P&L
@@ -659,27 +772,47 @@ class RiskCalculator:
                     position_impacts[symbol] = {
                         "shock_applied": shock,
                         "pnl": position_pnl,
-                        "pnl_percent": (position_pnl / current_value * 100) if current_value != 0 else 0
+                        "pnl_percent": (
+                            (position_pnl / current_value * 100)
+                            if current_value != 0
+                            else 0
+                        ),
                     }
 
                 # Calculate scenario metrics
-                scenario_return = (scenario_pnl / base_portfolio_value) if base_portfolio_value > 0 else 0
+                scenario_return = (
+                    (scenario_pnl / base_portfolio_value)
+                    if base_portfolio_value > 0
+                    else 0
+                )
 
                 results[scenario_name] = {
                     "description": scenario.get("description", ""),
                     "total_pnl": scenario_pnl,
                     "portfolio_return": scenario_return * 100,  # Percentage
                     "position_impacts": position_impacts,
-                    "worst_position": max(position_impacts.items(), key=lambda x: abs(x[1]["pnl"]), default=("", {}))[0] if position_impacts else "",
-                    "positions_at_risk": len([p for p in position_impacts.values() if p["pnl"] < -1000])  # Positions losing >$1000
+                    "worst_position": (
+                        max(
+                            position_impacts.items(),
+                            key=lambda x: abs(x[1]["pnl"]),
+                            default=("", {}),
+                        )[0]
+                        if position_impacts
+                        else ""
+                    ),
+                    "positions_at_risk": len(
+                        [p for p in position_impacts.values() if p["pnl"] < -1000]
+                    ),  # Positions losing >$1000
                 }
 
             # Summary statistics
             scenario_returns = [results[s]["portfolio_return"] for s in results]
             results["summary"] = {
                 "worst_case_return": min(scenario_returns) if scenario_returns else 0,
-                "average_stress_return": np.mean(scenario_returns) if scenario_returns else 0,
-                "stress_scenarios_count": len(stress_scenarios)
+                "average_stress_return": (
+                    np.mean(scenario_returns) if scenario_returns else 0
+                ),
+                "stress_scenarios_count": len(stress_scenarios),
             }
 
             return results
@@ -701,7 +834,7 @@ class RiskCalculator:
                 "factor_contributions": {},
                 "position_contributions": {},
                 "sector_risk": {},
-                "total_portfolio_risk": 0.0
+                "total_portfolio_risk": 0.0,
             }
 
             # Calculate portfolio volatility
@@ -728,7 +861,11 @@ class RiskCalculator:
                     "weight": weight,
                     "volatility": position_vol,
                     "risk_contribution": position_risk,
-                    "risk_percentage": (position_risk / portfolio_vol * 100) if portfolio_vol > 0 else 0
+                    "risk_percentage": (
+                        (position_risk / portfolio_vol * 100)
+                        if portfolio_vol > 0
+                        else 0
+                    ),
                 }
 
                 # Get sector for risk attribution
@@ -739,7 +876,7 @@ class RiskCalculator:
                     attribution["sector_risk"][sector] = {
                         "total_weight": 0.0,
                         "risk_contribution": 0.0,
-                        "positions": []
+                        "positions": [],
                     }
 
                 attribution["sector_risk"][sector]["total_weight"] += weight
@@ -749,8 +886,20 @@ class RiskCalculator:
             # Calculate factor contributions (simplified)
             attribution["factor_contributions"] = {
                 "market_beta": await self.calculate_portfolio_beta(portfolio),
-                "concentration_risk": max([data["weight"] for data in attribution["position_contributions"].values()], default=0),
-                "sector_concentration": max([data["total_weight"] for data in attribution["sector_risk"].values()], default=0)
+                "concentration_risk": max(
+                    [
+                        data["weight"]
+                        for data in attribution["position_contributions"].values()
+                    ],
+                    default=0,
+                ),
+                "sector_concentration": max(
+                    [
+                        data["total_weight"]
+                        for data in attribution["sector_risk"].values()
+                    ],
+                    default=0,
+                ),
             }
 
             return attribution
@@ -767,7 +916,7 @@ class RiskCalculator:
                     "herfindahl_index": 0.0,
                     "effective_positions": 0,
                     "largest_position_weight": 0.0,
-                    "top_5_concentration": 0.0
+                    "top_5_concentration": 0.0,
                 }
 
             # Calculate position weights
@@ -785,7 +934,7 @@ class RiskCalculator:
                     "herfindahl_index": 0.0,
                     "effective_positions": 0,
                     "largest_position_weight": 0.0,
-                    "top_5_concentration": 0.0
+                    "top_5_concentration": 0.0,
                 }
 
             # Herfindahl-Hirschman Index
@@ -806,7 +955,7 @@ class RiskCalculator:
                 "effective_positions": effective_positions,
                 "largest_position_weight": largest_weight,
                 "top_5_concentration": top_5_concentration,
-                "position_weights": dict(position_values)
+                "position_weights": dict(position_values),
             }
 
         except Exception as e:
@@ -815,7 +964,7 @@ class RiskCalculator:
                 "herfindahl_index": 0.0,
                 "effective_positions": 0,
                 "largest_position_weight": 0.0,
-                "top_5_concentration": 0.0
+                "top_5_concentration": 0.0,
             }
 
     async def calculate_factor_exposures(self, portfolio: PortfolioState) -> Dict:
@@ -825,7 +974,7 @@ class RiskCalculator:
                 "sectors": {},
                 "market_cap": {"large": 0.0, "mid": 0.0, "small": 0.0},
                 "style": {"growth": 0.0, "value": 0.0},
-                "geography": {"domestic": 0.0, "international": 0.0}
+                "geography": {"domestic": 0.0, "international": 0.0},
             }
 
             if portfolio.total_equity <= 0:
@@ -838,11 +987,15 @@ class RiskCalculator:
                 weight = float(abs(position.market_value) / portfolio.total_equity)
 
                 # Get position characteristics (placeholder implementation)
-                characteristics = await self._get_position_characteristics(position.symbol)
+                characteristics = await self._get_position_characteristics(
+                    position.symbol
+                )
 
                 # Sector exposure
                 sector = characteristics.get("sector", "Unknown")
-                exposures["sectors"][sector] = exposures["sectors"].get(sector, 0.0) + weight
+                exposures["sectors"][sector] = (
+                    exposures["sectors"].get(sector, 0.0) + weight
+                )
 
                 # Market cap exposure
                 market_cap = characteristics.get("market_cap", "large")
@@ -867,10 +1020,12 @@ class RiskCalculator:
                 "sectors": {},
                 "market_cap": {"large": 0.0, "mid": 0.0, "small": 0.0},
                 "style": {"growth": 0.0, "value": 0.0},
-                "geography": {"domestic": 0.0, "international": 0.0}
+                "geography": {"domestic": 0.0, "international": 0.0},
             }
 
-    async def calculate_tracking_error(self, portfolio: PortfolioState, benchmark: str = "SPY") -> float:
+    async def calculate_tracking_error(
+        self, portfolio: PortfolioState, benchmark: str = "SPY"
+    ) -> float:
         """Calculate tracking error relative to benchmark."""
         try:
             # Get portfolio returns
@@ -895,7 +1050,9 @@ class RiskCalculator:
 
             # Tracking error is standard deviation of excess returns
             if len(excess_returns) > 1:
-                tracking_error = statistics.stdev(excess_returns) * math.sqrt(252)  # Annualized
+                tracking_error = statistics.stdev(excess_returns) * math.sqrt(
+                    252
+                )  # Annualized
             else:
                 tracking_error = 0.0
 
@@ -905,15 +1062,19 @@ class RiskCalculator:
             logger.error(f"Error calculating tracking error: {e}")
             return 0.0
 
-    async def _historical_var(self,
-                            portfolio: PortfolioState,
-                            market_data: Dict,
-                            confidence_level: float,
-                            holding_period: int) -> Tuple[Decimal, Decimal]:
+    async def _historical_var(
+        self,
+        portfolio: PortfolioState,
+        market_data: Dict,
+        confidence_level: float,
+        holding_period: int,
+    ) -> Tuple[Decimal, Decimal]:
         """Calculate VaR using historical simulation method."""
         try:
             # Get portfolio returns from historical simulation
-            portfolio_returns = await self._simulate_portfolio_returns(portfolio, market_data)
+            portfolio_returns = await self._simulate_portfolio_returns(
+                portfolio, market_data
+            )
 
             if len(portfolio_returns) < 30:
                 return await self._fallback_var_calculation(portfolio, confidence_level)
@@ -943,11 +1104,13 @@ class RiskCalculator:
             logger.error(f"Error in historical VaR calculation: {e}")
             return await self._fallback_var_calculation(portfolio, confidence_level)
 
-    async def _parametric_var(self,
-                            portfolio: PortfolioState,
-                            market_data: Dict,
-                            confidence_level: float,
-                            holding_period: int) -> Tuple[Decimal, Decimal]:
+    async def _parametric_var(
+        self,
+        portfolio: PortfolioState,
+        market_data: Dict,
+        confidence_level: float,
+        holding_period: int,
+    ) -> Tuple[Decimal, Decimal]:
         """Calculate VaR using parametric (normal distribution) method."""
         try:
             # Calculate portfolio volatility
@@ -957,7 +1120,11 @@ class RiskCalculator:
             z_score = stats.norm.ppf(1 - confidence_level)
 
             # Calculate daily VaR
-            daily_var = portfolio.total_equity * Decimal(str(portfolio_vol / np.sqrt(252))) * Decimal(str(abs(z_score)))
+            daily_var = (
+                portfolio.total_equity
+                * Decimal(str(portfolio_vol / np.sqrt(252)))
+                * Decimal(str(abs(z_score)))
+            )
 
             # Scale for holding period
             var_scaled = daily_var * Decimal(str(np.sqrt(holding_period)))
@@ -972,12 +1139,14 @@ class RiskCalculator:
             logger.error(f"Error in parametric VaR calculation: {e}")
             return await self._fallback_var_calculation(portfolio, confidence_level)
 
-    async def _monte_carlo_var(self,
-                             portfolio: PortfolioState,
-                             market_data: Dict,
-                             confidence_level: float,
-                             holding_period: int,
-                             num_simulations: int = 10000) -> Tuple[Decimal, Decimal]:
+    async def _monte_carlo_var(
+        self,
+        portfolio: PortfolioState,
+        market_data: Dict,
+        confidence_level: float,
+        holding_period: int,
+        num_simulations: int = 10000,
+    ) -> Tuple[Decimal, Decimal]:
         """Calculate VaR using Monte Carlo simulation."""
         try:
             symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
@@ -1031,14 +1200,18 @@ class RiskCalculator:
             else:
                 es_dollar = var_dollar * Decimal("1.3")
 
-            logger.debug(f"Monte Carlo VaR completed with {num_simulations} simulations")
+            logger.debug(
+                f"Monte Carlo VaR completed with {num_simulations} simulations"
+            )
             return var_dollar, es_dollar
 
         except Exception as e:
             logger.error(f"Error in Monte Carlo VaR calculation: {e}")
             return await self._fallback_var_calculation(portfolio, confidence_level)
 
-    async def calculate_component_var(self, portfolio: PortfolioState) -> Dict[str, Decimal]:
+    async def calculate_component_var(
+        self, portfolio: PortfolioState
+    ) -> Dict[str, Decimal]:
         """Calculate component VaR for each position."""
         try:
             # Calculate total portfolio VaR
@@ -1055,10 +1228,16 @@ class RiskCalculator:
                     continue
 
                 # Calculate position's contribution to portfolio volatility
-                contribution = await self._calculate_position_volatility_contribution(position, portfolio)
+                contribution = await self._calculate_position_volatility_contribution(
+                    position, portfolio
+                )
 
                 # Component VaR = marginal VaR * position weight * total VaR
-                position_weight = abs(position.market_value) / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("0")
+                position_weight = (
+                    abs(position.market_value) / portfolio.total_equity
+                    if portfolio.total_equity > 0
+                    else Decimal("0")
+                )
                 component_var = total_var * position_weight * Decimal(str(contribution))
 
                 component_vars[position.symbol] = component_var
@@ -1069,7 +1248,9 @@ class RiskCalculator:
             logger.error(f"Error calculating component VaR: {e}")
             return {}
 
-    async def calculate_maximum_drawdown(self, returns: List[float]) -> Tuple[float, int, int]:
+    async def calculate_maximum_drawdown(
+        self, returns: List[float]
+    ) -> Tuple[float, int, int]:
         """
         Calculate maximum drawdown from return series.
 
@@ -1112,7 +1293,9 @@ class RiskCalculator:
             logger.error(f"Error calculating maximum drawdown: {e}")
             return 0.0, 0, 0
 
-    async def _simulate_portfolio_returns(self, portfolio: PortfolioState, market_data: Dict) -> List[float]:
+    async def _simulate_portfolio_returns(
+        self, portfolio: PortfolioState, market_data: Dict
+    ) -> List[float]:
         """Simulate portfolio returns using historical data."""
         try:
             # Get historical returns for each position
@@ -1147,7 +1330,7 @@ class RiskCalculator:
 
                 for symbol, returns in all_returns.items():
                     weight = weights.get(symbol, 0.0)
-                    symbol_return = returns[-(min_length-i)]  # Get from end
+                    symbol_return = returns[-(min_length - i)]  # Get from end
                     daily_return += weight * symbol_return
 
                 portfolio_returns.append(daily_return)
@@ -1158,10 +1341,12 @@ class RiskCalculator:
             logger.error(f"Error simulating portfolio returns: {e}")
             return []
 
-    async def _generate_correlated_returns(self,
-                                         symbols: List[str],
-                                         correlation_matrix: pd.DataFrame,
-                                         volatilities: Dict[str, float]) -> Dict[str, float]:
+    async def _generate_correlated_returns(
+        self,
+        symbols: List[str],
+        correlation_matrix: pd.DataFrame,
+        volatilities: Dict[str, float],
+    ) -> Dict[str, float]:
         """Generate correlated random returns for Monte Carlo simulation."""
         try:
             # Generate independent random variables
@@ -1198,7 +1383,9 @@ class RiskCalculator:
                 returns[symbol] = np.random.normal(0, daily_vol)
             return returns
 
-    async def _calculate_position_weights(self, portfolio: PortfolioState) -> Dict[str, float]:
+    async def _calculate_position_weights(
+        self, portfolio: PortfolioState
+    ) -> Dict[str, float]:
         """Calculate position weights in portfolio."""
         weights = {}
 
@@ -1225,7 +1412,7 @@ class RiskCalculator:
                 # Calculate returns
                 returns = []
                 for i in range(1, len(prices)):
-                    prev_price = prices[i-1][1]
+                    prev_price = prices[i - 1][1]
                     curr_price = prices[i][1]
 
                     if prev_price > 0:
@@ -1245,7 +1432,9 @@ class RiskCalculator:
             logger.error(f"Error calculating volatility for {symbol}: {e}")
             return self._get_default_volatility(symbol)
 
-    async def _calculate_symbol_beta(self, symbol: str, benchmark: str = "SPY", days: int = 60) -> float:
+    async def _calculate_symbol_beta(
+        self, symbol: str, benchmark: str = "SPY", days: int = 60
+    ) -> float:
         """Calculate symbol beta relative to benchmark."""
         try:
             if not self.alpaca_client:
@@ -1253,7 +1442,9 @@ class RiskCalculator:
 
             # Get historical data for both symbol and benchmark
             symbol_prices = await self.alpaca_client.get_historical_prices(symbol, days)
-            benchmark_prices = await self.alpaca_client.get_historical_prices(benchmark, days)
+            benchmark_prices = await self.alpaca_client.get_historical_prices(
+                benchmark, days
+            )
 
             if len(symbol_prices) < 10 or len(benchmark_prices) < 10:
                 return 1.0
@@ -1285,13 +1476,15 @@ class RiskCalculator:
             logger.error(f"Error calculating beta for {symbol}: {e}")
             return 1.0
 
-    def _calculate_returns_from_prices(self, prices: List[Tuple[datetime, Decimal]]) -> List[Tuple[datetime, float]]:
+    def _calculate_returns_from_prices(
+        self, prices: List[Tuple[datetime, Decimal]]
+    ) -> List[Tuple[datetime, float]]:
         """Calculate returns from price series."""
         returns = []
 
         for i in range(1, len(prices)):
             date = prices[i][0]
-            prev_price = prices[i-1][1]
+            prev_price = prices[i - 1][1]
             curr_price = prices[i][1]
 
             if prev_price > 0:
@@ -1300,7 +1493,11 @@ class RiskCalculator:
 
         return returns
 
-    def _align_return_series(self, returns1: List[Tuple[datetime, float]], returns2: List[Tuple[datetime, float]]) -> List[Tuple[datetime, float, float]]:
+    def _align_return_series(
+        self,
+        returns1: List[Tuple[datetime, float]],
+        returns2: List[Tuple[datetime, float]],
+    ) -> List[Tuple[datetime, float, float]]:
         """Align two return series by date."""
         dict1 = {date.date(): ret for date, ret in returns1}
         dict2 = {date.date(): ret for date, ret in returns2}
@@ -1328,9 +1525,11 @@ class RiskCalculator:
                 for symbol in symbols:
                     market_data[symbol] = {
                         "volatility": self._get_default_volatility(symbol),
-                        "returns": [np.random.normal(0, 0.01) for _ in range(60)],  # 60 days of fake returns
+                        "returns": [
+                            np.random.normal(0, 0.01) for _ in range(60)
+                        ],  # 60 days of fake returns
                         "current_price": Decimal("100"),  # Default price
-                        "data_points": 60
+                        "data_points": 60,
                     }
 
                 return market_data
@@ -1349,7 +1548,7 @@ class RiskCalculator:
 
                 returns = []
                 for i in range(1, len(prices)):
-                    prev_price = prices[i-1][1]
+                    prev_price = prices[i - 1][1]
                     curr_price = prices[i][1]
 
                     if prev_price > 0:
@@ -1365,7 +1564,9 @@ class RiskCalculator:
             logger.error(f"Error getting returns for {symbol}: {e}")
             return []
 
-    async def _calculate_portfolio_returns(self, portfolio: PortfolioState, days: int = 60) -> List[float]:
+    async def _calculate_portfolio_returns(
+        self, portfolio: PortfolioState, days: int = 60
+    ) -> List[float]:
         """Calculate historical portfolio returns."""
         try:
             if not self.alpaca_client:
@@ -1379,7 +1580,7 @@ class RiskCalculator:
 
             returns = []
             for i in range(1, len(history)):
-                prev_value = history[i-1][1]
+                prev_value = history[i - 1][1]
                 curr_value = history[i][1]
 
                 if prev_value > 0:
@@ -1392,13 +1593,19 @@ class RiskCalculator:
             logger.error(f"Error calculating portfolio returns: {e}")
             return []
 
-    async def _calculate_position_volatility_contribution(self, position: Position, portfolio: PortfolioState) -> float:
+    async def _calculate_position_volatility_contribution(
+        self, position: Position, portfolio: PortfolioState
+    ) -> float:
         """Calculate a position's contribution to portfolio volatility."""
         try:
             # This is a simplified contribution calculation
             # In production, you'd use the full covariance matrix and marginal contribution formula
 
-            position_weight = float(abs(position.market_value) / portfolio.total_equity) if portfolio.total_equity > 0 else 0.0
+            position_weight = (
+                float(abs(position.market_value) / portfolio.total_equity)
+                if portfolio.total_equity > 0
+                else 0.0
+            )
             position_vol = await self._calculate_symbol_volatility(position.symbol)
 
             # Simplified contribution (actual formula is more complex)
@@ -1407,7 +1614,9 @@ class RiskCalculator:
             return contribution
 
         except Exception as e:
-            logger.error(f"Error calculating volatility contribution for {position.symbol}: {e}")
+            logger.error(
+                f"Error calculating volatility contribution for {position.symbol}: {e}"
+            )
             return 0.0
 
     async def _get_position_characteristics(self, symbol: str) -> Dict:
@@ -1415,33 +1624,127 @@ class RiskCalculator:
         # Enhanced implementation with more comprehensive data
         # TODO: Add comprehensive tests for position characteristics lookup
         characteristics_map = {
-            'AAPL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.005},
-            'MSFT': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 0.9, "dividend_yield": 0.007},
-            'GOOGL': {"sector": "Technology", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.0},
-            'AMZN': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.3, "dividend_yield": 0.0},
-            'TSLA': {"sector": "Consumer Discretionary", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 2.0, "dividend_yield": 0.0},
-            'JPM': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.025},
-            'BAC': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.021},
-            'WFC': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.3, "dividend_yield": 0.027},
-            'GS': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.4, "dividend_yield": 0.024},
-            'C': {"sector": "Financials", "market_cap": "large", "style": "value", "geography": "domestic", "beta": 1.5, "dividend_yield": 0.036},
-            'SPY': {"sector": "ETF", "market_cap": "large", "style": "blend", "geography": "domestic", "beta": 1.0, "dividend_yield": 0.013},
-            'QQQ': {"sector": "ETF", "market_cap": "large", "style": "growth", "geography": "domestic", "beta": 1.2, "dividend_yield": 0.007},
-            'IWM': {"sector": "ETF", "market_cap": "small", "style": "blend", "geography": "domestic", "beta": 1.1, "dividend_yield": 0.017}
+            "AAPL": {
+                "sector": "Technology",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 1.2,
+                "dividend_yield": 0.005,
+            },
+            "MSFT": {
+                "sector": "Technology",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 0.9,
+                "dividend_yield": 0.007,
+            },
+            "GOOGL": {
+                "sector": "Technology",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 1.1,
+                "dividend_yield": 0.0,
+            },
+            "AMZN": {
+                "sector": "Consumer Discretionary",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 1.3,
+                "dividend_yield": 0.0,
+            },
+            "TSLA": {
+                "sector": "Consumer Discretionary",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 2.0,
+                "dividend_yield": 0.0,
+            },
+            "JPM": {
+                "sector": "Financials",
+                "market_cap": "large",
+                "style": "value",
+                "geography": "domestic",
+                "beta": 1.1,
+                "dividend_yield": 0.025,
+            },
+            "BAC": {
+                "sector": "Financials",
+                "market_cap": "large",
+                "style": "value",
+                "geography": "domestic",
+                "beta": 1.2,
+                "dividend_yield": 0.021,
+            },
+            "WFC": {
+                "sector": "Financials",
+                "market_cap": "large",
+                "style": "value",
+                "geography": "domestic",
+                "beta": 1.3,
+                "dividend_yield": 0.027,
+            },
+            "GS": {
+                "sector": "Financials",
+                "market_cap": "large",
+                "style": "value",
+                "geography": "domestic",
+                "beta": 1.4,
+                "dividend_yield": 0.024,
+            },
+            "C": {
+                "sector": "Financials",
+                "market_cap": "large",
+                "style": "value",
+                "geography": "domestic",
+                "beta": 1.5,
+                "dividend_yield": 0.036,
+            },
+            "SPY": {
+                "sector": "ETF",
+                "market_cap": "large",
+                "style": "blend",
+                "geography": "domestic",
+                "beta": 1.0,
+                "dividend_yield": 0.013,
+            },
+            "QQQ": {
+                "sector": "ETF",
+                "market_cap": "large",
+                "style": "growth",
+                "geography": "domestic",
+                "beta": 1.2,
+                "dividend_yield": 0.007,
+            },
+            "IWM": {
+                "sector": "ETF",
+                "market_cap": "small",
+                "style": "blend",
+                "geography": "domestic",
+                "beta": 1.1,
+                "dividend_yield": 0.017,
+            },
         }
 
-        return characteristics_map.get(symbol, {
-            "sector": "Unknown",
-            "market_cap": "mid",
-            "style": "blend",
-            "geography": "domestic",
-            "beta": 1.0,
-            "dividend_yield": 0.02
-        })
+        return characteristics_map.get(
+            symbol,
+            {
+                "sector": "Unknown",
+                "market_cap": "mid",
+                "style": "blend",
+                "geography": "domestic",
+                "beta": 1.0,
+                "dividend_yield": 0.02,
+            },
+        )
 
     def _get_default_volatility(self, symbol: str) -> float:
         """Get default volatility estimate based on symbol characteristics."""
-        if symbol.startswith(('SPY', 'QQQ', 'IWM')):
+        if symbol.startswith(("SPY", "QQQ", "IWM")):
             return 0.15  # ETFs - lower volatility
         elif len(symbol) <= 3:
             return 0.20  # Large cap stocks
@@ -1450,7 +1753,9 @@ class RiskCalculator:
         else:
             return 0.35  # Small cap or specialized stocks
 
-    async def _fallback_var_calculation(self, portfolio: PortfolioState, confidence_level: float) -> Tuple[Decimal, Decimal]:
+    async def _fallback_var_calculation(
+        self, portfolio: PortfolioState, confidence_level: float
+    ) -> Tuple[Decimal, Decimal]:
         """Fallback VaR calculation when market data is unavailable."""
         try:
             # Use simplified parametric approach with default assumptions
@@ -1462,7 +1767,9 @@ class RiskCalculator:
 
             # Calculate daily VaR
             daily_vol = default_volatility / np.sqrt(252)
-            var_amount = portfolio_value * Decimal(str(daily_vol)) * Decimal(str(abs(z_score)))
+            var_amount = (
+                portfolio_value * Decimal(str(daily_vol)) * Decimal(str(abs(z_score)))
+            )
 
             # Expected Shortfall
             es_multiplier = stats.norm.pdf(z_score) / (1 - confidence_level)
@@ -1474,7 +1781,9 @@ class RiskCalculator:
             logger.error(f"Error in fallback VaR calculation: {e}")
             return Decimal("0"), Decimal("0")
 
-    async def generate_comprehensive_risk_report(self, portfolio: PortfolioState, benchmark: str = "SPY") -> Dict:
+    async def generate_comprehensive_risk_report(
+        self, portfolio: PortfolioState, benchmark: str = "SPY"
+    ) -> Dict:
         """
         Generate a comprehensive risk assessment report combining all available metrics.
 
@@ -1491,19 +1800,25 @@ class RiskCalculator:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "portfolio_summary": {
                     "total_value": float(portfolio.total_equity),
-                    "num_positions": len([p for p in portfolio.positions if p.quantity != 0]),
-                    "cash_balance": float(portfolio.cash_balance)
+                    "num_positions": len(
+                        [p for p in portfolio.positions if p.quantity != 0]
+                    ),
+                    "cash_balance": float(portfolio.cash_balance),
                 },
                 "risk_metrics": {},
                 "performance_metrics": {},
                 "stress_tests": {},
                 "warnings": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Core risk metrics
-            var_95, es_95 = await self.calculate_portfolio_var(portfolio, confidence_level=0.95)
-            var_99, es_99 = await self.calculate_portfolio_var(portfolio, confidence_level=0.99)
+            var_95, es_95 = await self.calculate_portfolio_var(
+                portfolio, confidence_level=0.95
+            )
+            var_99, es_99 = await self.calculate_portfolio_var(
+                portfolio, confidence_level=0.99
+            )
 
             report["risk_metrics"]["var_analysis"] = {
                 "var_95_percent": float(var_95),
@@ -1511,9 +1826,17 @@ class RiskCalculator:
                 "var_99_percent": float(var_99),
                 "expected_shortfall_99": float(es_99),
                 "var_as_percent_of_portfolio": {
-                    "95_percent": float(var_95 / portfolio.total_equity * 100) if portfolio.total_equity > 0 else 0,
-                    "99_percent": float(var_99 / portfolio.total_equity * 100) if portfolio.total_equity > 0 else 0
-                }
+                    "95_percent": (
+                        float(var_95 / portfolio.total_equity * 100)
+                        if portfolio.total_equity > 0
+                        else 0
+                    ),
+                    "99_percent": (
+                        float(var_99 / portfolio.total_equity * 100)
+                        if portfolio.total_equity > 0
+                        else 0
+                    ),
+                },
             }
 
             # Portfolio volatility and beta
@@ -1524,11 +1847,13 @@ class RiskCalculator:
             report["risk_metrics"]["portfolio_analytics"] = {
                 "volatility": portfolio_vol,
                 "beta": portfolio_beta,
-                "tracking_error": tracking_error
+                "tracking_error": tracking_error,
             }
 
             # Concentration and factor analysis
-            concentration_metrics = await self.calculate_concentration_metrics(portfolio)
+            concentration_metrics = await self.calculate_concentration_metrics(
+                portfolio
+            )
             factor_exposures = await self.calculate_factor_exposures(portfolio)
 
             report["risk_metrics"]["concentration"] = concentration_metrics
@@ -1543,7 +1868,9 @@ class RiskCalculator:
             report["risk_metrics"]["attribution"] = risk_attribution
 
             # Performance metrics
-            risk_adjusted_returns = await self.calculate_risk_adjusted_returns(portfolio)
+            risk_adjusted_returns = await self.calculate_risk_adjusted_returns(
+                portfolio
+            )
             report["performance_metrics"] = risk_adjusted_returns
 
             # Stress testing
@@ -1552,7 +1879,9 @@ class RiskCalculator:
 
             # Component VaR
             component_var = await self.calculate_component_var(portfolio)
-            report["risk_metrics"]["component_var"] = {k: float(v) for k, v in component_var.items()}
+            report["risk_metrics"]["component_var"] = {
+                k: float(v) for k, v in component_var.items()
+            }
 
             # Generate warnings and recommendations
             self._generate_risk_warnings_and_recommendations(report)
@@ -1564,7 +1893,7 @@ class RiskCalculator:
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": str(e),
-                "status": "failed"
+                "status": "failed",
             }
 
     def _generate_risk_warnings_and_recommendations(self, report: Dict) -> None:
@@ -1575,56 +1904,103 @@ class RiskCalculator:
 
         try:
             # VaR warnings
-            var_95_percent = report.get("risk_metrics", {}).get("var_analysis", {}).get("var_as_percent_of_portfolio", {}).get("95_percent", 0)
+            var_95_percent = (
+                report.get("risk_metrics", {})
+                .get("var_analysis", {})
+                .get("var_as_percent_of_portfolio", {})
+                .get("95_percent", 0)
+            )
             if var_95_percent > 10:
-                warnings.append(f"High VaR exposure: 95% VaR represents {var_95_percent:.1f}% of portfolio value")
-                recommendations.append("Consider reducing position sizes or diversifying to lower VaR")
+                warnings.append(
+                    f"High VaR exposure: 95% VaR represents {var_95_percent:.1f}% of portfolio value"
+                )
+                recommendations.append(
+                    "Consider reducing position sizes or diversifying to lower VaR"
+                )
 
             # Concentration warnings
             concentration = report.get("risk_metrics", {}).get("concentration", {})
             max_position_weight = concentration.get("max_position_weight", 0)
             if max_position_weight > 0.2:
-                warnings.append(f"High concentration risk: largest position is {max_position_weight*100:.1f}% of portfolio")
-                recommendations.append("Consider reducing largest positions to improve diversification")
+                warnings.append(
+                    f"High concentration risk: largest position is {max_position_weight*100:.1f}% of portfolio"
+                )
+                recommendations.append(
+                    "Consider reducing largest positions to improve diversification"
+                )
 
             # Liquidity warnings
             liquidity = report.get("risk_metrics", {}).get("liquidity", {})
             portfolio_liquidity_score = liquidity.get("portfolio_liquidity_score", 1.0)
             if portfolio_liquidity_score < 0.5:
                 warnings.append("Low portfolio liquidity detected")
-                recommendations.append("Consider increasing allocation to more liquid securities")
+                recommendations.append(
+                    "Consider increasing allocation to more liquid securities"
+                )
 
             illiquid_positions = liquidity.get("illiquid_positions", [])
             if len(illiquid_positions) > 0:
-                warnings.append(f"{len(illiquid_positions)} positions flagged as illiquid")
+                warnings.append(
+                    f"{len(illiquid_positions)} positions flagged as illiquid"
+                )
 
             # Volatility warnings
-            portfolio_vol = report.get("risk_metrics", {}).get("portfolio_analytics", {}).get("volatility", 0)
+            portfolio_vol = (
+                report.get("risk_metrics", {})
+                .get("portfolio_analytics", {})
+                .get("volatility", 0)
+            )
             if portfolio_vol > 0.25:
-                warnings.append(f"High portfolio volatility: {portfolio_vol*100:.1f}% annualized")
-                recommendations.append("Consider adding defensive positions or reducing overall leverage")
+                warnings.append(
+                    f"High portfolio volatility: {portfolio_vol*100:.1f}% annualized"
+                )
+                recommendations.append(
+                    "Consider adding defensive positions or reducing overall leverage"
+                )
 
             # Beta warnings
-            portfolio_beta = report.get("risk_metrics", {}).get("portfolio_analytics", {}).get("beta", 1.0)
+            portfolio_beta = (
+                report.get("risk_metrics", {})
+                .get("portfolio_analytics", {})
+                .get("beta", 1.0)
+            )
             if portfolio_beta > 1.5:
-                warnings.append(f"High market sensitivity: portfolio beta is {portfolio_beta:.2f}")
-                recommendations.append("Consider adding market-neutral or low-beta positions")
+                warnings.append(
+                    f"High market sensitivity: portfolio beta is {portfolio_beta:.2f}"
+                )
+                recommendations.append(
+                    "Consider adding market-neutral or low-beta positions"
+                )
 
             # Stress test warnings
             stress_tests = report.get("stress_tests", {})
             worst_case = stress_tests.get("summary", {}).get("worst_case_return", 0)
             if worst_case < -25:
-                warnings.append(f"Severe stress test exposure: worst case scenario shows {worst_case:.1f}% loss")
-                recommendations.append("Consider stress-testing hedge strategies or position sizing adjustments")
+                warnings.append(
+                    f"Severe stress test exposure: worst case scenario shows {worst_case:.1f}% loss"
+                )
+                recommendations.append(
+                    "Consider stress-testing hedge strategies or position sizing adjustments"
+                )
 
             # Factor exposure warnings
-            factor_exposures = report.get("risk_metrics", {}).get("factor_exposures", {})
+            factor_exposures = report.get("risk_metrics", {}).get(
+                "factor_exposures", {}
+            )
             sectors = factor_exposures.get("sectors", {})
             max_sector_exposure = max(sectors.values()) if sectors else 0
             if max_sector_exposure > 0.4:
-                max_sector = max(sectors.items(), key=lambda x: x[1])[0] if sectors else "Unknown"
-                warnings.append(f"High sector concentration: {max_sector_exposure*100:.1f}% in {max_sector}")
-                recommendations.append("Consider diversifying across sectors to reduce concentration risk")
+                max_sector = (
+                    max(sectors.items(), key=lambda x: x[1])[0]
+                    if sectors
+                    else "Unknown"
+                )
+                warnings.append(
+                    f"High sector concentration: {max_sector_exposure*100:.1f}% in {max_sector}"
+                )
+                recommendations.append(
+                    "Consider diversifying across sectors to reduce concentration risk"
+                )
 
             report["warnings"] = warnings
             report["recommendations"] = recommendations
@@ -1643,7 +2019,9 @@ class RiskCalculator:
             "cache_ttl_hours": self.cache_ttl.total_seconds() / 3600,
             "cached_symbols": list(self.price_data_cache.keys()),
             "correlation_matrix_cached": self.correlation_matrix_cache is not None,
-            "cache_timestamp": self.cache_timestamp.isoformat() if self.cache_timestamp else None
+            "cache_timestamp": (
+                self.cache_timestamp.isoformat() if self.cache_timestamp else None
+            ),
         }
 
     def clear_cache(self):

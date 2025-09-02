@@ -6,22 +6,22 @@ that works around import issues with the full production strategy modules.
 It implements the core logic and parameters from the actual production strategies.
 """
 
-import logging
 import asyncio
-from typing import Dict, List, Optional, Any, Tuple
+import logging
+import math
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-import math
+from typing import Any, Dict, List, Optional, Tuple
 
-from backtest_models import TimeFrame, SignalType, MarketData
-
+from backtest_models import MarketData, SignalType, TimeFrame
 
 logger = logging.getLogger(__name__)
 
 
 class StrategyMode(Enum):
     """Strategy execution modes."""
+
     DAY_TRADING = "day_trading"
     SWING_TRADING = "swing_trading"
     POSITION_TRADING = "position_trading"
@@ -30,10 +30,18 @@ class StrategyMode(Enum):
 class ProductionSignal:
     """Production-like trading signal."""
 
-    def __init__(self, symbol: str, action: SignalType, confidence: float,
-                 entry_price: Decimal, stop_loss: Optional[Decimal] = None,
-                 take_profit: Optional[Decimal] = None, position_size: float = 0.1,
-                 reasoning: str = "", metadata: Dict[str, Any] = None):
+    def __init__(
+        self,
+        symbol: str,
+        action: SignalType,
+        confidence: float,
+        entry_price: Decimal,
+        stop_loss: Optional[Decimal] = None,
+        take_profit: Optional[Decimal] = None,
+        position_size: float = 0.1,
+        reasoning: str = "",
+        metadata: Dict[str, Any] = None,
+    ):
         self.symbol = symbol
         self.action = action
         self.confidence = confidence
@@ -54,7 +62,9 @@ class ProductionStrategyAdapter:
 
     def __init__(self, strategy_mode: StrategyMode = StrategyMode.DAY_TRADING):
         self.strategy_mode = strategy_mode
-        self.name = f"Production_{strategy_mode.value.title().replace('_', '')}_Strategy"
+        self.name = (
+            f"Production_{strategy_mode.value.title().replace('_', '')}_Strategy"
+        )
         self.logger = logging.getLogger(f"{__name__}.{self.name}")
 
         # Configure strategy parameters based on actual production settings
@@ -70,60 +80,64 @@ class ProductionStrategyAdapter:
         if self.strategy_mode == StrategyMode.DAY_TRADING:
             # Day trading parameters from actual production config
             self.config = {
-                'min_confidence': 70.0,
-                'max_position_size': 0.15,  # 15% max per position
-                'stop_loss_pct': 0.015,     # 1.5% stop loss
-                'take_profit_pct': 0.02,    # 2% take profit
-                'lookback_period': 30,
-                'ta_weight': 0.70,          # 70% technical analysis weight
-                'fa_weight': 0.30,          # 30% fundamental analysis weight
-                'min_technical_score': 60.0,
-                'min_fundamental_score': 30.0,
-                'signal_decay_hours': 2,
-                'volume_threshold': 2.0,
-                'risk_reward_ratio': 1.5,
-                'max_hold_days': 1
+                "min_confidence": 70.0,
+                "max_position_size": 0.15,  # 15% max per position
+                "stop_loss_pct": 0.015,  # 1.5% stop loss
+                "take_profit_pct": 0.02,  # 2% take profit
+                "lookback_period": 30,
+                "ta_weight": 0.70,  # 70% technical analysis weight
+                "fa_weight": 0.30,  # 30% fundamental analysis weight
+                "min_technical_score": 60.0,
+                "min_fundamental_score": 30.0,
+                "signal_decay_hours": 2,
+                "volume_threshold": 2.0,
+                "risk_reward_ratio": 1.5,
+                "max_hold_days": 1,
             }
 
         elif self.strategy_mode == StrategyMode.SWING_TRADING:
             # Swing trading parameters from actual production config
             self.config = {
-                'min_confidence': 65.0,
-                'max_position_size': 0.20,  # 20% max per position
-                'stop_loss_pct': 0.03,      # 3% stop loss
-                'take_profit_pct': 0.06,    # 6% take profit
-                'lookback_period': 50,
-                'ta_weight': 0.50,          # 50% technical analysis weight
-                'fa_weight': 0.50,          # 50% fundamental analysis weight
-                'min_technical_score': 55.0,
-                'min_fundamental_score': 40.0,
-                'signal_decay_hours': 24,
-                'volume_threshold': 1.5,
-                'risk_reward_ratio': 2.0,
-                'max_hold_days': 7
+                "min_confidence": 65.0,
+                "max_position_size": 0.20,  # 20% max per position
+                "stop_loss_pct": 0.03,  # 3% stop loss
+                "take_profit_pct": 0.06,  # 6% take profit
+                "lookback_period": 50,
+                "ta_weight": 0.50,  # 50% technical analysis weight
+                "fa_weight": 0.50,  # 50% fundamental analysis weight
+                "min_technical_score": 55.0,
+                "min_fundamental_score": 40.0,
+                "signal_decay_hours": 24,
+                "volume_threshold": 1.5,
+                "risk_reward_ratio": 2.0,
+                "max_hold_days": 7,
             }
 
         else:  # POSITION_TRADING
             # Position trading parameters from actual production config
             self.config = {
-                'min_confidence': 60.0,
-                'max_position_size': 0.25,  # 25% max per position
-                'stop_loss_pct': 0.05,      # 5% stop loss
-                'take_profit_pct': 0.10,    # 10% take profit
-                'lookback_period': 100,
-                'ta_weight': 0.40,          # 40% technical analysis weight
-                'fa_weight': 0.60,          # 60% fundamental analysis weight
-                'min_technical_score': 50.0,
-                'min_fundamental_score': 50.0,
-                'signal_decay_hours': 168,  # 1 week
-                'volume_threshold': 1.2,
-                'risk_reward_ratio': 2.5,
-                'max_hold_days': 30
+                "min_confidence": 60.0,
+                "max_position_size": 0.25,  # 25% max per position
+                "stop_loss_pct": 0.05,  # 5% stop loss
+                "take_profit_pct": 0.10,  # 10% take profit
+                "lookback_period": 100,
+                "ta_weight": 0.40,  # 40% technical analysis weight
+                "fa_weight": 0.60,  # 60% fundamental analysis weight
+                "min_technical_score": 50.0,
+                "min_fundamental_score": 50.0,
+                "signal_decay_hours": 168,  # 1 week
+                "volume_threshold": 1.2,
+                "risk_reward_ratio": 2.5,
+                "max_hold_days": 30,
             }
 
-    async def analyze_symbol(self, symbol: str, current_data: MarketData,
-                           historical_data: List[MarketData],
-                           market_context: Dict[str, Any]) -> Optional[ProductionSignal]:
+    async def analyze_symbol(
+        self,
+        symbol: str,
+        current_data: MarketData,
+        historical_data: List[MarketData],
+        market_context: Dict[str, Any],
+    ) -> Optional[ProductionSignal]:
         """
         Analyze symbol using production strategy logic.
 
@@ -136,24 +150,34 @@ class ProductionStrategyAdapter:
                 return None
 
             # Calculate technical indicators (simplified versions of production indicators)
-            technical_score = await self._calculate_technical_score(current_data, historical_data)
-            fundamental_score = await self._calculate_fundamental_score(current_data, historical_data, market_context)
+            technical_score = await self._calculate_technical_score(
+                current_data, historical_data
+            )
+            fundamental_score = await self._calculate_fundamental_score(
+                current_data, historical_data, market_context
+            )
 
             # Check minimum score thresholds
-            if (technical_score < self.config['min_technical_score'] or
-                fundamental_score < self.config['min_fundamental_score']):
+            if (
+                technical_score < self.config["min_technical_score"]
+                or fundamental_score < self.config["min_fundamental_score"]
+            ):
                 return None
 
             # Calculate hybrid score using production weighting
-            hybrid_score = (technical_score * self.config['ta_weight'] +
-                          fundamental_score * self.config['fa_weight'])
+            hybrid_score = (
+                technical_score * self.config["ta_weight"]
+                + fundamental_score * self.config["fa_weight"]
+            )
 
             # Apply confidence threshold
-            if hybrid_score < self.config['min_confidence']:
+            if hybrid_score < self.config["min_confidence"]:
                 return None
 
             # Determine signal action based on technical momentum and trend
-            signal_action = await self._determine_signal_action(current_data, historical_data, technical_score)
+            signal_action = await self._determine_signal_action(
+                current_data, historical_data, technical_score
+            )
 
             if signal_action == SignalType.HOLD:
                 return None
@@ -167,7 +191,9 @@ class ProductionStrategyAdapter:
             position_size = self._calculate_position_size(hybrid_score, historical_data)
 
             # Create reasoning string
-            reasoning = self._create_reasoning_string(technical_score, fundamental_score, hybrid_score)
+            reasoning = self._create_reasoning_string(
+                technical_score, fundamental_score, hybrid_score
+            )
 
             # Create signal
             signal = ProductionSignal(
@@ -180,16 +206,18 @@ class ProductionStrategyAdapter:
                 position_size=position_size,
                 reasoning=reasoning,
                 metadata={
-                    'technical_score': technical_score,
-                    'fundamental_score': fundamental_score,
-                    'strategy_mode': self.strategy_mode.value,
-                    'ta_weight': self.config['ta_weight'],
-                    'fa_weight': self.config['fa_weight']
-                }
+                    "technical_score": technical_score,
+                    "fundamental_score": fundamental_score,
+                    "strategy_mode": self.strategy_mode.value,
+                    "ta_weight": self.config["ta_weight"],
+                    "fa_weight": self.config["fa_weight"],
+                },
             )
 
             self.signals_generated += 1
-            self.logger.debug(f"Generated {signal_action.value} signal for {symbol}: {hybrid_score:.1f}% confidence")
+            self.logger.debug(
+                f"Generated {signal_action.value} signal for {symbol}: {hybrid_score:.1f}% confidence"
+            )
 
             return signal
 
@@ -197,8 +225,9 @@ class ProductionStrategyAdapter:
             self.logger.error(f"Error analyzing {symbol}: {e}")
             return None
 
-    async def _calculate_technical_score(self, current_data: MarketData,
-                                       historical_data: List[MarketData]) -> float:
+    async def _calculate_technical_score(
+        self, current_data: MarketData, historical_data: List[MarketData]
+    ) -> float:
         """Calculate technical analysis score (0-100)."""
         try:
             scores = []
@@ -229,7 +258,7 @@ class ProductionStrategyAdapter:
                 current_volume = current_data.volume
                 volume_ratio = current_volume / avg_volume if avg_volume > 0 else 1
 
-                if volume_ratio >= self.config['volume_threshold']:
+                if volume_ratio >= self.config["volume_threshold"]:
                     volume_score = min(90, 60 + (volume_ratio - 1) * 20)
                 else:
                     volume_score = 40
@@ -242,7 +271,7 @@ class ProductionStrategyAdapter:
                 losses = []
 
                 for i in range(1, len(recent_closes)):
-                    change = recent_closes[i] - recent_closes[i-1]
+                    change = recent_closes[i] - recent_closes[i - 1]
                     if change > 0:
                         gains.append(change)
                         losses.append(0)
@@ -282,13 +311,15 @@ class ProductionStrategyAdapter:
                 if self.strategy_mode == StrategyMode.DAY_TRADING:
                     optimal_vol = (0.015, 0.04)  # 1.5% - 4% daily volatility
                 elif self.strategy_mode == StrategyMode.SWING_TRADING:
-                    optimal_vol = (0.02, 0.06)   # 2% - 6% daily volatility
+                    optimal_vol = (0.02, 0.06)  # 2% - 6% daily volatility
                 else:
                     optimal_vol = (0.015, 0.05)  # 1.5% - 5% daily volatility
 
                 if optimal_vol[0] <= volatility <= optimal_vol[1]:
                     vol_score = 80
-                elif volatility < optimal_vol[0] * 0.5 or volatility > optimal_vol[1] * 2:
+                elif (
+                    volatility < optimal_vol[0] * 0.5 or volatility > optimal_vol[1] * 2
+                ):
                     vol_score = 30
                 else:
                     vol_score = 55
@@ -302,9 +333,12 @@ class ProductionStrategyAdapter:
             self.logger.debug(f"Error in technical analysis: {e}")
             return 50.0
 
-    async def _calculate_fundamental_score(self, current_data: MarketData,
-                                         historical_data: List[MarketData],
-                                         market_context: Dict[str, Any]) -> float:
+    async def _calculate_fundamental_score(
+        self,
+        current_data: MarketData,
+        historical_data: List[MarketData],
+        market_context: Dict[str, Any],
+    ) -> float:
         """Calculate fundamental analysis score (0-100) using price-based proxies."""
         try:
             scores = []
@@ -316,7 +350,11 @@ class ProductionStrategyAdapter:
                 current_price = float(current_data.close)
 
                 # Position within 52-week range
-                range_position = (current_price - year_low) / (year_high - year_low) if year_high > year_low else 0.5
+                range_position = (
+                    (current_price - year_low) / (year_high - year_low)
+                    if year_high > year_low
+                    else 0.5
+                )
 
                 # Value scoring - different preferences by strategy
                 if self.strategy_mode == StrategyMode.POSITION_TRADING:
@@ -343,12 +381,28 @@ class ProductionStrategyAdapter:
                 current_price = float(current_data.close)
 
                 # 1-month growth
-                month_ago_price = float(historical_data[-21].close) if len(historical_data) >= 21 else current_price
-                monthly_growth = (current_price - month_ago_price) / month_ago_price if month_ago_price > 0 else 0
+                month_ago_price = (
+                    float(historical_data[-21].close)
+                    if len(historical_data) >= 21
+                    else current_price
+                )
+                monthly_growth = (
+                    (current_price - month_ago_price) / month_ago_price
+                    if month_ago_price > 0
+                    else 0
+                )
 
                 # 3-month growth
-                quarter_ago_price = float(historical_data[-63].close) if len(historical_data) >= 63 else current_price
-                quarterly_growth = (current_price - quarter_ago_price) / quarter_ago_price if quarter_ago_price > 0 else 0
+                quarter_ago_price = (
+                    float(historical_data[-63].close)
+                    if len(historical_data) >= 63
+                    else current_price
+                )
+                quarterly_growth = (
+                    (current_price - quarter_ago_price) / quarter_ago_price
+                    if quarter_ago_price > 0
+                    else 0
+                )
 
                 # Growth scoring
                 if self.strategy_mode == StrategyMode.DAY_TRADING:
@@ -363,7 +417,9 @@ class ProductionStrategyAdapter:
                         growth_score = 30
                 else:
                     # Swing/position trading considers longer trends
-                    if quarterly_growth > 0.2 and monthly_growth > 0:  # Sustained growth
+                    if (
+                        quarterly_growth > 0.2 and monthly_growth > 0
+                    ):  # Sustained growth
                         growth_score = 90
                     elif quarterly_growth > 0.1:
                         growth_score = 75
@@ -380,21 +436,26 @@ class ProductionStrategyAdapter:
 
                 # Price stability (inverse of volatility)
                 volatility = self._calculate_volatility(recent_prices)
-                stability_score = max(30, min(90, 90 - (volatility * 1000)))  # Scale volatility to score
+                stability_score = max(
+                    30, min(90, 90 - (volatility * 1000))
+                )  # Scale volatility to score
 
                 scores.append(stability_score)
 
                 # Trend consistency
-                positive_days = sum(1 for i in range(1, len(recent_prices))
-                                  if recent_prices[i] > recent_prices[i-1])
+                positive_days = sum(
+                    1
+                    for i in range(1, len(recent_prices))
+                    if recent_prices[i] > recent_prices[i - 1]
+                )
                 consistency = positive_days / (len(recent_prices) - 1)
 
                 consistency_score = 30 + (consistency * 40)  # 30-70 range
                 scores.append(consistency_score)
 
             # Market context scoring
-            portfolio_value = market_context.get('portfolio_value', 100000)
-            positions_count = market_context.get('positions_count', 0)
+            portfolio_value = market_context.get("portfolio_value", 100000)
+            positions_count = market_context.get("positions_count", 0)
 
             # Prefer diversification
             if positions_count < 3:
@@ -420,7 +481,9 @@ class ProductionStrategyAdapter:
 
         returns = []
         for i in range(1, len(prices)):
-            ret = (prices[i] - prices[i-1]) / prices[i-1] if prices[i-1] > 0 else 0
+            ret = (
+                (prices[i] - prices[i - 1]) / prices[i - 1] if prices[i - 1] > 0 else 0
+            )
             returns.append(ret)
 
         if not returns:
@@ -431,13 +494,16 @@ class ProductionStrategyAdapter:
 
         return math.sqrt(variance)
 
-    async def _determine_signal_action(self, current_data: MarketData,
-                                     historical_data: List[MarketData],
-                                     technical_score: float) -> SignalType:
+    async def _determine_signal_action(
+        self,
+        current_data: MarketData,
+        historical_data: List[MarketData],
+        technical_score: float,
+    ) -> SignalType:
         """Determine the signal action based on analysis."""
         try:
             # Default to no action
-            if technical_score < self.config['min_technical_score']:
+            if technical_score < self.config["min_technical_score"]:
                 return SignalType.HOLD
 
             # Analyze recent price action
@@ -455,21 +521,29 @@ class ProductionStrategyAdapter:
                 # Signal logic based on strategy mode
                 if self.strategy_mode == StrategyMode.DAY_TRADING:
                     # Day trading: look for momentum with volume
-                    if recent_trend > 0.01 and volume_ratio >= 1.5:  # 1%+ move with volume
+                    if (
+                        recent_trend > 0.01 and volume_ratio >= 1.5
+                    ):  # 1%+ move with volume
                         return SignalType.BUY
-                    elif recent_trend < -0.01 and volume_ratio >= 1.5:  # Short opportunity
+                    elif (
+                        recent_trend < -0.01 and volume_ratio >= 1.5
+                    ):  # Short opportunity
                         return SignalType.SELL
 
                 elif self.strategy_mode == StrategyMode.SWING_TRADING:
                     # Swing trading: look for sustained moves
-                    if recent_trend > 0.02 and technical_score > 70:  # 2%+ move, strong technicals
+                    if (
+                        recent_trend > 0.02 and technical_score > 70
+                    ):  # 2%+ move, strong technicals
                         return SignalType.BUY
                     elif recent_trend < -0.02 and technical_score < 40:
                         return SignalType.SELL
 
                 else:  # Position trading
                     # Position trading: look for longer-term setups
-                    if recent_trend > 0.03 and technical_score > 65:  # 3%+ move, good technicals
+                    if (
+                        recent_trend > 0.03 and technical_score > 65
+                    ):  # 3%+ move, good technicals
                         return SignalType.BUY
                     elif recent_trend < -0.03 and technical_score < 35:
                         return SignalType.SELL
@@ -480,27 +554,41 @@ class ProductionStrategyAdapter:
             self.logger.debug(f"Error determining signal action: {e}")
             return SignalType.HOLD
 
-    def _calculate_stop_loss(self, entry_price: Decimal, action: SignalType) -> Optional[Decimal]:
+    def _calculate_stop_loss(
+        self, entry_price: Decimal, action: SignalType
+    ) -> Optional[Decimal]:
         """Calculate stop loss level."""
         if action == SignalType.BUY:
-            return entry_price * (Decimal('1') - Decimal(str(self.config['stop_loss_pct'])))
+            return entry_price * (
+                Decimal("1") - Decimal(str(self.config["stop_loss_pct"]))
+            )
         elif action == SignalType.SELL:
-            return entry_price * (Decimal('1') + Decimal(str(self.config['stop_loss_pct'])))
+            return entry_price * (
+                Decimal("1") + Decimal(str(self.config["stop_loss_pct"]))
+            )
         return None
 
-    def _calculate_take_profit(self, entry_price: Decimal, action: SignalType) -> Optional[Decimal]:
+    def _calculate_take_profit(
+        self, entry_price: Decimal, action: SignalType
+    ) -> Optional[Decimal]:
         """Calculate take profit level."""
         if action == SignalType.BUY:
-            return entry_price * (Decimal('1') + Decimal(str(self.config['take_profit_pct'])))
+            return entry_price * (
+                Decimal("1") + Decimal(str(self.config["take_profit_pct"]))
+            )
         elif action == SignalType.SELL:
-            return entry_price * (Decimal('1') - Decimal(str(self.config['take_profit_pct'])))
+            return entry_price * (
+                Decimal("1") - Decimal(str(self.config["take_profit_pct"]))
+            )
         return None
 
-    def _calculate_position_size(self, confidence: float, historical_data: List[MarketData]) -> float:
+    def _calculate_position_size(
+        self, confidence: float, historical_data: List[MarketData]
+    ) -> float:
         """Calculate position size based on confidence and volatility."""
         try:
             # Base position size
-            base_size = self.config['max_position_size']
+            base_size = self.config["max_position_size"]
 
             # Confidence adjustment
             confidence_multiplier = min(1.0, confidence / 100.0)
@@ -523,19 +611,24 @@ class ProductionStrategyAdapter:
             else:
                 strategy_multiplier = 1.0
 
-            final_size = base_size * confidence_multiplier * vol_multiplier * strategy_multiplier
-            return max(0.05, min(self.config['max_position_size'], final_size))
+            final_size = (
+                base_size * confidence_multiplier * vol_multiplier * strategy_multiplier
+            )
+            return max(0.05, min(self.config["max_position_size"], final_size))
 
         except Exception as e:
             self.logger.debug(f"Error calculating position size: {e}")
-            return self.config['max_position_size'] * 0.5
+            return self.config["max_position_size"] * 0.5
 
-    def _create_reasoning_string(self, technical_score: float, fundamental_score: float,
-                               hybrid_score: float) -> str:
+    def _create_reasoning_string(
+        self, technical_score: float, fundamental_score: float, hybrid_score: float
+    ) -> str:
         """Create human-readable reasoning for the signal."""
-        return (f"{self.strategy_mode.value.replace('_', ' ').title()}: "
-               f"Tech={technical_score:.1f}, Fund={fundamental_score:.1f}, "
-               f"Hybrid={hybrid_score:.1f}")
+        return (
+            f"{self.strategy_mode.value.replace('_', ' ').title()}: "
+            f"Tech={technical_score:.1f}, Fund={fundamental_score:.1f}, "
+            f"Hybrid={hybrid_score:.1f}"
+        )
 
 
 class ProductionStrategyFactory:
@@ -562,7 +655,7 @@ class ProductionStrategyFactory:
         return [
             ProductionStrategyFactory.create_day_trading_strategy(),
             ProductionStrategyFactory.create_swing_trading_strategy(),
-            ProductionStrategyFactory.create_position_trading_strategy()
+            ProductionStrategyFactory.create_position_trading_strategy(),
         ]
 
 

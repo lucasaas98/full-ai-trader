@@ -4,11 +4,11 @@ Comprehensive test runner script for the AI Trading System.
 Runs all tests with coverage analysis and generates reports.
 """
 
-import os
-import sys
-import subprocess
 import argparse
 import json
+import os
+import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,13 +30,13 @@ class TestRunner:
 
         # Set test environment variables
         test_env = {
-            'ENVIRONMENT': 'test',
-            'LOG_LEVEL': 'DEBUG',
-            'DB_NAME': 'test_trading_system',
-            'REDIS_DB': '1',
-            'DISABLE_EXTERNAL_APIS': 'true',
-            'TEST_MODE': 'true',
-            'PYTHONPATH': str(self.project_root)
+            "ENVIRONMENT": "test",
+            "LOG_LEVEL": "DEBUG",
+            "DB_NAME": "test_trading_system",
+            "REDIS_DB": "1",
+            "DISABLE_EXTERNAL_APIS": "true",
+            "TEST_MODE": "true",
+            "PYTHONPATH": str(self.project_root),
         }
 
         for key, value in test_env.items():
@@ -49,42 +49,42 @@ class TestRunner:
         print("\n🧪 Running unit tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/unit/',
-            '--cov=services',
-            '--cov=shared',
-            '--cov=backtesting',
-            '--cov-report=term-missing',
-            '--cov-report=html:tests/coverage_html_unit',
-            '--cov-report=xml:tests/coverage_unit.xml',
-            '--cov-fail-under=80',
-            '--tb=short',
-            '--durations=10',
-            '--maxfail=10',
-            '-m', 'unit',
-            '--junitxml=tests/junit_unit.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/unit/",
+            "--cov=services",
+            "--cov=shared",
+            "--cov=backtesting",
+            "--cov-report=term-missing",
+            "--cov-report=html:tests/coverage_html_unit",
+            "--cov-report=xml:tests/coverage_unit.xml",
+            "--cov-fail-under=80",
+            "--tb=short",
+            "--durations=10",
+            "--maxfail=10",
+            "-m",
+            "unit",
+            "--junitxml=tests/junit_unit.xml",
         ]
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['unit'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["unit"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -95,42 +95,42 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['unit']
+        return self.test_results["unit"]
 
     def run_integration_tests(self, verbose: bool = False) -> Dict:
         """Run integration tests."""
         print("\n🔗 Running integration tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/integration/',
-            '--tb=short',
-            '--durations=10',
-            '--maxfail=5',
-            '-m', 'integration',
-            '--junitxml=tests/junit_integration.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/integration/",
+            "--tb=short",
+            "--durations=10",
+            "--maxfail=5",
+            "-m",
+            "integration",
+            "--junitxml=tests/junit_integration.xml",
         ]
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['integration'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["integration"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -141,46 +141,45 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['integration']
+        return self.test_results["integration"]
 
     def run_performance_tests(self, verbose: bool = False, quick: bool = False) -> Dict:
         """Run performance tests."""
         print("\n⚡ Running performance tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/performance/',
-            '--tb=short',
-            '--durations=20',
-            '--maxfail=3',
-            '--junitxml=tests/junit_performance.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/performance/",
+            "--tb=short",
+            "--durations=20",
+            "--maxfail=3",
+            "--junitxml=tests/junit_performance.xml",
         ]
 
         if quick:
-            cmd.extend(['-m', 'performance and not slow'])
+            cmd.extend(["-m", "performance and not slow"])
         else:
-            cmd.extend(['-m', 'performance'])
+            cmd.extend(["-m", "performance"])
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['performance'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["performance"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -191,42 +190,42 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['performance']
+        return self.test_results["performance"]
 
     def run_backtesting_tests(self, verbose: bool = False) -> Dict:
         """Run backtesting tests."""
         print("\n📊 Running backtesting tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/integration/test_backtesting.py',
-            '--tb=short',
-            '--durations=10',
-            '--maxfail=5',
-            '-m', 'backtesting',
-            '--junitxml=tests/junit_backtesting.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/integration/test_backtesting.py",
+            "--tb=short",
+            "--durations=10",
+            "--maxfail=5",
+            "-m",
+            "backtesting",
+            "--junitxml=tests/junit_backtesting.xml",
         ]
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['backtesting'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["backtesting"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -237,41 +236,41 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['backtesting']
+        return self.test_results["backtesting"]
 
     def run_smoke_tests(self, verbose: bool = False) -> Dict:
         """Run smoke tests for basic functionality."""
         print("\n💨 Running smoke tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/',
-            '--tb=short',
-            '--maxfail=1',
-            '-m', 'smoke',
-            '--junitxml=tests/junit_smoke.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/",
+            "--tb=short",
+            "--maxfail=1",
+            "-m",
+            "smoke",
+            "--junitxml=tests/junit_smoke.xml",
         ]
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['smoke'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["smoke"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -282,41 +281,41 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['smoke']
+        return self.test_results["smoke"]
 
     def run_security_tests(self, verbose: bool = False) -> Dict:
         """Run security tests."""
         print("\n🛡️ Running security tests...")
 
         cmd = [
-            'python', '-m', 'pytest',
-            'tests/',
-            '--tb=short',
-            '--maxfail=3',
-            '-m', 'security',
-            '--junitxml=tests/junit_security.xml'
+            "python",
+            "-m",
+            "pytest",
+            "tests/",
+            "--tb=short",
+            "--maxfail=3",
+            "-m",
+            "security",
+            "--junitxml=tests/junit_security.xml",
         ]
 
         if verbose:
-            cmd.append('-v')
+            cmd.append("-v")
         else:
-            cmd.append('-q')
+            cmd.append("-q")
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
-        self.test_results['security'] = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+        self.test_results["security"] = {
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -327,13 +326,13 @@ class TestRunner:
                 print(f"STDOUT:\n{result.stdout}")
                 print(f"STDERR:\n{result.stderr}")
 
-        return self.test_results['security']
+        return self.test_results["security"]
 
     def analyze_coverage(self) -> Dict:
         """Analyze test coverage from generated reports."""
         print("\n📊 Analyzing test coverage...")
 
-        coverage_file = self.project_root / 'tests' / 'coverage_unit.xml'
+        coverage_file = self.project_root / "tests" / "coverage_unit.xml"
 
         if not coverage_file.exists():
             print("⚠️ Coverage report not found")
@@ -341,30 +340,31 @@ class TestRunner:
 
         try:
             import xml.etree.ElementTree as ET
+
             tree = ET.parse(coverage_file)
             root = tree.getroot()
 
             # Extract coverage metrics
             coverage_data = {}
 
-            for package in root.findall('.//package'):
-                package_name = package.get('name', 'unknown')
-                line_rate = float(package.get('line-rate', 0)) * 100
-                branch_rate = float(package.get('branch-rate', 0)) * 100
+            for package in root.findall(".//package"):
+                package_name = package.get("name", "unknown")
+                line_rate = float(package.get("line-rate", 0)) * 100
+                branch_rate = float(package.get("branch-rate", 0)) * 100
 
                 coverage_data[package_name] = {
-                    'line_coverage': line_rate,
-                    'branch_coverage': branch_rate
+                    "line_coverage": line_rate,
+                    "branch_coverage": branch_rate,
                 }
 
             # Overall coverage
-            overall_line_rate = float(root.get('line-rate', 0)) * 100
-            overall_branch_rate = float(root.get('branch-rate', 0)) * 100
+            overall_line_rate = float(root.get("line-rate", 0)) * 100
+            overall_branch_rate = float(root.get("branch-rate", 0)) * 100
 
             self.coverage_results = {
-                'overall_line_coverage': overall_line_rate,
-                'overall_branch_coverage': overall_branch_rate,
-                'package_coverage': coverage_data
+                "overall_line_coverage": overall_line_rate,
+                "overall_branch_coverage": overall_branch_rate,
+                "package_coverage": coverage_data,
             }
 
             print(f"📈 Overall line coverage: {overall_line_rate:.1f}%")
@@ -387,58 +387,69 @@ class TestRunner:
         print("\n🔍 Running code quality checks...")
 
         # Run flake8
-        flake8_cmd = ['flake8', 'services/', 'shared/', 'backtesting/', '--max-line-length=120']
+        flake8_cmd = [
+            "flake8",
+            "services/",
+            "shared/",
+            "backtesting/",
+            "--max-line-length=120",
+        ]
         flake8_result = subprocess.run(
-            flake8_cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            flake8_cmd, cwd=self.project_root, capture_output=True, text=True
         )
 
         # Run black check
-        black_cmd = ['black', '--check', '--diff', 'services/', 'shared/', 'backtesting/']
+        black_cmd = [
+            "black",
+            "--check",
+            "--diff",
+            "services/",
+            "shared/",
+            "backtesting/",
+        ]
         black_result = subprocess.run(
-            black_cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            black_cmd, cwd=self.project_root, capture_output=True, text=True
         )
 
         # Run isort check
-        isort_cmd = ['isort', '--check-only', '--diff', 'services/', 'shared/', 'backtesting/']
+        isort_cmd = [
+            "isort",
+            "--check-only",
+            "--diff",
+            "services/",
+            "shared/",
+            "backtesting/",
+        ]
         isort_result = subprocess.run(
-            isort_cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            isort_cmd, cwd=self.project_root, capture_output=True, text=True
         )
 
         lint_results = {
-            'flake8': {
-                'exit_code': flake8_result.returncode,
-                'output': flake8_result.stdout + flake8_result.stderr,
-                'success': flake8_result.returncode == 0
+            "flake8": {
+                "exit_code": flake8_result.returncode,
+                "output": flake8_result.stdout + flake8_result.stderr,
+                "success": flake8_result.returncode == 0,
             },
-            'black': {
-                'exit_code': black_result.returncode,
-                'output': black_result.stdout + black_result.stderr,
-                'success': black_result.returncode == 0
+            "black": {
+                "exit_code": black_result.returncode,
+                "output": black_result.stdout + black_result.stderr,
+                "success": black_result.returncode == 0,
             },
-            'isort': {
-                'exit_code': isort_result.returncode,
-                'output': isort_result.stdout + isort_result.stderr,
-                'success': isort_result.returncode == 0
-            }
+            "isort": {
+                "exit_code": isort_result.returncode,
+                "output": isort_result.stdout + isort_result.stderr,
+                "success": isort_result.returncode == 0,
+            },
         }
 
-        all_passed = all(result['success'] for result in lint_results.values())
+        all_passed = all(result["success"] for result in lint_results.values())
 
         if all_passed:
             print("✅ All linting checks passed")
         else:
             print("❌ Some linting checks failed:")
             for tool, result in lint_results.items():
-                if not result['success']:
+                if not result["success"]:
                     print(f"  {tool}: {result['output'][:200]}...")
 
         return lint_results
@@ -448,31 +459,28 @@ class TestRunner:
         print("\n🏷️ Running type checking...")
 
         cmd = [
-            'mypy',
-            'services/',
-            'shared/',
-            'backtesting/',
-            '--ignore-missing-imports',
-            '--disallow-untyped-defs',
-            '--warn-return-any',
-            '--warn-unused-configs',
-            '--show-error-codes'
+            "mypy",
+            "services/",
+            "shared/",
+            "backtesting/",
+            "--ignore-missing-imports",
+            "--disallow-untyped-defs",
+            "--warn-return-any",
+            "--warn-unused-configs",
+            "--show-error-codes",
         ]
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
         type_check_result = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'output': result.stdout + result.stderr,
-            'success': result.returncode == 0
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "output": result.stdout + result.stderr,
+            "success": result.returncode == 0,
         }
 
         if result.returncode == 0:
@@ -489,50 +497,63 @@ class TestRunner:
         print("\n🔒 Running security scan...")
 
         cmd = [
-            'bandit',
-            '-r',
-            'services/',
-            'shared/',
-            'backtesting/',
-            '-f', 'json',
-            '-o', 'tests/security_report.json'
+            "bandit",
+            "-r",
+            "services/",
+            "shared/",
+            "backtesting/",
+            "-f",
+            "json",
+            "-o",
+            "tests/security_report.json",
         ]
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
         security_result = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'output': result.stdout + result.stderr,
-            'success': result.returncode == 0
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "output": result.stdout + result.stderr,
+            "success": result.returncode == 0,
         }
 
         # Parse security report
-        security_report_path = self.project_root / 'tests' / 'security_report.json'
+        security_report_path = self.project_root / "tests" / "security_report.json"
         if security_report_path.exists():
             try:
-                with open(security_report_path, 'r') as f:
+                with open(security_report_path, "r") as f:
                     security_data = json.load(f)
 
-                high_severity = len([issue for issue in security_data.get('results', [])
-                                   if issue.get('issue_severity') == 'HIGH'])
-                medium_severity = len([issue for issue in security_data.get('results', [])
-                                     if issue.get('issue_severity') == 'MEDIUM'])
+                high_severity = len(
+                    [
+                        issue
+                        for issue in security_data.get("results", [])
+                        if issue.get("issue_severity") == "HIGH"
+                    ]
+                )
+                medium_severity = len(
+                    [
+                        issue
+                        for issue in security_data.get("results", [])
+                        if issue.get("issue_severity") == "MEDIUM"
+                    ]
+                )
 
-                security_result['high_severity_issues'] = high_severity
-                security_result['medium_severity_issues'] = medium_severity
+                security_result["high_severity_issues"] = high_severity
+                security_result["medium_severity_issues"] = medium_severity
 
                 if high_severity == 0:
-                    print(f"✅ Security scan passed: {medium_severity} medium issues found")
+                    print(
+                        f"✅ Security scan passed: {medium_severity} medium issues found"
+                    )
                 else:
-                    print(f"❌ Security scan found {high_severity} high severity issues")
+                    print(
+                        f"❌ Security scan found {high_severity} high severity issues"
+                    )
 
             except Exception as e:
                 print(f"⚠️ Failed to parse security report: {e}")
@@ -543,22 +564,19 @@ class TestRunner:
         """Check for known vulnerabilities in dependencies."""
         print("\n📦 Checking dependencies for vulnerabilities...")
 
-        cmd = ['safety', 'check', '--json']
+        cmd = ["safety", "check", "--json"]
 
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
         dependency_result = {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'output': result.stdout + result.stderr,
-            'success': result.returncode == 0
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "output": result.stdout + result.stderr,
+            "success": result.returncode == 0,
         }
 
         # Parse safety results
@@ -566,12 +584,14 @@ class TestRunner:
             if result.stdout:
                 safety_data = json.loads(result.stdout)
                 vulnerability_count = len(safety_data)
-                dependency_result['vulnerabilities_found'] = vulnerability_count
+                dependency_result["vulnerabilities_found"] = vulnerability_count
 
                 if vulnerability_count == 0:
                     print("✅ No known vulnerabilities in dependencies")
                 else:
-                    print(f"❌ Found {vulnerability_count} vulnerabilities in dependencies")
+                    print(
+                        f"❌ Found {vulnerability_count} vulnerabilities in dependencies"
+                    )
             else:
                 print("✅ Dependency check passed")
 
@@ -585,39 +605,54 @@ class TestRunner:
         print("\n📋 Generating test report...")
 
         report = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'total_duration_seconds': time.time() - self.start_time if self.start_time else 0,
-            'test_results': self.test_results,
-            'coverage_results': self.coverage_results,
-            'summary': {
-                'tests_passed': sum(1 for result in self.test_results.values() if result.get('success')),
-                'tests_failed': sum(1 for result in self.test_results.values() if not result.get('success')),
-                'total_test_categories': len(self.test_results),
-                'overall_success': all(result.get('success', False) for result in self.test_results.values())
-            }
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "total_duration_seconds": (
+                time.time() - self.start_time if self.start_time else 0
+            ),
+            "test_results": self.test_results,
+            "coverage_results": self.coverage_results,
+            "summary": {
+                "tests_passed": sum(
+                    1 for result in self.test_results.values() if result.get("success")
+                ),
+                "tests_failed": sum(
+                    1
+                    for result in self.test_results.values()
+                    if not result.get("success")
+                ),
+                "total_test_categories": len(self.test_results),
+                "overall_success": all(
+                    result.get("success", False)
+                    for result in self.test_results.values()
+                ),
+            },
         }
 
         # Save report
-        report_path = self.project_root / 'tests' / 'test_report.json'
-        with open(report_path, 'w') as f:
+        report_path = self.project_root / "tests" / "test_report.json"
+        with open(report_path, "w") as f:
             json.dump(report, f, indent=2)
 
         print(f"📄 Test report saved to: {report_path}")
 
         # Print summary
-        summary = report['summary']
+        summary = report["summary"]
         print("\n📊 Test Summary:")
-        print(f"  Categories passed: {summary['tests_passed']}/{summary['total_test_categories']}")
-        print(f"  Overall success: {'✅ YES' if summary['overall_success'] else '❌ NO'}")
+        print(
+            f"  Categories passed: {summary['tests_passed']}/{summary['total_test_categories']}"
+        )
+        print(
+            f"  Overall success: {'✅ YES' if summary['overall_success'] else '❌ NO'}"
+        )
         print(f"  Total duration: {report['total_duration_seconds']:.2f}s")
 
         if self.coverage_results:
-            line_coverage = self.coverage_results.get('overall_line_coverage', 0)
+            line_coverage = self.coverage_results.get("overall_line_coverage", 0)
             print(f"  Line coverage: {line_coverage:.1f}%")
 
     def create_docker_test_runner(self) -> str:
         """Create Docker-based test runner script."""
-        docker_script = '''#!/bin/bash
+        docker_script = """#!/bin/bash
 set -e
 
 echo "🐳 Running tests in Docker containers..."
@@ -650,10 +685,10 @@ docker run --rm \\
 docker-compose -f docker-compose.test.yml down
 
 echo "🏁 Docker tests completed"
-'''
+"""
 
-        docker_script_path = self.project_root / 'scripts' / 'run_tests_docker.sh'
-        with open(docker_script_path, 'w') as f:
+        docker_script_path = self.project_root / "scripts" / "run_tests_docker.sh"
+        with open(docker_script_path, "w") as f:
             f.write(docker_script)
 
         # Make executable
@@ -671,26 +706,23 @@ echo "🏁 Docker tests completed"
         self.setup_environment()
 
         test_categories = [
-            ('smoke', lambda: self.run_smoke_tests(verbose)),
-            ('unit', lambda: self.run_unit_tests(verbose)),
-            ('integration', lambda: self.run_integration_tests(verbose)),
-            ('performance', lambda: self.run_performance_tests(verbose, quick)),
-            ('backtesting', lambda: self.run_backtesting_tests(verbose)),
-            ('security', lambda: self.run_security_tests(verbose))
+            ("smoke", lambda: self.run_smoke_tests(verbose)),
+            ("unit", lambda: self.run_unit_tests(verbose)),
+            ("integration", lambda: self.run_integration_tests(verbose)),
+            ("performance", lambda: self.run_performance_tests(verbose, quick)),
+            ("backtesting", lambda: self.run_backtesting_tests(verbose)),
+            ("security", lambda: self.run_security_tests(verbose)),
         ]
 
         # Run each test category
         for category_name, test_func in test_categories:
             try:
                 result = test_func()
-                if not result.get('success', False):
+                if not result.get("success", False):
                     print(f"⚠️ {category_name.title()} tests failed but continuing...")
             except Exception as e:
                 print(f"❌ Error running {category_name} tests: {e}")
-                self.test_results[category_name] = {
-                    'success': False,
-                    'error': str(e)
-                }
+                self.test_results[category_name] = {"success": False, "error": str(e)}
 
         # Analyze coverage
         self.analyze_coverage()
@@ -699,7 +731,9 @@ echo "🏁 Docker tests completed"
         self.generate_test_report()
 
         # Return overall success
-        overall_success = all(result.get('success', False) for result in self.test_results.values())
+        overall_success = all(
+            result.get("success", False) for result in self.test_results.values()
+        )
 
         if overall_success:
             print("\n🎉 All tests passed!")
@@ -716,17 +750,40 @@ echo "🏁 Docker tests completed"
 
         # Define test categories that can run in parallel
         parallel_tests = [
-            ('unit_parallel', lambda: self.run_command([
-                'python', '-m', 'pytest', 'tests/unit/',
-                '--cov=services', '--cov=shared',
-                '-n', 'auto',  # pytest-xdist for parallel execution
-                '--tb=short', '-m', 'unit and not database'
-            ])),
-            ('integration_parallel', lambda: self.run_command([
-                'python', '-m', 'pytest', 'tests/integration/',
-                '-n', '2',  # Limited parallelism for integration tests
-                '--tb=short', '-m', 'integration and not slow'
-            ]))
+            (
+                "unit_parallel",
+                lambda: self.run_command(
+                    [
+                        "python",
+                        "-m",
+                        "pytest",
+                        "tests/unit/",
+                        "--cov=services",
+                        "--cov=shared",
+                        "-n",
+                        "auto",  # pytest-xdist for parallel execution
+                        "--tb=short",
+                        "-m",
+                        "unit and not database",
+                    ]
+                ),
+            ),
+            (
+                "integration_parallel",
+                lambda: self.run_command(
+                    [
+                        "python",
+                        "-m",
+                        "pytest",
+                        "tests/integration/",
+                        "-n",
+                        "2",  # Limited parallelism for integration tests
+                        "--tb=short",
+                        "-m",
+                        "integration and not slow",
+                    ]
+                ),
+            ),
         ]
 
         # Run tests in parallel
@@ -741,31 +798,30 @@ echo "🏁 Docker tests completed"
                 try:
                     result = future.result()
                     self.test_results[test_name] = result
-                    status = "✅ PASSED" if result['success'] else "❌ FAILED"
+                    status = "✅ PASSED" if result["success"] else "❌ FAILED"
                     print(f"{status} {test_name} in {result['duration_seconds']:.2f}s")
                 except Exception as e:
                     print(f"❌ {test_name} raised exception: {e}")
-                    self.test_results[test_name] = {'success': False, 'error': str(e)}
+                    self.test_results[test_name] = {"success": False, "error": str(e)}
 
-        return all(result.get('success', False) for result in self.test_results.values())
+        return all(
+            result.get("success", False) for result in self.test_results.values()
+        )
 
     def run_command(self, cmd: List[str]) -> Dict:
         """Run a command and return results."""
         start_time = time.time()
         result = subprocess.run(
-            cmd,
-            cwd=self.project_root,
-            capture_output=True,
-            text=True
+            cmd, cwd=self.project_root, capture_output=True, text=True
         )
         duration = time.time() - start_time
 
         return {
-            'exit_code': result.returncode,
-            'duration_seconds': duration,
-            'stdout': result.stdout,
-            'stderr': result.stderr,
-            'success': result.returncode == 0
+            "exit_code": result.returncode,
+            "duration_seconds": duration,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "success": result.returncode == 0,
         }
 
     def create_test_environment_check(self) -> bool:
@@ -775,10 +831,13 @@ echo "🏁 Docker tests completed"
         checks = [
             ("Python version", lambda: sys.version_info >= (3, 9)),
             ("Project root exists", lambda: self.project_root.exists()),
-            ("Tests directory exists", lambda: (self.project_root / 'tests').exists()),
-            ("Services directory exists", lambda: (self.project_root / 'services').exists()),
-            ("Shared module exists", lambda: (self.project_root / 'shared').exists()),
-            ("pytest.ini exists", lambda: (self.project_root / 'pytest.ini').exists()),
+            ("Tests directory exists", lambda: (self.project_root / "tests").exists()),
+            (
+                "Services directory exists",
+                lambda: (self.project_root / "services").exists(),
+            ),
+            ("Shared module exists", lambda: (self.project_root / "shared").exists()),
+            ("pytest.ini exists", lambda: (self.project_root / "pytest.ini").exists()),
         ]
 
         all_passed = True
@@ -805,17 +864,18 @@ echo "🏁 Docker tests completed"
         print("\n🧹 Cleaning up test artifacts...")
 
         cleanup_patterns = [
-            'tests/**/__pycache__',
-            'tests/**/*.pyc',
-            'tests/**/.pytest_cache',
-            'tests/coverage_html*',
-            'tests/*.xml',
-            'tests/*.json',
-            '.coverage*',
-            '**/.pytest_cache'
+            "tests/**/__pycache__",
+            "tests/**/*.pyc",
+            "tests/**/.pytest_cache",
+            "tests/coverage_html*",
+            "tests/*.xml",
+            "tests/*.json",
+            ".coverage*",
+            "**/.pytest_cache",
         ]
 
         import glob
+
         cleaned_count = 0
 
         for pattern in cleanup_patterns:
@@ -826,6 +886,7 @@ echo "🏁 Docker tests completed"
                         cleaned_count += 1
                     elif os.path.isdir(path):
                         import shutil
+
                         shutil.rmtree(path)
                         cleaned_count += 1
                 except Exception as e:
@@ -890,18 +951,18 @@ echo "🏁 Docker tests completed"
     def _handle_lint_check(self, verbose: bool) -> int:
         """Handle linting check."""
         lint_results = self.run_linting(verbose)
-        return 0 if all(r['success'] for r in lint_results.values()) else 1
+        return 0 if all(r["success"] for r in lint_results.values()) else 1
 
     def _handle_type_check(self, verbose: bool) -> int:
         """Handle type checking."""
         type_result = self.run_type_checking(verbose)
-        return 0 if type_result['success'] else 1
+        return 0 if type_result["success"] else 1
 
     def _handle_security_scan(self, verbose: bool) -> int:
         """Handle security scan."""
         security_result = self.run_security_scan(verbose)
         dependency_result = self.run_dependency_check()
-        return 0 if security_result['success'] and dependency_result['success'] else 1
+        return 0 if security_result["success"] and dependency_result["success"] else 1
 
         return None
 
@@ -918,12 +979,12 @@ echo "🏁 Docker tests completed"
     def _run_individual_tests(self, args) -> bool:
         """Run individual test categories based on arguments."""
         test_methods = {
-            'smoke': lambda: self.run_smoke_tests(args.verbose),
-            'unit': lambda: self.run_unit_tests(args.verbose),
-            'integration': lambda: self.run_integration_tests(args.verbose),
-            'performance': lambda: self.run_performance_tests(args.verbose, args.quick),
-            'backtesting': lambda: self.run_backtesting_tests(args.verbose),
-            'security': lambda: self.run_security_tests(args.verbose)
+            "smoke": lambda: self.run_smoke_tests(args.verbose),
+            "unit": lambda: self.run_unit_tests(args.verbose),
+            "integration": lambda: self.run_integration_tests(args.verbose),
+            "performance": lambda: self.run_performance_tests(args.verbose, args.quick),
+            "backtesting": lambda: self.run_backtesting_tests(args.verbose),
+            "security": lambda: self.run_security_tests(args.verbose),
         }
 
         success = True
@@ -932,40 +993,66 @@ echo "🏁 Docker tests completed"
         for test_type, method in test_methods.items():
             if getattr(args, test_type):
                 result = method()
-                success = success and result['success']
+                success = success and result["success"]
                 tests_run = True
 
         # If no specific category selected, run smoke tests by default
         if not tests_run:
             print("ℹ️ No specific test category selected, running smoke tests...")
             result = self.run_smoke_tests(args.verbose)
-            success = result['success']
+            success = result["success"]
 
         return success
 
 
 def create_argument_parser():
     """Create and configure the argument parser."""
-    parser = argparse.ArgumentParser(description='Comprehensive test runner for AI Trading System')
+    parser = argparse.ArgumentParser(
+        description="Comprehensive test runner for AI Trading System"
+    )
 
-    parser.add_argument('--unit', action='store_true', help='Run unit tests only')
-    parser.add_argument('--integration', action='store_true', help='Run integration tests only')
-    parser.add_argument('--performance', action='store_true', help='Run performance tests only')
-    parser.add_argument('--backtesting', action='store_true', help='Run backtesting tests only')
-    parser.add_argument('--security', action='store_true', help='Run security tests only')
-    parser.add_argument('--smoke', action='store_true', help='Run smoke tests only')
-    parser.add_argument('--all', action='store_true', help='Run all test categories')
-    parser.add_argument('--parallel', action='store_true', help='Run tests in parallel')
-    parser.add_argument('--quick', action='store_true', help='Run quick tests (skip slow tests)')
-    parser.add_argument('--verbose', '-v', action='store_true', help='Verbose output')
-    parser.add_argument('--coverage-only', action='store_true', help='Only analyze coverage from existing reports')
-    parser.add_argument('--lint', action='store_true', help='Run linting and code quality checks')
-    parser.add_argument('--type-check', action='store_true', help='Run type checking')
-    parser.add_argument('--security-scan', action='store_true', help='Run security scan')
-    parser.add_argument('--cleanup', action='store_true', help='Clean up test artifacts')
-    parser.add_argument('--check-env', action='store_true', help='Check test environment')
-    parser.add_argument('--docker', action='store_true', help='Create Docker test runner script')
-    parser.add_argument('--project-root', default='.', help='Project root directory')
+    parser.add_argument("--unit", action="store_true", help="Run unit tests only")
+    parser.add_argument(
+        "--integration", action="store_true", help="Run integration tests only"
+    )
+    parser.add_argument(
+        "--performance", action="store_true", help="Run performance tests only"
+    )
+    parser.add_argument(
+        "--backtesting", action="store_true", help="Run backtesting tests only"
+    )
+    parser.add_argument(
+        "--security", action="store_true", help="Run security tests only"
+    )
+    parser.add_argument("--smoke", action="store_true", help="Run smoke tests only")
+    parser.add_argument("--all", action="store_true", help="Run all test categories")
+    parser.add_argument("--parallel", action="store_true", help="Run tests in parallel")
+    parser.add_argument(
+        "--quick", action="store_true", help="Run quick tests (skip slow tests)"
+    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
+    parser.add_argument(
+        "--coverage-only",
+        action="store_true",
+        help="Only analyze coverage from existing reports",
+    )
+    parser.add_argument(
+        "--lint", action="store_true", help="Run linting and code quality checks"
+    )
+    parser.add_argument("--type-check", action="store_true", help="Run type checking")
+    parser.add_argument(
+        "--security-scan", action="store_true", help="Run security scan"
+    )
+    parser.add_argument(
+        "--cleanup", action="store_true", help="Clean up test artifacts"
+    )
+    parser.add_argument(
+        "--check-env", action="store_true", help="Check test environment"
+    )
+    parser.add_argument(
+        "--docker", action="store_true", help="Create Docker test runner script"
+    )
+    parser.add_argument("--project-root", default=".", help="Project root directory")
 
     return parser
 

@@ -5,12 +5,12 @@ This module provides JWT token creation, validation, and decoding functionality
 for the trading system's security infrastructure.
 """
 
-import jwt
 import logging
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any, Union
-from pydantic import BaseModel, Field
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional, Union
 
+import jwt
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,12 @@ class JWTConfig(BaseModel):
 
     secret_key: str = Field(..., description="JWT signing secret")
     algorithm: str = Field(default="HS256", description="JWT signing algorithm")
-    access_token_expire_minutes: int = Field(default=30, description="Access token expiration in minutes")
-    refresh_token_expire_days: int = Field(default=7, description="Refresh token expiration in days")
+    access_token_expire_minutes: int = Field(
+        default=30, description="Access token expiration in minutes"
+    )
+    refresh_token_expire_days: int = Field(
+        default=7, description="Refresh token expiration in days"
+    )
     issuer: str = Field(default="trading-system", description="JWT issuer")
     audience: str = Field(default="trading-api", description="JWT audience")
 
@@ -31,11 +35,15 @@ class JWTPayload(BaseModel):
 
     user_id: str = Field(..., description="User identifier")
     username: Optional[str] = Field(None, description="Username")
-    service: Optional[str] = Field(None, description="Service name for service-to-service auth")
+    service: Optional[str] = Field(
+        None, description="Service name for service-to-service auth"
+    )
     roles: list[str] = Field(default_factory=list, description="User roles")
     permissions: list[str] = Field(default_factory=list, description="User permissions")
     session_id: Optional[str] = Field(None, description="Session identifier")
-    api_key_id: Optional[str] = Field(None, description="API key identifier if applicable")
+    api_key_id: Optional[str] = Field(
+        None, description="API key identifier if applicable"
+    )
 
     # Standard JWT claims
     iss: Optional[str] = Field(None, description="Issuer")
@@ -60,29 +68,37 @@ class JWTManager:
         # Avoid circular import by importing config locally
         try:
             from shared.config import config
+
             shared_jwt_config = config.jwt
             return JWTConfig(
-                secret_key=shared_jwt_config.secret_key or "default-jwt-secret-change-in-production",
+                secret_key=shared_jwt_config.secret_key
+                or "default-jwt-secret-change-in-production",
                 algorithm=shared_jwt_config.algorithm,
                 access_token_expire_minutes=shared_jwt_config.access_token_expire_minutes,
                 refresh_token_expire_days=shared_jwt_config.refresh_token_expire_days,
                 issuer=shared_jwt_config.issuer,
-                audience=shared_jwt_config.audience
+                audience=shared_jwt_config.audience,
             )
         except ImportError:
             # Fallback to environment variables if config not available
             jwt_secret = os.getenv("JWT_SECRET") or os.getenv("JWT_SECRET_KEY")
             if not jwt_secret:
-                logger.warning("JWT_SECRET not found in environment, using default (insecure for production)")
+                logger.warning(
+                    "JWT_SECRET not found in environment, using default (insecure for production)"
+                )
                 jwt_secret = "default-jwt-secret-change-in-production"
 
             return JWTConfig(
                 secret_key=jwt_secret,
                 algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
-                access_token_expire_minutes=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")),
-                refresh_token_expire_days=int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7")),
+                access_token_expire_minutes=int(
+                    os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30")
+                ),
+                refresh_token_expire_days=int(
+                    os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7")
+                ),
                 issuer=os.getenv("JWT_ISSUER", "trading-system"),
-                audience=os.getenv("JWT_AUDIENCE", "trading-api")
+                audience=os.getenv("JWT_AUDIENCE", "trading-api"),
             )
 
     def create_access_token(
@@ -94,11 +110,13 @@ class JWTManager:
         permissions: Optional[list[str]] = None,
         session_id: Optional[str] = None,
         api_key_id: Optional[str] = None,
-        expires_delta: Optional[timedelta] = None
+        expires_delta: Optional[timedelta] = None,
     ) -> str:
         """Create a new JWT access token."""
         now = datetime.now(timezone.utc)
-        expire = now + (expires_delta or timedelta(minutes=self.config.access_token_expire_minutes))
+        expire = now + (
+            expires_delta or timedelta(minutes=self.config.access_token_expire_minutes)
+        )
 
         payload = JWTPayload(
             user_id=user_id,
@@ -112,7 +130,7 @@ class JWTManager:
             aud=self.config.audience,
             exp=expire,
             iat=now,
-            nbf=now
+            nbf=now,
         )
 
         # Convert to dict for JWT encoding
@@ -125,9 +143,7 @@ class JWTManager:
 
         try:
             token = jwt.encode(
-                payload_dict,
-                self.config.secret_key,
-                algorithm=self.config.algorithm
+                payload_dict, self.config.secret_key, algorithm=self.config.algorithm
             )
             logger.debug(f"Created JWT token for user_id: {user_id}")
             return token
@@ -139,11 +155,13 @@ class JWTManager:
         self,
         user_id: str,
         session_id: Optional[str] = None,
-        expires_delta: Optional[timedelta] = None
+        expires_delta: Optional[timedelta] = None,
     ) -> str:
         """Create a JWT refresh token."""
         now = datetime.now(timezone.utc)
-        expire = now + (expires_delta or timedelta(days=self.config.refresh_token_expire_days))
+        expire = now + (
+            expires_delta or timedelta(days=self.config.refresh_token_expire_days)
+        )
 
         payload = {
             "user_id": user_id,
@@ -153,14 +171,12 @@ class JWTManager:
             "aud": self.config.audience,
             "exp": int(expire.timestamp()),
             "iat": int(now.timestamp()),
-            "nbf": int(now.timestamp())
+            "nbf": int(now.timestamp()),
         }
 
         try:
             token = jwt.encode(
-                payload,
-                self.config.secret_key,
-                algorithm=self.config.algorithm
+                payload, self.config.secret_key, algorithm=self.config.algorithm
             )
             logger.debug(f"Created refresh token for user_id: {user_id}")
             return token
@@ -178,17 +194,21 @@ class JWTManager:
                 algorithms=[self.config.algorithm],
                 audience=self.config.audience,
                 issuer=self.config.issuer,
-                options={"verify_exp": verify_exp}
+                options={"verify_exp": verify_exp},
             )
 
             # Convert timestamp fields back to datetime
             for field in ["exp", "iat", "nbf"]:
                 if field in payload and payload[field] is not None:
-                    payload[field] = datetime.fromtimestamp(payload[field], tz=timezone.utc)
+                    payload[field] = datetime.fromtimestamp(
+                        payload[field], tz=timezone.utc
+                    )
 
             # Create JWTPayload object
             jwt_payload = JWTPayload(**payload)
-            logger.debug(f"Successfully decoded JWT token for user_id: {jwt_payload.user_id}")
+            logger.debug(
+                f"Successfully decoded JWT token for user_id: {jwt_payload.user_id}"
+            )
             return jwt_payload
 
         except jwt.ExpiredSignatureError:
@@ -236,7 +256,7 @@ class JWTManager:
                 algorithms=[self.config.algorithm],
                 audience=self.config.audience,
                 issuer=self.config.issuer,
-                options={"verify_exp": True}
+                options={"verify_exp": True},
             )
             # If decode succeeds, token is not expired
             return False
@@ -255,7 +275,7 @@ class JWTManager:
                 self.config.secret_key,
                 algorithms=[self.config.algorithm],
                 audience=self.config.audience,
-                issuer=self.config.issuer
+                issuer=self.config.issuer,
             )
 
             # Verify it's a refresh token
@@ -271,10 +291,7 @@ class JWTManager:
                 logger.warning("No user_id found in refresh token")
                 return None
 
-            return self.create_access_token(
-                user_id=user_id,
-                session_id=session_id
-            )
+            return self.create_access_token(user_id=user_id, session_id=session_id)
 
         except jwt.ExpiredSignatureError:
             logger.warning("Refresh token has expired")
@@ -300,7 +317,9 @@ def extract_token_from_header(auth_header: str) -> Optional[str]:
     return None
 
 
-def extract_user_id_from_request_header(auth_header: str, jwt_manager: Optional[JWTManager] = None) -> Optional[str]:
+def extract_user_id_from_request_header(
+    auth_header: str, jwt_manager: Optional[JWTManager] = None
+) -> Optional[str]:
     """Extract user ID from request Authorization header."""
     if not auth_header:
         return None
@@ -313,7 +332,9 @@ def extract_user_id_from_request_header(auth_header: str, jwt_manager: Optional[
     return manager.extract_user_id(token)
 
 
-def validate_token_from_header(auth_header: str, jwt_manager: Optional[JWTManager] = None) -> bool:
+def validate_token_from_header(
+    auth_header: str, jwt_manager: Optional[JWTManager] = None
+) -> bool:
     """Validate JWT token from Authorization header."""
     if not auth_header:
         return False

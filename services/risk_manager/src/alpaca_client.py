@@ -10,11 +10,11 @@ import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple
+
 import aiohttp
 
-
 from shared.config import get_config
-from shared.models import Position, PortfolioState
+from shared.models import PortfolioState, Position
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +35,23 @@ class AlpacaRiskClient:
         self.headers = {
             "APCA-API-KEY-ID": self.alpaca_config.api_key,
             "APCA-API-SECRET-KEY": self.alpaca_config.secret_key,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Rate limiting
         self.last_request_time = datetime.now(timezone.utc)
-        self.min_request_interval = timedelta(milliseconds=200)  # 5 requests per second max
+        self.min_request_interval = timedelta(
+            milliseconds=200
+        )  # 5 requests per second max
 
         # Cache for recent data
         self.portfolio_cache: Optional[PortfolioState] = None
         self.cache_timestamp: Optional[datetime] = None
         self.cache_ttl = timedelta(seconds=30)
 
-    async def get_portfolio_state(self, force_refresh: bool = False) -> Optional[PortfolioState]:
+    async def get_portfolio_state(
+        self, force_refresh: bool = False
+    ) -> Optional[PortfolioState]:
         """
         Get current portfolio state from Alpaca.
 
@@ -59,10 +63,12 @@ class AlpacaRiskClient:
         """
         try:
             # Check cache
-            if (not force_refresh and
-                self.portfolio_cache and
-                self.cache_timestamp and
-                datetime.now(timezone.utc) - self.cache_timestamp < self.cache_ttl):
+            if (
+                not force_refresh
+                and self.portfolio_cache
+                and self.cache_timestamp
+                and datetime.now(timezone.utc) - self.cache_timestamp < self.cache_ttl
+            ):
                 return self.portfolio_cache
 
             # Get account information
@@ -84,14 +90,16 @@ class AlpacaRiskClient:
                 total_equity=Decimal(account_info["equity"]),
                 positions=positions,
                 day_trades_count=int(account_info.get("daytrade_count", 0)),
-                pattern_day_trader=account_info.get("pattern_day_trader", False)
+                pattern_day_trader=account_info.get("pattern_day_trader", False),
             )
 
             # Update cache
             self.portfolio_cache = portfolio
             self.cache_timestamp = datetime.now(timezone.utc)
 
-            logger.debug(f"Portfolio state updated: ${portfolio.total_equity} equity, {len(positions)} positions")
+            logger.debug(
+                f"Portfolio state updated: ${portfolio.total_equity} equity, {len(positions)} positions"
+            )
 
             return portfolio
 
@@ -123,7 +131,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
 
@@ -222,24 +232,30 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
                         return {
                             "is_open": data.get("is_open", False),
                             "next_open": data.get("next_open"),
                             "next_close": data.get("next_close"),
-                            "timestamp": data.get("timestamp")
+                            "timestamp": data.get("timestamp"),
                         }
                     else:
-                        logger.error(f"Failed to get market hours: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get market hours: HTTP {response.status}"
+                        )
                         return {"is_open": False}
 
         except Exception as e:
             logger.error(f"Error getting market hours: {e}")
             return {"is_open": False}
 
-    async def get_historical_portfolio_values(self, days: int = 30) -> List[Tuple[datetime, Decimal]]:
+    async def get_historical_portfolio_values(
+        self, days: int = 30
+    ) -> List[Tuple[datetime, Decimal]]:
         """
         Get historical portfolio values for performance calculation.
 
@@ -255,18 +271,19 @@ class AlpacaRiskClient:
             # Get portfolio history
             end_date = datetime.now(timezone.utc)
 
-
             url = f"{self.base_url}/v2/account/portfolio/history"
             params = {
                 "period": f"{days}D",
                 "timeframe": "1D",
                 "end": end_date.strftime("%Y-%m-%d"),
-                "extended_hours": "false"
+                "extended_hours": "false",
             }
 
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
 
@@ -279,10 +296,14 @@ class AlpacaRiskClient:
                             portfolio_value = Decimal(str(equity))
                             history.append((timestamp, portfolio_value))
 
-                        logger.debug(f"Retrieved {len(history)} days of portfolio history")
+                        logger.debug(
+                            f"Retrieved {len(history)} days of portfolio history"
+                        )
                         return history
                     else:
-                        logger.error(f"Failed to get portfolio history: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get portfolio history: HTTP {response.status}"
+                        )
                         return []
 
         except Exception as e:
@@ -298,13 +319,17 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         account_data = await response.json()
                         logger.debug("Account information retrieved successfully")
                         return account_data
                     else:
-                        logger.error(f"Failed to get account info: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get account info: HTTP {response.status}"
+                        )
                         return None
 
         except Exception as e:
@@ -320,7 +345,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         positions_data = await response.json()
 
@@ -331,15 +358,22 @@ class AlpacaRiskClient:
                                     symbol=pos_data["symbol"],
                                     quantity=int(pos_data["qty"]),
                                     entry_price=Decimal(pos_data["avg_entry_price"]),
-                                    current_price=Decimal(pos_data["market_value"]) / Decimal(pos_data["qty"]) if int(pos_data["qty"]) != 0 else Decimal("0"),
+                                    current_price=(
+                                        Decimal(pos_data["market_value"])
+                                        / Decimal(pos_data["qty"])
+                                        if int(pos_data["qty"]) != 0
+                                        else Decimal("0")
+                                    ),
                                     unrealized_pnl=Decimal(pos_data["unrealized_pl"]),
                                     market_value=Decimal(pos_data["market_value"]),
                                     cost_basis=Decimal(pos_data["cost_basis"]),
-                                    last_updated=datetime.now(timezone.utc)
+                                    last_updated=datetime.now(timezone.utc),
                                 )
                                 positions.append(position)
                             except (ValueError, KeyError) as e:
-                                logger.warning(f"Error parsing position data for {pos_data.get('symbol', 'unknown')}: {e}")
+                                logger.warning(
+                                    f"Error parsing position data for {pos_data.get('symbol', 'unknown')}: {e}"
+                                )
                                 continue
 
                         logger.debug(f"Retrieved {len(positions)} positions")
@@ -352,7 +386,9 @@ class AlpacaRiskClient:
             logger.error(f"Error getting positions: {e}")
             return None
 
-    async def get_historical_prices(self, symbol: str, days: int = 30) -> List[Tuple[datetime, Decimal]]:
+    async def get_historical_prices(
+        self, symbol: str, days: int = 30
+    ) -> List[Tuple[datetime, Decimal]]:
         """
         Get historical prices for volatility and correlation calculations.
 
@@ -375,12 +411,14 @@ class AlpacaRiskClient:
                 "end": end_date.strftime("%Y-%m-%d"),
                 "timeframe": "1Day",
                 "limit": days,
-                "adjustment": "raw"
+                "adjustment": "raw",
             }
 
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
 
@@ -388,14 +426,20 @@ class AlpacaRiskClient:
                         prices = []
 
                         for bar in bars:
-                            timestamp = datetime.fromisoformat(bar["t"].replace("Z", "+00:00"))
+                            timestamp = datetime.fromisoformat(
+                                bar["t"].replace("Z", "+00:00")
+                            )
                             close_price = Decimal(str(bar["c"]))
                             prices.append((timestamp, close_price))
 
-                        logger.debug(f"Retrieved {len(prices)} price points for {symbol}")
+                        logger.debug(
+                            f"Retrieved {len(prices)} price points for {symbol}"
+                        )
                         return prices
                     else:
-                        logger.error(f"Failed to get historical prices for {symbol}: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get historical prices for {symbol}: HTTP {response.status}"
+                        )
                         return []
 
         except Exception as e:
@@ -411,7 +455,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
                         quote = data.get("quote", {})
@@ -422,17 +468,21 @@ class AlpacaRiskClient:
                             "ask": Decimal(str(quote.get("ap", 0))),
                             "bid_size": int(quote.get("bs", 0)),
                             "ask_size": int(quote.get("as", 0)),
-                            "timestamp": quote.get("t")
+                            "timestamp": quote.get("t"),
                         }
                     else:
-                        logger.warning(f"Failed to get quote for {symbol}: HTTP {response.status}")
+                        logger.warning(
+                            f"Failed to get quote for {symbol}: HTTP {response.status}"
+                        )
                         return None
 
         except Exception as e:
             logger.error(f"Error getting real-time quote for {symbol}: {e}")
             return None
 
-    async def get_account_activities(self, activity_type: str = "FILL", limit: int = 100) -> List[Dict]:
+    async def get_account_activities(
+        self, activity_type: str = "FILL", limit: int = 100
+    ) -> List[Dict]:
         """
         Get account activities for trade tracking.
 
@@ -447,27 +497,30 @@ class AlpacaRiskClient:
             await self._rate_limit()
 
             url = f"{self.base_url}/v2/account/activities"
-            params = {
-                "activity_type": activity_type,
-                "page_size": limit
-            }
+            params = {"activity_type": activity_type, "page_size": limit}
 
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         activities = await response.json()
                         logger.debug(f"Retrieved {len(activities)} account activities")
                         return activities
                     else:
-                        logger.error(f"Failed to get account activities: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get account activities: HTTP {response.status}"
+                        )
                         return []
 
         except Exception as e:
             logger.error(f"Error getting account activities: {e}")
             return []
 
-    async def get_orders(self, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
+    async def get_orders(
+        self, status: Optional[str] = None, limit: int = 100
+    ) -> List[Dict]:
         """
         Get order history.
 
@@ -489,7 +542,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         orders = await response.json()
                         logger.debug(f"Retrieved {len(orders)} orders")
@@ -507,18 +562,16 @@ class AlpacaRiskClient:
         try:
             # Get portfolio history for today
 
-
             url = f"{self.base_url}/v2/account/portfolio/history"
-            params = {
-                "period": "1D",
-                "timeframe": "5Min"
-            }
+            params = {"period": "1D", "timeframe": "5Min"}
 
             await self._rate_limit()
 
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, params=params, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, params=params, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         data = await response.json()
 
@@ -534,7 +587,9 @@ class AlpacaRiskClient:
                         else:
                             return Decimal("0")
                     else:
-                        logger.error(f"Failed to get portfolio history: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get portfolio history: HTTP {response.status}"
+                        )
                         return Decimal("0")
 
         except Exception as e:
@@ -553,7 +608,7 @@ class AlpacaRiskClient:
             # Calculate daily returns
             returns = []
             for i in range(1, len(history)):
-                prev_value = history[i-1][1]
+                prev_value = history[i - 1][1]
                 curr_value = history[i][1]
 
                 if prev_value > 0:
@@ -565,6 +620,7 @@ class AlpacaRiskClient:
 
             # Calculate volatility (standard deviation of returns)
             import numpy as np
+
             volatility = np.std(returns) * np.sqrt(252)  # Annualize
 
             return float(volatility)
@@ -573,7 +629,9 @@ class AlpacaRiskClient:
             logger.error(f"Error calculating portfolio volatility: {e}")
             return 0.15
 
-    async def calculate_symbol_correlation(self, symbol1: str, symbol2: str, days: int = 60) -> float:
+    async def calculate_symbol_correlation(
+        self, symbol1: str, symbol2: str, days: int = 60
+    ) -> float:
         """Calculate correlation between two symbols."""
         try:
             # Get historical prices for both symbols
@@ -597,7 +655,7 @@ class AlpacaRiskClient:
             returns2 = []
 
             for i in range(1, len(common_dates)):
-                prev_date = common_dates[i-1]
+                prev_date = common_dates[i - 1]
                 curr_date = common_dates[i]
 
                 prev_price1 = price_dict1[prev_date]
@@ -617,6 +675,7 @@ class AlpacaRiskClient:
 
             # Calculate correlation
             import numpy as np
+
             correlation = np.corrcoef(returns1, returns2)[0, 1]
 
             # Handle NaN values
@@ -626,10 +685,14 @@ class AlpacaRiskClient:
             return float(correlation)
 
         except Exception as e:
-            logger.error(f"Error calculating correlation between {symbol1} and {symbol2}: {e}")
+            logger.error(
+                f"Error calculating correlation between {symbol1} and {symbol2}: {e}"
+            )
             return 0.0
 
-    async def get_symbol_beta(self, symbol: str, benchmark: str = "SPY", days: int = 60) -> float:
+    async def get_symbol_beta(
+        self, symbol: str, benchmark: str = "SPY", days: int = 60
+    ) -> float:
         """Calculate beta of symbol relative to benchmark."""
         try:
             # Get historical prices for symbol and benchmark
@@ -671,13 +734,15 @@ class AlpacaRiskClient:
             logger.error(f"Error calculating beta for {symbol}: {e}")
             return 1.0
 
-    def _calculate_returns_from_prices(self, prices: List[Tuple[datetime, Decimal]]) -> List[Tuple[datetime, float]]:
+    def _calculate_returns_from_prices(
+        self, prices: List[Tuple[datetime, Decimal]]
+    ) -> List[Tuple[datetime, float]]:
         """Calculate returns from price series."""
         returns = []
 
         for i in range(1, len(prices)):
             date = prices[i][0]
-            prev_price = prices[i-1][1]
+            prev_price = prices[i - 1][1]
             curr_price = prices[i][1]
 
             if prev_price > 0:
@@ -686,7 +751,11 @@ class AlpacaRiskClient:
 
         return returns
 
-    def _align_returns(self, returns1: List[Tuple[datetime, float]], returns2: List[Tuple[datetime, float]]) -> List[Tuple[datetime, float, float]]:
+    def _align_returns(
+        self,
+        returns1: List[Tuple[datetime, float]],
+        returns2: List[Tuple[datetime, float]],
+    ) -> List[Tuple[datetime, float, float]]:
         """Align two return series by date."""
         dict1 = {date.date(): ret for date, ret in returns1}
         dict2 = {date.date(): ret for date, ret in returns2}
@@ -725,12 +794,18 @@ class AlpacaRiskClient:
             "base_url": self.base_url,
             "data_url": self.data_url,
             "paper_trading": self.alpaca_config.paper_trading,
-            "api_key": self.alpaca_config.api_key[:8] + "..." if self.alpaca_config.api_key else None,
+            "api_key": (
+                self.alpaca_config.api_key[:8] + "..."
+                if self.alpaca_config.api_key
+                else None
+            ),
             "cache_ttl_seconds": self.cache_ttl.total_seconds(),
-            "min_request_interval_ms": self.min_request_interval.total_seconds() * 1000
+            "min_request_interval_ms": self.min_request_interval.total_seconds() * 1000,
         }
 
-    async def get_market_data_for_risk_calc(self, symbols: List[str], days: int = 60) -> Dict[str, Dict]:
+    async def get_market_data_for_risk_calc(
+        self, symbols: List[str], days: int = 60
+    ) -> Dict[str, Dict]:
         """
         Get comprehensive market data for risk calculations.
 
@@ -759,8 +834,8 @@ class AlpacaRiskClient:
                         # Calculate returns
                         returns = []
                         for i in range(1, len(prices)):
-                            if prices[i-1] > 0:
-                                ret = (prices[i] - prices[i-1]) / prices[i-1]
+                            if prices[i - 1] > 0:
+                                ret = (prices[i] - prices[i - 1]) / prices[i - 1]
                                 returns.append(ret)
 
                         if returns:
@@ -770,21 +845,27 @@ class AlpacaRiskClient:
                             avg_return = np.mean(returns) * 252  # Annualized
 
                             market_data[symbol] = {
-                                "current_price": current_prices.get(symbol, Decimal("0")),
+                                "current_price": current_prices.get(
+                                    symbol, Decimal("0")
+                                ),
                                 "volatility": volatility,
                                 "avg_return": avg_return,
-                                "price_history": historical_prices[-30:],  # Last 30 days
+                                "price_history": historical_prices[
+                                    -30:
+                                ],  # Last 30 days
                                 "returns": returns[-30:],  # Last 30 returns
-                                "data_points": len(historical_prices)
+                                "data_points": len(historical_prices),
                             }
                         else:
                             market_data[symbol] = {
-                                "current_price": current_prices.get(symbol, Decimal("0")),
+                                "current_price": current_prices.get(
+                                    symbol, Decimal("0")
+                                ),
                                 "volatility": 0.20,  # Default
                                 "avg_return": 0.0,
                                 "price_history": [],
                                 "returns": [],
-                                "data_points": 0
+                                "data_points": 0,
                             }
                     else:
                         market_data[symbol] = {
@@ -793,7 +874,7 @@ class AlpacaRiskClient:
                             "avg_return": 0.0,
                             "price_history": [],
                             "returns": [],
-                            "data_points": 0
+                            "data_points": 0,
                         }
 
                 except Exception as e:
@@ -826,10 +907,12 @@ class AlpacaRiskClient:
                 "major_indices": {
                     symbol: str(price) for symbol, price in index_prices.items()
                 },
-                "vix": str(vix_data["bid"]) if vix_data and vix_data["bid"] > 0 else None,
+                "vix": (
+                    str(vix_data["bid"]) if vix_data and vix_data["bid"] > 0 else None
+                ),
                 "market_volatility": "normal",  # Would calculate from market data
                 "trading_session": self._get_trading_session(),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             return conditions
@@ -839,7 +922,7 @@ class AlpacaRiskClient:
             return {
                 "market_open": False,
                 "trading_session": "unknown",
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
     def _get_trading_session(self) -> str:
@@ -881,7 +964,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         position_data = await response.json()
                         return position_data
@@ -889,7 +974,9 @@ class AlpacaRiskClient:
                         # No position for this symbol
                         return None
                     else:
-                        logger.error(f"Failed to get position details for {symbol}: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get position details for {symbol}: HTTP {response.status}"
+                        )
                         return None
 
         except Exception as e:
@@ -905,12 +992,16 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         config_data = await response.json()
                         return config_data
                     else:
-                        logger.error(f"Failed to get account configuration: HTTP {response.status}")
+                        logger.error(
+                            f"Failed to get account configuration: HTTP {response.status}"
+                        )
                         return {}
 
         except Exception as e:
@@ -926,7 +1017,9 @@ class AlpacaRiskClient:
 
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=self.headers, timeout=timeout) as response:
+                async with session.get(
+                    url, headers=self.headers, timeout=timeout
+                ) as response:
                     if response.status == 200:
                         # In a real implementation, you'd check the shortable attribute
                         # For now, assume most stocks are shortable
@@ -938,7 +1031,9 @@ class AlpacaRiskClient:
             logger.error(f"Error checking if {symbol} is shortable: {e}")
             return False
 
-    async def get_trade_history(self, symbol: Optional[str] = None, days: int = 30) -> List[Dict]:
+    async def get_trade_history(
+        self, symbol: Optional[str] = None, days: int = 30
+    ) -> List[Dict]:
         """Get trade history for performance analysis."""
         try:
             # Get account activities (fills)
@@ -950,7 +1045,9 @@ class AlpacaRiskClient:
 
             for activity in activities:
                 try:
-                    activity_date = datetime.fromisoformat(activity["date"].replace("Z", "+00:00"))
+                    activity_date = datetime.fromisoformat(
+                        activity["date"].replace("Z", "+00:00")
+                    )
 
                     if activity_date < cutoff_date:
                         continue
@@ -965,7 +1062,7 @@ class AlpacaRiskClient:
                         "price": Decimal(str(activity.get("price", 0))),
                         "timestamp": activity_date,
                         "order_id": activity.get("order_id"),
-                        "trade_id": activity.get("transaction_id")
+                        "trade_id": activity.get("transaction_id"),
                     }
                     trades.append(trade_info)
 
@@ -980,7 +1077,9 @@ class AlpacaRiskClient:
             logger.error(f"Error getting trade history: {e}")
             return []
 
-    async def calculate_realized_pnl(self, symbol: Optional[str] = None, days: int = 1) -> Decimal:
+    async def calculate_realized_pnl(
+        self, symbol: Optional[str] = None, days: int = 1
+    ) -> Decimal:
         """Calculate realized P&L for a symbol or entire portfolio."""
         try:
             trades = await self.get_trade_history(symbol, days)
@@ -1062,7 +1161,7 @@ class AlpacaRiskClient:
                 "recent_trades": recent_trades,
                 "market_conditions": market_conditions,
                 "symbols": symbols,
-                "data_timestamp": datetime.now(timezone.utc).isoformat()
+                "data_timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             logger.debug(f"Compiled risk metrics data for {len(symbols)} symbols")

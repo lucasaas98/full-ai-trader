@@ -11,13 +11,13 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 import redis.asyncio as redis
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,9 @@ class ScreenerUpdateTester:
     async def initialize(self):
         """Initialize Redis connection."""
         try:
-            self.redis_client = redis.from_url("redis://localhost:6379", decode_responses=True)
+            self.redis_client = redis.from_url(
+                "redis://localhost:6379", decode_responses=True
+            )
             await self.redis_client.ping()
             logger.info("Connected to Redis for testing")
         except Exception as e:
@@ -73,16 +75,22 @@ class ScreenerUpdateTester:
             async for message in pubsub.listen():
                 if message["type"] == "message":
                     data = json.loads(message["data"])
-                    self.received_messages.append({
-                        "subscriber": name,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                        "data": data
-                    })
-                    logger.info(f"Subscriber {name} received screener update with {len(data.get('data', []))} stocks")
+                    self.received_messages.append(
+                        {
+                            "subscriber": name,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "data": data,
+                        }
+                    )
+                    logger.info(
+                        f"Subscriber {name} received screener update with {len(data.get('data', []))} stocks"
+                    )
         except Exception as e:
             logger.error(f"Error in subscriber {name}: {e}")
 
-    async def publish_test_screener_update(self, screener_type: str = "test_momentum") -> Dict[str, Any]:
+    async def publish_test_screener_update(
+        self, screener_type: str = "test_momentum"
+    ) -> Dict[str, Any]:
         """
         Publish a test screener update.
 
@@ -105,7 +113,7 @@ class ScreenerUpdateTester:
                 "price": 175.50,
                 "change": 2.3,
                 "volume": 50000000,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             {
                 "symbol": "GOOGL",
@@ -118,7 +126,7 @@ class ScreenerUpdateTester:
                 "price": 145.20,
                 "change": 1.8,
                 "volume": 35000000,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             {
                 "symbol": "TSLA",
@@ -131,21 +139,23 @@ class ScreenerUpdateTester:
                 "price": 250.75,
                 "change": 3.5,
                 "volume": 75000000,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            },
         ]
 
         message = {
             "screener_type": screener_type,
             "data": test_stocks,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "count": len(test_stocks)
+            "count": len(test_stocks),
         }
 
         try:
             # Publish to screener:updates channel
             await self.redis_client.publish("screener:updates", json.dumps(message))
-            logger.info(f"Published test screener update: {screener_type} with {len(test_stocks)} stocks")
+            logger.info(
+                f"Published test screener update: {screener_type} with {len(test_stocks)} stocks"
+            )
 
             # Also cache like the real system does
             cache_key = f"screener_cache:{screener_type}"
@@ -174,7 +184,9 @@ class ScreenerUpdateTester:
 
             if cached_data:
                 data = json.loads(cached_data)
-                logger.info(f"Cache verification: Found {len(data.get('data', []))} stocks in cache")
+                logger.info(
+                    f"Cache verification: Found {len(data.get('data', []))} stocks in cache"
+                )
                 return True
             else:
                 logger.warning(f"Cache verification: No data found for key {cache_key}")
@@ -195,7 +207,7 @@ class ScreenerUpdateTester:
             "test_start": datetime.now(timezone.utc).isoformat(),
             "tests_passed": 0,
             "tests_failed": 0,
-            "details": []
+            "details": [],
         }
 
         try:
@@ -229,14 +241,18 @@ class ScreenerUpdateTester:
 
             # Test 4: Check message reception
             if len(self.received_messages) > 0:
-                results["details"].append(f"✅ Received {len(self.received_messages)} messages from subscribers")
+                results["details"].append(
+                    f"✅ Received {len(self.received_messages)} messages from subscribers"
+                )
                 results["tests_passed"] += 1
 
                 # Log details of received messages
                 for msg in self.received_messages:
                     subscriber = msg["subscriber"]
                     stock_count = len(msg["data"].get("data", []))
-                    results["details"].append(f"  - {subscriber}: processed {stock_count} stocks")
+                    results["details"].append(
+                        f"  - {subscriber}: processed {stock_count} stocks"
+                    )
             else:
                 results["details"].append("❌ No messages received by test subscribers")
                 results["tests_failed"] += 1
@@ -255,7 +271,11 @@ class ScreenerUpdateTester:
 
         results["test_end"] = datetime.now(timezone.utc).isoformat()
         results["total_messages_received"] = len(self.received_messages)
-        results["success_rate"] = results["tests_passed"] / (results["tests_passed"] + results["tests_failed"]) * 100
+        results["success_rate"] = (
+            results["tests_passed"]
+            / (results["tests_passed"] + results["tests_failed"])
+            * 100
+        )
 
         return results
 
@@ -290,9 +310,9 @@ async def main():
         results = await tester.test_subscriber_integration()
 
         # Display results
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📊 SCREENER SUBSCRIBER TEST RESULTS")
-        print("="*60)
+        print("=" * 60)
         print(f"Tests Passed: {results['tests_passed']}")
         print(f"Tests Failed: {results['tests_failed']}")
         print(f"Success Rate: {results['success_rate']:.1f}%")
@@ -300,11 +320,13 @@ async def main():
         print("\nDetails:")
         for detail in results["details"]:
             print(f"  {detail}")
-        print("="*60)
+        print("=" * 60)
 
         # Recommend next steps
         if results["tests_failed"] == 0:
-            print("\n✅ All tests passed! Screener subscriber integration is working correctly.")
+            print(
+                "\n✅ All tests passed! Screener subscriber integration is working correctly."
+            )
             print("\n📝 Next steps:")
             print("  1. Deploy services and verify real screener updates")
             print("  2. Monitor logs for subscriber activity")
@@ -314,7 +336,9 @@ async def main():
             print("\n🔧 Troubleshooting:")
             print("  1. Verify Redis is running and accessible")
             print("  2. Check that services are subscribing to screener:updates")
-            print("  3. Verify Redis channel names match between publisher and subscribers")
+            print(
+                "  3. Verify Redis channel names match between publisher and subscribers"
+            )
             print("  4. Check service logs for connection errors")
 
     except Exception as e:

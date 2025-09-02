@@ -5,13 +5,14 @@ These tests will work once the aioredis import issues are resolved.
 They test the actual service integration and business logic flows.
 """
 
-import pytest
 import asyncio
-import tempfile
 import os
-from unittest.mock import AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
+import tempfile
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 # These imports will work once aioredis issues are resolved
 # from services.data_collector.src.data_collection_service import DataCollectionService, DataCollectionConfig
@@ -27,24 +28,24 @@ class TestDataCollectionServiceIntegration:
     async def service_config(self):
         """Create test service configuration"""
         return {
-            'service_name': 'test_data_collector',
-            'enable_finviz': True,
-            'enable_twelvedata': True,
-            'enable_redis': False,  # Disable Redis for tests
-            'max_active_tickers': 5,
-            'finviz_scan_interval': 60,
-            'max_retries': 2,
-            'retry_delay': 0.1
+            "service_name": "test_data_collector",
+            "enable_finviz": True,
+            "enable_twelvedata": True,
+            "enable_redis": False,  # Disable Redis for tests
+            "max_active_tickers": 5,
+            "finviz_scan_interval": 60,
+            "max_retries": 2,
+            "retry_delay": 0.1,
         }
 
     @pytest.fixture
     async def mock_data_store(self, tmp_path):
         """Create mock data store with temporary directory"""
         config = {
-            'base_path': str(tmp_path),
-            'compression': 'snappy',
-            'batch_size': 100,
-            'retention_days': 30
+            "base_path": str(tmp_path),
+            "compression": "snappy",
+            "batch_size": 100,
+            "retention_days": 30,
         }
         # return DataStore(DataStoreConfig(**config))
         return MagicMock()
@@ -102,17 +103,17 @@ class TestDataCollectionServiceIntegration:
         mock_finviz = AsyncMock()
         mock_finviz.scan_stocks.return_value = [
             {
-                'ticker': 'AAPL',
-                'symbol': 'AAPL',
-                'company': 'Apple Inc.',
-                'industry': 'Technology',
-                'country': 'USA',
-                'price': Decimal('150.25'),
-                'change': 0.25,
-                'volume': 1500000,
-                'market_cap': Decimal('2500000000000'),
-                'pe_ratio': 25.5,
-                'sector': 'Technology'
+                "ticker": "AAPL",
+                "symbol": "AAPL",
+                "company": "Apple Inc.",
+                "industry": "Technology",
+                "country": "USA",
+                "price": Decimal("150.25"),
+                "change": 0.25,
+                "volume": 1500000,
+                "market_cap": Decimal("2500000000000"),
+                "pe_ratio": 25.5,
+                "sector": "Technology",
             }
         ]
 
@@ -129,14 +130,14 @@ class TestDataCollectionServiceIntegration:
         # Mock TwelveData client
         mock_twelve_data = AsyncMock()
         mock_twelve_data.get_time_series.return_value = {
-            'values': [
+            "values": [
                 {
-                    'datetime': '2024-01-01 15:59:00',
-                    'open': '150.00',
-                    'high': '150.50',
-                    'low': '149.75',
-                    'close': '150.25',
-                    'volume': '1500000'
+                    "datetime": "2024-01-01 15:59:00",
+                    "open": "150.00",
+                    "high": "150.50",
+                    "low": "149.75",
+                    "close": "150.25",
+                    "volume": "1500000",
                 }
             ]
         }
@@ -229,7 +230,7 @@ class TestDataStoreIntegration:
                 low=Decimal("149.0"),
                 close=Decimal("150.5"),
                 volume=1000000,
-                adjusted_close=Decimal("150.5")
+                adjusted_close=Decimal("150.5"),
             ),
             MarketData(
                 symbol="AAPL",
@@ -240,8 +241,8 @@ class TestDataStoreIntegration:
                 low=Decimal("150.0"),
                 close=Decimal("151.0"),
                 volume=1100000,
-                adjusted_close=Decimal("151.0")
-            )
+                adjusted_close=Decimal("151.0"),
+            ),
         ]
 
         # Store data
@@ -259,13 +260,18 @@ class TestDataStoreIntegration:
         # assert retrieved_data[0].close == Decimal("150.5")
         pass
 
-    async def test_data_compression_and_storage_efficiency(self, data_store, temp_data_path):
+    async def test_data_compression_and_storage_efficiency(
+        self, data_store, temp_data_path
+    ):
         """Test data compression and storage efficiency"""
-        from shared.models import MarketData, TimeFrame
         import pandas as pd
 
+        from shared.models import MarketData, TimeFrame
+
         # Create large dataset
-        timestamps = pd.date_range('2024-01-01 09:30:00', periods=1000, freq='1min', tz=timezone.utc)
+        timestamps = pd.date_range(
+            "2024-01-01 09:30:00", periods=1000, freq="1min", tz=timezone.utc
+        )
         market_data = []
 
         for i, timestamp in enumerate(timestamps):
@@ -279,7 +285,7 @@ class TestDataStoreIntegration:
                     low=Decimal(f"{99.5 + i * 0.01:.2f}"),
                     close=Decimal(f"{100.25 + i * 0.01:.2f}"),
                     volume=1000 + i,
-                    adjusted_close=Decimal(f"{100.25 + i * 0.01:.2f}")
+                    adjusted_close=Decimal(f"{100.25 + i * 0.01:.2f}"),
                 )
             )
 
@@ -312,7 +318,7 @@ class TestDataStoreIntegration:
             low=Decimal("99.0"),
             close=Decimal("100.5"),
             volume=1000000,
-            adjusted_close=Decimal("100.5")
+            adjusted_close=Decimal("100.5"),
         )
 
         # Create recent data that should be kept
@@ -326,7 +332,7 @@ class TestDataStoreIntegration:
             low=Decimal("149.0"),
             close=Decimal("150.5"),
             volume=1000000,
-            adjusted_close=Decimal("150.5")
+            adjusted_close=Decimal("150.5"),
         )
 
         # Store both datasets
@@ -420,10 +426,11 @@ class TestDataCollectorPerformance:
 
 # Helper functions for integration tests
 
+
 def create_sample_finviz_data(symbols=None):
     """Create sample FinViz data for testing"""
     if symbols is None:
-        symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
+        symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
 
     from shared.models import FinVizData
 
@@ -441,7 +448,7 @@ def create_sample_finviz_data(symbols=None):
                 volume=1000000 + i * 100000,
                 market_cap=Decimal(f"{1000000000000 + i * 100000000000}"),
                 pe_ratio=20.0 + i * 2.0,
-                sector="Technology"
+                sector="Technology",
             )
         )
 
@@ -450,11 +457,12 @@ def create_sample_finviz_data(symbols=None):
 
 def create_sample_market_data(symbol="AAPL", count=100):
     """Create sample market data for testing"""
-    from shared.models import MarketData, TimeFrame
     import pandas as pd
 
+    from shared.models import MarketData, TimeFrame
+
     base_time = datetime(2024, 1, 1, 9, 30, tzinfo=timezone.utc)
-    timestamps = pd.date_range(base_time, periods=count, freq='1min')
+    timestamps = pd.date_range(base_time, periods=count, freq="1min")
 
     market_data = []
     base_price = 150.0
@@ -474,7 +482,7 @@ def create_sample_market_data(symbol="AAPL", count=100):
                 low=Decimal(f"{current_price - 0.3:.2f}"),
                 close=Decimal(f"{current_price + 0.1:.2f}"),
                 volume=1000000 + i * 1000,
-                adjusted_close=Decimal(f"{current_price + 0.1:.2f}")
+                adjusted_close=Decimal(f"{current_price + 0.1:.2f}"),
             )
         )
 
@@ -518,21 +526,21 @@ class MockTimeProvider:
 # Configuration for integration tests
 
 INTEGRATION_TEST_CONFIG = {
-    'service_name': 'integration_test_collector',
-    'enable_finviz': True,
-    'enable_twelvedata': True,
-    'enable_redis': False,  # Disable for tests
-    'max_active_tickers': 10,
-    'finviz_scan_interval': 60,
-    'price_update_interval_5m': 300,
-    'max_retries': 2,
-    'retry_delay': 0.1,
-    'concurrent_downloads': 5,
-    'batch_size': 50
+    "service_name": "integration_test_collector",
+    "enable_finviz": True,
+    "enable_twelvedata": True,
+    "enable_redis": False,  # Disable for tests
+    "max_active_tickers": 10,
+    "finviz_scan_interval": 60,
+    "price_update_interval_5m": 300,
+    "max_retries": 2,
+    "retry_delay": 0.1,
+    "concurrent_downloads": 5,
+    "batch_size": 50,
 }
 
 TEST_DATA_STORE_CONFIG = {
-    'compression': 'snappy',
-    'batch_size': 100,
-    'retention_days': 30
+    "compression": "snappy",
+    "batch_size": 100,
+    "retention_days": 30,
 }

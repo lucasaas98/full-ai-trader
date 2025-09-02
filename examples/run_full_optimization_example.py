@@ -16,11 +16,11 @@ Usage:
 """
 
 import asyncio
-import sys
-import os
-from pathlib import Path
-from datetime import datetime
 import logging
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
 
 # Add project paths
 project_root = Path(__file__).parent.parent
@@ -30,11 +30,8 @@ sys.path.append(str(project_root / "backtesting"))
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('optimization_example.log')
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(), logging.FileHandler("optimization_example.log")],
 )
 logger = logging.getLogger(__name__)
 
@@ -43,7 +40,7 @@ async def run_optimization_example():
     """Run the complete optimization example workflow."""
 
     print("🚀 COMPLETE TRADING STRATEGY OPTIMIZATION EXAMPLE")
-    print("="*70)
+    print("=" * 70)
     print("This example will:")
     print("1. Optimize parameters for day trading strategy")
     print("2. Optimize parameters for swing trading strategy")
@@ -54,16 +51,19 @@ async def run_optimization_example():
 
     # Import the optimization modules
     try:
-        from optimize_strategy_parameters import ParameterOptimizer, generate_test_periods
         from analyze_optimization_results import OptimizationAnalyzer
+        from optimize_strategy_parameters import (
+            ParameterOptimizer,
+            generate_test_periods,
+        )
     except ImportError as e:
         print(f"❌ Import error: {e}")
         print("Make sure you're running from the project root directory")
         return
 
     # Configuration
-    strategies_to_optimize = ['day_trading', 'swing_trading']
-    optimization_level = 'standard'  # standard, quick, or detailed
+    strategies_to_optimize = ["day_trading", "swing_trading"]
+    optimization_level = "standard"  # standard, quick, or detailed
     num_periods = 6  # Number of 30-day test periods
     initial_capital = 100000  # Starting capital for each test
 
@@ -88,7 +88,9 @@ async def run_optimization_example():
     optimization_results = {}
 
     for strategy_type in strategies_to_optimize:
-        print(f"🎯 Step 2.{len(optimization_results)+1}: Optimizing {strategy_type.replace('_', ' ').title()} Strategy")
+        print(
+            f"🎯 Step 2.{len(optimization_results)+1}: Optimizing {strategy_type.replace('_', ' ').title()} Strategy"
+        )
         print("-" * 60)
 
         try:
@@ -96,7 +98,7 @@ async def run_optimization_example():
             optimizer = ParameterOptimizer(
                 strategy_type=strategy_type,
                 test_periods=test_periods,
-                initial_capital=initial_capital
+                initial_capital=initial_capital,
             )
 
             # Run optimization
@@ -121,9 +123,9 @@ async def run_optimization_example():
 
                 # Store results
                 optimization_results[strategy_type] = {
-                    'optimizer': optimizer,
-                    'summaries': summaries,
-                    'best_config': best
+                    "optimizer": optimizer,
+                    "summaries": summaries,
+                    "best_config": best,
                 }
 
                 # Save results
@@ -153,24 +155,30 @@ async def run_optimization_example():
 
             comparison_data = []
             for strategy_type, results in optimization_results.items():
-                best = results['best_config']
-                comparison_data.append({
-                    'Strategy': strategy_type.replace('_', ' ').title(),
-                    'Best Config': best.parameter_set.name,
-                    'Avg Return': f"{best.avg_return:.2%}",
-                    'Max Drawdown': f"{best.avg_max_drawdown:.2%}",
-                    'Win Rate': f"{best.avg_win_rate:.1%}",
-                    'Risk-Adj Score': f"{best.risk_adjusted_score:.3f}",
-                    'Total Trades': best.total_trades,
-                    'Profitable Periods': f"{best.periods_profitable}/{best.periods_tested}"
-                })
+                best = results["best_config"]
+                comparison_data.append(
+                    {
+                        "Strategy": strategy_type.replace("_", " ").title(),
+                        "Best Config": best.parameter_set.name,
+                        "Avg Return": f"{best.avg_return:.2%}",
+                        "Max Drawdown": f"{best.avg_max_drawdown:.2%}",
+                        "Win Rate": f"{best.avg_win_rate:.1%}",
+                        "Risk-Adj Score": f"{best.risk_adjusted_score:.3f}",
+                        "Total Trades": best.total_trades,
+                        "Profitable Periods": f"{best.periods_profitable}/{best.periods_tested}",
+                    }
+                )
 
             # Display comparison table
-            print(f"{'Strategy':<15} {'Config':<15} {'Return':<10} {'Drawdown':<10} {'Win Rate':<10} {'Score':<8}")
+            print(
+                f"{'Strategy':<15} {'Config':<15} {'Return':<10} {'Drawdown':<10} {'Win Rate':<10} {'Score':<8}"
+            )
             print("-" * 80)
             for data in comparison_data:
-                print(f"{data['Strategy']:<15} {data['Best Config']:<15} {data['Avg Return']:<10} "
-                      f"{data['Max Drawdown']:<10} {data['Win Rate']:<10} {data['Risk-Adj Score']:<8}")
+                print(
+                    f"{data['Strategy']:<15} {data['Best Config']:<15} {data['Avg Return']:<10} "
+                    f"{data['Max Drawdown']:<10} {data['Win Rate']:<10} {data['Risk-Adj Score']:<8}"
+                )
             print()
 
         # Generate detailed insights for each strategy
@@ -178,8 +186,8 @@ async def run_optimization_example():
             print(f"🔍 DETAILED ANALYSIS: {strategy_type.replace('_', ' ').title()}")
             print("=" * 50)
 
-            summaries = results['summaries']
-            best = results['best_config']
+            summaries = results["summaries"]
+            best = results["best_config"]
 
             # Parameter recommendations
             print("📋 RECOMMENDED PARAMETER CONFIGURATION:")
@@ -216,7 +224,9 @@ async def run_optimization_example():
                 # Most consistent (if profitable)
                 profitable_configs = [s for s in summaries if s.avg_return > 0]
                 if profitable_configs:
-                    most_consistent = max(profitable_configs, key=lambda x: x.consistency_score)
+                    most_consistent = max(
+                        profitable_configs, key=lambda x: x.consistency_score
+                    )
                     if most_consistent != best:
                         print(f"Most Consistent: {most_consistent.parameter_set.name}")
                         print(f"  Return: {most_consistent.avg_return:.2%}")
@@ -250,14 +260,22 @@ async def run_optimization_example():
         print("=" * 25)
 
         for strategy_type, results in optimization_results.items():
-            best = results['best_config']
+            best = results["best_config"]
 
-            print(f"\n{strategy_type.replace('_', ' ').title()} Strategy Implementation:")
-            print(f"1. Update your strategy configuration to use: {best.parameter_set.name}")
+            print(
+                f"\n{strategy_type.replace('_', ' ').title()} Strategy Implementation:"
+            )
+            print(
+                f"1. Update your strategy configuration to use: {best.parameter_set.name}"
+            )
             print(f"2. Set stop loss to {best.parameter_set.stop_loss_pct:.1%}")
             print(f"3. Set take profit to {best.parameter_set.take_profit_pct:.1%}")
-            print(f"4. Use minimum confidence threshold of {best.parameter_set.min_confidence:.1f}%")
-            print(f"5. Limit position sizes to {best.parameter_set.max_position_size:.1%} of portfolio")
+            print(
+                f"4. Use minimum confidence threshold of {best.parameter_set.min_confidence:.1f}%"
+            )
+            print(
+                f"5. Limit position sizes to {best.parameter_set.max_position_size:.1%} of portfolio"
+            )
 
             # Risk assessment
             if best.avg_return > 0:
@@ -313,7 +331,9 @@ async def run_optimization_example():
         if analyzer.results_data:
             # Generate comprehensive report
             analyzer.generate_report("comprehensive_optimization_report.txt")
-            print("✅ Comprehensive analysis report saved: comprehensive_optimization_report.txt")
+            print(
+                "✅ Comprehensive analysis report saved: comprehensive_optimization_report.txt"
+            )
 
             # Generate plots if possible
             try:
@@ -368,7 +388,9 @@ if __name__ == "__main__":
     # Check if running from correct directory
     if not Path("backtesting").exists():
         print("❌ Please run this script from the project root directory")
-        print("   Expected structure: full-ai-trader/examples/run_full_optimization_example.py")
+        print(
+            "   Expected structure: full-ai-trader/examples/run_full_optimization_example.py"
+        )
         sys.exit(1)
 
     exit_code = asyncio.run(main())

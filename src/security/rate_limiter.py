@@ -19,23 +19,24 @@ Features:
 """
 
 import asyncio
-import time
-import json
 import hashlib
+import json
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
 from enum import Enum
-from dataclasses import dataclass, asdict, field
-import structlog
+from typing import Any, Dict, List, Optional, Tuple
 
+import structlog
+from prometheus_client import Counter, Gauge, Histogram
 from redis import asyncio as aioredis
-from prometheus_client import Counter, Histogram, Gauge
 
 logger = structlog.get_logger(__name__)
 
 
 class RateLimitAlgorithm(Enum):
     """Rate limiting algorithms"""
+
     TOKEN_BUCKET = "token_bucket"
     SLIDING_WINDOW = "sliding_window"
     FIXED_WINDOW = "fixed_window"
@@ -44,6 +45,7 @@ class RateLimitAlgorithm(Enum):
 
 class RateLimitScope(Enum):
     """Rate limit scope"""
+
     GLOBAL = "global"
     PER_USER = "per_user"
     PER_IP = "per_ip"
@@ -54,6 +56,7 @@ class RateLimitScope(Enum):
 @dataclass
 class RateLimitRule:
     """Rate limit rule configuration"""
+
     name: str
     algorithm: RateLimitAlgorithm
     scope: RateLimitScope
@@ -79,6 +82,7 @@ class RateLimitRule:
 @dataclass
 class RateLimitResult:
     """Result of rate limit check"""
+
     allowed: bool
     remaining: int
     reset_time: float
@@ -90,7 +94,13 @@ class RateLimitResult:
 class TokenBucket:
     """Token bucket rate limiter implementation"""
 
-    def __init__(self, capacity: int, refill_rate: float, redis_client: aioredis.Redis, key_prefix: str):
+    def __init__(
+        self,
+        capacity: int,
+        refill_rate: float,
+        redis_client: aioredis.Redis,
+        key_prefix: str,
+    ):
         self.capacity = capacity
         self.refill_rate = refill_rate  # tokens per second
         self.redis = redis_client
@@ -132,13 +142,7 @@ class TokenBucket:
         """
 
         result = await self.redis.eval(
-            lua_script,
-            1,
-            key,
-            self.capacity,
-            self.refill_rate,
-            tokens,
-            now
+            lua_script, 1, key, self.capacity, self.refill_rate, tokens, now
         )
 
         allowed = bool(result[0])
@@ -150,14 +154,20 @@ class TokenBucket:
             remaining=remaining,
             reset_time=reset_time,
             retry_after=int(reset_time - now) if not allowed else None,
-            current_usage=self.capacity - remaining
+            current_usage=self.capacity - remaining,
         )
 
 
 class SlidingWindowLimiter:
     """Sliding window rate limiter implementation"""
 
-    def __init__(self, requests: int, window_seconds: int, redis_client: aioredis.Redis, key_prefix: str):
+    def __init__(
+        self,
+        requests: int,
+        window_seconds: int,
+        redis_client: aioredis.Redis,
+        key_prefix: str,
+    ):
         self.requests = requests
         self.window_seconds = window_seconds
         self.redis = redis_client
@@ -199,12 +209,7 @@ class SlidingWindowLimiter:
         """
 
         result = await self.redis.eval(
-            lua_script,
-            1,
-            key,
-            window_start,
-            now,
-            self.requests
+            lua_script, 1, key, window_start, now, self.requests
         )
 
         allowed = bool(result[0])
@@ -216,14 +221,16 @@ class SlidingWindowLimiter:
             remaining=remaining,
             reset_time=reset_time,
             retry_after=int(reset_time - now) if not allowed else None,
-            current_usage=self.requests - remaining
+            current_usage=self.requests - remaining,
         )
 
 
 class AdaptiveRateLimiter:
     """Adaptive rate limiter that adjusts based on system load"""
 
-    def __init__(self, base_rule: RateLimitRule, redis_client: aioredis.Redis, key_prefix: str):
+    def __init__(
+        self, base_rule: RateLimitRule, redis_client: aioredis.Redis, key_prefix: str
+    ):
         self.base_rule = base_rule
         self.redis = redis_client
         self.key_prefix = key_prefix
@@ -243,15 +250,18 @@ class AdaptiveRateLimiter:
             if not load_data:
                 return 0.5  # Default moderate load
 
-            cpu_usage = float(load_data.get('cpu_usage', 0)) / 100
-            memory_usage = float(load_data.get('memory_usage', 0)) / 100
-            active_connections = int(load_data.get('active_connections', 0))
-            error_rate = float(load_data.get('error_rate', 0))
+            cpu_usage = float(load_data.get("cpu_usage", 0)) / 100
+            memory_usage = float(load_data.get("memory_usage", 0)) / 100
+            active_connections = int(load_data.get("active_connections", 0))
+            error_rate = float(load_data.get("error_rate", 0))
 
             # Calculate composite load score
-            load_score = (cpu_usage * 0.3 + memory_usage * 0.3 +
-                         min(active_connections / 1000, 1.0) * 0.2 +
-                         error_rate * 0.2)
+            load_score = (
+                cpu_usage * 0.3
+                + memory_usage * 0.3
+                + min(active_connections / 1000, 1.0) * 0.2
+                + error_rate * 0.2
+            )
 
             return min(1.0, load_score)
 
@@ -265,12 +275,16 @@ class AdaptiveRateLimiter:
 
         if system_load > self.base_rule.load_threshold:
             # High load - reduce limits
-            reduction_factor = min(0.5, (system_load - self.base_rule.load_threshold) * 2)
+            reduction_factor = min(
+                0.5, (system_load - self.base_rule.load_threshold) * 2
+            )
             adapted_limit = int(self.base_rule.requests * (1 - reduction_factor))
             self.current_limit = max(self.min_limit, adapted_limit)
         else:
             # Normal/low load - allow higher limits
-            increase_factor = (self.base_rule.load_threshold - system_load) / self.base_rule.load_threshold
+            increase_factor = (
+                self.base_rule.load_threshold - system_load
+            ) / self.base_rule.load_threshold
             adapted_limit = int(self.base_rule.requests * (1 + increase_factor))
             self.current_limit = min(self.max_limit, adapted_limit)
 
@@ -282,10 +296,7 @@ class AdaptiveRateLimiter:
 
         # Use sliding window with adapted limit
         limiter = SlidingWindowLimiter(
-            current_limit,
-            self.base_rule.window_seconds,
-            self.redis,
-            self.key_prefix
+            current_limit, self.base_rule.window_seconds, self.redis, self.key_prefix
         )
 
         result = await limiter.check_limit(identifier)
@@ -313,21 +324,19 @@ class RateLimiter:
 
         # Metrics
         self.rate_limit_checks_total = Counter(
-            'rate_limit_checks_total',
-            'Total rate limit checks',
-            ['rule_name', 'scope', 'result']
+            "rate_limit_checks_total",
+            "Total rate limit checks",
+            ["rule_name", "scope", "result"],
         )
 
         self.rate_limit_duration = Histogram(
-            'rate_limit_check_duration_seconds',
-            'Time spent on rate limit checks',
-            ['algorithm']
+            "rate_limit_check_duration_seconds",
+            "Time spent on rate limit checks",
+            ["algorithm"],
         )
 
         self.current_rate_limits = Gauge(
-            'current_rate_limits',
-            'Current rate limit values',
-            ['rule_name', 'scope']
+            "current_rate_limits", "Current rate limit values", ["rule_name", "scope"]
         )
 
         # Initialize default rules
@@ -336,72 +345,86 @@ class RateLimiter:
     def _initialize_default_rules(self):
         """Initialize default rate limiting rules"""
         # Global API rate limit
-        self.add_rule(RateLimitRule(
-            name="global_api",
-            algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
-            scope=RateLimitScope.GLOBAL,
-            requests=int(self.config.get("RATE_LIMIT_GLOBAL_REQUESTS", 1000)),
-            window_seconds=int(self.config.get("RATE_LIMIT_GLOBAL_WINDOW", 60)),
-            priority=100
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="global_api",
+                algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+                scope=RateLimitScope.GLOBAL,
+                requests=int(self.config.get("RATE_LIMIT_GLOBAL_REQUESTS", 1000)),
+                window_seconds=int(self.config.get("RATE_LIMIT_GLOBAL_WINDOW", 60)),
+                priority=100,
+            )
+        )
 
         # Per-user rate limit
-        self.add_rule(RateLimitRule(
-            name="per_user",
-            algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
-            scope=RateLimitScope.PER_USER,
-            requests=int(self.config.get("RATE_LIMIT_USER_REQUESTS", 100)),
-            window_seconds=int(self.config.get("RATE_LIMIT_USER_WINDOW", 60)),
-            burst_size=int(self.config.get("RATE_LIMIT_USER_BURST", 50)),
-            priority=80
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="per_user",
+                algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
+                scope=RateLimitScope.PER_USER,
+                requests=int(self.config.get("RATE_LIMIT_USER_REQUESTS", 100)),
+                window_seconds=int(self.config.get("RATE_LIMIT_USER_WINDOW", 60)),
+                burst_size=int(self.config.get("RATE_LIMIT_USER_BURST", 50)),
+                priority=80,
+            )
+        )
 
         # Per-IP rate limit
-        self.add_rule(RateLimitRule(
-            name="per_ip",
-            algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
-            scope=RateLimitScope.PER_IP,
-            requests=int(self.config.get("RATE_LIMIT_IP_REQUESTS", 200)),
-            window_seconds=int(self.config.get("RATE_LIMIT_IP_WINDOW", 60)),
-            priority=90
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="per_ip",
+                algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+                scope=RateLimitScope.PER_IP,
+                requests=int(self.config.get("RATE_LIMIT_IP_REQUESTS", 200)),
+                window_seconds=int(self.config.get("RATE_LIMIT_IP_WINDOW", 60)),
+                priority=90,
+            )
+        )
 
         # Trading-specific rate limits
-        self.add_rule(RateLimitRule(
-            name="trading_orders",
-            algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
-            scope=RateLimitScope.PER_USER,
-            requests=int(self.config.get("RATE_LIMIT_TRADING_REQUESTS", 20)),
-            window_seconds=int(self.config.get("RATE_LIMIT_TRADING_WINDOW", 60)),
-            burst_size=5,
-            priority=70,
-            conditions={"endpoint_pattern": "/api/v1/orders/*"}
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="trading_orders",
+                algorithm=RateLimitAlgorithm.TOKEN_BUCKET,
+                scope=RateLimitScope.PER_USER,
+                requests=int(self.config.get("RATE_LIMIT_TRADING_REQUESTS", 20)),
+                window_seconds=int(self.config.get("RATE_LIMIT_TRADING_WINDOW", 60)),
+                burst_size=5,
+                priority=70,
+                conditions={"endpoint_pattern": "/api/v1/orders/*"},
+            )
+        )
 
         # Market data rate limits
-        self.add_rule(RateLimitRule(
-            name="market_data",
-            algorithm=RateLimitAlgorithm.ADAPTIVE,
-            scope=RateLimitScope.PER_SERVICE,
-            requests=int(self.config.get("RATE_LIMIT_MARKET_DATA_REQUESTS", 500)),
-            window_seconds=int(self.config.get("RATE_LIMIT_MARKET_DATA_WINDOW", 60)),
-            min_requests=100,
-            max_requests=1000,
-            load_threshold=0.7,
-            priority=60,
-            conditions={"service_name": "data_collector"}
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="market_data",
+                algorithm=RateLimitAlgorithm.ADAPTIVE,
+                scope=RateLimitScope.PER_SERVICE,
+                requests=int(self.config.get("RATE_LIMIT_MARKET_DATA_REQUESTS", 500)),
+                window_seconds=int(
+                    self.config.get("RATE_LIMIT_MARKET_DATA_WINDOW", 60)
+                ),
+                min_requests=100,
+                max_requests=1000,
+                load_threshold=0.7,
+                priority=60,
+                conditions={"service_name": "data_collector"},
+            )
+        )
 
         # Admin API rate limits (higher limits)
-        self.add_rule(RateLimitRule(
-            name="admin_api",
-            algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
-            scope=RateLimitScope.PER_USER,
-            requests=int(self.config.get("RATE_LIMIT_ADMIN_REQUESTS", 500)),
-            window_seconds=int(self.config.get("RATE_LIMIT_ADMIN_WINDOW", 60)),
-            priority=50,
-            conditions={"user_role": "admin"}
-        ))
+        self.add_rule(
+            RateLimitRule(
+                name="admin_api",
+                algorithm=RateLimitAlgorithm.SLIDING_WINDOW,
+                scope=RateLimitScope.PER_USER,
+                requests=int(self.config.get("RATE_LIMIT_ADMIN_REQUESTS", 500)),
+                window_seconds=int(self.config.get("RATE_LIMIT_ADMIN_WINDOW", 60)),
+                priority=50,
+                conditions={"user_role": "admin"},
+            )
+        )
 
     def add_rule(self, rule: RateLimitRule):
         """Add a rate limiting rule"""
@@ -413,32 +436,33 @@ class RateLimiter:
                 capacity=rule.burst_size or rule.requests,
                 refill_rate=rule.requests / rule.window_seconds,
                 redis_client=self.redis,
-                key_prefix=f"{self.key_prefix}:{rule.name}"
+                key_prefix=f"{self.key_prefix}:{rule.name}",
             )
         elif rule.algorithm == RateLimitAlgorithm.SLIDING_WINDOW:
             self.limiters[rule.name] = SlidingWindowLimiter(
                 requests=rule.requests,
                 window_seconds=rule.window_seconds,
                 redis_client=self.redis,
-                key_prefix=f"{self.key_prefix}:{rule.name}"
+                key_prefix=f"{self.key_prefix}:{rule.name}",
             )
         elif rule.algorithm == RateLimitAlgorithm.ADAPTIVE:
             self.limiters[rule.name] = AdaptiveRateLimiter(
                 base_rule=rule,
                 redis_client=self.redis,
-                key_prefix=f"{self.key_prefix}:{rule.name}"
+                key_prefix=f"{self.key_prefix}:{rule.name}",
             )
 
         # Update metrics
         self.current_rate_limits.labels(
-            rule_name=rule.name,
-            scope=rule.scope.value
+            rule_name=rule.name, scope=rule.scope.value
         ).set(rule.requests)
 
-        logger.info("Rate limit rule added",
-                   rule_name=rule.name,
-                   algorithm=rule.algorithm.value,
-                   requests=rule.requests)
+        logger.info(
+            "Rate limit rule added",
+            rule_name=rule.name,
+            algorithm=rule.algorithm.value,
+            requests=rule.requests,
+        )
 
     def remove_rule(self, rule_name: str):
         """Remove a rate limiting rule"""
@@ -448,14 +472,16 @@ class RateLimiter:
                 del self.limiters[rule_name]
             logger.info("Rate limit rule removed", rule_name=rule_name)
 
-    async def check_rate_limit(self,
-                              identifier: str,
-                              scope: RateLimitScope = RateLimitScope.PER_USER,
-                              endpoint: str = "",
-                              user_id: Optional[str] = None,
-                              source_ip: Optional[str] = None,
-                              service_name: Optional[str] = None,
-                              user_role: Optional[str] = None) -> RateLimitResult:
+    async def check_rate_limit(
+        self,
+        identifier: str,
+        scope: RateLimitScope = RateLimitScope.PER_USER,
+        endpoint: str = "",
+        user_id: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        service_name: Optional[str] = None,
+        user_role: Optional[str] = None,
+    ) -> RateLimitResult:
         """Check rate limits against applicable rules"""
 
         # Check whitelist first
@@ -464,7 +490,7 @@ class RateLimiter:
                 allowed=True,
                 remaining=999999,
                 reset_time=time.time() + 3600,
-                rule_name="whitelist"
+                rule_name="whitelist",
             )
 
         # Check blacklist
@@ -474,7 +500,7 @@ class RateLimiter:
                 remaining=0,
                 reset_time=time.time() + 3600,
                 retry_after=3600,
-                rule_name="blacklist"
+                rule_name="blacklist",
             )
 
         # Get applicable rules sorted by priority
@@ -482,7 +508,7 @@ class RateLimiter:
             scope=scope,
             endpoint=endpoint,
             service_name=service_name,
-            user_role=user_role
+            user_role=user_role,
         )
 
         # Check each applicable rule
@@ -490,7 +516,9 @@ class RateLimiter:
             start_time = time.time()
 
             try:
-                with self.rate_limit_duration.labels(algorithm=rule.algorithm.value).time():
+                with self.rate_limit_duration.labels(
+                    algorithm=rule.algorithm.value
+                ).time():
                     # Generate identifier based on scope
                     rate_limit_identifier = self._generate_identifier(
                         rule.scope, identifier, user_id, source_ip, service_name
@@ -512,15 +540,17 @@ class RateLimiter:
                     self.rate_limit_checks_total.labels(
                         rule_name=rule.name,
                         scope=rule.scope.value,
-                        result="allowed" if result.allowed else "denied"
+                        result="allowed" if result.allowed else "denied",
                     ).inc()
 
                     # If any rule denies, return denial
                     if not result.allowed:
-                        logger.warning("Rate limit exceeded",
-                                     rule_name=rule.name,
-                                     identifier=rate_limit_identifier,
-                                     remaining=result.remaining)
+                        logger.warning(
+                            "Rate limit exceeded",
+                            rule_name=rule.name,
+                            identifier=rate_limit_identifier,
+                            remaining=result.remaining,
+                        )
 
                         # Log rate limit violation for audit
                         await self._log_rate_limit_violation(rule, identifier, result)
@@ -528,29 +558,43 @@ class RateLimiter:
                         return result
 
             except Exception as e:
-                logger.error("Rate limit check failed",
-                           rule_name=rule.name,
-                           error=str(e))
+                logger.error(
+                    "Rate limit check failed", rule_name=rule.name, error=str(e)
+                )
                 # On error, allow request but log the issue
                 continue
 
         # All rules passed
         return RateLimitResult(
             allowed=True,
-            remaining=min([r.remaining for r in [
-                await limiter.check_limit(self._generate_identifier(rule.scope, identifier, user_id, source_ip, service_name))
-                for rule, limiter in [(r, self.limiters.get(r.name)) for r in applicable_rules]
-                if limiter
-            ] if hasattr(r, 'remaining')]),
+            remaining=min(
+                [
+                    r.remaining
+                    for r in [
+                        await limiter.check_limit(
+                            self._generate_identifier(
+                                rule.scope, identifier, user_id, source_ip, service_name
+                            )
+                        )
+                        for rule, limiter in [
+                            (r, self.limiters.get(r.name)) for r in applicable_rules
+                        ]
+                        if limiter
+                    ]
+                    if hasattr(r, "remaining")
+                ]
+            ),
             reset_time=time.time() + 60,
-            rule_name="composite"
+            rule_name="composite",
         )
 
-    def _get_applicable_rules(self,
-                             scope: RateLimitScope,
-                             endpoint: str = "",
-                             service_name: Optional[str] = None,
-                             user_role: Optional[str] = None) -> List[RateLimitRule]:
+    def _get_applicable_rules(
+        self,
+        scope: RateLimitScope,
+        endpoint: str = "",
+        service_name: Optional[str] = None,
+        user_role: Optional[str] = None,
+    ) -> List[RateLimitRule]:
         """Get applicable rules for the request"""
         applicable = []
 
@@ -582,12 +626,14 @@ class RateLimiter:
         # Sort by priority (higher priority first)
         return sorted(applicable, key=lambda r: r.priority, reverse=True)
 
-    def _generate_identifier(self,
-                            scope: RateLimitScope,
-                            base_identifier: str,
-                            user_id: Optional[str] = None,
-                            source_ip: Optional[str] = None,
-                            service_name: Optional[str] = None) -> str:
+    def _generate_identifier(
+        self,
+        scope: RateLimitScope,
+        base_identifier: str,
+        user_id: Optional[str] = None,
+        source_ip: Optional[str] = None,
+        service_name: Optional[str] = None,
+    ) -> str:
         """Generate rate limit identifier based on scope"""
         if scope == RateLimitScope.GLOBAL:
             return "global"
@@ -605,9 +651,12 @@ class RateLimiter:
     def _matches_pattern(self, text: str, pattern: str) -> bool:
         """Check if text matches pattern (simple wildcard support)"""
         import fnmatch
+
         return fnmatch.fnmatch(text, pattern)
 
-    def _is_whitelisted(self, user_id: Optional[str] = None, source_ip: Optional[str] = None) -> bool:
+    def _is_whitelisted(
+        self, user_id: Optional[str] = None, source_ip: Optional[str] = None
+    ) -> bool:
         """Check if request is whitelisted"""
         if user_id and user_id in self.whitelisted_users:
             return True
@@ -621,7 +670,9 @@ class RateLimiter:
             return True
         return False
 
-    async def _log_rate_limit_violation(self, rule: RateLimitRule, identifier: str, result: RateLimitResult):
+    async def _log_rate_limit_violation(
+        self, rule: RateLimitRule, identifier: str, result: RateLimitResult
+    ):
         """Log rate limit violation for audit purposes"""
         violation_data = {
             "rule_name": rule.name,
@@ -631,7 +682,7 @@ class RateLimiter:
             "limit": rule.requests,
             "window_seconds": rule.window_seconds,
             "current_usage": result.current_usage,
-            "retry_after": result.retry_after
+            "retry_after": result.retry_after,
         }
 
         # Store violation in Redis for analysis
@@ -639,7 +690,9 @@ class RateLimiter:
         await self.redis.lpush(violation_key, json.dumps(violation_data))
         await self.redis.expire(violation_key, 86400)  # Keep for 24 hours
 
-    async def get_rate_limit_status(self, identifier: str, scope: RateLimitScope) -> Dict[str, Any]:
+    async def get_rate_limit_status(
+        self, identifier: str, scope: RateLimitScope
+    ) -> Dict[str, Any]:
         """Get current rate limit status for identifier"""
         status = {}
 
@@ -665,7 +718,7 @@ class RateLimiter:
                         allowed=current_count < rule.requests,
                         remaining=max(0, rule.requests - current_count),
                         reset_time=time.time() + rule.window_seconds,
-                        current_usage=current_count
+                        current_usage=current_count,
                     )
 
                 status[rule_name] = {
@@ -673,35 +726,39 @@ class RateLimiter:
                     "remaining": result.remaining,
                     "reset_time": result.reset_time,
                     "window_seconds": rule.window_seconds,
-                    "algorithm": rule.algorithm.value
+                    "algorithm": rule.algorithm.value,
                 }
 
             except Exception as e:
-                logger.error("Failed to get rate limit status",
-                           rule_name=rule_name,
-                           error=str(e))
+                logger.error(
+                    "Failed to get rate limit status", rule_name=rule_name, error=str(e)
+                )
                 status[rule_name] = {"error": str(e)}
 
         return status
 
-    async def update_system_load_metrics(self,
-                                       cpu_usage: float,
-                                       memory_usage: float,
-                                       active_connections: int,
-                                       error_rate: float):
+    async def update_system_load_metrics(
+        self,
+        cpu_usage: float,
+        memory_usage: float,
+        active_connections: int,
+        error_rate: float,
+    ):
         """Update system load metrics for adaptive rate limiting"""
         load_data = {
             "cpu_usage": cpu_usage,
             "memory_usage": memory_usage,
             "active_connections": active_connections,
             "error_rate": error_rate,
-            "timestamp": time.time()
+            "timestamp": time.time(),
         }
 
         await self.redis.hset(f"{self.key_prefix}:system_load", mapping=load_data)
         await self.redis.expire(f"{self.key_prefix}:system_load", 300)  # 5 minutes TTL
 
-    async def add_to_whitelist(self, user_id: Optional[str] = None, ip_address: Optional[str] = None):
+    async def add_to_whitelist(
+        self, user_id: Optional[str] = None, ip_address: Optional[str] = None
+    ):
         """Add user or IP to whitelist"""
         if user_id:
             await self.redis.sadd(f"{self.key_prefix}:whitelist:users", user_id)
@@ -717,11 +774,13 @@ class RateLimiter:
         await self.redis.sadd(f"{self.key_prefix}:blacklist:ips", ip_address)
         await self.redis.expire(f"{self.key_prefix}:blacklist:ips", duration_seconds)
 
-        logger.warning("IP added to blacklist",
-                      ip_address=ip_address,
-                      duration=duration_seconds)
+        logger.warning(
+            "IP added to blacklist", ip_address=ip_address, duration=duration_seconds
+        )
 
-    async def remove_from_whitelist(self, user_id: Optional[str] = None, ip_address: Optional[str] = None):
+    async def remove_from_whitelist(
+        self, user_id: Optional[str] = None, ip_address: Optional[str] = None
+    ):
         """Remove user or IP from whitelist"""
         if user_id and user_id in self.whitelisted_users:
             self.whitelisted_users.remove(user_id)
@@ -733,8 +792,7 @@ class RateLimiter:
             await self.redis.srem(f"{self.key_prefix}:whitelist:ips", ip_address)
             logger.info("IP removed from whitelist", ip_address=ip_address)
 
-    async def get_violation_stats(self,
-                                 time_range_hours: int = 24) -> Dict[str, Any]:
+    async def get_violation_stats(self, time_range_hours: int = 24) -> Dict[str, Any]:
         """Get rate limit violation statistics"""
         end_time = time.time()
         start_time = end_time - (time_range_hours * 3600)
@@ -745,7 +803,7 @@ class RateLimiter:
             "violations_by_rule": {},
             "violations_by_hour": {},
             "top_violators": {},
-            "violation_trends": []
+            "violation_trends": [],
         }
 
         # Search for violations in Redis
@@ -764,11 +822,15 @@ class RateLimiter:
 
                         # Count by rule
                         rule_name = violation.get("rule_name", "unknown")
-                        stats["violations_by_rule"][rule_name] = stats["violations_by_rule"].get(rule_name, 0) + 1
+                        stats["violations_by_rule"][rule_name] = (
+                            stats["violations_by_rule"].get(rule_name, 0) + 1
+                        )
 
                         # Count by hour
                         hour = datetime.fromtimestamp(violation_time).strftime("%H")
-                        stats["violations_by_hour"][hour] = stats["violations_by_hour"].get(hour, 0) + 1
+                        stats["violations_by_hour"][hour] = (
+                            stats["violations_by_hour"].get(hour, 0) + 1
+                        )
 
                 except Exception as e:
                     logger.warning(f"Failed to parse violation data: {e}")

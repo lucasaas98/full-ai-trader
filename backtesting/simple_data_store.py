@@ -6,17 +6,15 @@ that avoids configuration dependencies and focuses only on reading historical
 data from parquet files.
 """
 
-import logging
 import asyncio
-from datetime import datetime, date, timedelta
+import logging
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional
-from decimal import Decimal
 
 import polars as pl
-
-from backtest_models import MarketData, TimeFrame, FinVizData
-
+from backtest_models import FinVizData, MarketData, TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,9 @@ class SimpleDataStore:
             "timeframe": pl.Utf8,
         }
 
-    def _get_market_data_file_path(self, ticker: str, timeframe: TimeFrame, date_obj: date) -> Path:
+    def _get_market_data_file_path(
+        self, ticker: str, timeframe: TimeFrame, date_obj: date
+    ) -> Path:
         """Get file path for market data."""
         timeframe_str = timeframe.value
         ticker_dir = self.base_path / "market_data" / ticker / timeframe_str
@@ -64,11 +64,7 @@ class SimpleDataStore:
         return screener_dir / filename
 
     async def load_market_data(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        start_date: date,
-        end_date: date
+        self, ticker: str, timeframe: TimeFrame, start_date: date, end_date: date
     ) -> pl.DataFrame:
         """
         Load market data for a ticker within a date range.
@@ -88,7 +84,9 @@ class SimpleDataStore:
             current_date = start_date
 
             while current_date <= end_date:
-                file_path = self._get_market_data_file_path(ticker, timeframe, current_date)
+                file_path = self._get_market_data_file_path(
+                    ticker, timeframe, current_date
+                )
 
                 if file_path.exists():
                     try:
@@ -107,7 +105,9 @@ class SimpleDataStore:
             if all_dataframes:
                 combined_df = pl.concat(all_dataframes)
                 # Sort by timestamp and remove duplicates
-                result_df = combined_df.sort("timestamp").unique(subset=["timestamp"], keep="last")
+                result_df = combined_df.sort("timestamp").unique(
+                    subset=["timestamp"], keep="last"
+                )
                 return result_df
             else:
                 # Return empty dataframe with correct schema
@@ -118,10 +118,7 @@ class SimpleDataStore:
             return pl.DataFrame([], schema=self.market_data_schema)
 
     async def load_screener_data(
-        self,
-        screener_type: str,
-        start_date: date,
-        end_date: date
+        self, screener_type: str, start_date: date, end_date: date
     ) -> pl.DataFrame:
         """
         Load screener data for a date range.
@@ -148,7 +145,9 @@ class SimpleDataStore:
                             all_dataframes.append(df)
 
                     except Exception as e:
-                        self.logger.debug(f"Could not load screener file {file_path}: {e}")
+                        self.logger.debug(
+                            f"Could not load screener file {file_path}: {e}"
+                        )
 
                 # Move to next day
                 current_date = current_date + timedelta(days=1)
@@ -156,7 +155,9 @@ class SimpleDataStore:
             # Combine all dataframes
             if all_dataframes:
                 combined_df = pl.concat(all_dataframes)
-                return combined_df.sort("timestamp").unique(subset=["symbol", "timestamp"], keep="last")
+                return combined_df.sort("timestamp").unique(
+                    subset=["symbol", "timestamp"], keep="last"
+                )
             else:
                 # Return empty dataframe
                 return pl.DataFrame([])
@@ -167,6 +168,7 @@ class SimpleDataStore:
 
     async def _load_parquet_file(self, file_path: Path) -> pl.DataFrame:
         """Load a parquet file asynchronously."""
+
         def _load_file():
             try:
                 return pl.read_parquet(file_path)

@@ -1,19 +1,21 @@
-import pytest
 import asyncio
 import json
-from unittest.mock import AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
-import pandas as pd
-import polars as pl
-from decimal import Decimal
-import tempfile
 import os
 
 # Import only the models and avoid problematic service imports
 import sys
-sys.path.append('/app/shared')
+import tempfile
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from shared.models import MarketData, FinVizData, TimeFrame, AssetType
+import pandas as pd
+import polars as pl
+import pytest
+
+sys.path.append("/app/shared")
+
+from shared.models import AssetType, FinVizData, MarketData, TimeFrame
 
 
 class TestMarketDataValidation:
@@ -33,7 +35,7 @@ class TestMarketDataValidation:
             close=Decimal("151.0"),
             volume=1000000,
             adjusted_close=Decimal("151.0"),
-            asset_type=AssetType.STOCK
+            asset_type=AssetType.STOCK,
         )
 
         assert valid_data.symbol == "AAPL"
@@ -57,7 +59,7 @@ class TestMarketDataValidation:
                 low=Decimal("148.0"),
                 close=Decimal("149.5"),
                 volume=1000000,
-                adjusted_close=Decimal("149.5")
+                adjusted_close=Decimal("149.5"),
             )
 
     @pytest.mark.unit
@@ -73,7 +75,7 @@ class TestMarketDataValidation:
                 low=Decimal("149.0"),
                 close=Decimal("151.0"),
                 volume=1000000,
-                adjusted_close=Decimal("151.0")
+                adjusted_close=Decimal("151.0"),
             )
 
         with pytest.raises(ValueError):
@@ -86,7 +88,7 @@ class TestMarketDataValidation:
                 low=Decimal("149.0"),
                 close=Decimal("151.0"),
                 volume=-1000000,  # Invalid: negative volume
-                adjusted_close=Decimal("151.0")
+                adjusted_close=Decimal("151.0"),
             )
 
     @pytest.mark.unit
@@ -105,7 +107,7 @@ class TestMarketDataValidation:
             low=Decimal("149.0"),
             close=Decimal("151.0"),
             volume=1000000,
-            adjusted_close=Decimal("151.0")
+            adjusted_close=Decimal("151.0"),
         )
 
         assert market_data.timestamp == future_time
@@ -128,13 +130,15 @@ class TestFinVizDataValidation:
             volume=1500000,
             market_cap=Decimal("2500000000000"),
             pe_ratio=25.5,
-            sector="Technology"
+            sector="Technology",
         )
 
         assert finviz_data.ticker == "AAPL"
         assert finviz_data.price is not None and finviz_data.price > Decimal("0")
         assert finviz_data.volume is not None and finviz_data.volume > 0
-        assert finviz_data.market_cap is not None and finviz_data.market_cap > Decimal("0")
+        assert finviz_data.market_cap is not None and finviz_data.market_cap > Decimal(
+            "0"
+        )
 
     @pytest.mark.unit
     def test_finviz_data_negative_price_rejected(self):
@@ -151,7 +155,7 @@ class TestFinVizDataValidation:
                 volume=1500000,
                 market_cap=Decimal("2500000000000"),
                 pe_ratio=25.5,
-                sector="Technology"
+                sector="Technology",
             )
 
 
@@ -167,7 +171,7 @@ class TestDataQualityChecks:
             "high": 99.0,  # High should be >= open
             "low": 101.0,  # Low should be <= open
             "close": 102.0,
-            "volume": 1000
+            "volume": 1000,
         }
 
         # Business logic should detect this inconsistency
@@ -193,9 +197,9 @@ class TestDataQualityChecks:
         consistent_data = {
             "open": 100.0,
             "high": 102.0,  # Properly highest
-            "low": 99.0,    # Properly lowest
+            "low": 99.0,  # Properly lowest
             "close": 101.0,
-            "volume": 1000
+            "volume": 1000,
         }
 
         assert validate_ohlcv_consistency(consistent_data)
@@ -203,6 +207,7 @@ class TestDataQualityChecks:
     @pytest.mark.unit
     def test_volume_anomaly_detection(self):
         """Test volume anomaly detection logic"""
+
         def detect_volume_anomaly(volumes, threshold_multiplier=3):
             """Detect volume anomalies using median-based analysis"""
             if len(volumes) < 2:
@@ -212,9 +217,9 @@ class TestDataQualityChecks:
             sorted_volumes = sorted(volumes)
             n = len(sorted_volumes)
             if n % 2 == 0:
-                median = (sorted_volumes[n//2 - 1] + sorted_volumes[n//2]) / 2
+                median = (sorted_volumes[n // 2 - 1] + sorted_volumes[n // 2]) / 2
             else:
-                median = sorted_volumes[n//2]
+                median = sorted_volumes[n // 2]
 
             for volume in volumes:
                 if volume > threshold_multiplier * median:
@@ -226,21 +231,28 @@ class TestDataQualityChecks:
         assert not detect_volume_anomaly(normal_volumes)
 
         # Volume with anomaly - 10M is much higher than the median of ~1.1M
-        anomaly_volumes = [1000000, 1100000, 10000000, 1200000, 1050000]  # 10M is anomaly
+        anomaly_volumes = [
+            1000000,
+            1100000,
+            10000000,
+            1200000,
+            1050000,
+        ]  # 10M is anomaly
         assert detect_volume_anomaly(anomaly_volumes)
 
     @pytest.mark.unit
     def test_price_gap_detection(self):
         """Test price gap detection logic"""
+
         def detect_price_gaps(closes, threshold=0.05):  # 5% threshold
             """Detect significant price gaps between consecutive periods"""
             if len(closes) < 2:
                 return False
 
             for i in range(1, len(closes)):
-                if closes[i-1] == 0:  # Avoid division by zero
+                if closes[i - 1] == 0:  # Avoid division by zero
                     continue
-                change = abs(closes[i] - closes[i-1]) / closes[i-1]
+                change = abs(closes[i] - closes[i - 1]) / closes[i - 1]
                 if change > threshold:
                     return True
             return False
@@ -256,15 +268,18 @@ class TestDataQualityChecks:
     @pytest.mark.unit
     def test_data_completeness_check(self):
         """Test data completeness validation"""
+
         def check_data_completeness(data_points, expected_count):
             """Check if we have the expected amount of data"""
             missing_count = expected_count - len(data_points)
-            completeness_ratio = len(data_points) / expected_count if expected_count > 0 else 0
+            completeness_ratio = (
+                len(data_points) / expected_count if expected_count > 0 else 0
+            )
 
             return {
                 "is_complete": missing_count == 0,
                 "missing_count": missing_count,
-                "completeness_ratio": completeness_ratio
+                "completeness_ratio": completeness_ratio,
             }
 
         # Complete data
@@ -287,18 +302,19 @@ class TestDataProcessingLogic:
     @pytest.mark.unit
     def test_timeframe_aggregation_logic(self):
         """Test timeframe aggregation business rules"""
+
         def aggregate_to_5min(minute_data):
             """Aggregate 1-minute bars to 5-minute bars"""
             if not minute_data:
                 return None
 
             return {
-                'timestamp': minute_data[0]['timestamp'],
-                'open': minute_data[0]['open'],
-                'high': max(d['high'] for d in minute_data),
-                'low': min(d['low'] for d in minute_data),
-                'close': minute_data[-1]['close'],
-                'volume': sum(d['volume'] for d in minute_data)
+                "timestamp": minute_data[0]["timestamp"],
+                "open": minute_data[0]["open"],
+                "high": max(d["high"] for d in minute_data),
+                "low": min(d["low"] for d in minute_data),
+                "close": minute_data[-1]["close"],
+                "volume": sum(d["volume"] for d in minute_data),
             }
 
         # Create 5 minutes of 1-minute data
@@ -306,45 +322,48 @@ class TestDataProcessingLogic:
         minute_data = []
 
         for i in range(5):
-            minute_data.append({
-                'timestamp': base_time + timedelta(minutes=i),
-                'open': 100.0 + i,
-                'high': 101.0 + i,
-                'low': 99.0 + i,
-                'close': 100.5 + i,
-                'volume': 1000 + i * 100
-            })
+            minute_data.append(
+                {
+                    "timestamp": base_time + timedelta(minutes=i),
+                    "open": 100.0 + i,
+                    "high": 101.0 + i,
+                    "low": 99.0 + i,
+                    "close": 100.5 + i,
+                    "volume": 1000 + i * 100,
+                }
+            )
 
         five_min_bar = aggregate_to_5min(minute_data)
 
         assert five_min_bar is not None
-        assert five_min_bar['open'] == 100.0  # First open
-        assert five_min_bar['close'] == 104.5  # Last close
-        assert five_min_bar['high'] == 105.0   # Highest high
-        assert five_min_bar['low'] == 99.0     # Lowest low
-        assert five_min_bar['volume'] == 6000  # Sum of volumes
+        assert five_min_bar["open"] == 100.0  # First open
+        assert five_min_bar["close"] == 104.5  # Last close
+        assert five_min_bar["high"] == 105.0  # Highest high
+        assert five_min_bar["low"] == 99.0  # Lowest low
+        assert five_min_bar["volume"] == 6000  # Sum of volumes
 
     @pytest.mark.unit
     def test_data_cleaning_logic(self):
         """Test data cleaning business logic"""
+
         def clean_market_data(data):
             """Clean market data by removing invalid records"""
             cleaned = []
             for record in data:
                 # Skip records with missing price
-                if record.get('price') is None:
+                if record.get("price") is None:
                     continue
 
                 # Skip records with negative volume
-                if record.get('volume', 0) < 0:
+                if record.get("volume", 0) < 0:
                     continue
 
                 # Skip extreme price outliers (simple rule: > 10000)
-                if record.get('price', 0) > 10000:
+                if record.get("price", 0) > 10000:
                     continue
 
                 # Skip records with zero or negative prices
-                if record.get('price', 0) <= 0:
+                if record.get("price", 0) <= 0:
                     continue
 
                 cleaned.append(record)
@@ -352,26 +371,27 @@ class TestDataProcessingLogic:
             return cleaned
 
         dirty_data = [
-            {'price': 100.0, 'volume': 1000},
-            {'price': None, 'volume': 1100},     # Missing price
-            {'price': 101.0, 'volume': -500},    # Negative volume
-            {'price': 999999.0, 'volume': 1200}, # Outlier price
-            {'price': 102.0, 'volume': 1300},
-            {'price': 0, 'volume': 1400},        # Zero price
-            {'price': -50.0, 'volume': 1500}     # Negative price
+            {"price": 100.0, "volume": 1000},
+            {"price": None, "volume": 1100},  # Missing price
+            {"price": 101.0, "volume": -500},  # Negative volume
+            {"price": 999999.0, "volume": 1200},  # Outlier price
+            {"price": 102.0, "volume": 1300},
+            {"price": 0, "volume": 1400},  # Zero price
+            {"price": -50.0, "volume": 1500},  # Negative price
         ]
 
         clean_result = clean_market_data(dirty_data)
 
         assert len(clean_result) == 2  # Only 2 valid records
-        assert all(r['price'] is not None for r in clean_result)
-        assert all(r['volume'] >= 0 for r in clean_result)
-        assert all(r['price'] <= 10000 for r in clean_result)
-        assert all(r['price'] > 0 for r in clean_result)
+        assert all(r["price"] is not None for r in clean_result)
+        assert all(r["volume"] >= 0 for r in clean_result)
+        assert all(r["price"] <= 10000 for r in clean_result)
+        assert all(r["price"] > 0 for r in clean_result)
 
     @pytest.mark.unit
     def test_moving_average_calculation(self):
         """Test moving average calculation logic"""
+
         def calculate_sma(prices, window):
             """Calculate Simple Moving Average"""
             if len(prices) < window:
@@ -379,7 +399,7 @@ class TestDataProcessingLogic:
 
             sma_values = []
             for i in range(window - 1, len(prices)):
-                window_prices = prices[i - window + 1:i + 1]
+                window_prices = prices[i - window + 1 : i + 1]
                 sma = sum(window_prices) / window
                 sma_values.append(sma)
 
@@ -420,7 +440,7 @@ class TestErrorHandlingLogic:
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise e
-                    await asyncio.sleep(delay * (2 ** attempt))  # Exponential backoff
+                    await asyncio.sleep(delay * (2**attempt))  # Exponential backoff
 
         result = await retry_with_backoff(failing_operation)
         assert result == "success"
@@ -430,6 +450,7 @@ class TestErrorHandlingLogic:
     @pytest.mark.asyncio
     async def test_timeout_handling(self):
         """Test timeout handling logic"""
+
         async def slow_operation():
             await asyncio.sleep(0.1)  # 100ms operation
             return "completed"
@@ -445,6 +466,7 @@ class TestErrorHandlingLogic:
     @pytest.mark.unit
     def test_circuit_breaker_logic(self):
         """Test circuit breaker pattern for fault tolerance"""
+
         class CircuitBreaker:
             def __init__(self, failure_threshold=3, timeout=5):
                 self.failure_threshold = failure_threshold
@@ -471,7 +493,9 @@ class TestErrorHandlingLogic:
             def _should_attempt_reset(self):
                 if self.last_failure_time is None:
                     return False
-                return (datetime.now().timestamp() - self.last_failure_time) > self.timeout
+                return (
+                    datetime.now().timestamp() - self.last_failure_time
+                ) > self.timeout
 
             def _on_success(self):
                 self.failure_count = 0
@@ -511,6 +535,7 @@ class TestDataStorageLogic:
     @pytest.mark.unit
     def test_parquet_file_organization_logic(self):
         """Test parquet file organization business logic"""
+
         def generate_file_path(symbol, timeframe, date):
             """Generate parquet file path based on business rules"""
             year = date.year
@@ -533,11 +558,12 @@ class TestDataStorageLogic:
     @pytest.mark.unit
     def test_batch_processing_logic(self):
         """Test batch processing business logic"""
+
         def process_data_in_batches(data, batch_size):
             """Process data in batches to manage memory"""
             batches = []
             for i in range(0, len(data), batch_size):
-                batch = data[i:i + batch_size]
+                batch = data[i : i + batch_size]
                 batches.append(batch)
             return batches
 
@@ -562,6 +588,7 @@ class TestDataStorageLogic:
     @pytest.mark.unit
     def test_data_retention_logic(self):
         """Test data retention business logic"""
+
         def should_delete_file(file_date, retention_days):
             """Determine if a file should be deleted based on retention policy"""
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
@@ -586,13 +613,14 @@ class TestServiceHealthCheck:
     @pytest.mark.unit
     def test_component_health_check(self):
         """Test individual component health check logic"""
+
         def check_component_health(component_name, is_healthy, response_time=None):
             """Check individual component health"""
             status = "healthy" if is_healthy else "unhealthy"
             result = {
                 "component": component_name,
                 "status": status,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if response_time is not None:
@@ -614,14 +642,14 @@ class TestServiceHealthCheck:
     @pytest.mark.unit
     def test_overall_service_health_logic(self):
         """Test overall service health determination logic"""
+
         def determine_overall_health(component_healths):
             """Determine overall service health from components"""
             if not component_healths:
                 return "unknown"
 
             healthy_components = [
-                c for c in component_healths
-                if c.get("status") == "healthy"
+                c for c in component_healths if c.get("status") == "healthy"
             ]
 
             total_components = len(component_healths)
@@ -638,7 +666,7 @@ class TestServiceHealthCheck:
         all_healthy = [
             {"component": "db", "status": "healthy"},
             {"component": "redis", "status": "healthy"},
-            {"component": "api", "status": "healthy"}
+            {"component": "api", "status": "healthy"},
         ]
         assert determine_overall_health(all_healthy) == "healthy"
 
@@ -646,7 +674,7 @@ class TestServiceHealthCheck:
         some_unhealthy = [
             {"component": "db", "status": "healthy"},
             {"component": "redis", "status": "unhealthy"},
-            {"component": "api", "status": "healthy"}
+            {"component": "api", "status": "healthy"},
         ]
         assert determine_overall_health(some_unhealthy) == "degraded"
 
@@ -654,7 +682,7 @@ class TestServiceHealthCheck:
         mostly_unhealthy = [
             {"component": "db", "status": "unhealthy"},
             {"component": "redis", "status": "unhealthy"},
-            {"component": "api", "status": "healthy"}
+            {"component": "api", "status": "healthy"},
         ]
         assert determine_overall_health(mostly_unhealthy) == "unhealthy"
 
@@ -665,6 +693,7 @@ class TestServiceMetrics:
     @pytest.mark.unit
     def test_metrics_calculation_logic(self):
         """Test metrics calculation business logic"""
+
         def calculate_success_rate(total_requests, failed_requests):
             """Calculate success rate percentage"""
             if total_requests == 0:
@@ -703,6 +732,7 @@ class TestServiceMetrics:
     @pytest.mark.unit
     def test_rate_limiting_logic(self):
         """Test rate limiting business logic"""
+
         class RateLimiter:
             def __init__(self, max_requests, window_seconds):
                 self.max_requests = max_requests
@@ -712,8 +742,11 @@ class TestServiceMetrics:
             def is_allowed(self):
                 now = datetime.now().timestamp()
                 # Remove old requests outside the window
-                self.requests = [req_time for req_time in self.requests
-                               if now - req_time < self.window_seconds]
+                self.requests = [
+                    req_time
+                    for req_time in self.requests
+                    if now - req_time < self.window_seconds
+                ]
 
                 if len(self.requests) < self.max_requests:
                     self.requests.append(now)
@@ -722,8 +755,11 @@ class TestServiceMetrics:
 
             def get_remaining_requests(self):
                 now = datetime.now().timestamp()
-                self.requests = [req_time for req_time in self.requests
-                               if now - req_time < self.window_seconds]
+                self.requests = [
+                    req_time
+                    for req_time in self.requests
+                    if now - req_time < self.window_seconds
+                ]
                 return max(0, self.max_requests - len(self.requests))
 
         # Test rate limiter
@@ -747,6 +783,7 @@ class TestMarketHoursLogic:
     @pytest.mark.unit
     def test_market_hours_validation(self):
         """Test market hours validation logic"""
+
         def is_market_open(timestamp, market_tz="America/New_York"):
             """Check if market is open at given timestamp"""
             # Convert to market timezone
@@ -763,13 +800,15 @@ class TestMarketHoursLogic:
 
             # Market hours: 9:30 AM - 4:00 PM ET
             market_open_minutes = 9 * 60 + 30  # 9:30 AM in minutes
-            market_close_minutes = 16 * 60     # 4:00 PM in minutes
+            market_close_minutes = 16 * 60  # 4:00 PM in minutes
             current_minutes = hour * 60 + minute
 
             return market_open_minutes <= current_minutes < market_close_minutes
 
         # Test during market hours (Tuesday 10:00 AM ET)
-        market_open_time = datetime(2024, 1, 9, 15, 0, tzinfo=timezone.utc)  # 10:00 AM ET
+        market_open_time = datetime(
+            2024, 1, 9, 15, 0, tzinfo=timezone.utc
+        )  # 10:00 AM ET
         assert is_market_open(market_open_time) is True
 
         # Test before market open (Tuesday 9:00 AM ET)
@@ -781,12 +820,15 @@ class TestMarketHoursLogic:
         assert is_market_open(after_close) is False
 
         # Test weekend (Saturday)
-        weekend = datetime(2024, 1, 13, 15, 0, tzinfo=timezone.utc)  # Saturday 10:00 AM ET
+        weekend = datetime(
+            2024, 1, 13, 15, 0, tzinfo=timezone.utc
+        )  # Saturday 10:00 AM ET
         assert is_market_open(weekend) is False
 
     @pytest.mark.unit
     def test_trading_day_calculation(self):
         """Test trading day calculation logic"""
+
         def is_trading_day(date):
             """Check if a date is a trading day (weekday, not holiday)"""
             # Simple implementation - just check weekdays

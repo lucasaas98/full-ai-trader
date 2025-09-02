@@ -8,12 +8,14 @@ depend on the main system configuration to avoid import issues during backtestin
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class TimeFrame(str, Enum):
     """Time frame enumeration for market data."""
+
     ONE_MINUTE = "1min"
     FIVE_MIN = "5min"
     FIFTEEN_MIN = "15min"
@@ -27,6 +29,7 @@ class TimeFrame(str, Enum):
 
 class SignalType(str, Enum):
     """Trade signal type enumeration."""
+
     BUY = "buy"
     SELL = "sell"
     HOLD = "hold"
@@ -35,6 +38,7 @@ class SignalType(str, Enum):
 
 class MarketData(BaseModel):
     """Market data for a single time period."""
+
     symbol: str
     timestamp: datetime
     open: Decimal
@@ -48,6 +52,7 @@ class MarketData(BaseModel):
 
 class Signal(BaseModel):
     """Trading signal with detailed information."""
+
     symbol: str
     action: SignalType
     confidence: float = Field(ge=0.0, le=100.0)
@@ -62,14 +67,15 @@ class Signal(BaseModel):
 
 class BacktestPosition(BaseModel):
     """Position during backtesting."""
+
     symbol: str
     quantity: int
     entry_price: Decimal
     entry_date: datetime
-    current_price: Decimal = Decimal('0')
+    current_price: Decimal = Decimal("0")
     stop_loss: Optional[Decimal] = None
     take_profit: Optional[Decimal] = None
-    unrealized_pnl: Decimal = Decimal('0')
+    unrealized_pnl: Decimal = Decimal("0")
 
     @property
     def market_value(self) -> Decimal:
@@ -84,6 +90,7 @@ class BacktestPosition(BaseModel):
 
 class BacktestTrade(BaseModel):
     """Completed trade record."""
+
     symbol: str
     entry_date: datetime
     exit_date: datetime
@@ -100,6 +107,7 @@ class BacktestTrade(BaseModel):
 
 class BacktestResults(BaseModel):
     """Comprehensive backtesting results."""
+
     # Performance metrics
     total_return: float
     annualized_return: float
@@ -143,6 +151,7 @@ class BacktestResults(BaseModel):
 
 class FinVizData(BaseModel):
     """FinViz screener data model."""
+
     symbol: str
     company: str
     sector: str
@@ -159,6 +168,7 @@ class FinVizData(BaseModel):
 
 class TechnicalIndicators(BaseModel):
     """Technical indicators data model."""
+
     symbol: str
     timestamp: datetime
     timeframe: TimeFrame
@@ -189,6 +199,7 @@ class TechnicalIndicators(BaseModel):
 
 class AssetType(str, Enum):
     """Asset type enumeration."""
+
     STOCK = "stock"
     ETF = "etf"
     CRYPTO = "crypto"

@@ -7,10 +7,10 @@ in unfavorable conditions and provides market state analysis.
 """
 
 import logging
-from typing import Dict, Optional, Any, Tuple
-
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
 import polars as pl
 from scipy import stats
@@ -20,6 +20,7 @@ from shared.models import SignalType
 
 class MarketRegime(Enum):
     """Market regime types."""
+
     TRENDING_UP = "trending_up"
     TRENDING_DOWN = "trending_down"
     RANGING = "ranging"
@@ -33,16 +34,18 @@ class MarketRegime(Enum):
 
 class VolatilityRegime(Enum):
     """Volatility regimes."""
-    EXTREME_LOW = "extreme_low"    # < 10th percentile
-    LOW = "low"                    # 10th-30th percentile
-    NORMAL = "normal"              # 30th-70th percentile
-    HIGH = "high"                  # 70th-90th percentile
+
+    EXTREME_LOW = "extreme_low"  # < 10th percentile
+    LOW = "low"  # 10th-30th percentile
+    NORMAL = "normal"  # 30th-70th percentile
+    HIGH = "high"  # 70th-90th percentile
     EXTREME_HIGH = "extreme_high"  # > 90th percentile
 
 
 @dataclass
 class RegimeState:
     """Current market regime state."""
+
     primary_regime: MarketRegime
     volatility_regime: VolatilityRegime
     confidence: float
@@ -82,8 +85,10 @@ class MarketRegimeDetector:
         """
         try:
             if data.height < self.lookback_period:
-                self.logger.warning(f"Insufficient data for regime detection: "
-                                  f"{data.height} < {self.lookback_period}")
+                self.logger.warning(
+                    f"Insufficient data for regime detection: "
+                    f"{data.height} < {self.lookback_period}"
+                )
                 return self._default_regime_state()
 
             # Prepare data for analysis
@@ -98,19 +103,24 @@ class MarketRegimeDetector:
 
             # Combine analyses to determine primary regime
             regime_scores = self._combine_regime_analyses(
-                trend_analysis, volatility_analysis, momentum_analysis,
-                volume_analysis, pattern_analysis
+                trend_analysis,
+                volatility_analysis,
+                momentum_analysis,
+                volume_analysis,
+                pattern_analysis,
             )
 
             # Determine primary regime
             regime_scores_dict = dict(regime_scores)
-            primary_regime: MarketRegime = max(regime_scores_dict.keys(), key=lambda k: regime_scores_dict[k])
+            primary_regime: MarketRegime = max(
+                regime_scores_dict.keys(), key=lambda k: regime_scores_dict[k]
+            )
             confidence = regime_scores[primary_regime]
 
             # Volatility regime
             volatility_regime = self._classify_volatility_regime(
                 float(volatility_analysis["current_volatility"]),
-                float(volatility_analysis["volatility_percentile"])
+                float(volatility_analysis["volatility_percentile"]),
             )
 
             # Regime duration and stability
@@ -137,7 +147,7 @@ class MarketRegimeDetector:
                 previous_regime=self._get_previous_regime(),
                 regime_change_probability=regime_change_prob,
                 favorable_for_trading=favorable_for_trading,
-                recommended_position_size=position_size_multiplier
+                recommended_position_size=position_size_multiplier,
             )
 
             # Update history
@@ -164,13 +174,15 @@ class MarketRegimeDetector:
             trend_strength = (slope / avg_price) * len(closes)
 
             # R-squared for trend reliability
-            trend_reliability = r_value ** 2
+            trend_reliability = r_value**2
 
             # Moving average analysis
-            data_with_ma = data.with_columns([
-                pl.col("close").rolling_mean(window_size=20).alias("ma20"),
-                pl.col("close").rolling_mean(window_size=50).alias("ma50")
-            ])
+            data_with_ma = data.with_columns(
+                [
+                    pl.col("close").rolling_mean(window_size=20).alias("ma20"),
+                    pl.col("close").rolling_mean(window_size=50).alias("ma50"),
+                ]
+            )
 
             latest = data_with_ma.tail(1)
             current_price = latest.select("close").item()
@@ -205,7 +217,7 @@ class MarketRegimeDetector:
                 "trend_score": min(100.0, max(0.0, trend_score + ma_alignment_score)),
                 "slope": slope,
                 "r_squared": trend_reliability,
-                "ma_alignment": ma_alignment_score
+                "ma_alignment": ma_alignment_score,
             }
 
         except Exception as e:
@@ -213,35 +225,42 @@ class MarketRegimeDetector:
             return {
                 "trend_regime": MarketRegime.RANGING,
                 "trend_strength": 0.0,
-                "trend_score": 50.0
+                "trend_score": 50.0,
             }
 
     def _analyze_volatility_regime(self, data: pl.DataFrame) -> Dict[str, Any]:
         """Analyze volatility characteristics."""
         try:
             # Calculate returns
-            returns_data = data.with_columns([
-                pl.col("close").pct_change().alias("returns")
-            ]).drop_nulls()
+            returns_data = data.with_columns(
+                [pl.col("close").pct_change().alias("returns")]
+            ).drop_nulls()
 
             if returns_data.height < 10:
-                return {"volatility_regime": VolatilityRegime.NORMAL, "current_volatility": 0.0}
+                return {
+                    "volatility_regime": VolatilityRegime.NORMAL,
+                    "current_volatility": 0.0,
+                }
 
             returns = returns_data.select("returns").to_series().to_numpy()
 
             # Current volatility (annualized)
-            current_vol = np.std(returns[-20:]) * np.sqrt(252) if len(returns) >= 20 else 0.0
+            current_vol = (
+                np.std(returns[-20:]) * np.sqrt(252) if len(returns) >= 20 else 0.0
+            )
 
             # Historical volatility percentiles
             vol_history = []
             window = 20
             for i in range(window, len(returns)):
-                vol = np.std(returns[i-window:i]) * np.sqrt(252)
+                vol = np.std(returns[i - window : i]) * np.sqrt(252)
                 vol_history.append(vol)
 
             if vol_history:
-                vol_percentile = float((np.sum(np.array(vol_history) <= current_vol) /
-                                len(vol_history)) * 100)
+                vol_percentile = float(
+                    (np.sum(np.array(vol_history) <= current_vol) / len(vol_history))
+                    * 100
+                )
             else:
                 vol_percentile = 50.0
 
@@ -252,12 +271,14 @@ class MarketRegimeDetector:
             atr_vol = self._calculate_atr_volatility(data)
 
             return {
-                "volatility_regime": self._classify_volatility_regime(current_vol, vol_percentile),
+                "volatility_regime": self._classify_volatility_regime(
+                    current_vol, vol_percentile
+                ),
                 "current_volatility": current_vol,
                 "volatility_percentile": vol_percentile,
                 "atr_volatility": atr_vol,
                 "volatility_clustering": volatility_clustering,
-                "vol_score": self._score_volatility_for_trading(float(vol_percentile))
+                "vol_score": self._score_volatility_for_trading(float(vol_percentile)),
             }
 
         except Exception as e:
@@ -265,22 +286,30 @@ class MarketRegimeDetector:
             return {
                 "volatility_regime": VolatilityRegime.NORMAL,
                 "current_volatility": 0.0,
-                "vol_score": 50.0
+                "vol_score": 50.0,
             }
 
     def _analyze_momentum_regime(self, data: pl.DataFrame) -> Dict[str, Any]:
         """Analyze momentum characteristics."""
         try:
             # Calculate momentum indicators
-            momentum_data = data.with_columns([
-                # Price momentum
-                (pl.col("close") / pl.col("close").shift(10) - 1).alias("momentum_10d"),
-                (pl.col("close") / pl.col("close").shift(20) - 1).alias("momentum_20d"),
-
-                # Rate of change
-                ((pl.col("close") - pl.col("close").shift(10)) /
-                 pl.col("close").shift(10) * 100).alias("roc_10d")
-            ]).drop_nulls()
+            momentum_data = data.with_columns(
+                [
+                    # Price momentum
+                    (pl.col("close") / pl.col("close").shift(10) - 1).alias(
+                        "momentum_10d"
+                    ),
+                    (pl.col("close") / pl.col("close").shift(20) - 1).alias(
+                        "momentum_20d"
+                    ),
+                    # Rate of change
+                    (
+                        (pl.col("close") - pl.col("close").shift(10))
+                        / pl.col("close").shift(10)
+                        * 100
+                    ).alias("roc_10d"),
+                ]
+            ).drop_nulls()
 
             if momentum_data.height < 5:
                 return {"momentum_regime": MarketRegime.RANGING, "momentum_score": 50.0}
@@ -303,8 +332,11 @@ class MarketRegimeDetector:
 
             # Momentum acceleration
             momentum_acceleration = momentum_10d - momentum_20d
-            acceleration_signal = "accelerating" if momentum_acceleration > 0.01 else \
-                                "decelerating" if momentum_acceleration < -0.01 else "stable"
+            acceleration_signal = (
+                "accelerating"
+                if momentum_acceleration > 0.01
+                else "decelerating" if momentum_acceleration < -0.01 else "stable"
+            )
 
             return {
                 "momentum_regime": momentum_regime,
@@ -313,15 +345,12 @@ class MarketRegimeDetector:
                 "momentum_20d": momentum_20d,
                 "roc_10d": roc_10d,
                 "acceleration": momentum_acceleration,
-                "acceleration_signal": acceleration_signal
+                "acceleration_signal": acceleration_signal,
             }
 
         except Exception as e:
             self.logger.error(f"Error in momentum regime analysis: {e}")
-            return {
-                "momentum_regime": MarketRegime.RANGING,
-                "momentum_score": 50.0
-            }
+            return {"momentum_regime": MarketRegime.RANGING, "momentum_score": 50.0}
 
     def _analyze_volume_regime(self, data: pl.DataFrame) -> Dict[str, Any]:
         """Analyze volume patterns and regimes."""
@@ -333,9 +362,9 @@ class MarketRegimeDetector:
 
             # Volume trend analysis
             if len(volume_trend) >= 10:
-                vol_linregress_result = tuple(stats.linregress(
-                    np.arange(len(volume_trend)), volume_trend
-                ))
+                vol_linregress_result = tuple(
+                    stats.linregress(np.arange(len(volume_trend)), volume_trend)
+                )
                 vol_slope = float(vol_linregress_result[0])
                 vol_r_value = float(vol_linregress_result[2])
                 volume_trend_strength = vol_slope / float(np.mean(volume_trend))
@@ -372,15 +401,12 @@ class MarketRegimeDetector:
                 "volume_ratio": volume_ratio,
                 "volume_trend_strength": volume_trend_strength,
                 "price_volume_correlation": price_volume_correlation,
-                "volume_trend_reliability": float(vol_r_value) ** 2
+                "volume_trend_reliability": float(vol_r_value) ** 2,
             }
 
         except Exception as e:
             self.logger.error(f"Error in volume regime analysis: {e}")
-            return {
-                "volume_regime": MarketRegime.RANGING,
-                "volume_score": 50.0
-            }
+            return {"volume_regime": MarketRegime.RANGING, "volume_score": 50.0}
 
     def _analyze_pattern_regime(self, data: pl.DataFrame) -> Dict[str, Any]:
         """Analyze chart pattern regimes."""
@@ -427,18 +453,16 @@ class MarketRegimeDetector:
                 "pattern_signals": pattern_signals,
                 "price_range": price_range,
                 "breakout_analysis": breakout_analysis,
-                "support_resistance": sr_analysis
+                "support_resistance": sr_analysis,
             }
 
         except Exception as e:
             self.logger.error(f"Error in pattern regime analysis: {e}")
-            return {
-                "pattern_regime": MarketRegime.RANGING,
-                "pattern_score": 50.0
-            }
+            return {"pattern_regime": MarketRegime.RANGING, "pattern_score": 50.0}
 
-    def _combine_regime_analyses(self, trend: Dict, volatility: Dict,
-                               momentum: Dict, volume: Dict, pattern: Dict) -> Dict[MarketRegime, float]:
+    def _combine_regime_analyses(
+        self, trend: Dict, volatility: Dict, momentum: Dict, volume: Dict, pattern: Dict
+    ) -> Dict[MarketRegime, float]:
         """Combine multiple regime analyses into final scores."""
         try:
             # Initialize regime scores
@@ -474,7 +498,9 @@ class MarketRegimeDetector:
             self.logger.error(f"Error combining regime analyses: {e}")
             return {MarketRegime.RANGING: 50.0}
 
-    def _classify_volatility_regime(self, current_vol: float, vol_percentile: float) -> VolatilityRegime:
+    def _classify_volatility_regime(
+        self, current_vol: float, vol_percentile: float
+    ) -> VolatilityRegime:
         """Classify volatility regime based on current volatility and percentile."""
         if vol_percentile >= 90:
             return VolatilityRegime.EXTREME_HIGH
@@ -501,7 +527,9 @@ class MarketRegimeDetector:
             recent_range = data.tail(20)
             recent_high = recent_range.select("high").max().item()
             recent_low = recent_range.select("low").min().item()
-            recent_range_pct = (recent_high - recent_low) / recent_low if recent_low > 0 else 0.0
+            recent_range_pct = (
+                (recent_high - recent_low) / recent_low if recent_low > 0 else 0.0
+            )
 
             consolidation_score = max(0.0, 100.0 - recent_range_pct * 500)
 
@@ -510,7 +538,7 @@ class MarketRegimeDetector:
                 "position_in_range": position_in_range,
                 "recent_range_pct": recent_range_pct,
                 "consolidation_score": consolidation_score,
-                "is_consolidating": recent_range_pct < 0.05  # Less than 5% range
+                "is_consolidating": recent_range_pct < 0.05,  # Less than 5% range
             }
 
         except Exception as e:
@@ -534,11 +562,11 @@ class MarketRegimeDetector:
             volume_confirmation = recent_volume / avg_volume if avg_volume > 0 else 1.0
 
             # Breakout detection
-            is_breakout = (current_price > resistance * 1.002 and
-                          volume_confirmation > 1.5)
+            is_breakout = (
+                current_price > resistance * 1.002 and volume_confirmation > 1.5
+            )
 
-            is_breakdown = (current_price < support * 0.998 and
-                           volume_confirmation > 1.5)
+            is_breakdown = current_price < support * 0.998 and volume_confirmation > 1.5
 
             # Breakout strength
             if is_breakout:
@@ -555,32 +583,41 @@ class MarketRegimeDetector:
                 "resistance_level": resistance,
                 "support_level": support,
                 "volume_confirmation": volume_confirmation,
-                "breakout_score": min(100.0, max(0.0, 50 + breakout_strength * 10))
+                "breakout_score": min(100.0, max(0.0, 50 + breakout_strength * 10)),
             }
 
         except Exception as e:
             self.logger.error(f"Error detecting breakout regime: {e}")
             return {"is_breakout": False, "is_breakdown": False, "breakout_score": 50.0}
 
-    def _analyze_support_resistance_strength(self, data: pl.DataFrame) -> Dict[str, Any]:
+    def _analyze_support_resistance_strength(
+        self, data: pl.DataFrame
+    ) -> Dict[str, Any]:
         """Analyze strength of support and resistance levels."""
         try:
             # Find pivot points
-            pivots = data.with_columns([
-                # Pivot highs
-                pl.when(
-                    (pl.col("high") == pl.col("high").rolling_max(window_size=5)) &
-                    (pl.col("high") > pl.col("high").shift(1)) &
-                    (pl.col("high") > pl.col("high").shift(-1))
-                ).then(pl.col("high")).otherwise(None).alias("pivot_high"),
-
-                # Pivot lows
-                pl.when(
-                    (pl.col("low") == pl.col("low").rolling_min(window_size=5)) &
-                    (pl.col("low") < pl.col("low").shift(1)) &
-                    (pl.col("low") < pl.col("low").shift(-1))
-                ).then(pl.col("low")).otherwise(None).alias("pivot_low")
-            ])
+            pivots = data.with_columns(
+                [
+                    # Pivot highs
+                    pl.when(
+                        (pl.col("high") == pl.col("high").rolling_max(window_size=5))
+                        & (pl.col("high") > pl.col("high").shift(1))
+                        & (pl.col("high") > pl.col("high").shift(-1))
+                    )
+                    .then(pl.col("high"))
+                    .otherwise(None)
+                    .alias("pivot_high"),
+                    # Pivot lows
+                    pl.when(
+                        (pl.col("low") == pl.col("low").rolling_min(window_size=5))
+                        & (pl.col("low") < pl.col("low").shift(1))
+                        & (pl.col("low") < pl.col("low").shift(-1))
+                    )
+                    .then(pl.col("low"))
+                    .otherwise(None)
+                    .alias("pivot_low"),
+                ]
+            )
 
             # Count touches of key levels
             current_price = data.select("close").tail(1).item()
@@ -615,7 +652,7 @@ class MarketRegimeDetector:
                 "resistance_touches": resistance_touches,
                 "support_touches": support_touches,
                 "key_resistance": locals().get("key_resistance", current_price),
-                "key_support": locals().get("key_support", current_price)
+                "key_support": locals().get("key_support", current_price),
             }
 
         except Exception as e:
@@ -632,7 +669,7 @@ class MarketRegimeDetector:
             window = 10
             rolling_vols = []
             for i in range(window, len(returns)):
-                vol = np.std(returns[i-window:i])
+                vol = np.std(returns[i - window : i])
                 rolling_vols.append(vol)
 
             if len(rolling_vols) < 10:
@@ -648,7 +685,7 @@ class MarketRegimeDetector:
             return {
                 "clustering_detected": clustering_detected,
                 "clustering_strength": clustering_strength,
-                "vol_autocorr": vol_autocorr
+                "vol_autocorr": vol_autocorr,
             }
 
         except Exception as e:
@@ -659,13 +696,13 @@ class MarketRegimeDetector:
         """Calculate ATR-based volatility measure."""
         try:
             # Calculate True Range
-            tr_data = data.with_columns([
-                (pl.col("high") - pl.col("low")).alias("hl"),
-                (pl.col("high") - pl.col("close").shift(1)).abs().alias("hc"),
-                (pl.col("low") - pl.col("close").shift(1)).abs().alias("lc")
-            ]).with_columns([
-                pl.max_horizontal(["hl", "hc", "lc"]).alias("true_range")
-            ])
+            tr_data = data.with_columns(
+                [
+                    (pl.col("high") - pl.col("low")).alias("hl"),
+                    (pl.col("high") - pl.col("close").shift(1)).abs().alias("hc"),
+                    (pl.col("low") - pl.col("close").shift(1)).abs().alias("lc"),
+                ]
+            ).with_columns([pl.max_horizontal(["hl", "hc", "lc"]).alias("true_range")])
 
             # Average True Range
             atr = tr_data.select("true_range").tail(14).mean().item()
@@ -684,10 +721,12 @@ class MarketRegimeDetector:
         """Calculate price-volume correlation."""
         try:
             # Calculate price changes and volume
-            corr_data = data.with_columns([
-                pl.col("close").pct_change().alias("price_change"),
-                pl.col("volume").alias("volume")
-            ]).drop_nulls()
+            corr_data = data.with_columns(
+                [
+                    pl.col("close").pct_change().alias("price_change"),
+                    pl.col("volume").alias("volume"),
+                ]
+            ).drop_nulls()
 
             if corr_data.height < 10:
                 return 0.0
@@ -746,11 +785,11 @@ class MarketRegimeDetector:
             # Trend instability
             recent_closes = data.select("close").tail(10).to_series().to_numpy()
             if len(recent_closes) >= 10:
-                recent_linregress_result = tuple(stats.linregress(
-                    np.arange(len(recent_closes)), recent_closes
-                ))
+                recent_linregress_result = tuple(
+                    stats.linregress(np.arange(len(recent_closes)), recent_closes)
+                )
                 recent_r = float(recent_linregress_result[2])
-                trend_instability = 1.0 - recent_r ** 2
+                trend_instability = 1.0 - recent_r**2
             else:
                 trend_instability = 0.5
 
@@ -762,8 +801,9 @@ class MarketRegimeDetector:
             self.logger.error(f"Error calculating regime change probability: {e}")
             return 0.1
 
-    def _assess_trading_favorability(self, regime: MarketRegime,
-                                   vol_regime: VolatilityRegime, confidence: float) -> bool:
+    def _assess_trading_favorability(
+        self, regime: MarketRegime, vol_regime: VolatilityRegime, confidence: float
+    ) -> bool:
         """Assess if current regime is favorable for trading."""
         try:
             # High confidence regimes are generally favorable
@@ -779,21 +819,25 @@ class MarketRegimeDetector:
                 MarketRegime.ACCUMULATION: True,
                 MarketRegime.RANGING: False,  # Generally unfavorable
                 MarketRegime.DISTRIBUTION: False,
-                MarketRegime.HIGH_VOLATILITY: False
+                MarketRegime.HIGH_VOLATILITY: False,
             }
 
             regime_favorable = favorable_regimes.get(regime, True)
 
             # Volatility favorability
-            vol_favorable = vol_regime not in [VolatilityRegime.EXTREME_HIGH, VolatilityRegime.EXTREME_LOW]
+            vol_favorable = vol_regime not in [
+                VolatilityRegime.EXTREME_HIGH,
+                VolatilityRegime.EXTREME_LOW,
+            ]
 
             return regime_favorable and vol_favorable
 
         except Exception:
             return True  # Default to favorable if analysis fails
 
-    def _calculate_position_size_multiplier(self, regime: MarketRegime,
-                                          vol_regime: VolatilityRegime, confidence: float) -> float:
+    def _calculate_position_size_multiplier(
+        self, regime: MarketRegime, vol_regime: VolatilityRegime, confidence: float
+    ) -> float:
         """Calculate position size multiplier based on regime."""
         try:
             multiplier = 1.0
@@ -807,7 +851,7 @@ class MarketRegimeDetector:
                 MarketRegime.RANGING: 0.7,
                 MarketRegime.HIGH_VOLATILITY: 0.6,
                 MarketRegime.ACCUMULATION: 1.1,
-                MarketRegime.DISTRIBUTION: 0.8
+                MarketRegime.DISTRIBUTION: 0.8,
             }
 
             multiplier *= regime_multipliers.get(regime, 1.0)
@@ -818,14 +862,14 @@ class MarketRegimeDetector:
                 VolatilityRegime.LOW: 1.1,
                 VolatilityRegime.NORMAL: 1.0,
                 VolatilityRegime.HIGH: 0.8,
-                VolatilityRegime.EXTREME_HIGH: 0.5
+                VolatilityRegime.EXTREME_HIGH: 0.5,
             }
 
             multiplier *= vol_multipliers.get(vol_regime, 1.0)
 
             # Confidence adjustment
             confidence_factor = confidence / 100.0
-            multiplier *= (0.5 + confidence_factor * 0.5)
+            multiplier *= 0.5 + confidence_factor * 0.5
 
             return max(0.1, min(2.0, multiplier))
 
@@ -853,7 +897,7 @@ class MarketRegimeDetector:
             volatility_percentile=50.0,
             regime_duration=1,
             favorable_for_trading=True,
-            recommended_position_size=1.0
+            recommended_position_size=1.0,
         )
 
 
@@ -875,7 +919,7 @@ class RegimeFilter:
                 MarketRegime.RANGING: 0.3,
                 MarketRegime.HIGH_VOLATILITY: 0.6,
                 MarketRegime.ACCUMULATION: 0.8,
-                MarketRegime.DISTRIBUTION: 0.7
+                MarketRegime.DISTRIBUTION: 0.7,
             },
             # Mean reversion strategies work well in ranging markets
             "mean_reversion": {
@@ -886,7 +930,7 @@ class RegimeFilter:
                 MarketRegime.RANGING: 1.2,
                 MarketRegime.HIGH_VOLATILITY: 1.0,
                 MarketRegime.ACCUMULATION: 1.0,
-                MarketRegime.DISTRIBUTION: 0.8
+                MarketRegime.DISTRIBUTION: 0.8,
             },
             # Trend following strategies
             "trend_following": {
@@ -897,11 +941,13 @@ class RegimeFilter:
                 MarketRegime.RANGING: 0.2,
                 MarketRegime.HIGH_VOLATILITY: 0.7,
                 MarketRegime.ACCUMULATION: 1.0,
-                MarketRegime.DISTRIBUTION: 0.9
-            }
+                MarketRegime.DISTRIBUTION: 0.9,
+            },
         }
 
-    def should_trade(self, regime_state: RegimeState, strategy_type: str = "balanced") -> Dict[str, Any]:
+    def should_trade(
+        self, regime_state: RegimeState, strategy_type: str = "balanced"
+    ) -> Dict[str, Any]:
         """
         Determine if trading should be allowed in current regime.
 
@@ -925,15 +971,21 @@ class RegimeFilter:
 
             # Volatility check
             vol_ok = regime_state.volatility_regime not in [
-                VolatilityRegime.EXTREME_HIGH, VolatilityRegime.EXTREME_LOW
+                VolatilityRegime.EXTREME_HIGH,
+                VolatilityRegime.EXTREME_LOW,
             ]
 
             # Regime stability (avoid trading during regime transitions)
             regime_stable = regime_state.regime_change_probability < 0.6
 
             # Combined decision
-            should_trade = (base_favorable and confidence_ok and
-                          vol_ok and regime_stable and regime_multiplier >= 0.6)
+            should_trade = (
+                base_favorable
+                and confidence_ok
+                and vol_ok
+                and regime_stable
+                and regime_multiplier >= 0.6
+            )
 
             # Reasoning
             reasons = []
@@ -942,9 +994,13 @@ class RegimeFilter:
             if not confidence_ok:
                 reasons.append(f"low confidence ({regime_state.confidence:.1f})")
             if not vol_ok:
-                reasons.append(f"extreme volatility ({regime_state.volatility_regime.value})")
+                reasons.append(
+                    f"extreme volatility ({regime_state.volatility_regime.value})"
+                )
             if not regime_stable:
-                reasons.append(f"regime transition likely ({regime_state.regime_change_probability:.1f})")
+                reasons.append(
+                    f"regime transition likely ({regime_state.regime_change_probability:.1f})"
+                )
             if regime_multiplier < 0.6:
                 reasons.append("strategy incompatible with regime")
 
@@ -953,14 +1009,15 @@ class RegimeFilter:
             return {
                 "should_trade": should_trade,
                 "confidence_multiplier": regime_multiplier,
-                "position_size_multiplier": regime_state.recommended_position_size * regime_multiplier,
+                "position_size_multiplier": regime_state.recommended_position_size
+                * regime_multiplier,
                 "reasoning": reasoning,
                 "regime_details": {
                     "primary_regime": regime_state.primary_regime.value,
                     "volatility_regime": regime_state.volatility_regime.value,
                     "confidence": regime_state.confidence,
-                    "regime_duration": regime_state.regime_duration
-                }
+                    "regime_duration": regime_state.regime_duration,
+                },
             }
 
         except Exception as e:
@@ -969,11 +1026,12 @@ class RegimeFilter:
                 "should_trade": False,
                 "confidence_multiplier": 0.5,
                 "position_size_multiplier": 0.5,
-                "reasoning": f"regime filter error: {str(e)}"
+                "reasoning": f"regime filter error: {str(e)}",
             }
 
-    def adjust_strategy_parameters(self, base_params: Dict[str, Any],
-                                 regime_state: RegimeState) -> Dict[str, Any]:
+    def adjust_strategy_parameters(
+        self, base_params: Dict[str, Any], regime_state: RegimeState
+    ) -> Dict[str, Any]:
         """
         Adjust strategy parameters based on current market regime.
 
@@ -990,36 +1048,68 @@ class RegimeFilter:
             # Regime-specific parameter adjustments
             if regime_state.primary_regime == MarketRegime.TRENDING_UP:
                 # Favor trend-following parameters
-                adjusted_params["stop_loss_pct"] = min(base_params.get("stop_loss_pct", 0.02) * 1.5, 0.05)
-                adjusted_params["take_profit_pct"] = base_params.get("take_profit_pct", 0.04) * 1.2
-                adjusted_params["min_confidence"] = max(base_params.get("min_confidence", 60) - 10, 50)
+                adjusted_params["stop_loss_pct"] = min(
+                    base_params.get("stop_loss_pct", 0.02) * 1.5, 0.05
+                )
+                adjusted_params["take_profit_pct"] = (
+                    base_params.get("take_profit_pct", 0.04) * 1.2
+                )
+                adjusted_params["min_confidence"] = max(
+                    base_params.get("min_confidence", 60) - 10, 50
+                )
 
             elif regime_state.primary_regime == MarketRegime.TRENDING_DOWN:
                 # Tighter stops in downtrends
-                adjusted_params["stop_loss_pct"] = base_params.get("stop_loss_pct", 0.02) * 0.8
-                adjusted_params["take_profit_pct"] = base_params.get("take_profit_pct", 0.04) * 0.8
-                adjusted_params["min_confidence"] = base_params.get("min_confidence", 60) + 10
+                adjusted_params["stop_loss_pct"] = (
+                    base_params.get("stop_loss_pct", 0.02) * 0.8
+                )
+                adjusted_params["take_profit_pct"] = (
+                    base_params.get("take_profit_pct", 0.04) * 0.8
+                )
+                adjusted_params["min_confidence"] = (
+                    base_params.get("min_confidence", 60) + 10
+                )
 
             elif regime_state.primary_regime == MarketRegime.RANGING:
                 # Mean reversion parameters
-                adjusted_params["stop_loss_pct"] = base_params.get("stop_loss_pct", 0.02) * 1.2
-                adjusted_params["take_profit_pct"] = base_params.get("take_profit_pct", 0.04) * 0.8
-                adjusted_params["min_confidence"] = base_params.get("min_confidence", 60) + 5
+                adjusted_params["stop_loss_pct"] = (
+                    base_params.get("stop_loss_pct", 0.02) * 1.2
+                )
+                adjusted_params["take_profit_pct"] = (
+                    base_params.get("take_profit_pct", 0.04) * 0.8
+                )
+                adjusted_params["min_confidence"] = (
+                    base_params.get("min_confidence", 60) + 5
+                )
 
             elif regime_state.primary_regime in [MarketRegime.HIGH_VOLATILITY]:
                 # Conservative parameters for high volatility
-                adjusted_params["stop_loss_pct"] = base_params.get("stop_loss_pct", 0.02) * 0.7
-                adjusted_params["take_profit_pct"] = base_params.get("take_profit_pct", 0.04) * 0.7
-                adjusted_params["max_position_size"] = base_params.get("max_position_size", 0.2) * 0.7
-                adjusted_params["min_confidence"] = base_params.get("min_confidence", 60) + 15
+                adjusted_params["stop_loss_pct"] = (
+                    base_params.get("stop_loss_pct", 0.02) * 0.7
+                )
+                adjusted_params["take_profit_pct"] = (
+                    base_params.get("take_profit_pct", 0.04) * 0.7
+                )
+                adjusted_params["max_position_size"] = (
+                    base_params.get("max_position_size", 0.2) * 0.7
+                )
+                adjusted_params["min_confidence"] = (
+                    base_params.get("min_confidence", 60) + 15
+                )
 
             # Volatility regime adjustments
             if regime_state.volatility_regime == VolatilityRegime.EXTREME_HIGH:
-                adjusted_params["max_position_size"] = base_params.get("max_position_size", 0.2) * 0.5
-                adjusted_params["min_confidence"] = base_params.get("min_confidence", 60) + 20
+                adjusted_params["max_position_size"] = (
+                    base_params.get("max_position_size", 0.2) * 0.5
+                )
+                adjusted_params["min_confidence"] = (
+                    base_params.get("min_confidence", 60) + 20
+                )
 
             elif regime_state.volatility_regime == VolatilityRegime.EXTREME_LOW:
-                adjusted_params["min_confidence"] = base_params.get("min_confidence", 60) + 10
+                adjusted_params["min_confidence"] = (
+                    base_params.get("min_confidence", 60) + 10
+                )
 
             return adjusted_params
 
@@ -1081,15 +1171,16 @@ class MarketStateAnalyzer:
                 "avg_sector_performance": avg_performance,
                 "sector_dispersion": performance_std,
                 "positive_sectors": positive_sectors,
-                "total_sectors": total_sectors
+                "total_sectors": total_sectors,
             }
 
         except Exception as e:
             self.logger.error(f"Error analyzing market breadth: {e}")
             return {"breadth_score": 50.0, "breadth_signal": "error"}
 
-    def detect_market_stress(self, vix_level: Optional[float] = None,
-                           correlation_data: Optional[Dict] = None) -> Dict[str, Any]:
+    def detect_market_stress(
+        self, vix_level: Optional[float] = None, correlation_data: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Detect market stress conditions.
 
@@ -1141,7 +1232,7 @@ class MarketStateAnalyzer:
                 "stress_score": stress_score,
                 "stress_signals": stress_signals,
                 "vix_level": vix_level,
-                "avoid_trading": stress_score >= 40
+                "avoid_trading": stress_score >= 40,
             }
 
         except Exception as e:
@@ -1165,7 +1256,7 @@ class RegimeBasedParameterOptimizer:
                 "rsi_oversold": 25,
                 "rsi_overbought": 75,
                 "stop_loss_multiplier": 1.5,
-                "take_profit_multiplier": 1.3
+                "take_profit_multiplier": 1.3,
             },
             MarketRegime.TRENDING_DOWN: {
                 "momentum_lookback": 8,
@@ -1174,7 +1265,7 @@ class RegimeBasedParameterOptimizer:
                 "rsi_oversold": 35,
                 "rsi_overbought": 70,
                 "stop_loss_multiplier": 0.8,
-                "take_profit_multiplier": 0.9
+                "take_profit_multiplier": 0.9,
             },
             MarketRegime.RANGING: {
                 "momentum_lookback": 20,
@@ -1183,7 +1274,7 @@ class RegimeBasedParameterOptimizer:
                 "rsi_oversold": 20,
                 "rsi_overbought": 80,
                 "stop_loss_multiplier": 1.2,
-                "take_profit_multiplier": 0.8
+                "take_profit_multiplier": 0.8,
             },
             MarketRegime.HIGH_VOLATILITY: {
                 "momentum_lookback": 5,
@@ -1192,12 +1283,13 @@ class RegimeBasedParameterOptimizer:
                 "rsi_oversold": 40,
                 "rsi_overbought": 60,
                 "stop_loss_multiplier": 0.6,
-                "take_profit_multiplier": 0.6
-            }
+                "take_profit_multiplier": 0.6,
+            },
         }
 
-    def optimize_for_regime(self, base_params: Dict[str, Any],
-                          regime_state: RegimeState) -> Dict[str, Any]:
+    def optimize_for_regime(
+        self, base_params: Dict[str, Any], regime_state: RegimeState
+    ) -> Dict[str, Any]:
         """
         Optimize parameters for current market regime.
 
@@ -1238,14 +1330,18 @@ class RegimeBasedParameterOptimizer:
             elif vol_regime == VolatilityRegime.EXTREME_LOW:
                 # Can be more aggressive in low volatility
                 if "max_position_size" in optimized:
-                    optimized["max_position_size"] = min(0.3, optimized["max_position_size"] * 1.2)
+                    optimized["max_position_size"] = min(
+                        0.3, optimized["max_position_size"] * 1.2
+                    )
 
             # Confidence-based adjustments
             confidence_factor = regime_state.confidence / 100.0
             if "min_confidence" in optimized:
                 # Higher regime confidence allows lower signal confidence threshold
                 adjustment = (1.0 - confidence_factor) * 10
-                optimized["min_confidence"] = max(40.0, optimized["min_confidence"] - adjustment)
+                optimized["min_confidence"] = max(
+                    40.0, optimized["min_confidence"] - adjustment
+                )
 
             self.logger.info(f"Optimized parameters for {regime.value} regime")
 
@@ -1271,8 +1367,12 @@ class RegimeAwareStrategyManager:
         self._current_regime = None
         self._regime_history = []
 
-    async def get_regime_adjusted_signal(self, base_signal: Any, market_data: pl.DataFrame,
-                                       strategy_type: str = "balanced") -> Tuple[Any, Dict[str, Any]]:
+    async def get_regime_adjusted_signal(
+        self,
+        base_signal: Any,
+        market_data: pl.DataFrame,
+        strategy_type: str = "balanced",
+    ) -> Tuple[Any, Dict[str, Any]]:
         """
         Adjust trading signal based on current market regime.
 
@@ -1295,38 +1395,52 @@ class RegimeAwareStrategyManager:
             # Adjust signal based on regime
             if not trading_decision["should_trade"]:
                 # Override signal to HOLD
-                adjusted_signal = base_signal.copy() if hasattr(base_signal, 'copy') else base_signal
-                if hasattr(adjusted_signal, 'action'):
+                adjusted_signal = (
+                    base_signal.copy() if hasattr(base_signal, "copy") else base_signal
+                )
+                if hasattr(adjusted_signal, "action"):
                     adjusted_signal.action = SignalType.HOLD
                     adjusted_signal.confidence = 0.0
-                    adjusted_signal.reasoning = f"Regime filter: {trading_decision['reasoning']}"
+                    adjusted_signal.reasoning = (
+                        f"Regime filter: {trading_decision['reasoning']}"
+                    )
 
             else:
                 # Adjust signal confidence and position size
-                adjusted_signal = base_signal.copy() if hasattr(base_signal, 'copy') else base_signal
+                adjusted_signal = (
+                    base_signal.copy() if hasattr(base_signal, "copy") else base_signal
+                )
 
-                if hasattr(adjusted_signal, 'confidence'):
+                if hasattr(adjusted_signal, "confidence"):
                     # Apply confidence multiplier
                     conf_multiplier = trading_decision.get("confidence_multiplier", 1.0)
-                    adjusted_signal.confidence = min(100.0, adjusted_signal.confidence * conf_multiplier)
+                    adjusted_signal.confidence = min(
+                        100.0, adjusted_signal.confidence * conf_multiplier
+                    )
 
-                if hasattr(adjusted_signal, 'position_size'):
+                if hasattr(adjusted_signal, "position_size"):
                     # Apply position size multiplier
-                    pos_multiplier = trading_decision.get("position_size_multiplier", 1.0)
-                    adjusted_signal.position_size = min(0.5, adjusted_signal.position_size * pos_multiplier)
+                    pos_multiplier = trading_decision.get(
+                        "position_size_multiplier", 1.0
+                    )
+                    adjusted_signal.position_size = min(
+                        0.5, adjusted_signal.position_size * pos_multiplier
+                    )
 
                 # Update reasoning
-                if hasattr(adjusted_signal, 'reasoning'):
+                if hasattr(adjusted_signal, "reasoning"):
                     regime_note = f" | Regime: {regime_state.primary_regime.value} (conf: {regime_state.confidence:.0f})"
                     adjusted_signal.reasoning += regime_note
 
                 # Add regime metadata
-                if hasattr(adjusted_signal, 'metadata'):
-                    adjusted_signal.metadata.update({
-                        "regime_state": regime_state.__dict__,
-                        "trading_decision": trading_decision,
-                        "regime_adjustments_applied": True
-                    })
+                if hasattr(adjusted_signal, "metadata"):
+                    adjusted_signal.metadata.update(
+                        {
+                            "regime_state": regime_state.__dict__,
+                            "trading_decision": trading_decision,
+                            "regime_adjustments_applied": True,
+                        }
+                    )
 
             # Prepare regime info
             regime_info = {
@@ -1334,7 +1448,7 @@ class RegimeAwareStrategyManager:
                 "trading_decision": trading_decision,
                 "adjustments_applied": True,
                 "regime_duration": regime_state.regime_duration,
-                "regime_confidence": regime_state.confidence
+                "regime_confidence": regime_state.confidence,
             }
 
             return adjusted_signal, regime_info
@@ -1345,7 +1459,7 @@ class RegimeAwareStrategyManager:
             regime_info = {
                 "error": str(e),
                 "adjustments_applied": False,
-                "regime_state": self._current_regime
+                "regime_state": self._current_regime,
             }
             return base_signal, regime_info
 
@@ -1367,7 +1481,7 @@ class RegimeAwareStrategyManager:
             "regime_duration": regime.regime_duration,
             "favorable_for_trading": regime.favorable_for_trading,
             "position_size_multiplier": regime.recommended_position_size,
-            "regime_change_probability": regime.regime_change_probability
+            "regime_change_probability": regime.regime_change_probability,
         }
 
     def should_halt_trading(self, stress_threshold: float = 40.0) -> Dict[str, Any]:
@@ -1411,7 +1525,7 @@ class RegimeAwareStrategyManager:
                 "should_halt": should_halt,
                 "halt_reasons": halt_reasons,
                 "regime_summary": self.get_regime_summary(),
-                "recommendation": "halt_trading" if should_halt else "continue_trading"
+                "recommendation": "halt_trading" if should_halt else "continue_trading",
             }
 
         except Exception as e:

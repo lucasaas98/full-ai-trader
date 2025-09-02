@@ -10,18 +10,28 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from shared.models import (
-    PortfolioState, TradeSignal, OrderRequest, OrderSide,
-    RiskEvent, RiskEventType, RiskSeverity, RiskAlert, PositionSizing,
-    PortfolioMetrics, RiskLimits, DailyRiskReport, PositionSizingMethod
+    DailyRiskReport,
+    OrderRequest,
+    OrderSide,
+    PortfolioMetrics,
+    PortfolioState,
+    PositionSizing,
+    PositionSizingMethod,
+    RiskAlert,
+    RiskEvent,
+    RiskEventType,
+    RiskLimits,
+    RiskSeverity,
+    TradeSignal,
 )
 
-from .risk_manager import RiskManager
+from .alert_manager import AlertManager
+from .alpaca_client import AlpacaRiskClient
+from .database_manager import RiskDatabaseManager
 from .portfolio_monitor import PortfolioMonitor
 from .position_sizer import PositionSizer
 from .risk_calculator import RiskCalculator
-from .alert_manager import AlertManager
-from .database_manager import RiskDatabaseManager
-from .alpaca_client import AlpacaRiskClient
+from .risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +47,7 @@ def _convert_risk_event_dict_to_object(event_dict: Dict[str, Any]) -> RiskEvent:
         timestamp=event_dict.get("timestamp", datetime.now(timezone.utc)),
         resolved_at=event_dict.get("resolved_at"),
         action_taken=event_dict.get("action_taken"),
-        metadata=event_dict.get("metadata", {})
+        metadata=event_dict.get("metadata", {}),
     )
 
 
@@ -51,14 +61,26 @@ class RiskService:
         # Initialize risk limits
         custom_config = config or {}
         self.risk_limits = RiskLimits(
-            max_position_percentage=custom_config.get("max_position_percentage", Decimal("0.20")),
+            max_position_percentage=custom_config.get(
+                "max_position_percentage", Decimal("0.20")
+            ),
             max_positions=custom_config.get("max_positions", 5),
-            stop_loss_percentage=custom_config.get("stop_loss_percentage", Decimal("0.02")),
-            take_profit_percentage=custom_config.get("take_profit_percentage", Decimal("0.03")),
-            max_daily_loss_percentage=custom_config.get("max_daily_loss_percentage", Decimal("0.05")),
-            max_correlation_threshold=custom_config.get("max_correlation_threshold", 0.7),
-            emergency_stop_percentage=custom_config.get("emergency_stop_percentage", Decimal("0.10")),
-            max_position_volatility=custom_config.get("max_position_volatility", 0.50)
+            stop_loss_percentage=custom_config.get(
+                "stop_loss_percentage", Decimal("0.02")
+            ),
+            take_profit_percentage=custom_config.get(
+                "take_profit_percentage", Decimal("0.03")
+            ),
+            max_daily_loss_percentage=custom_config.get(
+                "max_daily_loss_percentage", Decimal("0.05")
+            ),
+            max_correlation_threshold=custom_config.get(
+                "max_correlation_threshold", 0.7
+            ),
+            emergency_stop_percentage=custom_config.get(
+                "emergency_stop_percentage", Decimal("0.10")
+            ),
+            max_position_volatility=custom_config.get("max_position_volatility", 0.50),
         )
 
         # Initialize service components
@@ -129,9 +151,9 @@ class RiskService:
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
-    async def validate_trade(self,
-                           order_request: OrderRequest,
-                           signal: Optional[TradeSignal] = None) -> Tuple[bool, List[Dict], Optional[PositionSizing]]:
+    async def validate_trade(
+        self, order_request: OrderRequest, signal: Optional[TradeSignal] = None
+    ) -> Tuple[bool, List[Dict], Optional[PositionSizing]]:
         """
         Comprehensive trade validation with position sizing recommendation.
 
@@ -162,7 +184,7 @@ class RiskService:
                         symbol=order_request.symbol,
                         current_price=order_request.price or Decimal("0"),
                         portfolio=portfolio,
-                        signal=signal
+                        signal=signal,
                     )
                 except Exception as e:
                     logger.error(f"Error calculating position sizing: {e}")
@@ -176,7 +198,7 @@ class RiskService:
                     "reason": f.reason,
                     "value": f.value,
                     "limit": f.limit,
-                    "severity": f.severity if f.severity else None
+                    "severity": f.severity if f.severity else None,
                 }
                 filter_dicts.append(filter_dict)
 
@@ -194,10 +216,16 @@ class RiskService:
                             "symbol": order_request.symbol,
                             "side": order_request.side.value,
                             "quantity": order_request.quantity,
-                            "price": str(order_request.price) if order_request.price else None
+                            "price": (
+                                str(order_request.price)
+                                if order_request.price
+                                else None
+                            ),
                         },
-                        "failed_filters": [f.filter_name for f in filters if not f.passed]
-                    }
+                        "failed_filters": [
+                            f.filter_name for f in filters if not f.passed
+                        ],
+                    },
                 )
                 await self.database_manager.store_risk_event(event)
 
@@ -229,7 +257,7 @@ class RiskService:
                     sharpe_ratio=0.0,
                     max_drawdown=Decimal("0"),
                     current_drawdown=Decimal("0"),
-                    volatility=0.0
+                    volatility=0.0,
                 )
                 return empty_metrics, []
 
@@ -243,7 +271,9 @@ class RiskService:
             violations = await self.risk_manager.check_risk_violations(portfolio)
 
             # Generate alerts from portfolio monitor
-            _, monitor_alerts = await self.portfolio_monitor.monitor_portfolio(portfolio)
+            _, monitor_alerts = await self.portfolio_monitor.monitor_portfolio(
+                portfolio
+            )
 
             # Create alerts from violations
             violation_alerts = []
@@ -254,8 +284,10 @@ class RiskService:
                     symbol=violation.symbol,
                     title=f"Risk Violation: {violation.event_type.replace('_', ' ').title()}",
                     message=violation.description,
-                    action_required=(violation.severity in [RiskSeverity.HIGH, RiskSeverity.CRITICAL]),
-                    metadata=violation.metadata
+                    action_required=(
+                        violation.severity in [RiskSeverity.HIGH, RiskSeverity.CRITICAL]
+                    ),
+                    metadata=violation.metadata,
                 )
                 violation_alerts.append(alert)
 
@@ -297,7 +329,7 @@ class RiskService:
                 sharpe_ratio=0.0,
                 max_drawdown=Decimal("0"),
                 current_drawdown=Decimal("0"),
-                volatility=0.0
+                volatility=0.0,
             )
             return empty_metrics, []
 
@@ -314,14 +346,18 @@ class RiskService:
             current_prices = await self.alpaca_client.get_current_prices(symbols)
 
             # Update trailing stops
-            stop_events = await self.risk_manager.update_trailing_stops(portfolio, current_prices)
+            stop_events = await self.risk_manager.update_trailing_stops(
+                portfolio, current_prices
+            )
 
             # Store events
             for event in stop_events:
                 await self.database_manager.store_risk_event(event)
 
             # Check for scale-out opportunities
-            scale_out_events = await self._check_scale_out_opportunities(portfolio, current_prices)
+            scale_out_events = await self._check_scale_out_opportunities(
+                portfolio, current_prices
+            )
             stop_events.extend(scale_out_events)
 
             return stop_events
@@ -330,10 +366,9 @@ class RiskService:
             logger.error(f"Error updating position stops: {e}")
             return []
 
-    async def calculate_optimal_position_size(self,
-                                            symbol: str,
-                                            signal: TradeSignal,
-                                            current_price: Optional[Decimal] = None) -> PositionSizing:
+    async def calculate_optimal_position_size(
+        self, symbol: str, signal: TradeSignal, current_price: Optional[Decimal] = None
+    ) -> PositionSizing:
         """Calculate optimal position size with all risk considerations."""
         try:
             # Get current price if not provided
@@ -354,11 +389,13 @@ class RiskService:
                 symbol=symbol,
                 current_price=current_price,
                 portfolio=portfolio,
-                signal=signal
+                signal=signal,
             )
 
             # Validate sizing against current portfolio
-            violations = await self.position_sizer.validate_position_sizing(sizing, portfolio)
+            violations = await self.position_sizer.validate_position_sizing(
+                sizing, portfolio
+            )
             if violations:
                 logger.warning(f"Position sizing violations for {symbol}: {violations}")
 
@@ -376,14 +413,18 @@ class RiskService:
                 volatility_adjustment=0.5,
                 sizing_method=PositionSizingMethod.FIXED_PERCENTAGE,
                 max_loss_amount=Decimal("100"),
-                risk_reward_ratio=1.5
+                risk_reward_ratio=1.5,
             )
 
-    async def generate_daily_risk_report(self, date: Optional[datetime] = None) -> DailyRiskReport:
+    async def generate_daily_risk_report(
+        self, date: Optional[datetime] = None
+    ) -> DailyRiskReport:
         """Generate comprehensive daily risk report."""
         try:
             report_date = date or datetime.now(timezone.utc)
-            start_of_day = report_date.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_of_day = report_date.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             end_of_day = start_of_day + timedelta(days=1)
 
             # Get portfolio state
@@ -396,21 +437,28 @@ class RiskService:
 
             # Get risk events for the day
             risk_events_dict = await self.database_manager.get_risk_events(
-                start_date=start_of_day,
-                end_date=end_of_day
+                start_date=start_of_day, end_date=end_of_day
             )
 
             # Convert dictionary events to RiskEvent objects
-            risk_events = [_convert_risk_event_dict_to_object(event) for event in risk_events_dict]
+            risk_events = [
+                _convert_risk_event_dict_to_object(event) for event in risk_events_dict
+            ]
 
             # Calculate portfolio metrics
             metrics = await self._calculate_enhanced_metrics(portfolio)
 
             # Get position risks
-            position_risks = await self.portfolio_monitor.calculate_position_risks(portfolio)
+            position_risks = await self.portfolio_monitor.calculate_position_risks(
+                portfolio
+            )
 
             # Calculate performance metrics
-            daily_return = float(daily_pnl / portfolio.total_equity) if portfolio.total_equity > 0 else 0.0
+            daily_return = (
+                float(daily_pnl / portfolio.total_equity)
+                if portfolio.total_equity > 0
+                else 0.0
+            )
 
             # Get trade statistics
             trades = await self.alpaca_client.get_trade_history(days=1)
@@ -418,7 +466,9 @@ class RiskService:
             winning_trades = len([t for t in trades if self._is_winning_trade(t)])
 
             # Check compliance violations
-            compliance_violations = await self._check_compliance_violations(portfolio, metrics)
+            compliance_violations = await self._check_compliance_violations(
+                portfolio, metrics
+            )
 
             # Create daily report
             report = DailyRiskReport(
@@ -435,7 +485,7 @@ class RiskService:
                 winning_trades=winning_trades,
                 risk_events=risk_events,
                 position_risks=position_risks,
-                compliance_violations=compliance_violations
+                compliance_violations=compliance_violations,
             )
 
             # Store report
@@ -444,7 +494,7 @@ class RiskService:
             # Send report via notifications
             await self.alert_manager.send_daily_risk_report(
                 portfolio_metrics=metrics.__dict__,
-                risk_events=risk_events  # Use RiskEvent objects
+                risk_events=risk_events,  # Use RiskEvent objects
             )
 
             logger.info(f"Daily risk report generated for {report_date.date()}")
@@ -471,8 +521,8 @@ class RiskService:
                 metadata={
                     "triggered_by": triggered_by,
                     "reason": reason,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                },
             )
 
             # Store event
@@ -487,7 +537,9 @@ class RiskService:
             logger.error(f"Error activating emergency stop: {e}")
             raise
 
-    async def check_position_management_rules(self, portfolio: PortfolioState) -> List[Dict]:
+    async def check_position_management_rules(
+        self, portfolio: PortfolioState
+    ) -> List[Dict]:
         """Check all position management rules and return recommended actions."""
         try:
             recommendations = []
@@ -504,41 +556,59 @@ class RiskService:
                 current_price = current_prices.get(symbol, position.current_price)
 
                 # Check for scale-out opportunities
-                should_scale, scale_percentage = await self.risk_manager.should_scale_out_position(
-                    position, current_price
+                should_scale, scale_percentage = (
+                    await self.risk_manager.should_scale_out_position(
+                        position, current_price
+                    )
                 )
 
                 if should_scale:
-                    recommendations.append({
-                        "action": "scale_out",
-                        "symbol": symbol,
-                        "percentage": scale_percentage,
-                        "reason": f"Position up {((current_price - position.entry_price) / position.entry_price * 100):.1f}%",
-                        "current_price": str(current_price),
-                        "entry_price": str(position.entry_price)
-                    })
+                    recommendations.append(
+                        {
+                            "action": "scale_out",
+                            "symbol": symbol,
+                            "percentage": scale_percentage,
+                            "reason": f"Position up {((current_price - position.entry_price) / position.entry_price * 100):.1f}%",
+                            "current_price": str(current_price),
+                            "entry_price": str(position.entry_price),
+                        }
+                    )
 
                 # Check position size relative to limits
-                position_pct = abs(position.market_value) / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("0")
+                position_pct = (
+                    abs(position.market_value) / portfolio.total_equity
+                    if portfolio.total_equity > 0
+                    else Decimal("0")
+                )
                 if position_pct > self.risk_limits.max_position_percentage:
-                    recommendations.append({
-                        "action": "reduce_position",
-                        "symbol": symbol,
-                        "current_percentage": float(position_pct),
-                        "max_percentage": float(self.risk_limits.max_position_percentage),
-                        "reason": "Position size exceeds maximum allocation"
-                    })
+                    recommendations.append(
+                        {
+                            "action": "reduce_position",
+                            "symbol": symbol,
+                            "current_percentage": float(position_pct),
+                            "max_percentage": float(
+                                self.risk_limits.max_position_percentage
+                            ),
+                            "reason": "Position size exceeds maximum allocation",
+                        }
+                    )
 
                 # Check for stop loss violations
-                loss_pct = (position.current_price - position.entry_price) / position.entry_price
-                if position.quantity > 0 and loss_pct <= -float(self.risk_limits.stop_loss_percentage):
-                    recommendations.append({
-                        "action": "stop_loss",
-                        "symbol": symbol,
-                        "loss_percentage": float(loss_pct),
-                        "reason": "Stop loss threshold reached",
-                        "urgency": "high"
-                    })
+                loss_pct = (
+                    position.current_price - position.entry_price
+                ) / position.entry_price
+                if position.quantity > 0 and loss_pct <= -float(
+                    self.risk_limits.stop_loss_percentage
+                ):
+                    recommendations.append(
+                        {
+                            "action": "stop_loss",
+                            "symbol": symbol,
+                            "loss_percentage": float(loss_pct),
+                            "reason": "Stop loss threshold reached",
+                            "urgency": "high",
+                        }
+                    )
 
             return recommendations
 
@@ -550,7 +620,9 @@ class RiskService:
         """Calculate risk budget allocation across positions."""
         try:
             # Calculate component VaR for each position
-            component_vars = await self.risk_calculator.calculate_component_var(portfolio)
+            component_vars = await self.risk_calculator.calculate_component_var(
+                portfolio
+            )
 
             # Calculate total VaR
             total_var, _ = await self.risk_calculator.calculate_portfolio_var(portfolio)
@@ -563,14 +635,20 @@ class RiskService:
                     risk_budget[symbol] = {
                         "component_var": str(component_var),
                         "risk_contribution": risk_contribution,
-                        "risk_contribution_pct": f"{risk_contribution * 100:.1f}%"
+                        "risk_contribution_pct": f"{risk_contribution * 100:.1f}%",
                     }
 
             # Add portfolio summary
             risk_budget["portfolio_summary"] = {
                 "total_var": str(total_var),
-                "number_of_positions": len([p for p in portfolio.positions if p.quantity != 0]),
-                "risk_budget_used": sum(rb.get("risk_contribution", 0) for rb in risk_budget.values() if isinstance(rb, dict))
+                "number_of_positions": len(
+                    [p for p in portfolio.positions if p.quantity != 0]
+                ),
+                "risk_budget_used": sum(
+                    rb.get("risk_contribution", 0)
+                    for rb in risk_budget.values()
+                    if isinstance(rb, dict)
+                ),
             }
 
             return risk_budget
@@ -592,14 +670,22 @@ class RiskService:
                 scenarios = self._get_default_stress_scenarios()
 
             # Perform stress testing
-            stress_results = await self.risk_calculator.stress_test_portfolio(portfolio, scenarios)
+            stress_results = await self.risk_calculator.stress_test_portfolio(
+                portfolio, scenarios
+            )
 
             # Add current portfolio context
             stress_results["portfolio_context"] = {
                 "total_equity": str(portfolio.total_equity),
-                "position_count": len([p for p in portfolio.positions if p.quantity != 0]),
-                "cash_percentage": float(portfolio.cash / portfolio.total_equity) if portfolio.total_equity > 0 else 0.0,
-                "test_timestamp": datetime.now(timezone.utc).isoformat()
+                "position_count": len(
+                    [p for p in portfolio.positions if p.quantity != 0]
+                ),
+                "cash_percentage": (
+                    float(portfolio.cash / portfolio.total_equity)
+                    if portfolio.total_equity > 0
+                    else 0.0
+                ),
+                "test_timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Store stress test results
@@ -612,8 +698,8 @@ class RiskService:
                 action_taken=None,
                 metadata={
                     "stress_test_results": stress_results,
-                    "scenarios_tested": len(scenarios)
-                }
+                    "scenarios_tested": len(scenarios),
+                },
             )
             await self.database_manager.store_risk_event(stress_event)
 
@@ -635,22 +721,30 @@ class RiskService:
             metrics = await self._calculate_enhanced_metrics(portfolio)
 
             # Get recent alerts
-            recent_alerts = await self.database_manager.get_unacknowledged_alerts(limit=20)
+            recent_alerts = await self.database_manager.get_unacknowledged_alerts(
+                limit=20
+            )
 
             # Get risk statistics
             risk_stats = await self.database_manager.get_risk_statistics(days=7)
 
             # Get position risks
-            position_risks = await self.portfolio_monitor.calculate_position_risks(portfolio)
+            position_risks = await self.portfolio_monitor.calculate_position_risks(
+                portfolio
+            )
 
             # Get market conditions
             market_conditions = await self.alpaca_client.check_market_conditions()
 
             # Portfolio health check
-            health_status = await self.portfolio_monitor.check_portfolio_health(portfolio)
+            health_status = await self.portfolio_monitor.check_portfolio_health(
+                portfolio
+            )
 
             # Risk warnings
-            risk_warnings = await self.portfolio_monitor.generate_risk_warnings(portfolio)
+            risk_warnings = await self.portfolio_monitor.generate_risk_warnings(
+                portfolio
+            )
 
             dashboard_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -658,8 +752,10 @@ class RiskService:
                     "total_equity": str(portfolio.total_equity),
                     "cash": str(portfolio.cash),
                     "buying_power": str(portfolio.buying_power),
-                    "position_count": len([p for p in portfolio.positions if p.quantity != 0]),
-                    "day_trades_used": portfolio.day_trades_count
+                    "position_count": len(
+                        [p for p in portfolio.positions if p.quantity != 0]
+                    ),
+                    "day_trades_used": portfolio.day_trades_count,
                 },
                 "risk_metrics": {
                     "total_exposure": str(metrics.total_exposure),
@@ -668,7 +764,7 @@ class RiskService:
                     "volatility": metrics.volatility,
                     "var_1d": str(metrics.value_at_risk_1d),
                     "current_drawdown": str(metrics.current_drawdown),
-                    "sharpe_ratio": metrics.sharpe_ratio
+                    "sharpe_ratio": metrics.sharpe_ratio,
                 },
                 "health_status": health_status,
                 "risk_warnings": risk_warnings,
@@ -679,7 +775,7 @@ class RiskService:
                         "severity": alert.get("severity", ""),
                         "title": alert.get("title", ""),
                         "timestamp": alert.get("timestamp", ""),
-                        "action_required": alert.get("action_required", False)
+                        "action_required": alert.get("action_required", False),
                     }
                     for alert in recent_alerts[:5]  # Last 5 alerts
                 ],
@@ -689,24 +785,32 @@ class RiskService:
                         "portfolio_percentage": str(risk.portfolio_percentage),
                         "risk_score": risk.risk_score,
                         "volatility": risk.volatility,
-                        "sector": risk.sector
+                        "sector": risk.sector,
                     }
                     for risk in position_risks
                 ],
                 "market_conditions": market_conditions,
                 "risk_limits": {
-                    "max_position_percentage": str(self.risk_limits.max_position_percentage),
+                    "max_position_percentage": str(
+                        self.risk_limits.max_position_percentage
+                    ),
                     "max_positions": self.risk_limits.max_positions,
                     "stop_loss_percentage": str(self.risk_limits.stop_loss_percentage),
-                    "max_daily_loss_percentage": str(self.risk_limits.max_daily_loss_percentage),
-                    "emergency_stop_active": self.risk_manager.emergency_stop_active
+                    "max_daily_loss_percentage": str(
+                        self.risk_limits.max_daily_loss_percentage
+                    ),
+                    "emergency_stop_active": self.risk_manager.emergency_stop_active,
                 },
                 "risk_statistics": risk_stats,
                 "system_status": {
                     "monitoring_active": self.monitoring_active,
-                    "last_update": self.last_portfolio_update.isoformat() if self.last_portfolio_update else None,
-                    "alert_queue_size": self.alert_manager.alert_queue.qsize()
-                }
+                    "last_update": (
+                        self.last_portfolio_update.isoformat()
+                        if self.last_portfolio_update
+                        else None
+                    ),
+                    "alert_queue_size": self.alert_manager.alert_queue.qsize(),
+                },
             }
 
             return dashboard_data
@@ -766,40 +870,62 @@ class RiskService:
                 logger.error(f"Error in monitoring loop: {e}")
                 await asyncio.sleep(min(interval_seconds, 60))  # Fallback sleep
 
-    async def _calculate_enhanced_metrics(self, portfolio: PortfolioState) -> PortfolioMetrics:
+    async def _calculate_enhanced_metrics(
+        self, portfolio: PortfolioState
+    ) -> PortfolioMetrics:
         """Calculate enhanced portfolio metrics using real market data."""
         try:
             # Use risk calculator for advanced metrics
-            portfolio_vol = await self.risk_calculator.calculate_portfolio_volatility(portfolio)
-            portfolio_beta = await self.risk_calculator.calculate_portfolio_beta(portfolio)
+            portfolio_vol = await self.risk_calculator.calculate_portfolio_volatility(
+                portfolio
+            )
+            portfolio_beta = await self.risk_calculator.calculate_portfolio_beta(
+                portfolio
+            )
 
             # Calculate VaR using multiple methods
-            var_1d, expected_shortfall = await self.risk_calculator.calculate_portfolio_var(
-                portfolio, confidence_level=0.95, method="historical"
+            var_1d, expected_shortfall = (
+                await self.risk_calculator.calculate_portfolio_var(
+                    portfolio, confidence_level=0.95, method="historical"
+                )
             )
             var_5d, _ = await self.risk_calculator.calculate_portfolio_var(
                 portfolio, confidence_level=0.95, method="historical", holding_period=5
             )
 
             # Get concentration metrics
-            concentration_metrics = await self.risk_calculator.calculate_concentration_metrics(portfolio)
+            concentration_metrics = (
+                await self.risk_calculator.calculate_concentration_metrics(portfolio)
+            )
 
             # Calculate correlation
             symbols = [p.symbol for p in portfolio.positions if p.quantity != 0]
             if len(symbols) > 1:
-                corr_matrix = await self.risk_calculator.calculate_correlation_matrix(symbols)
-                avg_correlation = float(corr_matrix.values[np.triu_indices_from(corr_matrix.values, k=1)].mean())
+                corr_matrix = await self.risk_calculator.calculate_correlation_matrix(
+                    symbols
+                )
+                avg_correlation = float(
+                    corr_matrix.values[
+                        np.triu_indices_from(corr_matrix.values, k=1)
+                    ].mean()
+                )
             else:
                 avg_correlation = 0.0
 
             # Use portfolio monitor for remaining metrics
-            basic_metrics = await self.portfolio_monitor.calculate_detailed_metrics(portfolio)
+            basic_metrics = await self.portfolio_monitor.calculate_detailed_metrics(
+                portfolio
+            )
 
             # Combine enhanced metrics
             enhanced_metrics = PortfolioMetrics(
                 timestamp=datetime.now(timezone.utc),
                 total_exposure=portfolio.total_market_value,
-                cash_percentage=portfolio.cash / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("1"),
+                cash_percentage=(
+                    portfolio.cash / portfolio.total_equity
+                    if portfolio.total_equity > 0
+                    else Decimal("1")
+                ),
                 position_count=len([p for p in portfolio.positions if p.quantity != 0]),
                 concentration_risk=concentration_metrics.get("herfindahl_index", 0.0),
                 portfolio_beta=portfolio_beta,
@@ -810,7 +936,7 @@ class RiskService:
                 sharpe_ratio=basic_metrics.sharpe_ratio,  # From portfolio monitor
                 max_drawdown=basic_metrics.max_drawdown,
                 current_drawdown=basic_metrics.current_drawdown,
-                volatility=portfolio_vol
+                volatility=portfolio_vol,
             )
 
             return enhanced_metrics
@@ -820,7 +946,9 @@ class RiskService:
             # Return basic metrics as fallback
             return await self.portfolio_monitor.calculate_detailed_metrics(portfolio)
 
-    async def _check_scale_out_opportunities(self, portfolio: PortfolioState, current_prices: Dict[str, Decimal]) -> List[RiskEvent]:
+    async def _check_scale_out_opportunities(
+        self, portfolio: PortfolioState, current_prices: Dict[str, Decimal]
+    ) -> List[RiskEvent]:
         """Check for scale-out opportunities in winning positions."""
         events = []
 
@@ -831,10 +959,14 @@ class RiskService:
             symbol = position.symbol
             current_price = current_prices.get(symbol, position.current_price)
 
-            should_scale, scale_pct = await self.risk_manager.should_scale_out_position(position, current_price)
+            should_scale, scale_pct = await self.risk_manager.should_scale_out_position(
+                position, current_price
+            )
 
             if should_scale:
-                profit_pct = (current_price - position.entry_price) / position.entry_price
+                profit_pct = (
+                    current_price - position.entry_price
+                ) / position.entry_price
                 event = RiskEvent(
                     event_type=RiskEventType.TAKE_PROFIT_TRIGGERED,
                     severity=RiskSeverity.MEDIUM,
@@ -847,8 +979,8 @@ class RiskService:
                         "entry_price": str(position.entry_price),
                         "profit_percentage": float(profit_pct),
                         "scale_out_percentage": scale_pct,
-                        "position_size": position.quantity
-                    }
+                        "position_size": position.quantity,
+                    },
                 )
                 events.append(event)
 
@@ -866,9 +998,12 @@ class RiskService:
 
             # Get current market price
             import asyncio
+
             try:
                 # Try to get current price from data collector
-                current_prices = asyncio.run(self.alpaca_client.get_current_prices([symbol]))
+                current_prices = asyncio.run(
+                    self.alpaca_client.get_current_prices([symbol])
+                )
                 current_price = current_prices.get(symbol)
 
                 if not current_price or current_price <= 0:
@@ -882,7 +1017,9 @@ class RiskService:
                 # Try to get position info to compare against entry price
                 elif side == "SELL":
                     try:
-                        portfolio = asyncio.run(self.alpaca_client.get_portfolio_state())
+                        portfolio = asyncio.run(
+                            self.alpaca_client.get_portfolio_state()
+                        )
                         if portfolio and portfolio.positions:
                             # Look for matching position to get entry price
                             for position in portfolio.positions:
@@ -908,33 +1045,52 @@ class RiskService:
             logger.warning(f"Error determining if trade is winning: {e}")
             return False
 
-    async def _check_compliance_violations(self, portfolio: PortfolioState, metrics: PortfolioMetrics) -> List[str]:
+    async def _check_compliance_violations(
+        self, portfolio: PortfolioState, metrics: PortfolioMetrics
+    ) -> List[str]:
         """Check for compliance violations."""
         violations = []
 
         try:
             # Position limits
             if metrics.position_count > self.risk_limits.max_positions:
-                violations.append(f"Position count {metrics.position_count} exceeds limit {self.risk_limits.max_positions}")
+                violations.append(
+                    f"Position count {metrics.position_count} exceeds limit {self.risk_limits.max_positions}"
+                )
 
             # Concentration limits
             if metrics.concentration_risk > 0.8:
-                violations.append(f"Portfolio concentration risk {metrics.concentration_risk:.2f} exceeds safe threshold 0.8")
+                violations.append(
+                    f"Portfolio concentration risk {metrics.concentration_risk:.2f} exceeds safe threshold 0.8"
+                )
 
             # Drawdown limits
             if metrics.current_drawdown > self.risk_limits.max_drawdown_percentage:
-                violations.append(f"Current drawdown {metrics.current_drawdown:.2%} exceeds limit {self.risk_limits.max_drawdown_percentage:.2%}")
+                violations.append(
+                    f"Current drawdown {metrics.current_drawdown:.2%} exceeds limit {self.risk_limits.max_drawdown_percentage:.2%}"
+                )
 
             # Correlation limits
-            if metrics.portfolio_correlation > self.risk_limits.max_correlation_threshold:
-                violations.append(f"Portfolio correlation {metrics.portfolio_correlation:.2f} exceeds limit {self.risk_limits.max_correlation_threshold}")
+            if (
+                metrics.portfolio_correlation
+                > self.risk_limits.max_correlation_threshold
+            ):
+                violations.append(
+                    f"Portfolio correlation {metrics.portfolio_correlation:.2f} exceeds limit {self.risk_limits.max_correlation_threshold}"
+                )
 
             # Individual position limits
             for position in portfolio.positions:
                 if position.quantity != 0:
-                    position_pct = abs(position.market_value) / portfolio.total_equity if portfolio.total_equity > 0 else Decimal("0")
+                    position_pct = (
+                        abs(position.market_value) / portfolio.total_equity
+                        if portfolio.total_equity > 0
+                        else Decimal("0")
+                    )
                     if position_pct > self.risk_limits.max_position_percentage:
-                        violations.append(f"Position {position.symbol} size {position_pct:.2%} exceeds limit {self.risk_limits.max_position_percentage:.2%}")
+                        violations.append(
+                            f"Position {position.symbol} size {position_pct:.2%} exceeds limit {self.risk_limits.max_position_percentage:.2%}"
+                        )
 
             return violations
 
@@ -948,49 +1104,60 @@ class RiskService:
             {
                 "name": "market_crash_10pct",
                 "description": "10% market-wide decline",
-                "shocks": {"*": -0.10}  # Apply to all positions
+                "shocks": {"*": -0.10},  # Apply to all positions
             },
             {
                 "name": "market_crash_20pct",
                 "description": "20% market-wide decline",
-                "shocks": {"*": -0.20}
+                "shocks": {"*": -0.20},
             },
             {
                 "name": "tech_sector_crash",
                 "description": "30% decline in tech stocks",
                 "shocks": {
-                    "AAPL": -0.30, "MSFT": -0.30, "GOOGL": -0.30,
-                    "AMZN": -0.25, "TSLA": -0.35, "NVDA": -0.30
-                }
+                    "AAPL": -0.30,
+                    "MSFT": -0.30,
+                    "GOOGL": -0.30,
+                    "AMZN": -0.25,
+                    "TSLA": -0.35,
+                    "NVDA": -0.30,
+                },
             },
             {
                 "name": "financial_crisis",
                 "description": "Financial sector stress",
                 "shocks": {
-                    "JPM": -0.25, "BAC": -0.30, "WFC": -0.28,
-                    "C": -0.32, "GS": -0.35
-                }
+                    "JPM": -0.25,
+                    "BAC": -0.30,
+                    "WFC": -0.28,
+                    "C": -0.32,
+                    "GS": -0.35,
+                },
             },
             {
                 "name": "volatility_spike",
                 "description": "High volatility environment",
                 "shocks": {"*": 0.0},  # No price shock, but increased volatility
-                "volatility_multiplier": 2.0
+                "volatility_multiplier": 2.0,
             },
             {
                 "name": "interest_rate_shock",
                 "description": "200bps interest rate increase",
                 "shocks": {
-                    "SPY": -0.08, "QQQ": -0.12, "IWM": -0.10,
+                    "SPY": -0.08,
+                    "QQQ": -0.12,
+                    "IWM": -0.10,
                     # Growth stocks more sensitive
-                    "AAPL": -0.15, "MSFT": -0.12, "GOOGL": -0.18
-                }
+                    "AAPL": -0.15,
+                    "MSFT": -0.12,
+                    "GOOGL": -0.18,
+                },
             },
             {
                 "name": "black_swan",
                 "description": "Extreme tail risk event",
-                "shocks": {"*": -0.35}  # 35% decline across all positions
-            }
+                "shocks": {"*": -0.35},  # 35% decline across all positions
+            },
         ]
 
     async def reset_daily_risk_state(self):
@@ -1004,7 +1171,9 @@ class RiskService:
 
             # Clear emergency stop if it was activated
             if self.risk_manager.emergency_stop_active:
-                logger.warning("Emergency stop was active - manual review required before deactivation")
+                logger.warning(
+                    "Emergency stop was active - manual review required before deactivation"
+                )
 
             logger.info("Daily risk state reset completed")
 
@@ -1016,8 +1185,14 @@ class RiskService:
         return {
             "initialized": self.is_initialized,
             "monitoring_active": self.monitoring_active,
-            "emergency_stop_active": self.risk_manager.emergency_stop_active if self.risk_manager else False,
-            "last_portfolio_update": self.last_portfolio_update.isoformat() if self.last_portfolio_update else None,
+            "emergency_stop_active": (
+                self.risk_manager.emergency_stop_active if self.risk_manager else False
+            ),
+            "last_portfolio_update": (
+                self.last_portfolio_update.isoformat()
+                if self.last_portfolio_update
+                else None
+            ),
             "components": {
                 "risk_manager": self.risk_manager is not None,
                 "position_sizer": self.position_sizer is not None,
@@ -1025,14 +1200,20 @@ class RiskService:
                 "alert_manager": self.alert_manager is not None,
                 "database_manager": self.database_manager is not None,
                 "alpaca_client": self.alpaca_client is not None,
-                "risk_calculator": self.risk_calculator is not None
+                "risk_calculator": self.risk_calculator is not None,
             },
             "risk_limits": {
-                "max_position_percentage": str(self.risk_limits.max_position_percentage),
+                "max_position_percentage": str(
+                    self.risk_limits.max_position_percentage
+                ),
                 "max_positions": self.risk_limits.max_positions,
                 "stop_loss_percentage": str(self.risk_limits.stop_loss_percentage),
                 "take_profit_percentage": str(self.risk_limits.take_profit_percentage),
-                "max_daily_loss_percentage": str(self.risk_limits.max_daily_loss_percentage),
-                "emergency_stop_percentage": str(self.risk_limits.emergency_stop_percentage)
-            }
+                "max_daily_loss_percentage": str(
+                    self.risk_limits.max_daily_loss_percentage
+                ),
+                "emergency_stop_percentage": str(
+                    self.risk_limits.emergency_stop_percentage
+                ),
+            },
         }

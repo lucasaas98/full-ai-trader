@@ -14,29 +14,32 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
-from uuid import UUID, uuid4
 from enum import Enum
-
-
+from typing import Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
 import asyncpg
 import redis.asyncio as redis
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from shared.models import (
-    OrderRequest, OrderResponse, OrderSide, OrderType, OrderStatus,
-    TradeSignal
-)
 from shared.config import get_config
-from .alpaca_client import AlpacaClient
+from shared.models import (
+    OrderRequest,
+    OrderResponse,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    TradeSignal,
+)
 
+from .alpaca_client import AlpacaClient
 
 logger = logging.getLogger(__name__)
 
 
 class OrderExecutionStrategy(str, Enum):
     """Order execution strategies."""
+
     IMMEDIATE = "immediate"
     MARKET = "market"
     TWAP = "twap"
@@ -47,6 +50,7 @@ class OrderExecutionStrategy(str, Enum):
 
 class BracketOrderStatus(str, Enum):
     """Bracket order status."""
+
     PENDING = "pending"
     ACTIVE = "active"
     PARTIALLY_FILLED = "partially_filled"
@@ -91,14 +95,12 @@ class OrderManager:
                 password=self.config.database.password,
                 min_size=5,
                 max_size=20,
-                command_timeout=30
+                command_timeout=30,
             )
 
             # Initialize Redis connection
             self._redis = redis.from_url(
-                self.config.redis.url,
-                max_connections=20,
-                retry_on_timeout=True
+                self.config.redis.url, max_connections=20, retry_on_timeout=True
             )
 
             logger.info("OrderManager initialized successfully")
@@ -129,17 +131,21 @@ class OrderManager:
             Execution result with order details
         """
         try:
-            logger.info(f"Processing signal: {signal.id} for {signal.symbol} - {signal.signal_type}")
+            logger.info(
+                f"Processing signal: {signal.id} for {signal.symbol} - {signal.signal_type}"
+            )
 
             # Validate signal
             validation_result = await self._validate_signal(signal)
-            if not validation_result['valid']:
-                logger.warning(f"Signal validation failed: {validation_result['issues']}")
+            if not validation_result["valid"]:
+                logger.warning(
+                    f"Signal validation failed: {validation_result['issues']}"
+                )
                 return {
-                    'success': False,
-                    'signal_id': signal.id,
-                    'error': 'Signal validation failed',
-                    'issues': validation_result['issues']
+                    "success": False,
+                    "signal_id": signal.id,
+                    "error": "Signal validation failed",
+                    "issues": validation_result["issues"],
                 }
 
             # Determine execution strategy
@@ -150,9 +156,9 @@ class OrderManager:
             if position_size <= 0:
                 logger.warning(f"Invalid position size calculated: {position_size}")
                 return {
-                    'success': False,
-                    'signal_id': signal.id,
-                    'error': 'Invalid position size'
+                    "success": False,
+                    "signal_id": signal.id,
+                    "error": "Invalid position size",
                 }
 
             # Execute based on strategy
@@ -175,11 +181,7 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Failed to process signal {signal.id}: {e}")
             await self._handle_execution_error(signal, e)
-            return {
-                'success': False,
-                'signal_id': signal.id,
-                'error': str(e)
-            }
+            return {"success": False, "signal_id": signal.id, "error": str(e)}
 
     async def _validate_signal(self, signal: TradeSignal) -> Dict[str, Any]:
         """Validate a trade signal before execution."""
@@ -193,41 +195,59 @@ class OrderManager:
 
             # Check for duplicate signals
             recent_signals = await self._get_recent_signals(signal.symbol, minutes=5)
-            if any(s['signal_type'] == signal.signal_type.value for s in recent_signals):
+            if any(
+                s["signal_type"] == signal.signal_type.value for s in recent_signals
+            ):
                 warnings.append("Similar signal received recently")
 
             # Validate price levels
             if signal.stop_loss and signal.price:
-                if signal.signal_type.value == 'buy' and signal.stop_loss >= signal.price:
+                if (
+                    signal.signal_type.value == "buy"
+                    and signal.stop_loss >= signal.price
+                ):
                     issues.append("Stop loss must be below entry price for buy signals")
-                elif signal.signal_type.value == 'sell' and signal.stop_loss <= signal.price:
-                    issues.append("Stop loss must be above entry price for sell signals")
+                elif (
+                    signal.signal_type.value == "sell"
+                    and signal.stop_loss <= signal.price
+                ):
+                    issues.append(
+                        "Stop loss must be above entry price for sell signals"
+                    )
 
             if signal.take_profit and signal.price:
-                if signal.signal_type.value == 'buy' and signal.take_profit <= signal.price:
-                    issues.append("Take profit must be above entry price for buy signals")
-                elif signal.signal_type.value == 'sell' and signal.take_profit >= signal.price:
-                    issues.append("Take profit must be below entry price for sell signals")
+                if (
+                    signal.signal_type.value == "buy"
+                    and signal.take_profit <= signal.price
+                ):
+                    issues.append(
+                        "Take profit must be above entry price for buy signals"
+                    )
+                elif (
+                    signal.signal_type.value == "sell"
+                    and signal.take_profit >= signal.price
+                ):
+                    issues.append(
+                        "Take profit must be below entry price for sell signals"
+                    )
 
             # Check confidence threshold
             if signal.confidence < 0.6:  # Configurable threshold
                 warnings.append(f"Low confidence signal: {signal.confidence}")
 
-            return {
-                'valid': len(issues) == 0,
-                'issues': issues,
-                'warnings': warnings
-            }
+            return {"valid": len(issues) == 0, "issues": issues, "warnings": warnings}
 
         except Exception as e:
             logger.error(f"Signal validation error: {e}")
             return {
-                'valid': False,
-                'issues': [f"Validation error: {e}"],
-                'warnings': []
+                "valid": False,
+                "issues": [f"Validation error: {e}"],
+                "warnings": [],
             }
 
-    async def _determine_execution_strategy(self, signal: TradeSignal) -> OrderExecutionStrategy:
+    async def _determine_execution_strategy(
+        self, signal: TradeSignal
+    ) -> OrderExecutionStrategy:
         """
         Determine the best execution strategy for a signal.
 
@@ -242,17 +262,19 @@ class OrderManager:
             quote = await self.alpaca.get_latest_quote(signal.symbol)
 
             # Calculate volatility and spread
-            if not quote or 'ask' not in quote or 'bid' not in quote:
+            if not quote or "ask" not in quote or "bid" not in quote:
                 return OrderExecutionStrategy.MARKET  # Default if no quote data
 
-            spread_pct = (quote['ask'] - quote['bid']) / ((quote['ask'] + quote['bid']) / 2)
+            spread_pct = (quote["ask"] - quote["bid"]) / (
+                (quote["ask"] + quote["bid"]) / 2
+            )
 
             # High confidence + low volatility = immediate execution
             if signal.confidence > 0.8 and spread_pct < 0.001:
                 return OrderExecutionStrategy.IMMEDIATE
 
             # Large orders use TWAP/VWAP
-            estimated_cost = (signal.quantity or 100) * quote['ask']
+            estimated_cost = (signal.quantity or 100) * quote["ask"]
             if estimated_cost > 50000:  # $50k threshold
                 return OrderExecutionStrategy.VWAP
 
@@ -264,7 +286,9 @@ class OrderManager:
             return OrderExecutionStrategy.TWAP
 
         except Exception as e:
-            logger.warning(f"Failed to determine execution strategy, using default: {e}")
+            logger.warning(
+                f"Failed to determine execution strategy, using default: {e}"
+            )
             return OrderExecutionStrategy.IMMEDIATE
 
     async def _calculate_position_size(self, signal: TradeSignal) -> int:
@@ -296,10 +320,7 @@ class OrderManager:
             stop_price = entry_price * (Decimal("1") - risk_config.stop_loss_percentage)
 
             shares = self.alpaca.calculate_position_size(
-                signal.symbol,
-                risk_per_trade,
-                entry_price,
-                stop_price
+                signal.symbol, risk_per_trade, entry_price, stop_price
             )
 
             return shares
@@ -308,10 +329,16 @@ class OrderManager:
             logger.error(f"Failed to calculate position size: {e}")
             return 0
 
-    async def _execute_immediate(self, signal: TradeSignal, quantity: int) -> Dict[str, Any]:
+    async def _execute_immediate(
+        self, signal: TradeSignal, quantity: int
+    ) -> Dict[str, Any]:
         """Execute order immediately using market orders."""
         try:
-            side = OrderSide.BUY if signal.signal_type.value in ['buy', 'long'] else OrderSide.SELL
+            side = (
+                OrderSide.BUY
+                if signal.signal_type.value in ["buy", "long"]
+                else OrderSide.SELL
+            )
 
             # Place bracket order if stop loss and take profit are provided
             if signal.stop_loss and signal.take_profit:
@@ -321,7 +348,7 @@ class OrderManager:
                     quantity=quantity,
                     entry_price=None,  # Market order
                     stop_loss_price=signal.stop_loss,
-                    take_profit_price=signal.take_profit
+                    take_profit_price=signal.take_profit,
                 )
 
                 # Store bracket order
@@ -329,11 +356,11 @@ class OrderManager:
                 await self._store_bracket_order(bracket_id, orders, signal)
 
                 return {
-                    'success': True,
-                    'execution_strategy': OrderExecutionStrategy.IMMEDIATE,
-                    'orders': orders,
-                    'bracket_id': bracket_id,
-                    'quantity': quantity
+                    "success": True,
+                    "execution_strategy": OrderExecutionStrategy.IMMEDIATE,
+                    "orders": orders,
+                    "bracket_id": bracket_id,
+                    "quantity": quantity,
                 }
             else:
                 # Simple market order
@@ -344,42 +371,54 @@ class OrderManager:
                     quantity=quantity,
                     price=None,
                     stop_price=None,
-                    client_order_id=str(uuid4())
+                    client_order_id=str(uuid4()),
                 )
 
                 order_response = await self.alpaca.place_order(order_request)
                 await self._store_order(order_request, order_response, signal.id)
 
                 return {
-                    'success': True,
-                    'execution_strategy': OrderExecutionStrategy.IMMEDIATE,
-                    'order': order_response,
-                    'quantity': quantity
+                    "success": True,
+                    "execution_strategy": OrderExecutionStrategy.IMMEDIATE,
+                    "order": order_response,
+                    "quantity": quantity,
                 }
 
         except Exception as e:
             logger.error(f"Immediate execution failed for {signal.symbol}: {e}")
             raise
 
-    async def _execute_twap(self, signal: TradeSignal, quantity: int, duration_minutes: int = 30) -> Dict[str, Any]:
+    async def _execute_twap(
+        self, signal: TradeSignal, quantity: int, duration_minutes: int = 30
+    ) -> Dict[str, Any]:
         """Execute order using Time-Weighted Average Price strategy."""
         try:
-            logger.info(f"Executing TWAP order for {quantity} {signal.symbol} over {duration_minutes} minutes")
+            logger.info(
+                f"Executing TWAP order for {quantity} {signal.symbol} over {duration_minutes} minutes"
+            )
 
             # Calculate slice parameters
-            num_slices = min(10, duration_minutes // 3)  # Max 10 slices, min 3 minutes per slice
+            num_slices = min(
+                10, duration_minutes // 3
+            )  # Max 10 slices, min 3 minutes per slice
             slice_size = quantity // num_slices
             remaining_qty = quantity % num_slices
             slice_interval = timedelta(minutes=duration_minutes // num_slices)
 
-            side = OrderSide.BUY if signal.signal_type.value in ['buy', 'long'] else OrderSide.SELL
+            side = (
+                OrderSide.BUY
+                if signal.signal_type.value in ["buy", "long"]
+                else OrderSide.SELL
+            )
             orders = []
 
             # Execute slices
             for i in range(num_slices):
                 try:
                     # Add remainder to last slice
-                    current_slice_size = slice_size + (remaining_qty if i == num_slices - 1 else 0)
+                    current_slice_size = slice_size + (
+                        remaining_qty if i == num_slices - 1 else 0
+                    )
 
                     # Calculate TWAP target price
                     twap_price = await self.alpaca.calculate_twap_price(signal.symbol)
@@ -387,7 +426,9 @@ class OrderManager:
 
                     # Check if TWAP price is available
                     if twap_price is None:
-                        logger.warning(f"TWAP price not available for {signal.symbol}, using market order")
+                        logger.warning(
+                            f"TWAP price not available for {signal.symbol}, using market order"
+                        )
                         order_request = OrderRequest(
                             symbol=signal.symbol,
                             side=side,
@@ -395,14 +436,18 @@ class OrderManager:
                             quantity=current_slice_size,
                             price=None,
                             stop_price=None,
-                            client_order_id=None
+                            client_order_id=None,
                         )
                     else:
                         # Adjust price slightly for better execution probability
                         if side == OrderSide.BUY:
-                            limit_price = twap_price * Decimal("1.001")  # 0.1% above TWAP
+                            limit_price = twap_price * Decimal(
+                                "1.001"
+                            )  # 0.1% above TWAP
                         else:
-                            limit_price = twap_price * Decimal("0.999")  # 0.1% below TWAP
+                            limit_price = twap_price * Decimal(
+                                "0.999"
+                            )  # 0.1% below TWAP
 
                         order_request = OrderRequest(
                             symbol=signal.symbol,
@@ -411,14 +456,16 @@ class OrderManager:
                             quantity=current_slice_size,
                             price=limit_price,
                             stop_price=None,
-                            client_order_id=None
+                            client_order_id=None,
                         )
 
                     order_response = await self.alpaca.place_order(order_request)
                     orders.append(order_response)
                     await self._store_order(order_request, order_response, signal.id)
 
-                    logger.info(f"TWAP slice {i+1}/{num_slices} placed: {current_slice_size} @ {limit_price}")
+                    logger.info(
+                        f"TWAP slice {i+1}/{num_slices} placed: {current_slice_size} @ {limit_price}"
+                    )
 
                     # Wait before next slice (except for last one)
                     if i < num_slices - 1:
@@ -430,26 +477,36 @@ class OrderManager:
                     continue
 
             return {
-                'success': True,
-                'execution_strategy': OrderExecutionStrategy.TWAP,
-                'orders': orders,
-                'total_quantity': quantity,
-                'executed_slices': len(orders)
+                "success": True,
+                "execution_strategy": OrderExecutionStrategy.TWAP,
+                "orders": orders,
+                "total_quantity": quantity,
+                "executed_slices": len(orders),
             }
 
         except Exception as e:
             logger.error(f"TWAP execution failed for {signal.symbol}: {e}")
             raise
 
-    async def _execute_vwap(self, signal: TradeSignal, quantity: int, duration_minutes: int = 30) -> Dict[str, Any]:
+    async def _execute_vwap(
+        self, signal: TradeSignal, quantity: int, duration_minutes: int = 30
+    ) -> Dict[str, Any]:
         """Execute order using Volume-Weighted Average Price strategy."""
         try:
-            logger.info(f"Executing VWAP order for {quantity} {signal.symbol} over {duration_minutes} minutes")
+            logger.info(
+                f"Executing VWAP order for {quantity} {signal.symbol} over {duration_minutes} minutes"
+            )
 
             # Get historical volume pattern to determine slice sizes
-            volume_profile = await self._get_volume_profile(signal.symbol, duration_minutes)
+            volume_profile = await self._get_volume_profile(
+                signal.symbol, duration_minutes
+            )
 
-            side = OrderSide.BUY if signal.signal_type.value in ['buy', 'long'] else OrderSide.SELL
+            side = (
+                OrderSide.BUY
+                if signal.signal_type.value in ["buy", "long"]
+                else OrderSide.SELL
+            )
             orders = []
             total_executed = 0
 
@@ -466,7 +523,9 @@ class OrderManager:
 
                     # Check if VWAP price is available
                     if vwap_price is None:
-                        logger.warning(f"VWAP price not available for {signal.symbol}, using market order")
+                        logger.warning(
+                            f"VWAP price not available for {signal.symbol}, using market order"
+                        )
                         order_request = OrderRequest(
                             symbol=signal.symbol,
                             side=side,
@@ -474,14 +533,18 @@ class OrderManager:
                             quantity=slice_size,
                             price=None,
                             stop_price=None,
-                            client_order_id=None
+                            client_order_id=None,
                         )
                     else:
                         # Adjust price for execution
                         if side == OrderSide.BUY:
-                            limit_price = vwap_price * Decimal("1.0015")  # 0.15% above VWAP
+                            limit_price = vwap_price * Decimal(
+                                "1.0015"
+                            )  # 0.15% above VWAP
                         else:
-                            limit_price = vwap_price * Decimal("0.9985")  # 0.15% below VWAP
+                            limit_price = vwap_price * Decimal(
+                                "0.9985"
+                            )  # 0.15% below VWAP
 
                         order_request = OrderRequest(
                             symbol=signal.symbol,
@@ -490,7 +553,7 @@ class OrderManager:
                             quantity=slice_size,
                             price=limit_price,
                             stop_price=None,
-                            client_order_id=None
+                            client_order_id=None,
                         )
 
                     order_response = await self.alpaca.place_order(order_request)
@@ -498,7 +561,9 @@ class OrderManager:
                     await self._store_order(order_request, order_response, signal.id)
 
                     total_executed += slice_size
-                    logger.info(f"VWAP slice {i+1} placed: {slice_size} @ {limit_price}")
+                    logger.info(
+                        f"VWAP slice {i+1} placed: {slice_size} @ {limit_price}"
+                    )
 
                     # Wait between slices
                     await asyncio.sleep(duration_minutes * 60 / len(volume_profile))
@@ -508,23 +573,31 @@ class OrderManager:
                     continue
 
             return {
-                'success': True,
-                'execution_strategy': OrderExecutionStrategy.VWAP,
-                'orders': orders,
-                'total_quantity': quantity,
-                'executed_quantity': total_executed
+                "success": True,
+                "execution_strategy": OrderExecutionStrategy.VWAP,
+                "orders": orders,
+                "total_quantity": quantity,
+                "executed_quantity": total_executed,
             }
 
         except Exception as e:
             logger.error(f"VWAP execution failed for {signal.symbol}: {e}")
             raise
 
-    async def _execute_iceberg(self, signal: TradeSignal, quantity: int, slice_size: int = 100) -> Dict[str, Any]:
+    async def _execute_iceberg(
+        self, signal: TradeSignal, quantity: int, slice_size: int = 100
+    ) -> Dict[str, Any]:
         """Execute large order using iceberg strategy."""
         try:
-            logger.info(f"Executing iceberg order for {quantity} {signal.symbol} with slice size {slice_size}")
+            logger.info(
+                f"Executing iceberg order for {quantity} {signal.symbol} with slice size {slice_size}"
+            )
 
-            side = OrderSide.BUY if signal.signal_type.value in ['buy', 'long'] else OrderSide.SELL
+            side = (
+                OrderSide.BUY
+                if signal.signal_type.value in ["buy", "long"]
+                else OrderSide.SELL
+            )
             orders = []
             remaining_qty = quantity
 
@@ -536,8 +609,10 @@ class OrderManager:
                     quote = await self.alpaca.get_latest_quote(signal.symbol)
 
                     # Check if quote data is available
-                    if not quote or 'ask' not in quote or 'bid' not in quote:
-                        logger.warning(f"No quote data available for {signal.symbol}, using market order")
+                    if not quote or "ask" not in quote or "bid" not in quote:
+                        logger.warning(
+                            f"No quote data available for {signal.symbol}, using market order"
+                        )
                         # Fall back to market order
                         order_request = OrderRequest(
                             symbol=signal.symbol,
@@ -546,14 +621,18 @@ class OrderManager:
                             quantity=current_slice,
                             price=None,
                             stop_price=None,
-                            client_order_id=None
+                            client_order_id=None,
                         )
                     else:
                         # Use slightly aggressive pricing to ensure fills
                         if side == OrderSide.BUY:
-                            limit_price = quote['ask'] * Decimal("1.0005")  # 0.05% above ask
+                            limit_price = quote["ask"] * Decimal(
+                                "1.0005"
+                            )  # 0.05% above ask
                         else:
-                            limit_price = quote['bid'] * Decimal("0.9995")  # 0.05% below bid
+                            limit_price = quote["bid"] * Decimal(
+                                "0.9995"
+                            )  # 0.05% below bid
 
                         order_request = OrderRequest(
                             symbol=signal.symbol,
@@ -562,7 +641,7 @@ class OrderManager:
                             quantity=current_slice,
                             price=limit_price,
                             stop_price=None,
-                            client_order_id=str(uuid4())
+                            client_order_id=str(uuid4()),
                         )
 
                     order_response = await self.alpaca.place_order(order_request)
@@ -571,13 +650,19 @@ class OrderManager:
 
                     # Wait for fill confirmation
                     if order_response.broker_order_id:
-                        filled_qty = await self._wait_for_fill(order_response.broker_order_id, timeout_seconds=60)
+                        filled_qty = await self._wait_for_fill(
+                            order_response.broker_order_id, timeout_seconds=60
+                        )
                     else:
-                        logger.warning("No broker order ID available, skipping fill wait")
+                        logger.warning(
+                            "No broker order ID available, skipping fill wait"
+                        )
                         filled_qty = current_slice
                     remaining_qty -= filled_qty
 
-                    logger.info(f"Iceberg slice executed: {filled_qty}/{current_slice}, remaining: {remaining_qty}")
+                    logger.info(
+                        f"Iceberg slice executed: {filled_qty}/{current_slice}, remaining: {remaining_qty}"
+                    )
 
                     # Small delay between slices
                     await asyncio.sleep(2)
@@ -587,35 +672,41 @@ class OrderManager:
                     break
 
             return {
-                'success': True,
-                'execution_strategy': OrderExecutionStrategy.ICEBERG,
-                'orders': orders,
-                'total_quantity': quantity,
-                'remaining_quantity': remaining_qty
+                "success": True,
+                "execution_strategy": OrderExecutionStrategy.ICEBERG,
+                "orders": orders,
+                "total_quantity": quantity,
+                "remaining_quantity": remaining_qty,
             }
 
         except Exception as e:
             logger.error(f"Iceberg execution failed for {signal.symbol}: {e}")
             raise
 
-    async def _execute_adaptive(self, signal: TradeSignal, quantity: int) -> Dict[str, Any]:
+    async def _execute_adaptive(
+        self, signal: TradeSignal, quantity: int
+    ) -> Dict[str, Any]:
         """Execute order using adaptive strategy based on market conditions."""
         try:
             # Analyze current market conditions
             quote = await self.alpaca.get_latest_quote(signal.symbol)
 
             # Check if quote data is available
-            if not quote or 'ask' not in quote or 'bid' not in quote:
-                logger.warning(f"No quote data available for {signal.symbol}, falling back to market order")
+            if not quote or "ask" not in quote or "bid" not in quote:
+                logger.warning(
+                    f"No quote data available for {signal.symbol}, falling back to market order"
+                )
                 return await self._execute_immediate(signal, quantity)
 
-            spread_pct = (quote['ask'] - quote['bid']) / ((quote['ask'] + quote['bid']) / 2)
+            spread_pct = (quote["ask"] - quote["bid"]) / (
+                (quote["ask"] + quote["bid"]) / 2
+            )
 
             # Choose strategy based on conditions
             if spread_pct < 0.001 and signal.confidence > 0.8:
                 # Low spread, high confidence - use market order
                 return await self._execute_immediate(signal, quantity)
-            elif quantity > 1000 or (quantity * quote['ask']) > 25000:
+            elif quantity > 1000 or (quantity * quote["ask"]) > 25000:
                 # Large order - use VWAP
                 return await self._execute_vwap(signal, quantity)
             else:
@@ -633,7 +724,7 @@ class OrderManager:
         quantity: int,
         entry_price: Optional[Decimal] = None,
         stop_loss: Optional[Decimal] = None,
-        take_profit: Optional[Decimal] = None
+        take_profit: Optional[Decimal] = None,
     ) -> Dict[str, Any]:
         """
         Place a comprehensive bracket order.
@@ -649,14 +740,20 @@ class OrderManager:
             Bracket order result
         """
         try:
-            side = OrderSide.BUY if signal.signal_type.value in ['buy', 'long'] else OrderSide.SELL
+            side = (
+                OrderSide.BUY
+                if signal.signal_type.value in ["buy", "long"]
+                else OrderSide.SELL
+            )
 
             # Use signal prices if not provided
             entry_price = entry_price or signal.price
             stop_loss = stop_loss or signal.stop_loss
             take_profit = take_profit or signal.take_profit
 
-            logger.info(f"Placing bracket order: {quantity} {signal.symbol} @ {entry_price}")
+            logger.info(
+                f"Placing bracket order: {quantity} {signal.symbol} @ {entry_price}"
+            )
 
             # Place bracket order with Alpaca
             orders = await self.alpaca.place_bracket_order(
@@ -665,7 +762,7 @@ class OrderManager:
                 quantity=quantity,
                 entry_price=entry_price,
                 stop_loss_price=stop_loss,
-                take_profit_price=take_profit
+                take_profit_price=take_profit,
             )
 
             # Store bracket order relationship
@@ -679,17 +776,17 @@ class OrderManager:
                     side=order.side,
                     order_type=order.order_type,
                     quantity=order.quantity,
-                    price=getattr(order, 'price', None),
-                    stop_price=getattr(order, 'stop_price', None),
-                    client_order_id=str(uuid4())
+                    price=getattr(order, "price", None),
+                    stop_price=getattr(order, "stop_price", None),
+                    client_order_id=str(uuid4()),
                 )
                 await self._store_order(order_request, order, signal.id)
 
             return {
-                'success': True,
-                'bracket_id': bracket_id,
-                'orders': orders,
-                'quantity': quantity
+                "success": True,
+                "bracket_id": bracket_id,
+                "orders": orders,
+                "quantity": quantity,
             }
 
         except Exception as e:
@@ -715,7 +812,7 @@ class OrderManager:
                 return False
 
             # Cancel with Alpaca
-            success = await self.alpaca.cancel_order(order['broker_order_id'])
+            success = await self.alpaca.cancel_order(order["broker_order_id"])
 
             if success:
                 # Update order status in database
@@ -728,7 +825,9 @@ class OrderManager:
             logger.error(f"Failed to cancel order {order_id}: {e}")
             return False
 
-    async def cancel_bracket_order(self, bracket_id: UUID, reason: str = "User request") -> bool:
+    async def cancel_bracket_order(
+        self, bracket_id: UUID, reason: str = "User request"
+    ) -> bool:
         """
         Cancel all orders in a bracket.
 
@@ -749,19 +848,27 @@ class OrderManager:
             cancellation_results = []
 
             # Cancel all orders in bracket
-            for order_type in ['entry_order_id', 'stop_loss_order_id', 'take_profit_order_id']:
+            for order_type in [
+                "entry_order_id",
+                "stop_loss_order_id",
+                "take_profit_order_id",
+            ]:
                 order_id = bracket.get(order_type)
                 if order_id:
                     try:
                         result = await self.cancel_order(UUID(order_id), reason)
                         cancellation_results.append(result)
                     except Exception as e:
-                        logger.error(f"Failed to cancel {order_type} in bracket {bracket_id}: {e}")
+                        logger.error(
+                            f"Failed to cancel {order_type} in bracket {bracket_id}: {e}"
+                        )
                         cancellation_results.append(False)
 
             # Update bracket status
             if any(cancellation_results):
-                await self._update_bracket_status(bracket_id, BracketOrderStatus.CANCELLED)
+                await self._update_bracket_status(
+                    bracket_id, BracketOrderStatus.CANCELLED
+                )
 
             success = all(cancellation_results)
             logger.info(f"Bracket order {bracket_id} cancellation: {success}")
@@ -771,7 +878,9 @@ class OrderManager:
             logger.error(f"Failed to cancel bracket order {bracket_id}: {e}")
             return False
 
-    async def handle_partial_fill(self, order_id: UUID, filled_quantity: int) -> Dict[str, Any]:
+    async def handle_partial_fill(
+        self, order_id: UUID, filled_quantity: int
+    ) -> Dict[str, Any]:
         """
         Handle partial order fills.
 
@@ -787,11 +896,13 @@ class OrderManager:
             order = await self._get_order_by_id(order_id)
             if not order:
                 logger.error(f"Order {order_id} not found for partial fill handling")
-                return {'success': False, 'error': 'Order not found'}
+                return {"success": False, "error": "Order not found"}
 
-            remaining_qty = order['quantity'] - filled_quantity
+            remaining_qty = order["quantity"] - filled_quantity
 
-            logger.info(f"Handling partial fill: {filled_quantity}/{order['quantity']} for {order['symbol']}")
+            logger.info(
+                f"Handling partial fill: {filled_quantity}/{order['quantity']} for {order['symbol']}"
+            )
 
             # Update order status
             if remaining_qty > 0:
@@ -801,26 +912,32 @@ class OrderManager:
                 if remaining_qty >= 10:  # Minimum remaining size threshold
                     # Create new order for remaining quantity
                     remaining_order = OrderRequest(
-                        symbol=order['symbol'],
-                        side=OrderSide(order['side']),
-                        order_type=OrderType(order['order_type']),
+                        symbol=order["symbol"],
+                        side=OrderSide(order["side"]),
+                        order_type=OrderType(order["order_type"]),
                         quantity=remaining_qty,
-                        price=order.get('price'),
-                        stop_price=order.get('stop_price'),
+                        price=order.get("price"),
+                        stop_price=order.get("stop_price"),
                         client_order_id=str(uuid4()),
-                        time_in_force=order.get('time_in_force', 'day')
+                        time_in_force=order.get("time_in_force", "day"),
                     )
 
                     try:
-                        remaining_response = await self.alpaca.place_order(remaining_order)
-                        await self._store_order(remaining_order, remaining_response, order.get('signal_id'))
+                        remaining_response = await self.alpaca.place_order(
+                            remaining_order
+                        )
+                        await self._store_order(
+                            remaining_order, remaining_response, order.get("signal_id")
+                        )
 
-                        logger.info(f"Placed order for remaining quantity: {remaining_qty}")
+                        logger.info(
+                            f"Placed order for remaining quantity: {remaining_qty}"
+                        )
                         return {
-                            'success': True,
-                            'filled_quantity': filled_quantity,
-                            'remaining_quantity': remaining_qty,
-                            'remaining_order': remaining_response
+                            "success": True,
+                            "filled_quantity": filled_quantity,
+                            "remaining_quantity": remaining_qty,
+                            "remaining_order": remaining_response,
                         }
                     except Exception as e:
                         logger.error(f"Failed to place remaining order: {e}")
@@ -829,16 +946,18 @@ class OrderManager:
                 await self._update_order_status(order_id, OrderStatus.FILLED)
 
             return {
-                'success': True,
-                'filled_quantity': filled_quantity,
-                'remaining_quantity': remaining_qty
+                "success": True,
+                "filled_quantity": filled_quantity,
+                "remaining_quantity": remaining_qty,
             }
 
         except Exception as e:
             logger.error(f"Failed to handle partial fill for order {order_id}: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
     async def retry_failed_order(self, order_id: UUID) -> Dict[str, Any]:
         """
         Retry a failed order with updated parameters.
@@ -853,68 +972,80 @@ class OrderManager:
             # Get original order
             original_order = await self._get_order_by_id(order_id)
             if not original_order:
-                return {'success': False, 'error': 'Original order not found'}
+                return {"success": False, "error": "Original order not found"}
 
             # Check if original_order exists and has valid data
-            if not original_order or 'symbol' not in original_order or 'quantity' not in original_order:
-                return {'success': False, 'error': 'Invalid original order data'}
+            if (
+                not original_order
+                or "symbol" not in original_order
+                or "quantity" not in original_order
+            ):
+                return {"success": False, "error": "Invalid original order data"}
 
             # Update retry count
-            retry_count = original_order.get('retry_count', 0) + 1
+            retry_count = original_order.get("retry_count", 0) + 1
             if retry_count > 3:
                 logger.warning(f"Order {order_id} exceeded max retry attempts")
-                await self._update_order_status(order_id, OrderStatus.REJECTED, "Max retries exceeded")
-                return {'success': False, 'error': 'Max retries exceeded'}
+                await self._update_order_status(
+                    order_id, OrderStatus.REJECTED, "Max retries exceeded"
+                )
+                return {"success": False, "error": "Max retries exceeded"}
 
             # Get fresh market data
-            quote = await self.alpaca.get_latest_quote(original_order['symbol'])
+            quote = await self.alpaca.get_latest_quote(original_order["symbol"])
 
             # Check if quote data is available
-            if not quote or 'ask' not in quote or 'bid' not in quote:
+            if not quote or "ask" not in quote or "bid" not in quote:
                 logger.warning(f"No quote data available for retry of order {order_id}")
-                return {'success': False, 'error': 'No quote data available'}
+                return {"success": False, "error": "No quote data available"}
 
             # Adjust price for better execution probability
-            side = OrderSide(original_order['side'])
+            side = OrderSide(original_order["side"])
             if side == OrderSide.BUY:
-                new_price = quote['ask'] * Decimal("1.002")  # 0.2% above ask
+                new_price = quote["ask"] * Decimal("1.002")  # 0.2% above ask
             else:
-                new_price = quote['bid'] * Decimal("0.998")  # 0.2% below bid
+                new_price = quote["bid"] * Decimal("0.998")  # 0.2% below bid
 
             # Create retry order
             retry_order = OrderRequest(
-                symbol=original_order['symbol'],
+                symbol=original_order["symbol"],
                 side=side,
                 order_type=OrderType.LIMIT,
-                quantity=original_order['quantity'],
+                quantity=original_order["quantity"],
                 price=new_price,
                 stop_price=None,
                 client_order_id=str(uuid4()),
-                time_in_force="ioc"
+                time_in_force="ioc",
             )
 
             # Place retry order
             retry_response = await self.alpaca.place_order(retry_order)
-            await self._store_order(retry_order, retry_response, original_order.get('signal_id'))
+            await self._store_order(
+                retry_order, retry_response, original_order.get("signal_id")
+            )
 
             # Update retry tracking
             await self._update_retry_count(order_id, retry_count)
 
-            logger.info(f"Order {order_id} retry {retry_count} placed: {retry_response.broker_order_id}")
+            logger.info(
+                f"Order {order_id} retry {retry_count} placed: {retry_response.broker_order_id}"
+            )
 
             return {
-                'success': True,
-                'retry_count': retry_count,
-                'retry_order': retry_response,
-                'adjusted_price': new_price
+                "success": True,
+                "retry_count": retry_count,
+                "retry_order": retry_response,
+                "adjusted_price": new_price,
             }
 
         except Exception as e:
             logger.error(f"Order retry failed for {order_id}: {e}")
             await self._log_execution_error(order_id, None, "RETRY_FAILED", str(e))
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
 
-    async def _wait_for_fill(self, broker_order_id: str, timeout_seconds: int = 300) -> int:
+    async def _wait_for_fill(
+        self, broker_order_id: str, timeout_seconds: int = 300
+    ) -> int:
         """
         Wait for order to fill and return filled quantity.
 
@@ -932,30 +1063,54 @@ class OrderManager:
             while (datetime.now(timezone.utc) - start_time) < timeout:
                 order = await self.alpaca.get_order(broker_order_id)
 
-                if order and hasattr(order, 'status') and order.status == OrderStatus.FILLED:
-                    return order.filled_quantity if hasattr(order, 'filled_quantity') else 0
-                elif order and hasattr(order, 'status') and order.status in [OrderStatus.CANCELLED, OrderStatus.REJECTED]:
-                    return order.filled_quantity if hasattr(order, 'filled_quantity') else 0  # Return partial fill if any
+                if (
+                    order
+                    and hasattr(order, "status")
+                    and order.status == OrderStatus.FILLED
+                ):
+                    return (
+                        order.filled_quantity
+                        if hasattr(order, "filled_quantity")
+                        else 0
+                    )
+                elif (
+                    order
+                    and hasattr(order, "status")
+                    and order.status in [OrderStatus.CANCELLED, OrderStatus.REJECTED]
+                ):
+                    return (
+                        order.filled_quantity
+                        if hasattr(order, "filled_quantity")
+                        else 0
+                    )  # Return partial fill if any
 
                 await asyncio.sleep(5)  # Check every 5 seconds
 
             # Timeout reached
             order = await self.alpaca.get_order(broker_order_id)
-            return order.filled_quantity if order and hasattr(order, 'filled_quantity') else 0
+            return (
+                order.filled_quantity
+                if order and hasattr(order, "filled_quantity")
+                else 0
+            )
 
         except Exception as e:
             logger.error(f"Error waiting for fill of order {broker_order_id}: {e}")
             return 0
 
-
-
-    async def _store_order(self, order_request: OrderRequest, order_response: OrderResponse, signal_id: Optional[UUID]):
+    async def _store_order(
+        self,
+        order_request: OrderRequest,
+        order_response: OrderResponse,
+        signal_id: Optional[UUID],
+    ):
         """Store order in database."""
         try:
             if not self._db_pool:
                 return False
             async with self._db_pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO trading.orders (
                         id, client_order_id, broker_order_id, symbol, side, order_type,
                         quantity, price, stop_price, filled_quantity, filled_price,
@@ -963,23 +1118,40 @@ class OrderManager:
                         signal_id, retry_count
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                 """,
-                    order_response.id, order_request.client_order_id, order_response.broker_order_id,
-                    order_response.symbol, order_response.side.value, order_response.order_type.value,
-                    order_response.quantity, order_request.price, order_request.stop_price,
-                    order_response.filled_quantity, order_response.filled_price,
-                    order_response.status.value, order_request.time_in_force, order_request.extended_hours,
-                    order_response.submitted_at, signal_id, 0
+                    order_response.id,
+                    order_request.client_order_id,
+                    order_response.broker_order_id,
+                    order_response.symbol,
+                    order_response.side.value,
+                    order_response.order_type.value,
+                    order_response.quantity,
+                    order_request.price,
+                    order_request.stop_price,
+                    order_response.filled_quantity,
+                    order_response.filled_price,
+                    order_response.status.value,
+                    order_request.time_in_force,
+                    order_request.extended_hours,
+                    order_response.submitted_at,
+                    signal_id,
+                    0,
                 )
 
             # Cache active order
-            if order_response.status not in [OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED]:
+            if order_response.status not in [
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+                OrderStatus.REJECTED,
+            ]:
                 self._active_orders[order_response.id] = order_response
 
         except Exception as e:
             logger.error(f"Failed to store order {order_response.id}: {e}")
             raise
 
-    async def _store_bracket_order(self, bracket_id: UUID, orders: List[OrderResponse], signal: TradeSignal):
+    async def _store_bracket_order(
+        self, bracket_id: UUID, orders: List[OrderResponse], signal: TradeSignal
+    ):
         """Store bracket order relationship."""
         try:
             if not self._db_pool:
@@ -994,23 +1166,29 @@ class OrderManager:
                 stop_id = stop_order.id if stop_order else None
                 profit_id = profit_order.id if profit_order else None
 
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO trading.bracket_orders (
                         id, parent_order_id, entry_order_id, stop_loss_order_id,
                         take_profit_order_id, status
                     ) VALUES ($1, $2, $3, $4, $5, $6)
                 """,
-                    bracket_id, entry_id, entry_id, stop_id, profit_id, BracketOrderStatus.ACTIVE.value
+                    bracket_id,
+                    entry_id,
+                    entry_id,
+                    stop_id,
+                    profit_id,
+                    BracketOrderStatus.ACTIVE.value,
                 )
 
             # Cache bracket order - convert list to dict format
             orders_dict = {}
             if len(orders) > 0:
-                orders_dict['entry'] = orders[0]
+                orders_dict["entry"] = orders[0]
             if len(orders) > 1:
-                orders_dict['stop_loss'] = orders[1]
+                orders_dict["stop_loss"] = orders[1]
             if len(orders) > 2:
-                orders_dict['take_profit'] = orders[2]
+                orders_dict["take_profit"] = orders[2]
             self._bracket_orders[bracket_id] = orders_dict
 
         except Exception as e:
@@ -1023,9 +1201,12 @@ class OrderManager:
             if not self._db_pool:
                 return None
             async with self._db_pool.acquire() as conn:
-                row = await conn.fetchrow("""
+                row = await conn.fetchrow(
+                    """
                     SELECT * FROM trading.orders WHERE id = $1
-                """, order_id)
+                """,
+                    order_id,
+                )
 
                 if row:
                     return dict(row)
@@ -1041,9 +1222,12 @@ class OrderManager:
             if not self._db_pool:
                 return None
             async with self._db_pool.acquire() as conn:
-                row = await conn.fetchrow("""
+                row = await conn.fetchrow(
+                    """
                     SELECT * FROM trading.bracket_orders WHERE id = $1
-                """, bracket_id)
+                """,
+                    bracket_id,
+                )
 
                 if row:
                     return dict(row)
@@ -1053,46 +1237,67 @@ class OrderManager:
             logger.error(f"Failed to get bracket order {bracket_id}: {e}")
             return None
 
-    async def _update_order_status(self, order_id: UUID, status: OrderStatus, error_message: Optional[str] = None):
+    async def _update_order_status(
+        self, order_id: UUID, status: OrderStatus, error_message: Optional[str] = None
+    ):
         """Update order status in database."""
         try:
             if not self._db_pool:
                 return False
             async with self._db_pool.acquire() as conn:
                 if error_message:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         UPDATE trading.orders
                         SET status = $2, error_message = $3, updated_at = NOW()
                         WHERE id = $1
-                    """, order_id, status.value, error_message)
+                    """,
+                        order_id,
+                        status.value,
+                        error_message,
+                    )
                 else:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         UPDATE trading.orders
                         SET status = $2, updated_at = NOW()
                         WHERE id = $1
-                    """, order_id, status.value)
+                    """,
+                        order_id,
+                        status.value,
+                    )
 
             # Update cache
             if order_id in self._active_orders:
                 self._active_orders[order_id].status = status
-                if status in [OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED]:
+                if status in [
+                    OrderStatus.FILLED,
+                    OrderStatus.CANCELLED,
+                    OrderStatus.REJECTED,
+                ]:
                     del self._active_orders[order_id]
 
         except Exception as e:
             logger.error(f"Failed to update order status {order_id}: {e}")
             raise
 
-    async def _update_bracket_status(self, bracket_id: UUID, status: BracketOrderStatus):
+    async def _update_bracket_status(
+        self, bracket_id: UUID, status: BracketOrderStatus
+    ):
         """Update bracket order status."""
         try:
             if not self._db_pool:
                 return
             async with self._db_pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     UPDATE trading.bracket_orders
                     SET status = $2, updated_at = NOW()
                     WHERE id = $1
-                """, bracket_id, status.value)
+                """,
+                    bracket_id,
+                    status.value,
+                )
 
         except Exception as e:
             logger.error(f"Failed to update bracket status {bracket_id}: {e}")
@@ -1104,28 +1309,38 @@ class OrderManager:
             if not self._db_pool:
                 return
             async with self._db_pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     UPDATE trading.orders
                     SET retry_count = $2, last_retry_at = NOW(), updated_at = NOW()
                     WHERE id = $1
-                """, order_id, retry_count)
+                """,
+                    order_id,
+                    retry_count,
+                )
 
         except Exception as e:
             logger.error(f"Failed to update retry count for {order_id}: {e}")
 
-    async def _get_recent_signals(self, symbol: str, minutes: int = 5) -> List[Dict[str, Any]]:
+    async def _get_recent_signals(
+        self, symbol: str, minutes: int = 5
+    ) -> List[Dict[str, Any]]:
         """Get recent signals for duplicate detection."""
         try:
             if not self._db_pool:
                 return []
             async with self._db_pool.acquire() as conn:
-                rows = await conn.fetch("""
+                rows = await conn.fetch(
+                    """
                     SELECT signal_id, symbol, side, created_at
                     FROM trading.orders
                     WHERE symbol = $1
                     AND created_at > NOW() - INTERVAL '1 minute' * $2
                     ORDER BY created_at DESC
-                """, symbol, minutes)
+                """,
+                    symbol,
+                    minutes,
+                )
 
                 return [dict(row) for row in rows]
 
@@ -1133,20 +1348,27 @@ class OrderManager:
             logger.error(f"Failed to get recent signals for {symbol}: {e}")
             return []
 
-    async def _store_signal_execution(self, signal: TradeSignal, execution_result: Dict[str, Any]):
+    async def _store_signal_execution(
+        self, signal: TradeSignal, execution_result: Dict[str, Any]
+    ):
         """Store signal execution record."""
         try:
             if not self._db_pool:
                 return
             async with self._db_pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO trading.signal_executions (
                         signal_id, signal_timestamp, signal_price, signal_confidence,
                         execution_timestamp, execution_status
                     ) VALUES ($1, $2, $3, $4, $5, $6)
                 """,
-                    signal.id, signal.timestamp, signal.price, signal.confidence,
-                    datetime.now(timezone.utc), 'success' if execution_result['success'] else 'failed'
+                    signal.id,
+                    signal.timestamp,
+                    signal.price,
+                    signal.confidence,
+                    datetime.now(timezone.utc),
+                    "success" if execution_result["success"] else "failed",
                 )
 
         except Exception as e:
@@ -1155,19 +1377,25 @@ class OrderManager:
     async def _handle_execution_error(self, signal: TradeSignal, error: Exception):
         """Handle execution errors."""
         try:
-            await self._log_execution_error(None, signal.id, "EXECUTION_FAILED", str(error))
+            await self._log_execution_error(
+                None, signal.id, "EXECUTION_FAILED", str(error)
+            )
 
             # Publish error to Redis
             if self._redis:
                 import json
+
                 await self._redis.publish(
                     f"execution_errors:{signal.symbol}",
-                    json.dumps({
-                        'signal_id': str(signal.id),
-                        'symbol': signal.symbol,
-                        'error': str(error),
-                        'timestamp': datetime.now(timezone.utc).isoformat()
-                    }, default=str)
+                    json.dumps(
+                        {
+                            "signal_id": str(signal.id),
+                            "symbol": signal.symbol,
+                            "error": str(error),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        },
+                        default=str,
+                    ),
                 )
 
         except Exception as e:
@@ -1179,23 +1407,32 @@ class OrderManager:
         signal_id: Optional[UUID],
         error_type: str,
         error_message: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ):
         """Log execution error to database."""
         try:
             if not self._db_pool:
                 return []
             async with self._db_pool.acquire() as conn:
-                await conn.execute("""
+                await conn.execute(
+                    """
                     INSERT INTO trading.execution_errors (
                         order_id, signal_id, error_type, error_message, context
                     ) VALUES ($1, $2, $3, $4, $5)
-                """, order_id, signal_id, error_type, error_message, context)
+                """,
+                    order_id,
+                    signal_id,
+                    error_type,
+                    error_message,
+                    context,
+                )
 
         except Exception as e:
             logger.error(f"Failed to log execution error: {e}")
 
-    async def get_active_orders(self, symbol: Optional[str] = None) -> List[OrderResponse]:
+    async def get_active_orders(
+        self, symbol: Optional[str] = None
+    ) -> List[OrderResponse]:
         """
         Get currently active orders.
 
@@ -1227,20 +1464,20 @@ class OrderManager:
                 orders = []
                 for row in rows:
                     order = OrderResponse(
-                        id=row['id'],
-                        broker_order_id=row['broker_order_id'],
-                        symbol=row['symbol'],
-                        side=OrderSide(row['side']),
-                        order_type=OrderType(row['order_type']),
-                        status=OrderStatus(row['status']),
-                        quantity=row['quantity'],
-                        filled_quantity=row['filled_quantity'],
-                        price=row['price'],
-                        filled_price=row['filled_price'],
-                        submitted_at=row['submitted_at'],
-                        filled_at=row['filled_at'],
-                        cancelled_at=row['cancelled_at'],
-                        commission=row['commission']
+                        id=row["id"],
+                        broker_order_id=row["broker_order_id"],
+                        symbol=row["symbol"],
+                        side=OrderSide(row["side"]),
+                        order_type=OrderType(row["order_type"]),
+                        status=OrderStatus(row["status"]),
+                        quantity=row["quantity"],
+                        filled_quantity=row["filled_quantity"],
+                        price=row["price"],
+                        filled_price=row["filled_price"],
+                        submitted_at=row["submitted_at"],
+                        filled_at=row["filled_at"],
+                        cancelled_at=row["cancelled_at"],
+                        commission=row["commission"],
                     )
                     orders.append(order)
 
@@ -1254,7 +1491,7 @@ class OrderManager:
         self,
         symbol: Optional[str] = None,
         start_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[OrderResponse]:
         """
         Get order history from database.
@@ -1285,7 +1522,9 @@ class OrderManager:
                     conditions.append(f"created_at >= ${param_count}")
                     params.append(start_date)
 
-                where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+                where_clause = (
+                    " WHERE " + " AND ".join(conditions) if conditions else ""
+                )
                 param_count += 1
 
                 query = f"""
@@ -1301,20 +1540,20 @@ class OrderManager:
                 orders = []
                 for row in rows:
                     order = OrderResponse(
-                        id=row['id'],
-                        broker_order_id=row['broker_order_id'],
-                        symbol=row['symbol'],
-                        side=OrderSide(row['side']),
-                        order_type=OrderType(row['order_type']),
-                        status=OrderStatus(row['status']),
-                        quantity=row['quantity'],
-                        filled_quantity=row['filled_quantity'],
-                        price=row['price'],
-                        filled_price=row['filled_price'],
-                        submitted_at=row['submitted_at'],
-                        filled_at=row['filled_at'],
-                        cancelled_at=row['cancelled_at'],
-                        commission=row['commission']
+                        id=row["id"],
+                        broker_order_id=row["broker_order_id"],
+                        symbol=row["symbol"],
+                        side=OrderSide(row["side"]),
+                        order_type=OrderType(row["order_type"]),
+                        status=OrderStatus(row["status"]),
+                        quantity=row["quantity"],
+                        filled_quantity=row["filled_quantity"],
+                        price=row["price"],
+                        filled_price=row["filled_price"],
+                        submitted_at=row["submitted_at"],
+                        filled_at=row["filled_at"],
+                        cancelled_at=row["cancelled_at"],
+                        commission=row["commission"],
                     )
                     orders.append(order)
 
@@ -1341,24 +1580,30 @@ class OrderManager:
                 return False
 
             # Get current status from Alpaca
-            alpaca_order = await self.alpaca.get_order(order['broker_order_id'])
+            alpaca_order = await self.alpaca.get_order(order["broker_order_id"])
 
             # Check if alpaca order exists and has status
-            if not alpaca_order or not hasattr(alpaca_order, 'status'):
+            if not alpaca_order or not hasattr(alpaca_order, "status"):
                 return False
 
             # Update if status changed
-            if alpaca_order.status != OrderStatus(order['status']):
+            if alpaca_order.status != OrderStatus(order["status"]):
                 if self._db_pool:
                     async with self._db_pool.acquire() as conn:
-                        await conn.execute("""
+                        await conn.execute(
+                            """
                             UPDATE trading.orders
                             SET status = $2, filled_quantity = $3, filled_price = $4,
                                 filled_at = $5, cancelled_at = $6, updated_at = NOW()
                             WHERE id = $1
-                        """, order_id, getattr(alpaca_order, 'status', 'unknown'),
-                            getattr(alpaca_order, 'filled_qty', 0), getattr(alpaca_order, 'filled_avg_price', None),
-                            getattr(alpaca_order, 'filled_at', None), getattr(alpaca_order, 'canceled_at', None))
+                        """,
+                            order_id,
+                            getattr(alpaca_order, "status", "unknown"),
+                            getattr(alpaca_order, "filled_qty", 0),
+                            getattr(alpaca_order, "filled_avg_price", None),
+                            getattr(alpaca_order, "filled_at", None),
+                            getattr(alpaca_order, "canceled_at", None),
+                        )
 
                 logger.info(f"Order {order_id} status synced: {alpaca_order.status}")
                 return True
@@ -1388,8 +1633,13 @@ class OrderManager:
                             # Handle timeouts
                             if order.submitted_at:
                                 age = datetime.now(timezone.utc) - order.submitted_at
-                                if age > timedelta(hours=1) and order.status == OrderStatus.SUBMITTED:
-                                    logger.warning(f"Order {order.id} has been pending for {age}")
+                                if (
+                                    age > timedelta(hours=1)
+                                    and order.status == OrderStatus.SUBMITTED
+                                ):
+                                    logger.warning(
+                                        f"Order {order.id} has been pending for {age}"
+                                    )
                                     # Consider cancelling stale orders
 
                         except Exception as e:
@@ -1405,7 +1655,9 @@ class OrderManager:
         asyncio.create_task(monitor_orders())
         logger.info("Order monitoring started")
 
-    async def get_execution_metrics(self, symbol: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+    async def get_execution_metrics(
+        self, symbol: Optional[str] = None, days: int = 30
+    ) -> Dict[str, Any]:
         """
         Get execution performance metrics.
 
@@ -1431,7 +1683,8 @@ class OrderManager:
                 where_clause = " WHERE " + " AND ".join(conditions)
 
                 # Get basic metrics
-                metrics_row = await conn.fetchrow(f"""
+                metrics_row = await conn.fetchrow(
+                    f"""
                     SELECT
                         COUNT(*) as total_orders,
                         COUNT(CASE WHEN status = 'filled' THEN 1 END) as filled_orders,
@@ -1443,37 +1696,50 @@ class OrderManager:
                         AVG(retry_count) as avg_retries
                     FROM trading.orders
                     {where_clause}
-                """, *params)
+                """,
+                    *params,
+                )
 
                 # Get slippage metrics
-                slippage_row = await conn.fetchrow(f"""
+                slippage_row = await conn.fetchrow(
+                    f"""
                     SELECT
                         AVG(ABS(filled_price - price) / NULLIF(price, 0)) as avg_slippage,
                         MAX(ABS(filled_price - price) / NULLIF(price, 0)) as max_slippage
                     FROM trading.orders
                     {where_clause}
                     AND filled_price IS NOT NULL AND price IS NOT NULL
-                """, *params)
+                """,
+                    *params,
+                )
 
                 return {
-                    'period_days': days,
-                    'symbol': symbol,
-                    'total_orders': metrics_row['total_orders'],
-                    'fill_rate': metrics_row['filled_orders'] / max(metrics_row['total_orders'], 1),
-                    'cancellation_rate': metrics_row['cancelled_orders'] / max(metrics_row['total_orders'], 1),
-                    'rejection_rate': metrics_row['rejected_orders'] / max(metrics_row['total_orders'], 1),
-                    'partial_fill_rate': metrics_row['partial_fills'] / max(metrics_row['total_orders'], 1),
-                    'avg_fill_time_seconds': float(metrics_row['avg_fill_time_seconds'] or 0),
-                    'avg_retries': float(metrics_row['avg_retries'] or 0),
-                    'avg_slippage': float(slippage_row['avg_slippage'] or 0),
-                    'max_slippage': float(slippage_row['max_slippage'] or 0)
+                    "period_days": days,
+                    "symbol": symbol,
+                    "total_orders": metrics_row["total_orders"],
+                    "fill_rate": metrics_row["filled_orders"]
+                    / max(metrics_row["total_orders"], 1),
+                    "cancellation_rate": metrics_row["cancelled_orders"]
+                    / max(metrics_row["total_orders"], 1),
+                    "rejection_rate": metrics_row["rejected_orders"]
+                    / max(metrics_row["total_orders"], 1),
+                    "partial_fill_rate": metrics_row["partial_fills"]
+                    / max(metrics_row["total_orders"], 1),
+                    "avg_fill_time_seconds": float(
+                        metrics_row["avg_fill_time_seconds"] or 0
+                    ),
+                    "avg_retries": float(metrics_row["avg_retries"] or 0),
+                    "avg_slippage": float(slippage_row["avg_slippage"] or 0),
+                    "max_slippage": float(slippage_row["max_slippage"] or 0),
                 }
 
         except Exception as e:
             logger.error(f"Failed to get execution metrics: {e}")
             return {}
 
-    async def _get_volume_profile(self, symbol: str, duration_minutes: int) -> List[float]:
+    async def _get_volume_profile(
+        self, symbol: str, duration_minutes: int
+    ) -> List[float]:
         """
         Get volume profile for VWAP execution.
 

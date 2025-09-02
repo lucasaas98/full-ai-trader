@@ -5,19 +5,19 @@ Comprehensive operational status and management interface
 Usage: python operational_dashboard.py [options]
 """
 
-import os
-import sys
-import json
-import time
-import subprocess
 import argparse
 import asyncio
+import json
+import logging
+import os
+import subprocess
+import sys
+import time
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import logging
-from dataclasses import dataclass, asdict
-from enum import Enum
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -27,14 +27,15 @@ try:
     import docker
     import psutil
     import requests
+    from rich import box
     from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
     from rich.layout import Layout
     from rich.live import Live
+    from rich.panel import Panel
     from rich.progress import Progress, SpinnerColumn, TextColumn
-    from rich import box
+    from rich.table import Table
     from rich.text import Text
+
     pass  # yaml import removed as unused
 except ImportError as e:
     print(f"Missing required dependencies: {e}")
@@ -44,11 +45,11 @@ except ImportError as e:
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler(PROJECT_ROOT / 'logs' / 'operations' / 'dashboard.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler(PROJECT_ROOT / "logs" / "operations" / "dashboard.log"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -119,13 +120,22 @@ class OperationalDashboard:
 
         # Service definitions
         self.core_services = [
-            "postgres", "redis", "data_collector", "strategy_engine",
-            "risk_manager", "trade_executor", "scheduler"
+            "postgres",
+            "redis",
+            "data_collector",
+            "strategy_engine",
+            "risk_manager",
+            "trade_executor",
+            "scheduler",
         ]
         self.support_services = ["export_service", "maintenance_service"]
         self.monitoring_services = [
-            "prometheus", "grafana", "alertmanager",
-            "elasticsearch", "kibana", "logstash"
+            "prometheus",
+            "grafana",
+            "alertmanager",
+            "elasticsearch",
+            "kibana",
+            "logstash",
         ]
 
         self.all_services = (
@@ -143,7 +153,7 @@ class OperationalDashboard:
         compose_files = {
             "production": "docker-compose.prod.yml",
             "staging": "docker-compose.staging.yml",
-            "development": "docker-compose.yml"
+            "development": "docker-compose.yml",
         }
         return compose_files.get(self.environment, "docker-compose.yml")
 
@@ -155,14 +165,14 @@ class OperationalDashboard:
                 ["docker-compose", "-f", self.compose_file, "ps", "-q", service_name],
                 cwd=self.project_root,
                 capture_output=True,
-                text=True
+                text=True,
             )
 
             if not result.stdout.strip():
                 return ServiceInfo(
                     name=service_name,
                     status=ServiceStatus.STOPPED,
-                    health=HealthStatus.UNKNOWN
+                    health=HealthStatus.UNKNOWN,
                 )
 
             container_id = result.stdout.strip()
@@ -170,7 +180,7 @@ class OperationalDashboard:
                 return ServiceInfo(
                     name=service_name,
                     status=ServiceStatus.UNKNOWN,
-                    health=HealthStatus.UNKNOWN
+                    health=HealthStatus.UNKNOWN,
                 )
             container = self.docker_client.containers.get(container_id)
 
@@ -193,9 +203,9 @@ class OperationalDashboard:
 
             # Get uptime
             started_at = datetime.fromisoformat(
-                container.attrs['State']['StartedAt'].replace('Z', '+00:00')
+                container.attrs["State"]["StartedAt"].replace("Z", "+00:00")
             )
-            uptime = str(datetime.now(started_at.tzinfo) - started_at).split('.')[0]
+            uptime = str(datetime.now(started_at.tzinfo) - started_at).split(".")[0]
 
             return ServiceInfo(
                 name=service_name,
@@ -204,7 +214,7 @@ class OperationalDashboard:
                 cpu_usage=cpu_usage,
                 memory_usage=memory_usage,
                 uptime=uptime,
-                last_restart=started_at
+                last_restart=started_at,
             )
 
         except Exception as e:
@@ -212,19 +222,19 @@ class OperationalDashboard:
             return ServiceInfo(
                 name=service_name,
                 status=ServiceStatus.ERROR,
-                health=HealthStatus.UNKNOWN
+                health=HealthStatus.UNKNOWN,
             )
 
     def _calculate_cpu_usage(self, stats: Dict) -> float:
         """Calculate CPU usage percentage from Docker stats"""
         try:
             cpu_delta = (
-                stats["cpu_stats"]["cpu_usage"]["total_usage"] -
-                stats["precpu_stats"]["cpu_usage"]["total_usage"]
+                stats["cpu_stats"]["cpu_usage"]["total_usage"]
+                - stats["precpu_stats"]["cpu_usage"]["total_usage"]
             )
             system_delta = (
-                stats["cpu_stats"]["system_cpu_usage"] -
-                stats["precpu_stats"]["system_cpu_usage"]
+                stats["cpu_stats"]["system_cpu_usage"]
+                - stats["precpu_stats"]["system_cpu_usage"]
             )
             online_cpus = stats["cpu_stats"]["online_cpus"]
 
@@ -249,48 +259,89 @@ class OperationalDashboard:
             if service_name == "postgres":
                 # Check PostgreSQL health
                 result = subprocess.run(
-                    ["docker-compose", "-f", self.compose_file, "exec", "-T",
-                     "postgres", "pg_isready", "-U", "trading_user", "-d", "trading_db"],
+                    [
+                        "docker-compose",
+                        "-f",
+                        self.compose_file,
+                        "exec",
+                        "-T",
+                        "postgres",
+                        "pg_isready",
+                        "-U",
+                        "trading_user",
+                        "-d",
+                        "trading_db",
+                    ],
                     cwd=self.project_root,
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
-                return HealthStatus.HEALTHY if result.returncode == 0 else HealthStatus.UNHEALTHY
+                return (
+                    HealthStatus.HEALTHY
+                    if result.returncode == 0
+                    else HealthStatus.UNHEALTHY
+                )
 
             elif service_name == "redis":
                 # Check Redis health
                 result = subprocess.run(
-                    ["docker-compose", "-f", self.compose_file, "exec", "-T",
-                     "redis", "redis-cli", "ping"],
+                    [
+                        "docker-compose",
+                        "-f",
+                        self.compose_file,
+                        "exec",
+                        "-T",
+                        "redis",
+                        "redis-cli",
+                        "ping",
+                    ],
                     cwd=self.project_root,
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
-                return HealthStatus.HEALTHY if result.returncode == 0 else HealthStatus.UNHEALTHY
+                return (
+                    HealthStatus.HEALTHY
+                    if result.returncode == 0
+                    else HealthStatus.UNHEALTHY
+                )
 
             else:
                 # Check API health endpoint
                 try:
                     port_result = subprocess.run(
-                        ["docker-compose", "-f", self.compose_file, "port", service_name, "8000"],
+                        [
+                            "docker-compose",
+                            "-f",
+                            self.compose_file,
+                            "port",
+                            service_name,
+                            "8000",
+                        ],
                         cwd=self.project_root,
                         capture_output=True,
                         text=True,
-                        timeout=5
+                        timeout=5,
                     )
 
                     if port_result.returncode == 0:
-                        port = port_result.stdout.strip().split(':')[-1]
+                        port = port_result.stdout.strip().split(":")[-1]
                         response = requests.get(
-                            f"http://localhost:{port}/health",
-                            timeout=5
+                            f"http://localhost:{port}/health", timeout=5
                         )
-                        return HealthStatus.HEALTHY if response.status_code == 200 else HealthStatus.UNHEALTHY
+                        return (
+                            HealthStatus.HEALTHY
+                            if response.status_code == 200
+                            else HealthStatus.UNHEALTHY
+                        )
                 except:
                     pass
 
                 # Fallback to container status
-                return HealthStatus.HEALTHY if container.status == "running" else HealthStatus.UNHEALTHY
+                return (
+                    HealthStatus.HEALTHY
+                    if container.status == "running"
+                    else HealthStatus.UNHEALTHY
+                )
 
         except Exception as e:
             logger.debug(f"Health check failed for {service_name}: {e}")
@@ -326,7 +377,7 @@ class OperationalDashboard:
                 network_tx=network.bytes_sent,
                 load_average=load_avg,
                 uptime=uptime,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
         except Exception as e:
@@ -339,7 +390,7 @@ class OperationalDashboard:
                 network_tx=0,
                 load_average=(0.0, 0.0, 0.0),
                 uptime="unknown",
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
     def get_trading_metrics(self) -> TradingMetrics:
@@ -358,13 +409,26 @@ class OperationalDashboard:
             # Try to get metrics from database
             try:
                 result = subprocess.run(
-                    ["docker-compose", "-f", self.compose_file, "exec", "-T", "postgres",
-                     "psql", "-U", "trading_user", "-d", "trading_db", "-t", "-c",
-                     "SELECT COUNT(*) FROM positions WHERE status = 'OPEN';"],
+                    [
+                        "docker-compose",
+                        "-f",
+                        self.compose_file,
+                        "exec",
+                        "-T",
+                        "postgres",
+                        "psql",
+                        "-U",
+                        "trading_user",
+                        "-d",
+                        "trading_db",
+                        "-t",
+                        "-c",
+                        "SELECT COUNT(*) FROM positions WHERE status = 'OPEN';",
+                    ],
                     cwd=self.project_root,
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result.returncode == 0:
                     active_positions = int(result.stdout.strip() or 0)
@@ -373,13 +437,26 @@ class OperationalDashboard:
 
             try:
                 result = subprocess.run(
-                    ["docker-compose", "-f", self.compose_file, "exec", "-T", "postgres",
-                     "psql", "-U", "trading_user", "-d", "trading_db", "-t", "-c",
-                     "SELECT COUNT(*) FROM trades WHERE DATE(created_at) = CURRENT_DATE;"],
+                    [
+                        "docker-compose",
+                        "-f",
+                        self.compose_file,
+                        "exec",
+                        "-T",
+                        "postgres",
+                        "psql",
+                        "-U",
+                        "trading_user",
+                        "-d",
+                        "trading_db",
+                        "-t",
+                        "-c",
+                        "SELECT COUNT(*) FROM trades WHERE DATE(created_at) = CURRENT_DATE;",
+                    ],
                     cwd=self.project_root,
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result.returncode == 0:
                     daily_trades = int(result.stdout.strip() or 0)
@@ -388,13 +465,26 @@ class OperationalDashboard:
 
             try:
                 result = subprocess.run(
-                    ["docker-compose", "-f", self.compose_file, "exec", "-T", "postgres",
-                     "psql", "-U", "trading_user", "-d", "trading_db", "-t", "-c",
-                     "SELECT COALESCE(SUM(realized_pnl), 0) FROM trades WHERE DATE(created_at) = CURRENT_DATE;"],
+                    [
+                        "docker-compose",
+                        "-f",
+                        self.compose_file,
+                        "exec",
+                        "-T",
+                        "postgres",
+                        "psql",
+                        "-U",
+                        "trading_user",
+                        "-d",
+                        "trading_db",
+                        "-t",
+                        "-c",
+                        "SELECT COALESCE(SUM(realized_pnl), 0) FROM trades WHERE DATE(created_at) = CURRENT_DATE;",
+                    ],
                     cwd=self.project_root,
                     capture_output=True,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result.returncode == 0:
                     daily_pnl = float(result.stdout.strip() or 0)
@@ -403,13 +493,14 @@ class OperationalDashboard:
 
             # Try to get system status from maintenance service
             try:
-                response = requests.get(
-                    "http://localhost:9107/status",
-                    timeout=5
-                )
+                response = requests.get("http://localhost:9107/status", timeout=5)
                 if response.status_code == 200:
                     status_data = response.json()
-                    system_status = "maintenance" if status_data.get("maintenance_mode") else "operational"
+                    system_status = (
+                        "maintenance"
+                        if status_data.get("maintenance_mode")
+                        else "operational"
+                    )
             except:
                 system_status = "unknown"
 
@@ -421,7 +512,7 @@ class OperationalDashboard:
                 risk_score=risk_score,
                 strategy_performance=strategy_performance,
                 last_trade_time=last_trade_time,
-                system_status=system_status
+                system_status=system_status,
             )
 
         except Exception as e:
@@ -434,7 +525,7 @@ class OperationalDashboard:
                 risk_score=0.0,
                 strategy_performance={},
                 last_trade_time=None,
-                system_status="error"
+                system_status="error",
             )
 
     def create_services_table(self, services: List[ServiceInfo]) -> Table:
@@ -451,20 +542,32 @@ class OperationalDashboard:
         for service in services:
             # Status styling
             status_style = "green" if service.status == ServiceStatus.RUNNING else "red"
-            status_text = f"[{status_style}]{service.status.value.upper()}[/{status_style}]"
+            status_text = (
+                f"[{status_style}]{service.status.value.upper()}[/{status_style}]"
+            )
 
             # Health styling
             health_style = {
                 HealthStatus.HEALTHY: "green",
                 HealthStatus.UNHEALTHY: "red",
                 HealthStatus.DEGRADED: "yellow",
-                HealthStatus.UNKNOWN: "dim"
+                HealthStatus.UNKNOWN: "dim",
             }.get(service.health, "dim")
-            health_text = f"[{health_style}]{service.health.value.upper()}[/{health_style}]"
+            health_text = (
+                f"[{health_style}]{service.health.value.upper()}[/{health_style}]"
+            )
 
             # Resource usage styling
-            cpu_style = "red" if service.cpu_usage > 80 else "yellow" if service.cpu_usage > 60 else "green"
-            memory_style = "red" if service.memory_usage > 80 else "yellow" if service.memory_usage > 60 else "green"
+            cpu_style = (
+                "red"
+                if service.cpu_usage > 80
+                else "yellow" if service.cpu_usage > 60 else "green"
+            )
+            memory_style = (
+                "red"
+                if service.memory_usage > 80
+                else "yellow" if service.memory_usage > 60 else "green"
+            )
 
             table.add_row(
                 service.name,
@@ -472,7 +575,7 @@ class OperationalDashboard:
                 health_text,
                 f"[{cpu_style}]{service.cpu_usage:.1f}[/{cpu_style}]",
                 f"[{memory_style}]{service.memory_usage:.1f}[/{memory_style}]",
-                service.uptime
+                service.uptime,
             )
 
         return table
@@ -480,13 +583,25 @@ class OperationalDashboard:
     def create_system_metrics_panel(self, metrics: SystemMetrics) -> Panel:
         """Create system metrics panel"""
         # CPU styling
-        cpu_style = "red" if metrics.cpu_usage > 80 else "yellow" if metrics.cpu_usage > 60 else "green"
+        cpu_style = (
+            "red"
+            if metrics.cpu_usage > 80
+            else "yellow" if metrics.cpu_usage > 60 else "green"
+        )
 
         # Memory styling
-        memory_style = "red" if metrics.memory_usage > 80 else "yellow" if metrics.memory_usage > 60 else "green"
+        memory_style = (
+            "red"
+            if metrics.memory_usage > 80
+            else "yellow" if metrics.memory_usage > 60 else "green"
+        )
 
         # Disk styling
-        disk_style = "red" if metrics.disk_usage > 90 else "yellow" if metrics.disk_usage > 75 else "green"
+        disk_style = (
+            "red"
+            if metrics.disk_usage > 90
+            else "yellow" if metrics.disk_usage > 75 else "green"
+        )
 
         content = f"""
 [bold]System Resources[/bold]
@@ -510,17 +625,25 @@ Last Updated: {metrics.timestamp.strftime('%H:%M:%S')}
     def create_trading_metrics_panel(self, metrics: TradingMetrics) -> Panel:
         """Create trading metrics panel"""
         # PnL styling
-        pnl_style = "green" if metrics.daily_pnl > 0 else "red" if metrics.daily_pnl < 0 else "white"
+        pnl_style = (
+            "green"
+            if metrics.daily_pnl > 0
+            else "red" if metrics.daily_pnl < 0 else "white"
+        )
 
         # Risk styling
-        risk_style = "red" if metrics.risk_score > 80 else "yellow" if metrics.risk_score > 60 else "green"
+        risk_style = (
+            "red"
+            if metrics.risk_score > 80
+            else "yellow" if metrics.risk_score > 60 else "green"
+        )
 
         # Status styling
         status_style = {
             "operational": "green",
             "maintenance": "yellow",
             "error": "red",
-            "unknown": "dim"
+            "unknown": "dim",
         }.get(metrics.system_status, "dim")
 
         content = f"""
@@ -540,7 +663,9 @@ Strategy Performance:
 
         for strategy, performance in metrics.strategy_performance.items():
             perf_style = "green" if performance > 0 else "red"
-            content += f"\n  {strategy}: [{perf_style}]{performance:.2f}%[/{perf_style}]"
+            content += (
+                f"\n  {strategy}: [{perf_style}]{performance:.2f}%[/{perf_style}]"
+            )
 
         return Panel(content, title="Trading Metrics", border_style="green")
 
@@ -552,7 +677,7 @@ Strategy Performance:
         alert_file = self.project_root / "logs" / "monitoring" / "alerts.log"
         if alert_file.exists():
             try:
-                with open(alert_file, 'r') as f:
+                with open(alert_file, "r") as f:
                     lines = f.readlines()
                     recent_alerts = lines[-10:] if len(lines) > 10 else lines
 
@@ -583,7 +708,9 @@ Strategy Performance:
             backups = list(backup_dir.glob("*.tar.gz"))
             if backups:
                 latest_backup = max(backups, key=lambda x: x.stat().st_mtime)
-                backup_age = datetime.now() - datetime.fromtimestamp(latest_backup.stat().st_mtime)
+                backup_age = datetime.now() - datetime.fromtimestamp(
+                    latest_backup.stat().st_mtime
+                )
 
                 if backup_age.days == 0:
                     content += f"[green]✅ Latest Backup: {latest_backup.name} ({backup_age.seconds // 3600}h ago)[/green]\n"
@@ -599,7 +726,9 @@ Strategy Performance:
         # Check log file sizes
         log_dir = self.project_root / "logs"
         if log_dir.exists():
-            total_log_size = sum(f.stat().st_size for f in log_dir.rglob("*.log") if f.is_file())
+            total_log_size = sum(
+                f.stat().st_size for f in log_dir.rglob("*.log") if f.is_file()
+            )
             log_size_mb = total_log_size / (1024 * 1024)
 
             if log_size_mb > 1000:  # > 1GB
@@ -609,7 +738,7 @@ Strategy Performance:
 
         # Check disk space
         disk = psutil.disk_usage(str(self.project_root))
-        free_space_gb = disk.free / (1024 ** 3)
+        free_space_gb = disk.free / (1024**3)
 
         if free_space_gb < 5:
             content += f"[red]❌ Free Space: {free_space_gb:.1f} GB (critical)[/red]\n"
@@ -639,23 +768,19 @@ Strategy Performance:
         layout.split_column(
             Layout(name="header", size=3),
             Layout(name="body"),
-            Layout(name="footer", size=3)
+            Layout(name="footer", size=3),
         )
 
-        layout["body"].split_row(
-            Layout(name="left"),
-            Layout(name="right")
-        )
+        layout["body"].split_row(Layout(name="left"), Layout(name="right"))
 
         layout["left"].split_column(
-            Layout(name="services"),
-            Layout(name="trading", size=12)
+            Layout(name="services"), Layout(name="trading", size=12)
         )
 
         layout["right"].split_column(
             Layout(name="system", size=12),
             Layout(name="alerts"),
-            Layout(name="operations", size=8)
+            Layout(name="operations", size=8),
         )
 
         return layout
@@ -664,9 +789,13 @@ Strategy Performance:
         """Update dashboard with current data"""
         # Header
         header_text = Text()
-        header_text.append("🚀 AI Trading System - Operational Dashboard", style="bold blue")
+        header_text.append(
+            "🚀 AI Trading System - Operational Dashboard", style="bold blue"
+        )
         header_text.append(f" | Environment: {self.environment.upper()}", style="bold")
-        header_text.append(f" | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", style="dim")
+        header_text.append(
+            f" | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", style="dim"
+        )
         layout["header"].update(Panel(header_text, border_style="blue"))
 
         # Get data
@@ -674,7 +803,7 @@ Strategy Performance:
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=console,
-            transient=True
+            transient=True,
         ) as progress:
             task = progress.add_task("Updating dashboard...", total=100)
 
@@ -683,11 +812,15 @@ Strategy Performance:
             services = [self.get_service_info(service) for service in self.all_services]
 
             # Get system metrics
-            progress.update(task, advance=20, description="Collecting system metrics...")
+            progress.update(
+                task, advance=20, description="Collecting system metrics..."
+            )
             system_metrics = self.get_system_metrics()
 
             # Get trading metrics
-            progress.update(task, advance=20, description="Collecting trading metrics...")
+            progress.update(
+                task, advance=20, description="Collecting trading metrics..."
+            )
             trading_metrics = self.get_trading_metrics()
 
             progress.update(task, advance=40, description="Rendering dashboard...")
@@ -770,11 +903,17 @@ Strategy Performance:
         healthy_services = sum(1 for s in services if s.health == HealthStatus.HEALTHY)
 
         if running_services == len(services) and healthy_services == len(services):
-            console.print("\n[bold green]✅ System Status: ALL SYSTEMS OPERATIONAL[/bold green]")
+            console.print(
+                "\n[bold green]✅ System Status: ALL SYSTEMS OPERATIONAL[/bold green]"
+            )
         elif running_services == len(services):
-            console.print("\n[bold yellow]⚠️  System Status: RUNNING WITH ISSUES[/bold yellow]")
+            console.print(
+                "\n[bold yellow]⚠️  System Status: RUNNING WITH ISSUES[/bold yellow]"
+            )
         else:
-            console.print(f"\n[bold red]❌ System Status: DEGRADED ({running_services}/{len(services)} services running)[/bold red]")
+            console.print(
+                f"\n[bold red]❌ System Status: DEGRADED ({running_services}/{len(services)} services running)[/bold red]"
+            )
 
     def generate_status_report(self, output_file: str):
         """Generate detailed status report"""
@@ -795,15 +934,21 @@ Strategy Performance:
             "services": [asdict(service) for service in services],
             "summary": {
                 "total_services": len(services),
-                "running_services": sum(1 for s in services if s.status == ServiceStatus.RUNNING),
-                "healthy_services": sum(1 for s in services if s.health == HealthStatus.HEALTHY),
-                "system_health_score": self._calculate_health_score(services, system_metrics)
-            }
+                "running_services": sum(
+                    1 for s in services if s.status == ServiceStatus.RUNNING
+                ),
+                "healthy_services": sum(
+                    1 for s in services if s.health == HealthStatus.HEALTHY
+                ),
+                "system_health_score": self._calculate_health_score(
+                    services, system_metrics
+                ),
+            },
         }
 
         # Write report
-        with open(output_file, 'w') as f:
-            if output_file.endswith('.json'):
+        with open(output_file, "w") as f:
+            if output_file.endswith(".json"):
                 json.dump(report, f, indent=2, default=str)
             else:
                 # Text format
@@ -827,11 +972,15 @@ Strategy Performance:
 
                 f.write("Service Status:\n")
                 for service in services:
-                    f.write(f"  {service.name}: {service.status.value} ({service.health.value})\n")
+                    f.write(
+                        f"  {service.name}: {service.status.value} ({service.health.value})\n"
+                    )
 
         console.print(f"[green]Status report saved to: {output_file}[/green]")
 
-    def _calculate_health_score(self, services: List[ServiceInfo], metrics: SystemMetrics) -> float:
+    def _calculate_health_score(
+        self, services: List[ServiceInfo], metrics: SystemMetrics
+    ) -> float:
         """Calculate overall system health score (0-100)"""
         # Service health (40% of score)
         running_services = sum(1 for s in services if s.status == ServiceStatus.RUNNING)
@@ -868,8 +1017,6 @@ Strategy Performance:
 
         return max(0.0, min(100.0, total_score))
 
-
-
     def execute_operation(self, operation: str, **kwargs):
         """Execute operational commands"""
         console.print(f"[blue]Executing operation: {operation}[/blue]")
@@ -882,19 +1029,23 @@ Strategy Performance:
                         ["docker-compose", "-f", self.compose_file, "restart", service],
                         cwd=self.project_root,
                         capture_output=True,
-                        text=True
+                        text=True,
                     )
                     if result.returncode == 0:
-                        console.print(f"[green]✅ Service {service} restarted successfully[/green]")
+                        console.print(
+                            f"[green]✅ Service {service} restarted successfully[/green]"
+                        )
                     else:
-                        console.print(f"[red]❌ Failed to restart {service}: {result.stderr}[/red]")
+                        console.print(
+                            f"[red]❌ Failed to restart {service}: {result.stderr}[/red]"
+                        )
 
             elif operation == "create_backup":
                 result = subprocess.run(
                     ["bash", "scripts/backup/backup.sh", "--type", "manual"],
                     cwd=self.project_root,
                     capture_output=True,
-                    text=True
+                    text=True,
                 )
                 if result.returncode == 0:
                     console.print("[green]✅ Backup created successfully[/green]")
@@ -905,8 +1056,11 @@ Strategy Performance:
                 try:
                     response = requests.post(
                         "http://localhost:9107/maintenance/enter",
-                        json={"message": "Maintenance via dashboard", "initiated_by": os.getlogin()},
-                        timeout=10
+                        json={
+                            "message": "Maintenance via dashboard",
+                            "initiated_by": os.getlogin(),
+                        },
+                        timeout=10,
                     )
                     if response.status_code == 200:
                         console.print("[yellow]🔧 Maintenance mode activated[/yellow]")
@@ -918,8 +1072,7 @@ Strategy Performance:
             elif operation == "exit_maintenance":
                 try:
                     response = requests.post(
-                        "http://localhost:9107/maintenance/exit",
-                        timeout=10
+                        "http://localhost:9107/maintenance/exit", timeout=10
                     )
                     if response.status_code == 200:
                         console.print("[green]✅ Maintenance mode deactivated[/green]")
@@ -933,35 +1086,54 @@ Strategy Performance:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Trading System Operational Dashboard")
-    parser.add_argument("--env", choices=["development", "staging", "production"],
-                       default="development", help="Environment")
-    parser.add_argument("--refresh-interval", type=int, default=30,
-                       help="Dashboard refresh interval in seconds")
-    parser.add_argument("--mode", choices=["interactive", "status", "report"],
-                       default="interactive", help="Dashboard mode")
+    parser = argparse.ArgumentParser(
+        description="AI Trading System Operational Dashboard"
+    )
+    parser.add_argument(
+        "--env",
+        choices=["development", "staging", "production"],
+        default="development",
+        help="Environment",
+    )
+    parser.add_argument(
+        "--refresh-interval",
+        type=int,
+        default=30,
+        help="Dashboard refresh interval in seconds",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["interactive", "status", "report"],
+        default="interactive",
+        help="Dashboard mode",
+    )
     parser.add_argument("--output", help="Output file for report mode")
-    parser.add_argument("--format", choices=["json", "text"], default="text",
-                       help="Report format")
+    parser.add_argument(
+        "--format", choices=["json", "text"], default="text", help="Report format"
+    )
 
     args = parser.parse_args()
 
     # Create dashboard instance
     dashboard = OperationalDashboard(
-        environment=args.env,
-        refresh_interval=args.refresh_interval
+        environment=args.env, refresh_interval=args.refresh_interval
     )
 
     try:
         if args.mode == "interactive":
-            console.print("[bold green]Starting AI Trading System Dashboard...[/bold green]")
+            console.print(
+                "[bold green]Starting AI Trading System Dashboard...[/bold green]"
+            )
             dashboard.run_interactive_dashboard()
 
         elif args.mode == "status":
             dashboard.run_single_status_check()
 
         elif args.mode == "report":
-            output_file = args.output or f"status_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{args.format}"
+            output_file = (
+                args.output
+                or f"status_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{args.format}"
+            )
             dashboard.generate_status_report(output_file)
 
     except KeyboardInterrupt:

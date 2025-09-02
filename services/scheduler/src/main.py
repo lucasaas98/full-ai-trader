@@ -10,26 +10,31 @@ import logging
 import os
 import signal
 import sys
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-import uvicorn
 import redis.asyncio as redis
+import uvicorn
 from pydantic import ValidationError
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from shared.config import get_config, Config
-from shared.utils import setup_logging
-from .scheduler import TradingScheduler
-from .orchestrator import ServiceOrchestrator, ServiceConfiguration, ServiceDependency, HealthCheck
+from shared.config import Config, get_config
 from shared.market_hours import MarketHoursService
-from .monitor import SystemMonitor
-from .maintenance import MaintenanceManager, MaintenanceScheduler
-from .api import create_app
+from shared.utils import setup_logging
 
+from .api import create_app
+from .maintenance import MaintenanceManager, MaintenanceScheduler
+from .monitor import SystemMonitor
+from .orchestrator import (
+    HealthCheck,
+    ServiceConfiguration,
+    ServiceDependency,
+    ServiceOrchestrator,
+)
+from .scheduler import TradingScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +71,7 @@ class SchedulerService:
                 max_connections=self.config.redis.max_connections,
                 retry_on_timeout=True,
                 socket_keepalive=True,
-                socket_keepalive_options={}
+                socket_keepalive_options={},
             )
 
             # Test Redis connection
@@ -74,13 +79,17 @@ class SchedulerService:
             logger.info("Redis connection established")
 
             # Initialize components
-            self.market_hours = MarketHoursService(timezone_name=self.config.scheduler.timezone)
+            self.market_hours = MarketHoursService(
+                timezone_name=self.config.scheduler.timezone
+            )
             self.monitor = SystemMonitor(self.redis_client, self.config)
             self.orchestrator = ServiceOrchestrator(self.redis_client)
             self.scheduler = TradingScheduler(self.config)
 
             # Initialize maintenance system
-            self.maintenance_manager = MaintenanceManager(self.config, self.redis_client)
+            self.maintenance_manager = MaintenanceManager(
+                self.config, self.redis_client
+            )
             await self.maintenance_manager.register_tasks()
 
             self.maintenance_scheduler = MaintenanceScheduler(self.maintenance_manager)
@@ -112,19 +121,27 @@ class SchedulerService:
 
             if self.maintenance_manager:
                 # Run system health check first
-                health_result = await self.maintenance_manager.run_task("system_health_check")
+                health_result = await self.maintenance_manager.run_task(
+                    "system_health_check"
+                )
 
                 if not health_result.success:
                     logger.warning("System health check failed during startup")
 
                 # Run intelligent maintenance analysis
-                analysis_result = await self.maintenance_manager.run_task("intelligent_maintenance")
+                analysis_result = await self.maintenance_manager.run_task(
+                    "intelligent_maintenance"
+                )
 
                 if analysis_result.success and analysis_result.details:
-                    performance_score = analysis_result.details.get('performance_score', 100)
+                    performance_score = analysis_result.details.get(
+                        "performance_score", 100
+                    )
 
                     if performance_score < 70:
-                        logger.warning(f"Low performance score detected: {performance_score}")
+                        logger.warning(
+                            f"Low performance score detected: {performance_score}"
+                        )
                         # Run smart maintenance if system performance is poor
                         if self.maintenance_scheduler:
                             await self.maintenance_scheduler.run_smart_maintenance()
@@ -147,16 +164,13 @@ class SchedulerService:
             url="http://trading_data_collector:9101",
             port=9101,
             health_check=HealthCheck(
-                endpoint="/health",
-                timeout=5.0,
-                interval=30.0,
-                failure_threshold=3
+                endpoint="/health", timeout=5.0, interval=30.0, failure_threshold=3
             ),
             dependencies=[],  # No dependencies
             startup_timeout=120.0,
             shutdown_timeout=30.0,
             restart_policy="on-failure",
-            max_restarts=5
+            max_restarts=5,
         )
         assert self.orchestrator is not None
         self.orchestrator.register_service(data_collector)
@@ -167,10 +181,7 @@ class SchedulerService:
             url="http://trading_strategy_engine:9102",
             port=9102,
             health_check=HealthCheck(
-                endpoint="/health",
-                timeout=10.0,
-                interval=30.0,
-                failure_threshold=3
+                endpoint="/health", timeout=10.0, interval=30.0, failure_threshold=3
             ),
             dependencies=[
                 ServiceDependency("data_collector", required=True, startup_delay=5.0)
@@ -178,7 +189,7 @@ class SchedulerService:
             startup_timeout=180.0,
             shutdown_timeout=60.0,
             restart_policy="on-failure",
-            max_restarts=3
+            max_restarts=3,
         )
         assert self.orchestrator is not None
         self.orchestrator.register_service(strategy_engine)
@@ -189,19 +200,16 @@ class SchedulerService:
             url="http://trading_risk_manager:9103",
             port=9103,
             health_check=HealthCheck(
-                endpoint="/health",
-                timeout=5.0,
-                interval=20.0,
-                failure_threshold=2
+                endpoint="/health", timeout=5.0, interval=20.0, failure_threshold=2
             ),
             dependencies=[
                 ServiceDependency("data_collector", required=True, startup_delay=2.0),
-                ServiceDependency("strategy_engine", required=True, startup_delay=3.0)
+                ServiceDependency("strategy_engine", required=True, startup_delay=3.0),
             ],
             startup_timeout=90.0,
             shutdown_timeout=30.0,
             restart_policy="on-failure",
-            max_restarts=5
+            max_restarts=5,
         )
         assert self.orchestrator is not None
         self.orchestrator.register_service(risk_manager)
@@ -212,20 +220,17 @@ class SchedulerService:
             url="http://trading_trade_executor:9104",
             port=9104,
             health_check=HealthCheck(
-                endpoint="/health",
-                timeout=5.0,
-                interval=30.0,
-                failure_threshold=2
+                endpoint="/health", timeout=5.0, interval=30.0, failure_threshold=2
             ),
             dependencies=[
                 ServiceDependency("data_collector", required=True, startup_delay=2.0),
                 ServiceDependency("strategy_engine", required=True, startup_delay=2.0),
-                ServiceDependency("risk_manager", required=True, startup_delay=2.0)
+                ServiceDependency("risk_manager", required=True, startup_delay=2.0),
             ],
             startup_timeout=120.0,
             shutdown_timeout=45.0,
             restart_policy="on-failure",
-            max_restarts=3
+            max_restarts=3,
         )
         assert self.orchestrator is not None
         self.orchestrator.register_service(trade_executor)
@@ -265,11 +270,15 @@ class SchedulerService:
 
             # Register for market session changes
             assert self.market_hours is not None
-            self.market_hours.register_session_change_callback(self._on_market_session_change)
+            self.market_hours.register_session_change_callback(
+                self._on_market_session_change
+            )
 
             # Register for service status changes
             assert self.orchestrator is not None
-            self.orchestrator.register_status_change_callback(self._on_service_status_change)
+            self.orchestrator.register_status_change_callback(
+                self._on_service_status_change
+            )
 
             # Register for system alerts
             assert self.monitor is not None
@@ -289,11 +298,15 @@ class SchedulerService:
             # Market opened
             assert self.scheduler is not None
             await self.scheduler.send_notification(
-                "Market opened - regular trading session started",
-                priority="medium"
+                "Market opened - regular trading session started", priority="medium"
             )
             # Resume market-hours tasks
-            market_tasks = ["finviz_scan", "price_updates_1m", "price_updates_5m", "strategy_analysis"]
+            market_tasks = [
+                "finviz_scan",
+                "price_updates_1m",
+                "price_updates_5m",
+                "strategy_analysis",
+            ]
             for task_id in market_tasks:
                 assert self.scheduler is not None
                 await self.scheduler.resume_task(task_id)
@@ -302,31 +315,34 @@ class SchedulerService:
             # Market closed
             assert self.scheduler is not None
             await self.scheduler.send_notification(
-                "Market closed - regular trading session ended",
-                priority="medium"
+                "Market closed - regular trading session ended", priority="medium"
             )
             # Trigger EOD tasks
             assert self.scheduler is not None
             await self.scheduler.execute_task("eod_report")
             # Run daily maintenance after market close
             if self.maintenance_scheduler:
-                await self.maintenance_scheduler.run_scheduled_maintenance("daily_tradenote_export")
+                await self.maintenance_scheduler.run_scheduled_maintenance(
+                    "daily_tradenote_export"
+                )
 
-    async def _on_service_status_change(self, service_name: str, old_status, new_status):
+    async def _on_service_status_change(
+        self, service_name: str, old_status, new_status
+    ):
         """Handle service status changes."""
-        logger.info(f"Service {service_name} status changed: {old_status} -> {new_status}")
+        logger.info(
+            f"Service {service_name} status changed: {old_status} -> {new_status}"
+        )
 
         if new_status == "error":
             assert self.scheduler is not None
             await self.scheduler.send_notification(
-                f"Service {service_name} encountered an error",
-                priority="high"
+                f"Service {service_name} encountered an error", priority="high"
             )
         elif new_status == "running":
             assert self.scheduler is not None
             await self.scheduler.send_notification(
-                f"Service {service_name} is now running",
-                priority="low"
+                f"Service {service_name} is now running", priority="low"
             )
 
     async def _on_system_alert(self, alert):
@@ -338,11 +354,12 @@ class SchedulerService:
             assert self.scheduler is not None
             await self.scheduler.send_notification(
                 f"System Alert [{alert.severity.value.upper()}]: {alert.message}",
-                priority=alert.severity.value
+                priority=alert.severity.value,
             )
 
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             self.shutdown_event.set()
@@ -380,7 +397,7 @@ class SchedulerService:
             port=port,
             log_level=self.config.logging.level.lower(),
             access_log=True,
-            loop="asyncio"
+            loop="asyncio",
         )
 
         server = uvicorn.Server(config_uvicorn)
@@ -402,7 +419,7 @@ class SchedulerService:
             health_status = {
                 "status": "healthy",
                 "timestamp": datetime.now().isoformat(),
-                "components": {}
+                "components": {},
             }
 
             # Check Redis
@@ -452,7 +469,7 @@ class SchedulerService:
             return {
                 "status": "unhealthy",
                 "timestamp": datetime.now().isoformat(),
-                "error": str(e)
+                "error": str(e),
             }
 
     async def shutdown(self):
@@ -483,7 +500,9 @@ class SchedulerService:
                 logger.info("Shutting down maintenance manager...")
                 # Cancel any running maintenance tasks
                 if self.maintenance_manager.current_task:
-                    logger.info(f"Cancelling running maintenance task: {self.maintenance_manager.current_task}")
+                    logger.info(
+                        f"Cancelling running maintenance task: {self.maintenance_manager.current_task}"
+                    )
                 self.maintenance_manager.is_running = False
 
             if self.maintenance_scheduler:
@@ -562,6 +581,7 @@ async def main():
 def run_cli():
     """Entry point for CLI commands."""
     from .cli import app as cli_app
+
     cli_app()
 
 
@@ -571,8 +591,7 @@ def run_dev_server():
 
     # Setup basic logging for development
     logging.basicConfig(
-        level=getattr(logging, config.logging.level),
-        format=config.logging.format
+        level=getattr(logging, config.logging.level), format=config.logging.format
     )
 
     # Run with uvicorn directly for development
@@ -581,7 +600,7 @@ def run_dev_server():
         host="0.0.0.0",
         port=8000,
         reload=False,
-        log_level=config.logging.level.lower()
+        log_level=config.logging.level.lower(),
     )
 
 
@@ -624,11 +643,32 @@ class SchedulerApp:
 
 if __name__ == "__main__":
     # Check if running as CLI
-    if len(sys.argv) > 1 and sys.argv[1] in ["status", "tasks", "trigger", "pause", "resume",
-                                             "services", "maintenance", "emergency", "pipeline",
-                                             "metrics", "logs", "positions", "portfolio", "config",
-                                             "monitor", "strategy", "risk", "backtest", "alerts",
-                                             "health", "queue", "trade", "export", "version"]:
+    if len(sys.argv) > 1 and sys.argv[1] in [
+        "status",
+        "tasks",
+        "trigger",
+        "pause",
+        "resume",
+        "services",
+        "maintenance",
+        "emergency",
+        "pipeline",
+        "metrics",
+        "logs",
+        "positions",
+        "portfolio",
+        "config",
+        "monitor",
+        "strategy",
+        "risk",
+        "backtest",
+        "alerts",
+        "health",
+        "queue",
+        "trade",
+        "export",
+        "version",
+    ]:
         run_cli()
     else:
         # Run main scheduler service

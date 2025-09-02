@@ -6,14 +6,14 @@ This script provides a comprehensive test runner for the AI strategy module,
 including unit tests, integration tests, performance tests, and coverage reporting.
 """
 
-import sys
-import os
 import argparse
-import subprocess
 import json
-from pathlib import Path
+import os
+import subprocess
+import sys
 from datetime import datetime
-from typing import List, Dict, Any
+from pathlib import Path
+from typing import Any, Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,11 +48,12 @@ class TestRunner:
             "pytest",
             "tests/test_ai_strategy.py",
             "tests/test_ai_strategy_extended.py",
-            "-m", "not integration and not performance and not benchmark",
+            "-m",
+            "not integration and not performance and not benchmark",
             "-v" if self.verbose else "-q",
             "--tb=short",
             "--json-report",
-            "--json-report-file=test_results_unit.json"
+            "--json-report-file=test_results_unit.json",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -60,7 +61,7 @@ class TestRunner:
         if result.stderr:
             print("Errors:", result.stderr)
 
-        self.results['unit'] = result.returncode
+        self.results["unit"] = result.returncode
         return result.returncode
 
     def run_integration_tests(self) -> int:
@@ -78,11 +79,12 @@ class TestRunner:
             "pytest",
             "tests/test_ai_strategy_extended.py",
             "tests/test_ai_strategy_errors.py",
-            "-m", "integration",
+            "-m",
+            "integration",
             "-v" if self.verbose else "-q",
             "--tb=short",
             "--json-report",
-            "--json-report-file=test_results_integration.json"
+            "--json-report-file=test_results_integration.json",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -90,7 +92,7 @@ class TestRunner:
         if result.stderr:
             print("Errors:", result.stderr)
 
-        self.results['integration'] = result.returncode
+        self.results["integration"] = result.returncode
         return result.returncode
 
     def run_performance_tests(self) -> int:
@@ -107,11 +109,12 @@ class TestRunner:
         cmd = [
             "pytest",
             "tests/test_ai_strategy_performance.py",
-            "-m", "performance and not benchmark",
+            "-m",
+            "performance and not benchmark",
             "-v" if self.verbose else "-q",
             "--tb=short",
             "--json-report",
-            "--json-report-file=test_results_performance.json"
+            "--json-report-file=test_results_performance.json",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -119,7 +122,7 @@ class TestRunner:
         if result.stderr:
             print("Errors:", result.stderr)
 
-        self.results['performance'] = result.returncode
+        self.results["performance"] = result.returncode
         return result.returncode
 
     def run_error_tests(self) -> int:
@@ -139,7 +142,7 @@ class TestRunner:
             "-v" if self.verbose else "-q",
             "--tb=short",
             "--json-report",
-            "--json-report-file=test_results_errors.json"
+            "--json-report-file=test_results_errors.json",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -147,7 +150,7 @@ class TestRunner:
         if result.stderr:
             print("Errors:", result.stderr)
 
-        self.results['errors'] = result.returncode
+        self.results["errors"] = result.returncode
         return result.returncode
 
     def run_coverage(self) -> int:
@@ -164,13 +167,14 @@ class TestRunner:
         cmd = [
             "pytest",
             "tests/test_ai_strategy*.py",
-            "-m", "not benchmark",
+            "-m",
+            "not benchmark",
             "--cov=services/strategy_engine/src",
             "--cov-report=term-missing",
             "--cov-report=html:coverage_ai_strategy",
             "--cov-report=json:coverage_ai_strategy.json",
             "--cov-branch",
-            "-q"
+            "-q",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -181,7 +185,7 @@ class TestRunner:
         # Parse coverage results
         self._parse_coverage_results()
 
-        self.results['coverage'] = result.returncode
+        self.results["coverage"] = result.returncode
         return result.returncode
 
     def run_benchmarks(self) -> int:
@@ -198,10 +202,11 @@ class TestRunner:
         cmd = [
             "pytest",
             "tests/test_ai_strategy_performance.py",
-            "-m", "benchmark",
+            "-m",
+            "benchmark",
             "--benchmark-only",
             "--benchmark-json=benchmark_results.json",
-            "-v" if self.verbose else "-q"
+            "-v" if self.verbose else "-q",
         ]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -209,7 +214,7 @@ class TestRunner:
         if result.stderr:
             print("Errors:", result.stderr)
 
-        self.results['benchmarks'] = result.returncode
+        self.results["benchmarks"] = result.returncode
         return result.returncode
 
     def run_specific_test(self, test_name: str) -> int:
@@ -226,12 +231,7 @@ class TestRunner:
         print(f"Running Specific Test: {test_name}")
         print("=" * 80)
 
-        cmd = [
-            "pytest",
-            "-k", test_name,
-            "-v",
-            "--tb=short"
-        ]
+        cmd = ["pytest", "-k", test_name, "-v", "--tb=short"]
 
         result = subprocess.run(cmd, capture_output=True, text=True)
         print(result.stdout)
@@ -268,18 +268,22 @@ class TestRunner:
     def _parse_coverage_results(self):
         """Parse and display coverage results."""
         try:
-            with open('coverage_ai_strategy.json', 'r') as f:
+            with open("coverage_ai_strategy.json", "r") as f:
                 coverage_data = json.load(f)
 
-            total_coverage = coverage_data.get('totals', {}).get('percent_covered', 0)
+            total_coverage = coverage_data.get("totals", {}).get("percent_covered", 0)
             print(f"\nTotal Coverage: {total_coverage:.2f}%")
 
             # Show file-level coverage
-            files = coverage_data.get('files', {})
+            files = coverage_data.get("files", {})
             print("\nFile Coverage:")
             for file_path, file_data in files.items():
-                if 'ai_strategy' in file_path or 'ai_models' in file_path or 'ai_integration' in file_path:
-                    coverage = file_data.get('summary', {}).get('percent_covered', 0)
+                if (
+                    "ai_strategy" in file_path
+                    or "ai_models" in file_path
+                    or "ai_integration" in file_path
+                ):
+                    coverage = file_data.get("summary", {}).get("percent_covered", 0)
                     print(f"  {Path(file_path).name}: {coverage:.2f}%")
 
         except (FileNotFoundError, json.JSONDecodeError) as e:
@@ -324,18 +328,26 @@ Examples:
   python run_ai_tests.py --coverage         # Run with coverage analysis
   python run_ai_tests.py --test test_cache  # Run specific test
   python run_ai_tests.py --benchmark        # Run benchmark tests
-        """
+        """,
     )
 
-    parser.add_argument('--all', action='store_true', help='Run all test suites')
-    parser.add_argument('--unit', action='store_true', help='Run unit tests')
-    parser.add_argument('--integration', action='store_true', help='Run integration tests')
-    parser.add_argument('--performance', action='store_true', help='Run performance tests')
-    parser.add_argument('--errors', action='store_true', help='Run error handling tests')
-    parser.add_argument('--coverage', action='store_true', help='Run with coverage analysis')
-    parser.add_argument('--benchmark', action='store_true', help='Run benchmark tests')
-    parser.add_argument('--test', type=str, help='Run specific test by name')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Verbose output')
+    parser.add_argument("--all", action="store_true", help="Run all test suites")
+    parser.add_argument("--unit", action="store_true", help="Run unit tests")
+    parser.add_argument(
+        "--integration", action="store_true", help="Run integration tests"
+    )
+    parser.add_argument(
+        "--performance", action="store_true", help="Run performance tests"
+    )
+    parser.add_argument(
+        "--errors", action="store_true", help="Run error handling tests"
+    )
+    parser.add_argument(
+        "--coverage", action="store_true", help="Run with coverage analysis"
+    )
+    parser.add_argument("--benchmark", action="store_true", help="Run benchmark tests")
+    parser.add_argument("--test", type=str, help="Run specific test by name")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
@@ -345,8 +357,19 @@ Examples:
     # Determine what to run
     exit_code = 0
 
-    if args.all or (not any([args.unit, args.integration, args.performance,
-                             args.errors, args.coverage, args.benchmark, args.test])):
+    if args.all or (
+        not any(
+            [
+                args.unit,
+                args.integration,
+                args.performance,
+                args.errors,
+                args.coverage,
+                args.benchmark,
+                args.test,
+            ]
+        )
+    ):
         # Run all tests if --all or no specific option provided
         exit_code = runner.run_all_tests()
 

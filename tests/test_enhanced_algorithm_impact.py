@@ -14,8 +14,8 @@ from typing import Dict, List
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from shared.models import TimeFrame
 from services.data_collector.src.scheduler_service import calculate_optimal_intervals
+from shared.models import TimeFrame
 
 
 def test_extreme_rate_limiting_scenarios():
@@ -31,13 +31,13 @@ def test_extreme_rate_limiting_scenarios():
     extreme_case = {
         "api_limits": {"slow_api": 5},  # Only 5 requests per minute!
         "tickers": 200,  # But we want to track 200 tickers
-        "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
+        "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR],
     }
 
     intervals = calculate_optimal_intervals(
         api_rate_limits=extreme_case["api_limits"],
         active_tickers=extreme_case["tickers"],
-        timeframes=extreme_case["timeframes"]
+        timeframes=extreme_case["timeframes"],
     )
 
     print(f"API limit: {extreme_case['api_limits']['slow_api']} req/min")
@@ -51,7 +51,9 @@ def test_extreme_rate_limiting_scenarios():
         else:
             batch_size = min(50, extreme_case["tickers"])
 
-        batches_needed = max(1, (extreme_case["tickers"] + batch_size - 1) // batch_size)
+        batches_needed = max(
+            1, (extreme_case["tickers"] + batch_size - 1) // batch_size
+        )
         req_per_min = round(60 / interval * batches_needed, 2)
 
         hours = interval // 3600
@@ -66,9 +68,13 @@ def test_extreme_rate_limiting_scenarios():
         if seconds > 0 or not time_str:
             time_str += f"{seconds}s"
 
-        print(f"  {timeframe.value:>15}: {interval:>8}s ({time_str.strip()}) -> {req_per_min} req/min")
+        print(
+            f"  {timeframe.value:>15}: {interval:>8}s ({time_str.strip()}) -> {req_per_min} req/min"
+        )
 
-    print(f"✓ Algorithm ensures we don't exceed {extreme_case['api_limits']['slow_api']} req/min limit")
+    print(
+        f"✓ Algorithm ensures we don't exceed {extreme_case['api_limits']['slow_api']} req/min limit"
+    )
     print()
 
 
@@ -86,7 +92,7 @@ def test_volatility_impact_on_constraints():
         (0.5, "Calm market"),
         (1.0, "Normal market"),
         (2.0, "Volatile market"),
-        (3.0, "Extreme volatility")
+        (3.0, "Extreme volatility"),
     ]
 
     print(f"API constraint: {api_limits['constrained']} req/min, {tickers} tickers")
@@ -97,7 +103,7 @@ def test_volatility_impact_on_constraints():
             api_rate_limits=api_limits,
             active_tickers=tickers,
             timeframes=timeframes,
-            market_volatility=volatility
+            market_volatility=volatility,
         )
 
         interval = intervals[TimeFrame.FIVE_MINUTES]
@@ -122,16 +128,16 @@ def test_priority_weight_extremes():
 
     # Extreme priority differences
     extreme_priorities = {
-        TimeFrame.FIVE_MINUTES: 10.0,    # Extremely high priority
+        TimeFrame.FIVE_MINUTES: 10.0,  # Extremely high priority
         TimeFrame.FIFTEEN_MINUTES: 1.0,  # Low priority
-        TimeFrame.ONE_HOUR: 0.1          # Extremely low priority
+        TimeFrame.ONE_HOUR: 0.1,  # Extremely low priority
     }
 
     intervals = calculate_optimal_intervals(
         api_rate_limits=api_limits,
         active_tickers=tickers,
         timeframes=timeframes,
-        priority_weights=extreme_priorities
+        priority_weights=extreme_priorities,
     )
 
     print(f"API limit: {api_limits['medium_api']} req/min, {tickers} tickers")
@@ -143,10 +149,14 @@ def test_priority_weight_extremes():
     for timeframe, interval in intervals.items():
         priority = extreme_priorities[timeframe]
         minutes = interval // 60
-        print(f"  {timeframe.value:>15} (priority {priority:>4.1f}): {interval:>6}s ({minutes:>3}m)")
+        print(
+            f"  {timeframe.value:>15} (priority {priority:>4.1f}): {interval:>6}s ({minutes:>3}m)"
+        )
 
     print()
-    print("✓ Algorithm handles extreme priority differences while respecting constraints")
+    print(
+        "✓ Algorithm handles extreme priority differences while respecting constraints"
+    )
     print()
 
 
@@ -157,13 +167,13 @@ def test_mixed_api_complexity():
 
     # Realistic but complex API environment
     complex_apis = {
-        "alpha_vantage_free": 25,    # Very limited
-        "twelvedata_basic": 800,     # Good capacity
-        "finnhub_free": 300,         # Medium capacity
-        "polygon_basic": 1000,       # High capacity
-        "iex_cloud": 500,            # Medium-high capacity
-        "redis_cache": 10000,        # Local cache (very fast)
-        "backup_scraper": 10         # Emergency backup (very slow)
+        "alpha_vantage_free": 25,  # Very limited
+        "twelvedata_basic": 800,  # Good capacity
+        "finnhub_free": 300,  # Medium capacity
+        "polygon_basic": 1000,  # High capacity
+        "iex_cloud": 500,  # Medium-high capacity
+        "redis_cache": 10000,  # Local cache (very fast)
+        "backup_scraper": 10,  # Emergency backup (very slow)
     }
 
     tickers = 120
@@ -176,11 +186,7 @@ def test_mixed_api_complexity():
     print(f"\nTracking {tickers} tickers")
 
     # Test with different market conditions
-    market_conditions = [
-        (0.8, "calm"),
-        (1.5, "volatile"),
-        (2.5, "extreme")
-    ]
+    market_conditions = [(0.8, "calm"), (1.5, "volatile"), (2.5, "extreme")]
 
     print("\nInterval calculations under different market conditions:")
 
@@ -189,7 +195,7 @@ def test_mixed_api_complexity():
             api_rate_limits=complex_apis,
             active_tickers=tickers,
             timeframes=timeframes,
-            market_volatility=volatility
+            market_volatility=volatility,
         )
 
         print(f"\n{condition.capitalize()} market (volatility={volatility}):")
@@ -200,7 +206,9 @@ def test_mixed_api_complexity():
             req_per_min = round(60 / interval * batches_needed, 1)
 
             minutes = interval // 60
-            print(f"  {timeframe.value:>15}: {interval:>6}s ({minutes:>3}m) -> {req_per_min:>5.1f} req/min")
+            print(
+                f"  {timeframe.value:>15}: {interval:>6}s ({minutes:>3}m) -> {req_per_min:>5.1f} req/min"
+            )
 
     # Show that we're constrained by the slowest API
     slowest_limit = min(complex_apis.values())
@@ -223,18 +231,20 @@ def test_scaling_behavior_extremes():
         (100, "Small fund"),
         (1000, "Large fund"),
         (5000, "Institutional"),
-        (10000, "Massive scale")
+        (10000, "Massive scale"),
     ]
 
     print("How algorithm scales with extreme ticker counts:")
-    print(f"{'Scale':<18} {'Tickers':<8} {'Interval':<12} {'Batch Size':<12} {'Req/Min':<10}")
+    print(
+        f"{'Scale':<18} {'Tickers':<8} {'Interval':<12} {'Batch Size':<12} {'Req/Min':<10}"
+    )
     print("-" * 70)
 
     for ticker_count, description in extreme_scales:
         intervals = calculate_optimal_intervals(
             api_rate_limits=api_limits,
             active_tickers=ticker_count,
-            timeframes=timeframes
+            timeframes=timeframes,
         )
 
         interval = intervals[TimeFrame.FIVE_MINUTES]
@@ -251,10 +261,16 @@ def test_scaling_behavior_extremes():
         else:
             batch_size = min(50, ticker_count)
 
-        batches_needed = max(1, (ticker_count + batch_size - 1) // batch_size) if ticker_count > 0 else 1
+        batches_needed = (
+            max(1, (ticker_count + batch_size - 1) // batch_size)
+            if ticker_count > 0
+            else 1
+        )
         req_per_min = round(60 / interval * batches_needed, 1)
 
-        print(f"{description:<18} {ticker_count:<8} {interval}s ({interval//60}m)   {batch_size:<12} {req_per_min:<10}")
+        print(
+            f"{description:<18} {ticker_count:<8} {interval}s ({interval//60}m)   {batch_size:<12} {req_per_min:<10}"
+        )
 
     print("\n✓ Algorithm efficiently scales batch sizes and intervals")
     print()
@@ -274,8 +290,8 @@ def test_algorithm_intelligence():
                 "api_rate_limits": {"limited": 15},
                 "active_tickers": 80,
                 "market_volatility": 2.5,
-                "priority_weights": {TimeFrame.FIVE_MINUTES: 5.0}
-            }
+                "priority_weights": {TimeFrame.FIVE_MINUTES: 5.0},
+            },
         },
         {
             "name": "Efficiency optimization",
@@ -284,8 +300,8 @@ def test_algorithm_intelligence():
                 "api_rate_limits": {"premium": 3000},
                 "active_tickers": 500,
                 "market_volatility": 0.6,
-                "priority_weights": {TimeFrame.FIVE_MINUTES: 2.0}
-            }
+                "priority_weights": {TimeFrame.FIVE_MINUTES: 2.0},
+            },
         },
         {
             "name": "Multi-constraint balancing",
@@ -297,10 +313,10 @@ def test_algorithm_intelligence():
                 "priority_weights": {
                     TimeFrame.FIVE_MINUTES: 4.0,
                     TimeFrame.FIFTEEN_MINUTES: 2.0,
-                    TimeFrame.ONE_HOUR: 1.0
-                }
-            }
-        }
+                    TimeFrame.ONE_HOUR: 1.0,
+                },
+            },
+        },
     ]
 
     timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR]
@@ -309,36 +325,39 @@ def test_algorithm_intelligence():
         print(f"{test['name']}:")
         print(f"  {test['description']}")
 
-        config = test['config']
-        intervals = calculate_optimal_intervals(
-            timeframes=timeframes,
-            **config
-        )
+        config = test["config"]
+        intervals = calculate_optimal_intervals(timeframes=timeframes, **config)
 
         print("  Configuration:")
         print(f"    Tickers: {config['active_tickers']}")
         print(f"    APIs: {config['api_rate_limits']}")
         print(f"    Volatility: {config['market_volatility']}")
-        if config['priority_weights']:
+        if config["priority_weights"]:
             print(f"    Priorities: {config['priority_weights']}")
 
         print("  Intelligent results:")
         for timeframe, interval in intervals.items():
             # Calculate efficiency metrics
-            if config['active_tickers'] <= 200:
-                batch_size = min(25, config['active_tickers'])
+            if config["active_tickers"] <= 200:
+                batch_size = min(25, config["active_tickers"])
             else:
-                batch_size = min(50, config['active_tickers'])
+                batch_size = min(50, config["active_tickers"])
 
-            batches_needed = max(1, (config['active_tickers'] + batch_size - 1) // batch_size)
+            batches_needed = max(
+                1, (config["active_tickers"] + batch_size - 1) // batch_size
+            )
             req_per_min = round(60 / interval * batches_needed, 1)
 
             # Check against most restrictive API
-            min_api_limit = min(config['api_rate_limits'].values())
-            safety_margin = round((min_api_limit - req_per_min) / min_api_limit * 100, 1)
+            min_api_limit = min(config["api_rate_limits"].values())
+            safety_margin = round(
+                (min_api_limit - req_per_min) / min_api_limit * 100, 1
+            )
 
             minutes = interval // 60
-            print(f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>3}m) -> {req_per_min:>5.1f} req/min ({safety_margin:>5.1f}% margin)")
+            print(
+                f"    {timeframe.value:>15}: {interval:>6}s ({minutes:>3}m) -> {req_per_min:>5.1f} req/min ({safety_margin:>5.1f}% margin)"
+            )
 
         print()
 
@@ -355,12 +374,10 @@ def test_comparative_analysis():
             TimeFrame.FIVE_MINUTES: 300,
             TimeFrame.FIFTEEN_MINUTES: 900,
             TimeFrame.ONE_HOUR: 3600,
-            TimeFrame.ONE_DAY: 86400
+            TimeFrame.ONE_DAY: 86400,
         }
 
-        requests_per_update = {
-            tf: max(1, active_tickers // 100) for tf in timeframes
-        }
+        requests_per_update = {tf: max(1, active_tickers // 100) for tf in timeframes}
 
         optimal_intervals = {}
         for timeframe in timeframes:
@@ -377,18 +394,15 @@ def test_comparative_analysis():
             "api_limits": {"api": 60},
             "tickers": 200,
             "volatility": 2.0,
-            "priorities": {TimeFrame.FIVE_MINUTES: 5.0}
+            "priorities": {TimeFrame.FIVE_MINUTES: 5.0},
         },
         {
             "name": "Large portfolio with mixed APIs",
             "api_limits": {"primary": 500, "backup": 20, "cache": 2000},
             "tickers": 800,
             "volatility": 1.5,
-            "priorities": {
-                TimeFrame.FIVE_MINUTES: 3.0,
-                TimeFrame.FIFTEEN_MINUTES: 4.0
-            }
-        }
+            "priorities": {TimeFrame.FIVE_MINUTES: 3.0, TimeFrame.FIFTEEN_MINUTES: 4.0},
+        },
     ]
 
     timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES]
@@ -400,22 +414,22 @@ def test_comparative_analysis():
 
         # Old algorithm (no volatility/priority support)
         old_intervals = old_simple_algorithm(
-            scenario['api_limits'],
-            scenario['tickers'],
-            timeframes
+            scenario["api_limits"], scenario["tickers"], timeframes
         )
 
         # Enhanced algorithm
         new_intervals = calculate_optimal_intervals(
-            api_rate_limits=scenario['api_limits'],
-            active_tickers=scenario['tickers'],
+            api_rate_limits=scenario["api_limits"],
+            active_tickers=scenario["tickers"],
             timeframes=timeframes,
-            market_volatility=scenario['volatility'],
-            priority_weights=scenario['priorities']
+            market_volatility=scenario["volatility"],
+            priority_weights=scenario["priorities"],
         )
 
         print("\nComparison:")
-        print(f"{'Timeframe':<15} {'Old Algo':<12} {'Enhanced':<12} {'Improvement':<15}")
+        print(
+            f"{'Timeframe':<15} {'Old Algo':<12} {'Enhanced':<12} {'Improvement':<15}"
+        )
         print("-" * 60)
 
         for timeframe in timeframes:
@@ -429,15 +443,17 @@ def test_comparative_analysis():
             else:
                 improvement = "Same"
 
-            print(f"{timeframe.value:<15} {old_min}m           {new_min}m           {improvement}")
+            print(
+                f"{timeframe.value:<15} {old_min}m           {new_min}m           {improvement}"
+            )
 
         # Calculate rate limit compliance
-        min_api = min(scenario['api_limits'].values())
+        min_api = min(scenario["api_limits"].values())
         print(f"\nRate limit analysis (most restrictive: {min_api} req/min):")
 
         for timeframe in timeframes:
-            batch_size = min(25, max(5, scenario['tickers'] // 20))
-            batches = max(1, (scenario['tickers'] + batch_size - 1) // batch_size)
+            batch_size = min(25, max(5, scenario["tickers"] // 20))
+            batches = max(1, (scenario["tickers"] + batch_size - 1) // batch_size)
 
             old_rate = round(60 / old_intervals[timeframe] * batches, 1)
             new_rate = round(60 / new_intervals[timeframe] * batches, 1)
@@ -445,7 +461,9 @@ def test_comparative_analysis():
             old_safe = "✓" if old_rate <= min_api * 0.8 else "✗ UNSAFE"
             new_safe = "✓" if new_rate <= min_api * 0.8 else "✗ UNSAFE"
 
-            print(f"  {timeframe.value}: Old={old_rate} req/min {old_safe}, Enhanced={new_rate} req/min {new_safe}")
+            print(
+                f"  {timeframe.value}: Old={old_rate} req/min {old_safe}, Enhanced={new_rate} req/min {new_safe}"
+            )
 
         print()
 
@@ -463,8 +481,8 @@ def test_edge_case_robustness():
                 "api_rate_limits": {"api": 1},
                 "active_tickers": 0,
                 "timeframes": [TimeFrame.FIVE_MINUTES],
-                "market_volatility": 0.0
-            }
+                "market_volatility": 0.0,
+            },
         },
         {
             "name": "Maximum-everything scenario",
@@ -472,8 +490,8 @@ def test_edge_case_robustness():
                 "api_rate_limits": {"api": 100000},
                 "active_tickers": 10000,
                 "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_DAY],
-                "market_volatility": 10.0
-            }
+                "market_volatility": 10.0,
+            },
         },
         {
             "name": "Negative volatility handling",
@@ -481,8 +499,8 @@ def test_edge_case_robustness():
                 "api_rate_limits": {"api": 200},
                 "active_tickers": 50,
                 "timeframes": [TimeFrame.ONE_HOUR],
-                "market_volatility": -1.0
-            }
+                "market_volatility": -1.0,
+            },
         },
         {
             "name": "Empty API limits",
@@ -490,16 +508,16 @@ def test_edge_case_robustness():
                 "api_rate_limits": {},
                 "active_tickers": 30,
                 "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR],
-                "market_volatility": 1.0
-            }
-        }
+                "market_volatility": 1.0,
+            },
+        },
     ]
 
     for case in edge_cases:
         print(f"Testing: {case['name']}")
 
         try:
-            intervals = calculate_optimal_intervals(**case['config'])
+            intervals = calculate_optimal_intervals(**case["config"])
 
             print("  ✓ Handled gracefully")
             print("  Results:")
@@ -526,22 +544,26 @@ def demonstrate_key_features():
     dangerous_config = {
         "api_rate_limits": {"risky_api": 50},
         "active_tickers": 100,
-        "timeframes": [TimeFrame.FIVE_MINUTES]
+        "timeframes": [TimeFrame.FIVE_MINUTES],
     }
 
     intervals = calculate_optimal_intervals(**dangerous_config)
     interval = intervals[TimeFrame.FIVE_MINUTES]
 
     # Calculate what the request rate would be
-    batch_size = min(25, dangerous_config['active_tickers'])
-    batches = max(1, (dangerous_config['active_tickers'] + batch_size - 1) // batch_size)
+    batch_size = min(25, dangerous_config["active_tickers"])
+    batches = max(
+        1, (dangerous_config["active_tickers"] + batch_size - 1) // batch_size
+    )
     actual_req_rate = round(60 / interval * batches, 1)
-    api_limit = dangerous_config['api_rate_limits']['risky_api']
+    api_limit = dangerous_config["api_rate_limits"]["risky_api"]
 
     print(f"API limit: {api_limit} req/min")
     print(f"Calculated interval: {interval}s ({interval//60}m)")
     print(f"Actual request rate: {actual_req_rate} req/min")
-    print(f"Safety margin: {round((api_limit - actual_req_rate) / api_limit * 100, 1)}%")
+    print(
+        f"Safety margin: {round((api_limit - actual_req_rate) / api_limit * 100, 1)}%"
+    )
     print("✓ Algorithm automatically applies 20% safety margin")
     print()
 
@@ -562,7 +584,9 @@ def demonstrate_key_features():
             batch_size = min(50, tickers)
 
         efficiency = round(tickers / batch_size, 1) if batch_size > 0 else 0
-        print(f"{tickers:>3} tickers -> {batch_size:>2} batch size (efficiency: {efficiency}x)")
+        print(
+            f"{tickers:>3} tickers -> {batch_size:>2} batch size (efficiency: {efficiency}x)"
+        )
 
     print("✓ Algorithm optimizes batch sizes for efficiency")
     print()
@@ -574,19 +598,23 @@ def demonstrate_key_features():
         "api_rate_limits": {
             "fast_service": 2000,
             "medium_service": 400,
-            "slow_service": 50,      # This will constrain everything
-            "backup_service": 1000
+            "slow_service": 50,  # This will constrain everything
+            "backup_service": 1000,
         },
         "active_tickers": 60,
-        "timeframes": [TimeFrame.FIVE_MINUTES]
+        "timeframes": [TimeFrame.FIVE_MINUTES],
     }
 
     intervals = calculate_optimal_intervals(**multi_api_config)
     interval = intervals[TimeFrame.FIVE_MINUTES]
 
     print("Multiple API services with different limits:")
-    for service, limit in multi_api_config['api_rate_limits'].items():
-        constraint = " ← CONSTRAINING" if limit == min(multi_api_config['api_rate_limits'].values()) else ""
+    for service, limit in multi_api_config["api_rate_limits"].items():
+        constraint = (
+            " ← CONSTRAINING"
+            if limit == min(multi_api_config["api_rate_limits"].values())
+            else ""
+        )
         print(f"  {service}: {limit} req/min{constraint}")
 
     print(f"\nResult: {interval}s interval (constrained by slowest service)")
@@ -604,56 +632,68 @@ def run_comprehensive_test():
     comprehensive_config = {
         "api_rate_limits": {
             "twelvedata_premium": 1000,
-            "alpha_vantage_free": 25,     # Will constrain
+            "alpha_vantage_free": 25,  # Will constrain
             "finnhub_basic": 300,
             "polygon_basic": 800,
-            "redis_local": 10000
+            "redis_local": 10000,
         },
         "active_tickers": 200,
-        "timeframes": [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES,
-                      TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY],
+        "timeframes": [
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+            TimeFrame.ONE_DAY,
+        ],
         "market_volatility": 1.7,  # High volatility
         "priority_weights": {
-            TimeFrame.FIVE_MINUTES: 4.5,    # Very high priority
-            TimeFrame.FIFTEEN_MINUTES: 3.0, # High priority
-            TimeFrame.ONE_HOUR: 2.0,        # Medium priority
-            TimeFrame.ONE_DAY: 1.5          # Lower priority
-        }
+            TimeFrame.FIVE_MINUTES: 4.5,  # Very high priority
+            TimeFrame.FIFTEEN_MINUTES: 3.0,  # High priority
+            TimeFrame.ONE_HOUR: 2.0,  # Medium priority
+            TimeFrame.ONE_DAY: 1.5,  # Lower priority
+        },
     }
 
     print("Complex real-world configuration:")
     print(f"  Portfolio: {comprehensive_config['active_tickers']} tickers")
     print(f"  Market volatility: {comprehensive_config['market_volatility']} (high)")
     print("  API services:")
-    for service, limit in comprehensive_config['api_rate_limits'].items():
+    for service, limit in comprehensive_config["api_rate_limits"].items():
         print(f"    {service:>20}: {limit:>5} req/min")
     print("  Priority weights:")
-    for tf, weight in comprehensive_config['priority_weights'].items():
+    for tf, weight in comprehensive_config["priority_weights"].items():
         print(f"    {tf.value:>15}: {weight}")
     print()
 
     intervals = calculate_optimal_intervals(**comprehensive_config)
 
     print("Enhanced algorithm results:")
-    print(f"{'Timeframe':<15} {'Interval':<12} {'Priority':<10} {'Req/Min':<10} {'Safety':<10}")
+    print(
+        f"{'Timeframe':<15} {'Interval':<12} {'Priority':<10} {'Req/Min':<10} {'Safety':<10}"
+    )
     print("-" * 70)
 
-    min_api_limit = min(comprehensive_config['api_rate_limits'].values())
+    min_api_limit = min(comprehensive_config["api_rate_limits"].values())
 
     for timeframe, interval in intervals.items():
-        priority = comprehensive_config['priority_weights'][timeframe]
+        priority = comprehensive_config["priority_weights"][timeframe]
 
         # Calculate request rate
-        batch_size = min(25, max(5, comprehensive_config['active_tickers'] // 20))
-        batches = max(1, (comprehensive_config['active_tickers'] + batch_size - 1) // batch_size)
+        batch_size = min(25, max(5, comprehensive_config["active_tickers"] // 20))
+        batches = max(
+            1, (comprehensive_config["active_tickers"] + batch_size - 1) // batch_size
+        )
         req_per_min = round(60 / interval * batches, 1)
 
         safety_margin = round((min_api_limit - req_per_min) / min_api_limit * 100, 1)
 
         minutes = interval // 60
-        print(f"{timeframe.value:<15} {interval}s ({minutes}m)    {priority:<10} {req_per_min:<10} {safety_margin}%")
+        print(
+            f"{timeframe.value:<15} {interval}s ({minutes}m)    {priority:<10} {req_per_min:<10} {safety_margin}%"
+        )
 
-    print(f"\n✓ All requests stay within {min_api_limit} req/min limit with safety margins")
+    print(
+        f"\n✓ All requests stay within {min_api_limit} req/min limit with safety margins"
+    )
     print("✓ Higher priority timeframes get relatively more frequent updates")
     print("✓ Algorithm balances all constraints intelligently")
     print()
@@ -705,12 +745,10 @@ def main():
     except Exception as e:
         print(f"ERROR: Demonstration failed: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
-```
-
-Now let's run this comprehensive demonstration:

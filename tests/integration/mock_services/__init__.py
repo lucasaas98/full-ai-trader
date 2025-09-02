@@ -18,10 +18,10 @@ from .mock_data_collector import MockDataCollector, MockDataCollectorConfig
 from .service_orchestrator import ServiceOrchestrator, create_service_orchestrator
 
 __all__ = [
-    'MockDataCollector',
-    'MockDataCollectorConfig',
-    'ServiceOrchestrator',
-    'create_service_orchestrator'
+    "MockDataCollector",
+    "MockDataCollectorConfig",
+    "ServiceOrchestrator",
+    "create_service_orchestrator",
 ]
 
-__version__ = '1.0.0'
+__version__ = "1.0.0"

@@ -11,9 +11,9 @@ import logging
 import os
 import signal
 import sys
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, Set
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any, Dict, Optional, Set
 
 import redis.asyncio as redis
 from redis.asyncio.client import PubSub
@@ -22,14 +22,13 @@ from redis.asyncio.client import PubSub
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.config import get_config, Config
-from shared.models import Notification
 from monitoring.gotify_client import NotificationManager
+from shared.config import Config, get_config
+from shared.models import Notification
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -53,15 +52,15 @@ class NotificationService:
 
         # Channels to subscribe to
         self.channels = [
-            "executions:all",           # All trade executions
-            "execution_errors:all",      # All execution errors
-            "signals:all",              # Trading signals (optional)
-            "alerts:*",                 # All system alerts
-            "risk:alerts",              # Risk management alerts
-            "portfolio:updates",        # Portfolio updates
-            "system:status",            # System status updates
-            "market:alerts",            # Market condition alerts
-            "screener:updates"          # Screener data updates
+            "executions:all",  # All trade executions
+            "execution_errors:all",  # All execution errors
+            "signals:all",  # Trading signals (optional)
+            "alerts:*",  # All system alerts
+            "risk:alerts",  # Risk management alerts
+            "portfolio:updates",  # Portfolio updates
+            "system:status",  # System status updates
+            "market:alerts",  # Market condition alerts
+            "screener:updates",  # Screener data updates
         ]
 
         # Track notification rate limiting
@@ -74,14 +73,14 @@ class NotificationService:
             logger.info("Initializing Notification Service...")
 
             # Initialize Redis connection using environment variable
-            redis_url = os.getenv('REDIS_URL', 'redis://redis:6379')
+            redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
             logger.info(f"Connecting to Redis at: {redis_url}")
 
             self._redis = await redis.from_url(
                 redis_url,
                 encoding="utf-8",
                 decode_responses=True,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
 
             # Test Redis connection
@@ -112,7 +111,7 @@ class NotificationService:
                 raise ValueError("PubSub not initialized")
 
             for channel in self.channels:
-                if '*' in channel:
+                if "*" in channel:
                     # Pattern subscription
                     await self._pubsub.psubscribe(channel)
                     logger.info(f"Pattern subscribed to: {channel}")
@@ -243,8 +242,14 @@ class NotificationService:
                 "price": result.get("price", 0.0),
                 "strategy": data.get("strategy", "Unknown"),
                 "execution_strategy": result.get("execution_strategy", "IMMEDIATE"),
-                "order_id": result.get("order", {}).get("broker_order_id") if isinstance(result.get("order"), dict) else None,
-                "timestamp": data.get("timestamp", datetime.now(timezone.utc).isoformat())
+                "order_id": (
+                    result.get("order", {}).get("broker_order_id")
+                    if isinstance(result.get("order"), dict)
+                    else None
+                ),
+                "timestamp": data.get(
+                    "timestamp", datetime.now(timezone.utc).isoformat()
+                ),
             }
 
             # Calculate value
@@ -252,7 +257,9 @@ class NotificationService:
 
             # Send notification
             if self.notification_manager:
-                success = await self.notification_manager.send_trading_notification(trade_data)
+                success = await self.notification_manager.send_trading_notification(
+                    trade_data
+                )
                 if success:
                     logger.info(f"Sent trade notification for {symbol}")
                 else:
@@ -283,9 +290,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
 
             if self.notification_manager and self.notification_manager.gotify_client:
                 await self.notification_manager.gotify_client.send_critical_alert(
-                    title,
-                    message.strip(),
-                    data
+                    title, message.strip(), data
                 )
                 logger.warning(f"Sent execution error notification for {symbol}")
 
@@ -303,27 +308,24 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
             if self._is_rate_limited(f"alert_{alert_type}"):
                 return
 
-            if not self.notification_manager or not self.notification_manager.gotify_client:
+            if (
+                not self.notification_manager
+                or not self.notification_manager.gotify_client
+            ):
                 return
 
             # Send appropriate alert level
             if severity == "critical":
                 await self.notification_manager.gotify_client.send_critical_alert(
-                    f"🚨 {alert_type.upper()}",
-                    message,
-                    data
+                    f"🚨 {alert_type.upper()}", message, data
                 )
             elif severity == "warning":
                 await self.notification_manager.gotify_client.send_warning_alert(
-                    f"⚠️ {alert_type.upper()}",
-                    message,
-                    data
+                    f"⚠️ {alert_type.upper()}", message, data
                 )
             else:
                 await self.notification_manager.gotify_client.send_info_notification(
-                    f"ℹ️ {alert_type.upper()}",
-                    message,
-                    data
+                    f"ℹ️ {alert_type.upper()}", message, data
                 )
 
         except Exception as e:
@@ -340,13 +342,11 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
                 # The NotificationManager expects specific risk event format
                 # We'll send it as a general alert instead
                 title = f"⚠️ Risk Alert: {data.get('alert_type', 'UNKNOWN')}"
-                message = data.get('message', 'Risk threshold exceeded')
+                message = data.get("message", "Risk threshold exceeded")
 
                 if self.notification_manager.gotify_client:
                     await self.notification_manager.gotify_client.send_warning_alert(
-                        title,
-                        message,
-                        data
+                        title, message, data
                     )
                     logger.info("Sent risk alert notification")
 
@@ -369,7 +369,9 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
                 if abs(change_pct) > 5:  # More than 5% change
                     if self.notification_manager:
                         await self.notification_manager.send_portfolio_summary(data)
-                        logger.info(f"Sent portfolio notification for {change_pct:.2f}% change")
+                        logger.info(
+                            f"Sent portfolio notification for {change_pct:.2f}% change"
+                        )
 
         except Exception as e:
             logger.error(f"Failed to handle portfolio update: {e}")
@@ -386,16 +388,18 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
                 if self._is_rate_limited(f"system_{service}"):
                     return
 
-                if self.notification_manager and self.notification_manager.gotify_client:
+                if (
+                    self.notification_manager
+                    and self.notification_manager.gotify_client
+                ):
                     alert_type = f"{status.upper()}"
-                    message = f"Service {service} is {status}: {data.get('message', '')}"
+                    message = (
+                        f"Service {service} is {status}: {data.get('message', '')}"
+                    )
                     severity = "high" if status == "error" else "medium"
 
                     await self.notification_manager.gotify_client.send_system_alert(
-                        service,
-                        alert_type,
-                        message,
-                        severity
+                        service, alert_type, message, severity
                     )
                     logger.warning(f"Sent system alert for {service}: {status}")
 
@@ -411,12 +415,10 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
 
             if self.notification_manager and self.notification_manager.gotify_client:
                 title = f"Market Alert: {data.get('alert_type', 'UNKNOWN')}"
-                message = data.get('message', 'Market condition detected')
+                message = data.get("message", "Market condition detected")
 
                 await self.notification_manager.gotify_client.send_warning_alert(
-                    title,
-                    message,
-                    data
+                    title, message, data
                 )
                 logger.info("Sent market alert notification")
 
@@ -448,9 +450,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
 
             if self.notification_manager and self.notification_manager.gotify_client:
                 await self.notification_manager.gotify_client.send_info_notification(
-                    title,
-                    message.strip(),
-                    data
+                    title, message.strip(), data
                 )
                 logger.info(f"Sent signal notification for {symbol}")
 
@@ -485,7 +485,9 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                     change = stock.get("change")
 
                     if price and change:
-                        change_str = f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
+                        change_str = (
+                            f"+{change:.2f}%" if change > 0 else f"{change:.2f}%"
+                        )
                         top_symbols.append(f"{symbol}: ${price:.2f} ({change_str})")
                     else:
                         top_symbols.append(symbol)
@@ -508,11 +510,17 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                     metadata={
                         "screener_type": screener_type,
                         "stock_count": count,
-                        "timestamp": str(timestamp) if timestamp else str(datetime.now(timezone.utc))
-                    }
+                        "timestamp": (
+                            str(timestamp)
+                            if timestamp
+                            else str(datetime.now(timezone.utc))
+                        ),
+                    },
                 )
                 await self.notification_manager.send_notification(notification)
-                logger.info(f"Sent screener update notification: {screener_type} with {count} stocks")
+                logger.info(
+                    f"Sent screener update notification: {screener_type} with {count} stocks"
+                )
 
         except Exception as e:
             logger.error(f"Failed to handle screener update: {e}")
@@ -541,7 +549,10 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                     await self._redis.ping()
 
                 # Check notification manager
-                if self.notification_manager and self.notification_manager.gotify_client:
+                if (
+                    self.notification_manager
+                    and self.notification_manager.gotify_client
+                ):
                     await self.notification_manager.gotify_client.test_connection()
 
                 logger.debug("Health check passed")
@@ -565,18 +576,12 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                 if now.hour >= target_hour:
                     # Already past today's summary time, wait for tomorrow
                     next_summary = now.replace(
-                        hour=target_hour,
-                        minute=0,
-                        second=0,
-                        microsecond=0
+                        hour=target_hour, minute=0, second=0, microsecond=0
                     ) + timedelta(days=1)
                 else:
                     # Today's summary time hasn't passed yet
                     next_summary = now.replace(
-                        hour=target_hour,
-                        minute=0,
-                        second=0,
-                        microsecond=0
+                        hour=target_hour, minute=0, second=0, microsecond=0
                     )
 
                 wait_seconds = (next_summary - now).total_seconds()

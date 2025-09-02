@@ -1,15 +1,17 @@
-import pytest
 import asyncio
 import json
-import time
-from datetime import datetime, timezone
-import httpx
-import redis.asyncio as redis
+import os
 
 # Add parent directories to path for imports
 import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
+import time
+from datetime import datetime, timezone
+
+import httpx
+import pytest
+import redis.asyncio as redis
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
 
 # Models available but not used in this test file
 pass  # Removed unused config import
@@ -17,21 +19,26 @@ pass  # Removed unused config import
 # Mock missing model classes
 from enum import Enum
 
+
 class SignalType(str, Enum):
     BUY = "buy"
     SELL = "sell"
+
 
 class OrderSide(str, Enum):
     BUY = "buy"
     SELL = "sell"
 
+
 class OrderType(str, Enum):
     MARKET = "market"
     LIMIT = "limit"
 
+
 class OrderStatus(str, Enum):
     PENDING = "pending"
     FILLED = "filled"
+
 
 class PortfolioState:
     def __init__(self, total_value=100000, cash=50000):
@@ -45,6 +52,7 @@ class TestServiceCommunication:
     @pytest.fixture
     def config(self):
         """Test configuration"""
+
         # Create a mock config object with the needed attributes
         class MockConfig:
             def __init__(self):
@@ -74,21 +82,20 @@ class TestServiceCommunication:
             "strategy_engine": "http://strategy_engine:9102",
             "risk_manager": "http://risk_manager:9103",
             "trade_executor": "http://trade_executor:9104",
-            "scheduler": "http://scheduler:9105"
+            "scheduler": "http://scheduler:9105",
         }
 
     @pytest.mark.asyncio
-    async def test_data_flow_from_collector_to_strategy(self, redis_client, service_urls):
+    async def test_data_flow_from_collector_to_strategy(
+        self, redis_client, service_urls
+    ):
         """Test data flow from data collector to strategy engine"""
         # Step 1: Trigger data collection
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{service_urls['data_collector']}/collect/market-data",
-                json={
-                    "symbols": ["AAPL"],
-                    "timeframe": "1h"
-                },
-                timeout=30.0
+                json={"symbols": ["AAPL"], "timeframe": "1h"},
+                timeout=30.0,
             )
             assert response.status_code == 200
 
@@ -111,9 +118,9 @@ class TestServiceCommunication:
                 json={
                     "symbols": ["AAPL"],
                     "strategy": "moving_average",
-                    "parameters": {"short_window": 20, "long_window": 50}
+                    "parameters": {"short_window": 20, "long_window": 50},
                 },
-                timeout=30.0
+                timeout=30.0,
             )
             assert response.status_code == 200
 
@@ -136,10 +143,7 @@ class TestServiceCommunication:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "price": 200.0,
             "strategy": "test_strategy",
-            "metadata": {
-                "stop_loss": 190.0,
-                "take_profit": 220.0
-            }
+            "metadata": {"stop_loss": 190.0, "take_profit": 220.0},
         }
 
         await redis_client.publish("trade_signals", json.dumps(test_signal))
@@ -156,9 +160,9 @@ class TestServiceCommunication:
                     "side": "buy",
                     "order_type": "market",
                     "quantity": 100,
-                    "price": 200.0
+                    "price": 200.0,
                 },
-                timeout=10.0
+                timeout=10.0,
             )
             assert response.status_code == 200
             risk_validation = response.json()
@@ -173,9 +177,9 @@ class TestServiceCommunication:
                         "side": "buy",
                         "order_type": "market",
                         "quantity": 100,
-                        "price": 200.0
+                        "price": 200.0,
                     },
-                    timeout=15.0
+                    timeout=15.0,
                 )
 
                 # Should successfully submit order or provide clear rejection reason
@@ -198,13 +202,15 @@ class TestServiceCommunication:
             "symbol": "AAPL",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "close": 200.0,
-            "volume": 1000000
+            "volume": 1000000,
         }
 
         await redis_client.publish("market_data", json.dumps(test_data))
 
         # Wait for message
-        message = await asyncio.wait_for(pubsub.get_message(ignore_subscribe_messages=True), timeout=5.0)
+        message = await asyncio.wait_for(
+            pubsub.get_message(ignore_subscribe_messages=True), timeout=5.0
+        )
 
         assert message is not None
         data = json.loads(message["data"])
@@ -222,14 +228,16 @@ class TestServiceCommunication:
                 response = await client.post(
                     f"{service_urls['strategy_engine']}/signals/generate",
                     json={"symbols": ["AAPL"], "strategy": "moving_average"},
-                    timeout=5.0
+                    timeout=5.0,
                 )
             except httpx.ConnectError:
                 # Expected when service is down
                 pass
 
             # Other services should continue functioning
-            response = await client.get(f"{service_urls['data_collector']}/health", timeout=5.0)
+            response = await client.get(
+                f"{service_urls['data_collector']}/health", timeout=5.0
+            )
             assert response.status_code == 200
 
     @pytest.mark.asyncio
@@ -243,17 +251,20 @@ class TestServiceCommunication:
                     response = await client.get(f"{url}/health", timeout=10.0)
                     health_results[service_name] = {
                         "status_code": response.status_code,
-                        "response": response.json() if response.status_code == 200 else None
+                        "response": (
+                            response.json() if response.status_code == 200 else None
+                        ),
                     }
                 except Exception as e:
                     health_results[service_name] = {
                         "status_code": None,
-                        "error": str(e)
+                        "error": str(e),
                     }
 
         # At least some services should be healthy
         healthy_services = [
-            name for name, result in health_results.items()
+            name
+            for name, result in health_results.items()
             if result.get("status_code") == 200
         ]
 
@@ -270,17 +281,26 @@ class TestServiceCommunication:
                     response = await client.get(f"{url}/health", timeout=10.0)
                     if response.status_code == 200:
                         health_data = response.json()
-                        database_health[service_name] = health_data.get("database", "unknown")
+                        database_health[service_name] = health_data.get(
+                            "database", "unknown"
+                        )
                 except Exception as e:
                     database_health[service_name] = f"error: {str(e)}"
 
         # Services that need database should report healthy DB connections
-        db_dependent_services = ["data_collector", "strategy_engine", "risk_manager", "trade_executor"]
+        db_dependent_services = [
+            "data_collector",
+            "strategy_engine",
+            "risk_manager",
+            "trade_executor",
+        ]
 
         for service in db_dependent_services:
             if service in database_health:
-                assert database_health[service] in ["connected", "healthy"], \
-                    f"Database unhealthy for {service}: {database_health[service]}"
+                assert database_health[service] in [
+                    "connected",
+                    "healthy",
+                ], f"Database unhealthy for {service}: {database_health[service]}"
 
     @pytest.mark.asyncio
     async def test_end_to_end_trade_flow(self, redis_client, service_urls):
@@ -292,11 +312,8 @@ class TestServiceCommunication:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{service_urls['data_collector']}/collect/market-data",
-                    json={
-                        "symbols": ["AAPL"],
-                        "timeframe": "1h"
-                    },
-                    timeout=30.0
+                    json={"symbols": ["AAPL"], "timeframe": "1h"},
+                    timeout=30.0,
                 )
                 trade_flow_steps.append(f"Data collection: {response.status_code}")
                 assert response.status_code == 200
@@ -310,9 +327,9 @@ class TestServiceCommunication:
                     json={
                         "symbols": ["AAPL"],
                         "strategy": "moving_average",
-                        "parameters": {"short_window": 10, "long_window": 20}
+                        "parameters": {"short_window": 10, "long_window": 20},
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 trade_flow_steps.append(f"Signal generation: {response.status_code}")
 
@@ -329,11 +346,13 @@ class TestServiceCommunication:
                                 "side": signal["signal_type"],
                                 "order_type": "market",
                                 "quantity": 100,
-                                "price": signal["price"]
+                                "price": signal["price"],
                             },
-                            timeout=10.0
+                            timeout=10.0,
                         )
-                        trade_flow_steps.append(f"Risk validation: {response.status_code}")
+                        trade_flow_steps.append(
+                            f"Risk validation: {response.status_code}"
+                        )
 
                         if response.status_code == 200:
                             risk_result = response.json()
@@ -347,11 +366,13 @@ class TestServiceCommunication:
                                         "side": signal["signal_type"],
                                         "order_type": "market",
                                         "quantity": 100,
-                                        "price": signal["price"]
+                                        "price": signal["price"],
                                     },
-                                    timeout=15.0
+                                    timeout=15.0,
                                 )
-                                trade_flow_steps.append(f"Trade execution: {response.status_code}")
+                                trade_flow_steps.append(
+                                    f"Trade execution: {response.status_code}"
+                                )
 
             # Verify at least the first steps completed successfully
             assert len(trade_flow_steps) >= 2
@@ -364,20 +385,30 @@ class TestServiceCommunication:
         """Test scheduler's coordination of other services"""
         async with httpx.AsyncClient() as client:
             # Check scheduler health
-            response = await client.get(f"{service_urls['scheduler']}/health", timeout=10.0)
+            response = await client.get(
+                f"{service_urls['scheduler']}/health", timeout=10.0
+            )
             assert response.status_code == 200
 
             # Get scheduled jobs
-            response = await client.get(f"{service_urls['scheduler']}/jobs", timeout=10.0)
+            response = await client.get(
+                f"{service_urls['scheduler']}/jobs", timeout=10.0
+            )
             if response.status_code == 200:
                 jobs = response.json().get("jobs", [])
 
                 # Should have jobs for data collection, signal generation, etc.
                 job_types = [job.get("type", "") for job in jobs]
-                expected_job_types = ["data_collection", "signal_generation", "risk_monitoring"]
+                expected_job_types = [
+                    "data_collection",
+                    "signal_generation",
+                    "risk_monitoring",
+                ]
 
                 # At least some expected job types should be present
-                found_types = [jtype for jtype in expected_job_types if jtype in job_types]
+                found_types = [
+                    jtype for jtype in expected_job_types if jtype in job_types
+                ]
                 assert len(found_types) > 0
 
     @pytest.mark.asyncio
@@ -397,7 +428,7 @@ class TestServiceCommunication:
                 "id": i,
                 "symbol": "AAPL",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "data": f"test_message_{i}"
+                "data": f"test_message_{i}",
             }
             messages_sent.append(message)
             await redis_client.publish(channel, json.dumps(message))
@@ -407,8 +438,7 @@ class TestServiceCommunication:
         for _ in range(5):
             try:
                 message = await asyncio.wait_for(
-                    pubsub.get_message(ignore_subscribe_messages=True),
-                    timeout=5.0
+                    pubsub.get_message(ignore_subscribe_messages=True), timeout=5.0
                 )
                 if message:
                     data = json.loads(message["data"])
@@ -426,7 +456,9 @@ class TestServiceCommunication:
             assert sent["symbol"] == received["symbol"]
 
     @pytest.mark.asyncio
-    async def test_service_resilience_to_temporary_failures(self, service_urls, redis_client):
+    async def test_service_resilience_to_temporary_failures(
+        self, service_urls, redis_client
+    ):
         """Test service resilience when dependencies temporarily fail"""
         # Simulate Redis being temporarily unavailable
         original_redis_host = "redis"
@@ -434,7 +466,9 @@ class TestServiceCommunication:
         # Test data collector resilience
         async with httpx.AsyncClient() as client:
             # Should still respond to health checks even if Redis is down
-            response = await client.get(f"{service_urls['data_collector']}/health", timeout=10.0)
+            response = await client.get(
+                f"{service_urls['data_collector']}/health", timeout=10.0
+            )
 
             # Service might report degraded but should still respond
             assert response.status_code in [200, 503]
@@ -452,8 +486,7 @@ class TestServiceCommunication:
         async with httpx.AsyncClient() as client:
             # Get latest data from data collector
             response = await client.get(
-                f"{service_urls['data_collector']}/data/latest/{symbol}",
-                timeout=10.0
+                f"{service_urls['data_collector']}/data/latest/{symbol}", timeout=10.0
             )
 
             if response.status_code == 200:
@@ -461,8 +494,7 @@ class TestServiceCommunication:
 
                 # Get portfolio info from trade executor
                 response = await client.get(
-                    f"{service_urls['trade_executor']}/positions",
-                    timeout=10.0
+                    f"{service_urls['trade_executor']}/positions", timeout=10.0
                 )
 
                 if response.status_code == 200:
@@ -485,8 +517,14 @@ class TestServiceCommunication:
         async def test_service_endpoint(service_name, endpoint):
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{service_urls[service_name]}{endpoint}", timeout=15.0)
-                    return {"service": service_name, "status": response.status_code, "success": True}
+                    response = await client.get(
+                        f"{service_urls[service_name]}{endpoint}", timeout=15.0
+                    )
+                    return {
+                        "service": service_name,
+                        "status": response.status_code,
+                        "success": True,
+                    }
             except Exception as e:
                 return {"service": service_name, "error": str(e), "success": False}
 
@@ -500,11 +538,15 @@ class TestServiceCommunication:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Analyze results
-        successful_requests = [r for r in results if isinstance(r, dict) and r.get("success", False)]
+        successful_requests = [
+            r for r in results if isinstance(r, dict) and r.get("success", False)
+        ]
 
         # At least 60% of concurrent requests should succeed
         success_rate = len(successful_requests) / len(tasks)
-        assert success_rate >= 0.6, f"Success rate too low: {success_rate}, Results: {results}"
+        assert (
+            success_rate >= 0.6
+        ), f"Success rate too low: {success_rate}, Results: {results}"
 
     @pytest.mark.asyncio
     async def test_service_startup_dependencies(self, service_urls):
@@ -516,7 +558,7 @@ class TestServiceCommunication:
             "strategy_engine",
             "risk_manager",
             "trade_executor",
-            "scheduler"
+            "scheduler",
         ]
 
         service_health = {}
@@ -524,7 +566,9 @@ class TestServiceCommunication:
         async with httpx.AsyncClient() as client:
             for service_name in startup_order:
                 try:
-                    response = await client.get(f"{service_urls[service_name]}/health", timeout=10.0)
+                    response = await client.get(
+                        f"{service_urls[service_name]}/health", timeout=10.0
+                    )
                     service_health[service_name] = response.status_code == 200
                 except Exception:
                     service_health[service_name] = False
@@ -537,8 +581,9 @@ class TestServiceCommunication:
                 # All previous services in chain should also be healthy
                 for j in range(i):
                     prev_service = startup_order[j]
-                    assert service_health.get(prev_service, False), \
-                        f"{service} is healthy but dependency {prev_service} is not"
+                    assert service_health.get(
+                        prev_service, False
+                    ), f"{service} is healthy but dependency {prev_service} is not"
 
     @pytest.mark.asyncio
     async def test_api_authentication_and_authorization(self, service_urls):
@@ -549,8 +594,10 @@ class TestServiceCommunication:
                 response = await client.get(f"{url}/health", timeout=10.0)
 
                 # Health endpoints should be accessible without auth
-                assert response.status_code in [200, 503], \
-                    f"Unexpected status for {service_name} health: {response.status_code}"
+                assert response.status_code in [
+                    200,
+                    503,
+                ], f"Unexpected status for {service_name} health: {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_data_persistence_across_restarts(self, service_urls, redis_client):
@@ -559,7 +606,7 @@ class TestServiceCommunication:
         test_data = {
             "symbol": "AAPL",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "test_value": 123.45
+            "test_value": 123.45,
         }
 
         await redis_client.set("test_persistence_key", json.dumps(test_data), ex=3600)
@@ -585,8 +632,7 @@ class TestServiceCommunication:
 
                 try:
                     response = await client.get(
-                        f"{service_urls['data_collector']}/health",
-                        timeout=10.0
+                        f"{service_urls['data_collector']}/health", timeout=10.0
                     )
                     end_time = time.time()
 
@@ -606,7 +652,7 @@ class TestServiceCommunication:
 
             # Response times should be reasonable and consistent
             assert avg_response_time < 1.0  # Average under 1 second
-            assert max_response_time < 5.0   # Max under 5 seconds
+            assert max_response_time < 5.0  # Max under 5 seconds
 
     @pytest.mark.asyncio
     async def test_message_delivery_guarantees(self, redis_client):
@@ -626,7 +672,7 @@ class TestServiceCommunication:
                 message = {
                     "id": i,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "data": f"message_{i}"
+                    "data": f"message_{i}",
                 }
                 await redis_client.publish(channel, json.dumps(message))
                 await asyncio.sleep(0.05)  # 50ms between messages
@@ -636,8 +682,7 @@ class TestServiceCommunication:
             while len(received_messages) < messages_to_send:
                 try:
                     message = await asyncio.wait_for(
-                        pubsub.get_message(ignore_subscribe_messages=True),
-                        timeout=10.0
+                        pubsub.get_message(ignore_subscribe_messages=True), timeout=10.0
                     )
                     if message:
                         data = json.loads(message["data"])
@@ -666,19 +711,17 @@ class TestServiceCommunication:
         async def make_request(service_name, endpoint):
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{service_urls[service_name]}{endpoint}", timeout=15.0)
+                    response = await client.get(
+                        f"{service_urls[service_name]}{endpoint}", timeout=15.0
+                    )
                     return {
                         "service": service_name,
                         "status_code": response.status_code,
                         "success": response.status_code == 200,
-                        "response_time": 0.5  # Placeholder
+                        "response_time": 0.5,  # Placeholder
                     }
             except Exception as e:
-                return {
-                    "service": service_name,
-                    "success": False,
-                    "error": str(e)
-                }
+                return {"service": service_name, "success": False, "error": str(e)}
 
         # Create load test tasks
         tasks = []
@@ -692,8 +735,7 @@ class TestServiceCommunication:
 
         # Analyze results
         successful_results = [
-            r for r in results
-            if isinstance(r, dict) and r.get("success", False)
+            r for r in results if isinstance(r, dict) and r.get("success", False)
         ]
 
         total_requests = len(tasks)
@@ -712,7 +754,7 @@ class TestServiceCommunication:
             response = await client.post(
                 f"{service_urls['data_collector']}/collect/market-data",
                 json={"symbols": [symbol], "timeframe": "1h"},
-                timeout=30.0
+                timeout=30.0,
             )
 
             if response.status_code == 200:
@@ -722,7 +764,7 @@ class TestServiceCommunication:
                 # Check if strategy engine has the same data
                 response = await client.get(
                     f"{service_urls['strategy_engine']}/data/latest/{symbol}",
-                    timeout=10.0
+                    timeout=10.0,
                 )
 
                 if response.status_code == 200:
@@ -730,12 +772,14 @@ class TestServiceCommunication:
 
                     # Check if risk manager has portfolio data
                     response = await client.get(
-                        f"{service_urls['risk_manager']}/risk/portfolio",
-                        timeout=10.0
+                        f"{service_urls['risk_manager']}/risk/portfolio", timeout=10.0
                     )
 
                     # Data should be synchronized within reasonable time
-                    assert response.status_code in [200, 404]  # 404 if no portfolio data yet
+                    assert response.status_code in [
+                        200,
+                        404,
+                    ]  # 404 if no portfolio data yet
 
     @pytest.mark.asyncio
     async def test_error_propagation_and_circuit_breaker(self, service_urls):
@@ -744,10 +788,22 @@ class TestServiceCommunication:
         async with httpx.AsyncClient() as client:
             # Send invalid requests to test error handling
             invalid_requests = [
-                (f"{service_urls['data_collector']}/collect/market-data", {"symbols": [], "timeframe": "invalid"}),
-                (f"{service_urls['strategy_engine']}/signals/generate", {"symbols": ["INVALID"], "strategy": "nonexistent"}),
-                (f"{service_urls['risk_manager']}/risk/validate", {"symbol": "", "side": "invalid", "quantity": -1}),
-                (f"{service_urls['trade_executor']}/orders", {"symbol": "INVALID", "side": "invalid", "quantity": 0})
+                (
+                    f"{service_urls['data_collector']}/collect/market-data",
+                    {"symbols": [], "timeframe": "invalid"},
+                ),
+                (
+                    f"{service_urls['strategy_engine']}/signals/generate",
+                    {"symbols": ["INVALID"], "strategy": "nonexistent"},
+                ),
+                (
+                    f"{service_urls['risk_manager']}/risk/validate",
+                    {"symbol": "", "side": "invalid", "quantity": -1},
+                ),
+                (
+                    f"{service_urls['trade_executor']}/orders",
+                    {"symbol": "INVALID", "side": "invalid", "quantity": 0},
+                ),
             ]
 
             error_responses = []
@@ -755,21 +811,24 @@ class TestServiceCommunication:
             for url, payload in invalid_requests:
                 try:
                     response = await client.post(url, json=payload, timeout=10.0)
-                    error_responses.append({
-                        "url": url,
-                        "status_code": response.status_code,
-                        "response": response.json() if response.status_code != 500 else None
-                    })
+                    error_responses.append(
+                        {
+                            "url": url,
+                            "status_code": response.status_code,
+                            "response": (
+                                response.json() if response.status_code != 500 else None
+                            ),
+                        }
+                    )
                 except Exception as e:
-                    error_responses.append({
-                        "url": url,
-                        "error": str(e)
-                    })
+                    error_responses.append({"url": url, "error": str(e)})
 
             # Services should handle errors gracefully (not return 500)
             for response in error_responses:
                 if "status_code" in response:
-                    assert response["status_code"] != 500, f"Internal server error for {response['url']}"
+                    assert (
+                        response["status_code"] != 500
+                    ), f"Internal server error for {response['url']}"
 
     @pytest.mark.asyncio
     async def test_service_configuration_consistency(self, service_urls):
@@ -820,7 +879,9 @@ class TestServiceCommunication:
 
                 for metrics_endpoint in metrics_endpoints:
                     try:
-                        response = await client.get(f"{url}{metrics_endpoint}", timeout=5.0)
+                        response = await client.get(
+                            f"{url}{metrics_endpoint}", timeout=5.0
+                        )
                         if response.status_code == 200:
                             metrics_found = True
 
@@ -828,7 +889,9 @@ class TestServiceCommunication:
                             content = response.text
                             if metrics_endpoint == "/metrics":
                                 # Should be Prometheus format
-                                assert "# HELP" in content or "# TYPE" in content, "Invalid Prometheus metrics format"
+                                assert (
+                                    "# HELP" in content or "# TYPE" in content
+                                ), "Invalid Prometheus metrics format"
                             elif metrics_endpoint == "/stats":
                                 # Should be JSON format
                                 try:

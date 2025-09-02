@@ -1,32 +1,42 @@
 import logging
-import numpy as np
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple, Any
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+import os
 
 # Import shared models
 import sys
-import os
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from decimal import Decimal
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from typing import Any, Dict, List, Optional, Tuple
 
-from shared.models import (
-    MarketData, TradeSignal, SignalType, OrderSide,
-    BacktestResult,
-    TimeFrame
-)
+import numpy as np
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 # Import data store for concrete implementation
 from services.data_collector.src.data_store import DataStore
+from shared.models import (
+    BacktestResult,
+    MarketData,
+    OrderSide,
+    SignalType,
+    TimeFrame,
+    TradeSignal,
+)
+
 
 # Define DataSource interface
 class DataSource(ABC):
     """Abstract data source interface for backtesting"""
 
     @abstractmethod
-    async def load_data(self, symbols: List[str], start_date: datetime,
-                       end_date: datetime, timeframe: TimeFrame) -> Dict[str, List[MarketData]]:
+    async def load_data(
+        self,
+        symbols: List[str],
+        start_date: datetime,
+        end_date: datetime,
+        timeframe: TimeFrame,
+    ) -> Dict[str, List[MarketData]]:
         """Load market data for given symbols and date range"""
         pass
 
@@ -38,8 +48,13 @@ class LocalDataStoreSource(DataSource):
         self.data_store = data_store
         self.logger = logging.getLogger(__name__)
 
-    async def load_data(self, symbols: List[str], start_date: datetime,
-                       end_date: datetime, timeframe: TimeFrame) -> Dict[str, List[MarketData]]:
+    async def load_data(
+        self,
+        symbols: List[str],
+        start_date: datetime,
+        end_date: datetime,
+        timeframe: TimeFrame,
+    ) -> Dict[str, List[MarketData]]:
         """Load market data from DataStore"""
         result = {}
 
@@ -53,7 +68,7 @@ class LocalDataStoreSource(DataSource):
                     ticker=symbol,
                     timeframe=timeframe,
                     start_date=start_date_obj,
-                    end_date=end_date_obj
+                    end_date=end_date_obj,
                 )
 
                 if df.is_empty():
@@ -65,14 +80,14 @@ class LocalDataStoreSource(DataSource):
                 for row in df.iter_rows(named=True):
                     data_point = MarketData(
                         symbol=symbol,
-                        timestamp=row['timestamp'],
-                        open=Decimal(str(row['open'])),
-                        high=Decimal(str(row['high'])),
-                        low=Decimal(str(row['low'])),
-                        close=Decimal(str(row['close'])),
-                        adjusted_close=Decimal(str(row['adjusted_close'])),
-                        volume=int(row['volume']),
-                        timeframe=timeframe
+                        timestamp=row["timestamp"],
+                        open=Decimal(str(row["open"])),
+                        high=Decimal(str(row["high"])),
+                        low=Decimal(str(row["low"])),
+                        close=Decimal(str(row["close"])),
+                        adjusted_close=Decimal(str(row["adjusted_close"])),
+                        volume=int(row["volume"]),
+                        timeframe=timeframe,
                     )
                     market_data.append(data_point)
 
@@ -89,6 +104,7 @@ class LocalDataStoreSource(DataSource):
 @dataclass
 class BacktestConfig:
     """Configuration for backtesting"""
+
     start_date: datetime
     end_date: datetime
     initial_capital: float = 100000.0
@@ -108,6 +124,7 @@ class BacktestConfig:
 @dataclass
 class BacktestPosition:
     """Position during backtesting"""
+
     symbol: str
     quantity: int
     entry_price: float
@@ -132,6 +149,7 @@ class BacktestPosition:
 @dataclass
 class BacktestTrade:
     """Completed trade during backtesting"""
+
     symbol: str
     entry_date: datetime
     exit_date: datetime
@@ -162,6 +180,7 @@ class BacktestTrade:
 @dataclass
 class PortfolioSnapshot:
     """Portfolio state at a point in time"""
+
     timestamp: datetime
     cash: float
     positions: List[BacktestPosition]
@@ -176,8 +195,9 @@ class StrategyInterface(ABC):
     """Abstract interface for trading strategies"""
 
     @abstractmethod
-    async def generate_signals(self, market_data: Dict[str, List[MarketData]],
-                             current_time: datetime) -> List[TradeSignal]:
+    async def generate_signals(
+        self, market_data: Dict[str, List[MarketData]], current_time: datetime
+    ) -> List[TradeSignal]:
         """Generate trading signals based on market data"""
         pass
 
@@ -199,8 +219,9 @@ class MovingAverageCrossoverStrategy(StrategyInterface):
         self.short_window = short_window
         self.long_window = long_window
 
-    async def generate_signals(self, market_data: Dict[str, List[MarketData]],
-                             current_time: datetime) -> List[TradeSignal]:
+    async def generate_signals(
+        self, market_data: Dict[str, List[MarketData]], current_time: datetime
+    ) -> List[TradeSignal]:
         signals = []
 
         for symbol, data_points in market_data.items():
@@ -212,13 +233,17 @@ class MovingAverageCrossoverStrategy(StrategyInterface):
             closes = [d.close for d in data_points]
 
             # Calculate moving averages
-            short_ma = sum(closes[-self.short_window:]) / self.short_window
-            long_ma = sum(closes[-self.long_window:]) / self.long_window
+            short_ma = sum(closes[-self.short_window :]) / self.short_window
+            long_ma = sum(closes[-self.long_window :]) / self.long_window
 
             # Check for crossover
             if len(closes) >= self.long_window + 1:
-                prev_short_ma = sum(closes[-(self.short_window+1):-1]) / self.short_window
-                prev_long_ma = sum(closes[-(self.long_window+1):-1]) / self.long_window
+                prev_short_ma = (
+                    sum(closes[-(self.short_window + 1) : -1]) / self.short_window
+                )
+                prev_long_ma = (
+                    sum(closes[-(self.long_window + 1) : -1]) / self.long_window
+                )
 
                 # Bullish crossover
                 if short_ma > long_ma and prev_short_ma <= prev_long_ma:
@@ -229,14 +254,14 @@ class MovingAverageCrossoverStrategy(StrategyInterface):
                         timestamp=current_time,
                         price=data_points[-1].close,
                         quantity=100,
-                        stop_loss=data_points[-1].close * Decimal('0.95'),
-                        take_profit=data_points[-1].close * Decimal('1.1'),
+                        stop_loss=data_points[-1].close * Decimal("0.95"),
+                        take_profit=data_points[-1].close * Decimal("1.1"),
                         strategy_name=self.get_strategy_name(),
                         metadata={
                             "short_ma": float(short_ma),
                             "long_ma": float(long_ma),
-                            "crossover_type": "bullish"
-                        }
+                            "crossover_type": "bullish",
+                        },
                     )
                     signals.append(signal)
 
@@ -249,14 +274,14 @@ class MovingAverageCrossoverStrategy(StrategyInterface):
                         timestamp=current_time,
                         price=data_points[-1].close,
                         quantity=100,
-                        stop_loss=data_points[-1].close * Decimal('1.05'),
-                        take_profit=data_points[-1].close * Decimal('0.9'),
+                        stop_loss=data_points[-1].close * Decimal("1.05"),
+                        take_profit=data_points[-1].close * Decimal("0.9"),
                         strategy_name=self.get_strategy_name(),
                         metadata={
                             "short_ma": float(short_ma),
                             "long_ma": float(long_ma),
-                            "crossover_type": "bearish"
-                        }
+                            "crossover_type": "bearish",
+                        },
                     )
                     signals.append(signal)
 
@@ -277,8 +302,9 @@ class RSIStrategy(StrategyInterface):
         self.oversold = oversold
         self.overbought = overbought
 
-    async def generate_signals(self, market_data: Dict[str, List[MarketData]],
-                             current_time: datetime) -> List[TradeSignal]:
+    async def generate_signals(
+        self, market_data: Dict[str, List[MarketData]], current_time: datetime
+    ) -> List[TradeSignal]:
         signals = []
 
         for symbol, data_points in market_data.items():
@@ -304,10 +330,10 @@ class RSIStrategy(StrategyInterface):
                     timestamp=current_time,
                     price=data_points[-1].close,
                     quantity=100,
-                    stop_loss=data_points[-1].close * Decimal('0.95'),
-                    take_profit=data_points[-1].close * Decimal('1.1'),
+                    stop_loss=data_points[-1].close * Decimal("0.95"),
+                    take_profit=data_points[-1].close * Decimal("1.1"),
                     strategy_name=self.get_strategy_name(),
-                    metadata={"rsi": current_rsi, "condition": "oversold"}
+                    metadata={"rsi": current_rsi, "condition": "oversold"},
                 )
                 signals.append(signal)
 
@@ -315,14 +341,16 @@ class RSIStrategy(StrategyInterface):
                 signal = TradeSignal(
                     symbol=symbol,
                     signal_type=SignalType.SELL,
-                    confidence=min(0.9, (current_rsi - self.overbought) / (100 - self.overbought)),
+                    confidence=min(
+                        0.9, (current_rsi - self.overbought) / (100 - self.overbought)
+                    ),
                     timestamp=current_time,
                     price=data_points[-1].close,
                     quantity=100,
-                    stop_loss=data_points[-1].close * Decimal('1.05'),
-                    take_profit=data_points[-1].close * Decimal('0.9'),
+                    stop_loss=data_points[-1].close * Decimal("1.05"),
+                    take_profit=data_points[-1].close * Decimal("0.9"),
                     strategy_name=self.get_strategy_name(),
-                    metadata={"rsi": current_rsi, "condition": "overbought"}
+                    metadata={"rsi": current_rsi, "condition": "overbought"},
                 )
                 signals.append(signal)
 
@@ -333,7 +361,7 @@ class RSIStrategy(StrategyInterface):
         if len(prices) < period + 1:
             return None
 
-        deltas = [prices[i] - prices[i-1] for i in range(1, len(prices))]
+        deltas = [prices[i] - prices[i - 1] for i in range(1, len(prices))]
         gains = [max(0, delta) for delta in deltas]
         losses = [max(0, -delta) for delta in deltas]
 
@@ -378,20 +406,23 @@ class BacktestEngine:
         self.high_water_mark = config.initial_capital
         self.max_drawdown = 0.0
 
-    async def run_backtest(self, strategy: StrategyInterface,
-                          symbols: List[str],
-                          data_source: DataSource) -> BacktestResult:
+    async def run_backtest(
+        self, strategy: StrategyInterface, symbols: List[str], data_source: DataSource
+    ) -> BacktestResult:
         """Run complete backtest"""
-        self.logger.info(f"Starting backtest for strategy {strategy.get_strategy_name()}")
+        self.logger.info(
+            f"Starting backtest for strategy {strategy.get_strategy_name()}"
+        )
         self.logger.info(f"Period: {self.config.start_date} to {self.config.end_date}")
         self.logger.info(f"Symbols: {symbols}")
 
         # Load historical data
         historical_data = await data_source.load_data(
             symbols,
-            self.config.start_date - timedelta(days=strategy.get_required_history_days()),
+            self.config.start_date
+            - timedelta(days=strategy.get_required_history_days()),
             self.config.end_date,
-            self.config.data_frequency
+            self.config.data_frequency,
         )
 
         # Get benchmark data
@@ -399,7 +430,7 @@ class BacktestEngine:
             [self.config.benchmark_symbol],
             self.config.start_date,
             self.config.end_date,
-            self.config.data_frequency
+            self.config.data_frequency,
         )
 
         # Run simulation
@@ -414,15 +445,22 @@ class BacktestEngine:
 
         return result
 
-    async def _run_simulation(self, strategy: StrategyInterface,
-                            symbols: List[str],
-                            historical_data: Dict[str, List[MarketData]]):
+    async def _run_simulation(
+        self,
+        strategy: StrategyInterface,
+        symbols: List[str],
+        historical_data: Dict[str, List[MarketData]],
+    ):
         """Run the actual simulation"""
         # Get all unique timestamps and sort them
         all_timestamps = set()
         for symbol_data in historical_data.values():
             for data_point in symbol_data:
-                if self.config.start_date <= data_point.timestamp <= self.config.end_date:
+                if (
+                    self.config.start_date
+                    <= data_point.timestamp
+                    <= self.config.end_date
+                ):
                     all_timestamps.add(data_point.timestamp)
 
         timestamps = sorted(all_timestamps)
@@ -431,16 +469,15 @@ class BacktestEngine:
 
         for i, current_time in enumerate(timestamps):
             if i % 100 == 0:
-                self.logger.info(f"Processing {i}/{len(timestamps)} ({current_time.date()})")
+                self.logger.info(
+                    f"Processing {i}/{len(timestamps)} ({current_time.date()})"
+                )
 
             # Get market data up to current time for each symbol
             current_market_data = {}
             for symbol in symbols:
                 symbol_data = historical_data.get(symbol, [])
-                relevant_data = [
-                    d for d in symbol_data
-                    if d.timestamp <= current_time
-                ]
+                relevant_data = [d for d in symbol_data if d.timestamp <= current_time]
                 if relevant_data:
                     current_market_data[symbol] = relevant_data
 
@@ -460,16 +497,18 @@ class BacktestEngine:
             # Record portfolio snapshot
             await self._record_portfolio_snapshot(current_time, current_market_data)
 
-    async def _update_position_prices(self, market_data: Dict[str, List[MarketData]],
-                                    current_time: datetime):
+    async def _update_position_prices(
+        self, market_data: Dict[str, List[MarketData]], current_time: datetime
+    ):
         """Update current prices for all positions"""
         for symbol, position in self.current_positions.items():
             if symbol in market_data and market_data[symbol]:
                 latest_data = market_data[symbol][-1]
                 position.current_price = float(latest_data.close)
 
-    async def _check_exit_conditions(self, market_data: Dict[str, List[MarketData]],
-                                   current_time: datetime):
+    async def _check_exit_conditions(
+        self, market_data: Dict[str, List[MarketData]], current_time: datetime
+    ):
         """Check stop loss, take profit, and other exit conditions"""
         positions_to_close = []
 
@@ -497,11 +536,13 @@ class BacktestEngine:
                 should_close = True
 
             # Check for trailing stop loss (5% below highest price since entry)
-            elif hasattr(position, 'highest_price'):
+            elif hasattr(position, "highest_price"):
                 # if not hasattr(position, 'highest_price'):
                 #     position.highest_price = max(position.entry_price, float(current_price))
                 # else:
-                position.highest_price = max(position.highest_price, float(current_price))
+                position.highest_price = max(
+                    position.highest_price, float(current_price)
+                )
 
                 trailing_stop = position.highest_price * 0.95  # 5% trailing stop
                 if current_price <= trailing_stop:
@@ -509,7 +550,9 @@ class BacktestEngine:
                     should_close = True
 
             if should_close:
-                trade = await self._close_position(position, float(current_price), current_time, exit_reason)
+                trade = await self._close_position(
+                    position, float(current_price), current_time, exit_reason
+                )
                 positions_to_close.append(symbol)
                 self.completed_trades.append(trade)
 
@@ -517,8 +560,9 @@ class BacktestEngine:
         for symbol in positions_to_close:
             del self.current_positions[symbol]
 
-    async def _execute_signal(self, signal: TradeSignal,
-                            market_data: Dict[str, List[MarketData]]):
+    async def _execute_signal(
+        self, signal: TradeSignal, market_data: Dict[str, List[MarketData]]
+    ):
         """Execute a trading signal"""
         symbol = signal.symbol
 
@@ -527,7 +571,9 @@ class BacktestEngine:
 
         # Check portfolio risk limits before executing any trades
         if not self._check_portfolio_risk_limits():
-            self.logger.warning(f"Skipping signal for {symbol} due to portfolio risk limits")
+            self.logger.warning(
+                f"Skipping signal for {symbol} due to portfolio risk limits"
+            )
             return
 
         current_price = market_data[symbol][-1].close
@@ -554,7 +600,9 @@ class BacktestEngine:
 
         # Check if we've reached maximum number of positions
         if len(self.current_positions) >= self.config.max_positions:
-            self.logger.debug(f"Cannot open position for {symbol}: max positions ({self.config.max_positions}) reached")
+            self.logger.debug(
+                f"Cannot open position for {symbol}: max positions ({self.config.max_positions}) reached"
+            )
             return
 
         # Calculate position size
@@ -569,15 +617,23 @@ class BacktestEngine:
 
         # Check if we have enough cash
         if cost + commission > self.current_cash:
-            self.logger.debug(f"Insufficient cash for {symbol}: need ${cost + commission:.2f}, have ${self.current_cash:.2f}")
+            self.logger.debug(
+                f"Insufficient cash for {symbol}: need ${cost + commission:.2f}, have ${self.current_cash:.2f}"
+            )
             return
 
         # Additional risk check: ensure position doesn't exceed concentration limit
-        total_portfolio_value = self.current_cash + sum(pos.market_value for pos in self.current_positions.values())
-        position_weight = cost / total_portfolio_value if total_portfolio_value > 0 else 0
+        total_portfolio_value = self.current_cash + sum(
+            pos.market_value for pos in self.current_positions.values()
+        )
+        position_weight = (
+            cost / total_portfolio_value if total_portfolio_value > 0 else 0
+        )
 
         if position_weight > 0.15:  # 15% concentration limit
-            self.logger.debug(f"Position {symbol} would exceed 15% concentration limit ({position_weight:.2%})")
+            self.logger.debug(
+                f"Position {symbol} would exceed 15% concentration limit ({position_weight:.2%})"
+            )
             return
 
         # Create position
@@ -588,13 +644,17 @@ class BacktestEngine:
             entry_date=signal.timestamp,
             current_price=float(execution_price),
             stop_loss=float(signal.stop_loss) if signal.stop_loss is not None else None,
-            take_profit=float(signal.take_profit) if signal.take_profit is not None else None
+            take_profit=(
+                float(signal.take_profit) if signal.take_profit is not None else None
+            ),
         )
 
         self.current_positions[symbol] = position
-        self.current_cash -= (cost + commission)
+        self.current_cash -= cost + commission
 
-        self.logger.debug(f"Opened position: {symbol} x{quantity} @ ${execution_price:.2f}")
+        self.logger.debug(
+            f"Opened position: {symbol} x{quantity} @ ${execution_price:.2f}"
+        )
 
     async def _execute_sell_signal(self, signal: TradeSignal, execution_price: float):
         """Execute sell signal"""
@@ -605,19 +665,32 @@ class BacktestEngine:
             return
 
         position = self.current_positions[symbol]
-        trade = await self._close_position(position, execution_price, signal.timestamp, "signal")
+        trade = await self._close_position(
+            position, execution_price, signal.timestamp, "signal"
+        )
 
         self.completed_trades.append(trade)
         del self.current_positions[symbol]
 
-        self.logger.debug(f"Closed position: {symbol} x{position.quantity} @ ${execution_price:.2f}, PnL: ${trade.pnl:.2f}")
+        self.logger.debug(
+            f"Closed position: {symbol} x{position.quantity} @ ${execution_price:.2f}, PnL: ${trade.pnl:.2f}"
+        )
 
-    async def _close_position(self, position: BacktestPosition, exit_price: float,
-                            exit_time: datetime, exit_reason: str) -> BacktestTrade:
+    async def _close_position(
+        self,
+        position: BacktestPosition,
+        exit_price: float,
+        exit_time: datetime,
+        exit_reason: str,
+    ) -> BacktestTrade:
         """Close a position and create trade record"""
         gross_pnl = (exit_price - position.entry_price) * position.quantity
-        commission = self._calculate_commission(position.quantity * exit_price, position.quantity)
-        slippage = abs(position.quantity * exit_price) * (self.config.slippage_bps / 10000)
+        commission = self._calculate_commission(
+            position.quantity * exit_price, position.quantity
+        )
+        slippage = abs(position.quantity * exit_price) * (
+            self.config.slippage_bps / 10000
+        )
         net_pnl = gross_pnl - commission - slippage
 
         # Add proceeds to cash
@@ -636,7 +709,7 @@ class BacktestEngine:
             commission=commission,
             slippage=slippage,
             strategy_name="backtest",
-            metadata={"exit_reason": exit_reason}
+            metadata={"exit_reason": exit_reason},
         )
 
         return trade
@@ -648,7 +721,9 @@ class BacktestEngine:
         )
 
         if self.config.position_sizing_method == "equal_weight":
-            target_positions = min(self.config.max_positions, 10)  # Assume max 10 positions
+            target_positions = min(
+                self.config.max_positions, 10
+            )  # Assume max 10 positions
             return total_portfolio_value / target_positions
 
         elif self.config.position_sizing_method == "fixed_amount":
@@ -667,7 +742,9 @@ class BacktestEngine:
             # Calculate position size based on volatility
             if volatility > 0:
                 # Position size = (Portfolio Risk) / (Asset Volatility / Price)
-                position_size = (total_portfolio_value * target_risk) / (volatility / price)
+                position_size = (total_portfolio_value * target_risk) / (
+                    volatility / price
+                )
                 # Cap at 10% of portfolio
                 max_position = total_portfolio_value * 0.1
                 min_position = total_portfolio_value * 0.01  # Minimum 1%
@@ -708,8 +785,10 @@ class BacktestEngine:
         # Calculate returns
         returns = []
         for i in range(1, len(price_history)):
-            if price_history[i-1] > 0:
-                daily_return = (price_history[i] - price_history[i-1]) / price_history[i-1]
+            if price_history[i - 1] > 0:
+                daily_return = (
+                    price_history[i] - price_history[i - 1]
+                ) / price_history[i - 1]
                 returns.append(daily_return)
 
         if not returns:
@@ -717,13 +796,16 @@ class BacktestEngine:
 
         # Calculate annualized volatility
         daily_volatility = np.std(returns)
-        annualized_volatility = daily_volatility * np.sqrt(252)  # 252 trading days per year
+        annualized_volatility = daily_volatility * np.sqrt(
+            252
+        )  # 252 trading days per year
 
         # Return as absolute price volatility
         return current_price * annualized_volatility
 
-    async def _record_portfolio_snapshot(self, timestamp: datetime,
-                                       market_data: Dict[str, List[MarketData]]):
+    async def _record_portfolio_snapshot(
+        self, timestamp: datetime, market_data: Dict[str, List[MarketData]]
+    ):
         """Record current portfolio state"""
         # Update position values
         total_position_value = 0.0
@@ -757,7 +839,7 @@ class BacktestEngine:
             daily_pnl=daily_pnl,
             cumulative_pnl=cumulative_pnl,
             drawdown=current_drawdown,
-            leverage=total_position_value / total_value if total_value > 0 else 0.0
+            leverage=total_position_value / total_value if total_value > 0 else 0.0,
         )
 
         self.portfolio_history.append(snapshot)
@@ -771,12 +853,16 @@ class BacktestEngine:
 
         # Check maximum drawdown limit (stop trading if drawdown > 20%)
         if current_snapshot.drawdown > 0.20:
-            self.logger.warning(f"Portfolio drawdown {current_snapshot.drawdown:.2%} exceeds 20% limit")
+            self.logger.warning(
+                f"Portfolio drawdown {current_snapshot.drawdown:.2%} exceeds 20% limit"
+            )
             return False
 
         # Check leverage limit
         if current_snapshot.leverage > self.config.max_leverage:
-            self.logger.warning(f"Portfolio leverage {current_snapshot.leverage:.2f} exceeds limit {self.config.max_leverage}")
+            self.logger.warning(
+                f"Portfolio leverage {current_snapshot.leverage:.2f} exceeds limit {self.config.max_leverage}"
+            )
             return False
 
         # Check concentration risk (no single position > 15% of portfolio)
@@ -784,7 +870,9 @@ class BacktestEngine:
             for position in current_snapshot.positions:
                 position_weight = position.market_value / current_snapshot.total_value
                 if position_weight > 0.15:
-                    self.logger.warning(f"Position {position.symbol} weight {position_weight:.2%} exceeds 15% limit")
+                    self.logger.warning(
+                        f"Position {position.symbol} weight {position_weight:.2%} exceeds 15% limit"
+                    )
                     return False
 
         return True
@@ -797,7 +885,7 @@ class BacktestEngine:
         # Get recent daily returns
         returns = []
         for i in range(1, min(len(self.portfolio_history), 252)):  # Last year of data
-            prev_value = self.portfolio_history[-(i+1)].total_value
+            prev_value = self.portfolio_history[-(i + 1)].total_value
             curr_value = self.portfolio_history[-i].total_value
             if prev_value > 0:
                 daily_return = (curr_value - prev_value) / prev_value
@@ -820,7 +908,7 @@ class BacktestEngine:
             "is_valid": True,
             "warnings": [],
             "errors": [],
-            "metrics": {}
+            "metrics": {},
         }
 
         if not self.completed_trades:
@@ -834,17 +922,27 @@ class BacktestEngine:
 
         # Too few trades
         if total_trades < 30:
-            validation_results["warnings"].append(f"Low trade count ({total_trades}). Results may not be statistically significant.")
+            validation_results["warnings"].append(
+                f"Low trade count ({total_trades}). Results may not be statistically significant."
+            )
 
         # Suspiciously high win rate
         win_rate = winning_trades / total_trades
         if win_rate > 0.85:
-            validation_results["warnings"].append(f"Very high win rate ({win_rate:.2%}). May indicate overfitting or unrealistic assumptions.")
+            validation_results["warnings"].append(
+                f"Very high win rate ({win_rate:.2%}). May indicate overfitting or unrealistic assumptions."
+            )
 
         # Check for data snooping bias
-        recent_trades = [t for t in self.completed_trades if (self.config.end_date - t.exit_date).days < 30]
+        recent_trades = [
+            t
+            for t in self.completed_trades
+            if (self.config.end_date - t.exit_date).days < 30
+        ]
         if len(recent_trades) > total_trades * 0.5:
-            validation_results["warnings"].append("More than 50% of trades occurred in last 30 days. Check for forward bias.")
+            validation_results["warnings"].append(
+                "More than 50% of trades occurred in last 30 days. Check for forward bias."
+            )
 
         # Calculate trade distribution metrics
         trade_pnls = [float(t.pnl) for t in self.completed_trades]
@@ -852,10 +950,16 @@ class BacktestEngine:
         # Check for outlier dependence
         sorted_pnls = sorted(trade_pnls, reverse=True)
         top_5_percent = int(max(1, len(sorted_pnls) * 0.05))
-        top_trades_contribution = sum(sorted_pnls[:top_5_percent]) / sum(trade_pnls) if sum(trade_pnls) != 0 else 0
+        top_trades_contribution = (
+            sum(sorted_pnls[:top_5_percent]) / sum(trade_pnls)
+            if sum(trade_pnls) != 0
+            else 0
+        )
 
         if top_trades_contribution > 0.8:
-            validation_results["warnings"].append(f"Top 5% of trades contribute {top_trades_contribution:.2%} of total PnL. Strategy may be too dependent on outliers.")
+            validation_results["warnings"].append(
+                f"Top 5% of trades contribute {top_trades_contribution:.2%} of total PnL. Strategy may be too dependent on outliers."
+            )
 
         # Check for consistency across time periods
         if len(self.portfolio_history) > 60:
@@ -864,24 +968,36 @@ class BacktestEngine:
 
             for i in range(4):
                 start_idx = i * quarter_size
-                end_idx = (i + 1) * quarter_size if i < 3 else len(self.portfolio_history)
+                end_idx = (
+                    (i + 1) * quarter_size if i < 3 else len(self.portfolio_history)
+                )
 
-                if start_idx < len(self.portfolio_history) and end_idx <= len(self.portfolio_history):
+                if start_idx < len(self.portfolio_history) and end_idx <= len(
+                    self.portfolio_history
+                ):
                     start_value = self.portfolio_history[start_idx].total_value
                     end_value = self.portfolio_history[end_idx - 1].total_value
-                    quarterly_return = (end_value - start_value) / start_value if start_value > 0 else 0
+                    quarterly_return = (
+                        (end_value - start_value) / start_value
+                        if start_value > 0
+                        else 0
+                    )
                     quarterly_returns.append(quarterly_return)
 
             if len(quarterly_returns) == 4:
                 negative_quarters = sum(1 for r in quarterly_returns if r < 0)
                 if negative_quarters >= 3:
-                    validation_results["warnings"].append(f"Strategy had negative returns in {negative_quarters}/4 quarters. Check for regime dependency.")
+                    validation_results["warnings"].append(
+                        f"Strategy had negative returns in {negative_quarters}/4 quarters. Check for regime dependency."
+                    )
 
         validation_results["metrics"] = {
             "total_trades": total_trades,
             "win_rate": win_rate,
             "outlier_dependence": top_trades_contribution,
-            "recent_trade_ratio": len(recent_trades) / total_trades if total_trades > 0 else 0
+            "recent_trade_ratio": (
+                len(recent_trades) / total_trades if total_trades > 0 else 0
+            ),
         }
 
         return validation_results
@@ -892,8 +1008,11 @@ class BacktestEngine:
             return {}
 
         portfolio_values = [snapshot.total_value for snapshot in self.portfolio_history]
-        returns = [(portfolio_values[i] - portfolio_values[i-1]) / portfolio_values[i-1]
-                  for i in range(1, len(portfolio_values)) if portfolio_values[i-1] > 0]
+        returns = [
+            (portfolio_values[i] - portfolio_values[i - 1]) / portfolio_values[i - 1]
+            for i in range(1, len(portfolio_values))
+            if portfolio_values[i - 1] > 0
+        ]
 
         if not returns:
             return {}
@@ -901,8 +1020,12 @@ class BacktestEngine:
         metrics = {}
 
         # Calmar Ratio (already implemented but add to advanced metrics)
-        total_return = (portfolio_values[-1] - self.config.initial_capital) / self.config.initial_capital
-        metrics['calmar_ratio'] = self._calculate_calmar_ratio(total_return, self.max_drawdown)
+        total_return = (
+            portfolio_values[-1] - self.config.initial_capital
+        ) / self.config.initial_capital
+        metrics["calmar_ratio"] = self._calculate_calmar_ratio(
+            total_return, self.max_drawdown
+        )
 
         # Maximum Consecutive Losses
         consecutive_losses = 0
@@ -913,17 +1036,22 @@ class BacktestEngine:
                 max_consecutive_losses = max(max_consecutive_losses, consecutive_losses)
             else:
                 consecutive_losses = 0
-        metrics['max_consecutive_losses'] = max_consecutive_losses
+        metrics["max_consecutive_losses"] = max_consecutive_losses
 
         # Skewness and Kurtosis
         if len(returns) > 3:
             mean_return = np.mean(returns)
             std_return = np.std(returns)
             if std_return > 0:
-                skewness = np.mean([((r - mean_return) / std_return) ** 3 for r in returns])
-                kurtosis = np.mean([((r - mean_return) / std_return) ** 4 for r in returns]) - 3
-                metrics['skewness'] = float(skewness)
-                metrics['kurtosis'] = float(kurtosis)
+                skewness = np.mean(
+                    [((r - mean_return) / std_return) ** 3 for r in returns]
+                )
+                kurtosis = (
+                    np.mean([((r - mean_return) / std_return) ** 4 for r in returns])
+                    - 3
+                )
+                metrics["skewness"] = float(skewness)
+                metrics["kurtosis"] = float(kurtosis)
 
         # Tail Ratio (95th percentile / 5th percentile)
         if len(returns) > 20:
@@ -931,15 +1059,17 @@ class BacktestEngine:
             p95 = sorted_returns[int(0.95 * len(sorted_returns))]
             p5 = sorted_returns[int(0.05 * len(sorted_returns))]
             if p5 != 0:
-                metrics['tail_ratio'] = abs(p95 / p5)
+                metrics["tail_ratio"] = abs(p95 / p5)
 
         # Recovery Factor (total return / max drawdown)
         if self.max_drawdown > 0:
-            metrics['recovery_factor'] = float(total_return / self.max_drawdown)
+            metrics["recovery_factor"] = float(total_return / self.max_drawdown)
 
         return metrics
 
-    def _calculate_performance_metrics(self, benchmark_data: Dict[str, List[MarketData]]) -> BacktestResult:
+    def _calculate_performance_metrics(
+        self, benchmark_data: Dict[str, List[MarketData]]
+    ) -> BacktestResult:
         """Calculate comprehensive performance metrics"""
         if not self.portfolio_history:
             raise ValueError("No portfolio history to analyze")
@@ -947,25 +1077,34 @@ class BacktestEngine:
         # Calculate returns
         portfolio_values = [snapshot.total_value for snapshot in self.portfolio_history]
         portfolio_returns = [
-            (portfolio_values[i] - portfolio_values[i-1]) / portfolio_values[i-1]
+            (portfolio_values[i] - portfolio_values[i - 1]) / portfolio_values[i - 1]
             for i in range(1, len(portfolio_values))
         ]
 
         # Calculate benchmark returns
         benchmark_returns = []
         if self.config.benchmark_symbol in benchmark_data:
-            benchmark_prices = [d.close for d in benchmark_data[self.config.benchmark_symbol]]
+            benchmark_prices = [
+                d.close for d in benchmark_data[self.config.benchmark_symbol]
+            ]
             benchmark_returns = [
-                (benchmark_prices[i] - benchmark_prices[i-1]) / benchmark_prices[i-1]
+                (benchmark_prices[i] - benchmark_prices[i - 1])
+                / benchmark_prices[i - 1]
                 for i in range(1, len(benchmark_prices))
             ]
 
         # Basic metrics
-        total_return = (portfolio_values[-1] - self.config.initial_capital) / self.config.initial_capital
+        total_return = (
+            portfolio_values[-1] - self.config.initial_capital
+        ) / self.config.initial_capital
 
         # Risk metrics
-        sharpe_ratio = self._calculate_sharpe_ratio(portfolio_returns, self.config.risk_free_rate)
-        sortino_ratio = self._calculate_sortino_ratio(portfolio_returns, self.config.risk_free_rate)
+        sharpe_ratio = self._calculate_sharpe_ratio(
+            portfolio_returns, self.config.risk_free_rate
+        )
+        sortino_ratio = self._calculate_sortino_ratio(
+            portfolio_returns, self.config.risk_free_rate
+        )
 
         # Trade statistics
         total_trades = len(self.completed_trades)
@@ -973,9 +1112,21 @@ class BacktestEngine:
         losing_trades = total_trades - winning_trades
         win_rate = winning_trades / total_trades if total_trades > 0 else 0.0
 
-        avg_win = np.mean([t.pnl for t in self.completed_trades if t.pnl > 0]) if winning_trades > 0 else 0.0
-        avg_loss = np.mean([t.pnl for t in self.completed_trades if t.pnl < 0]) if losing_trades > 0 else 0.0
-        profit_factor = abs(avg_win * winning_trades / (avg_loss * losing_trades)) if avg_loss != 0 else float('inf')
+        avg_win = (
+            np.mean([t.pnl for t in self.completed_trades if t.pnl > 0])
+            if winning_trades > 0
+            else 0.0
+        )
+        avg_loss = (
+            np.mean([t.pnl for t in self.completed_trades if t.pnl < 0])
+            if losing_trades > 0
+            else 0.0
+        )
+        profit_factor = (
+            abs(avg_win * winning_trades / (avg_loss * losing_trades))
+            if avg_loss != 0
+            else float("inf")
+        )
 
         # Run strategy validation
         validation_results = self._validate_strategy_performance()
@@ -994,7 +1145,11 @@ class BacktestEngine:
             self.logger.info(f"  {metric}: {value:.4f}")
 
         return BacktestResult(
-            strategy_name=self.completed_trades[0].strategy_name if self.completed_trades else "unknown",
+            strategy_name=(
+                self.completed_trades[0].strategy_name
+                if self.completed_trades
+                else "unknown"
+            ),
             start_date=self.config.start_date,
             end_date=self.config.end_date,
             initial_capital=Decimal(str(self.config.initial_capital)),
@@ -1012,34 +1167,53 @@ class BacktestEngine:
             losing_trades=losing_trades,
             avg_win=Decimal(str(avg_win)) if avg_win > 0 else Decimal("0"),
             avg_loss=Decimal(str(avg_loss)) if avg_loss < 0 else Decimal("0"),
-            profit_factor=float(profit_factor) if not np.isinf(profit_factor) else 0.0
+            profit_factor=float(profit_factor) if not np.isinf(profit_factor) else 0.0,
         )
 
-    def _calculate_sharpe_ratio(self, returns: List[float], risk_free_rate: float) -> float:
+    def _calculate_sharpe_ratio(
+        self, returns: List[float], risk_free_rate: float
+    ) -> float:
         """Calculate Sharpe ratio"""
         if not returns or len(returns) < 2:
             return 0.0
 
-        excess_returns = [r - risk_free_rate/252 for r in returns]  # Daily risk-free rate
-        return float(np.mean(excess_returns) / np.std(excess_returns) * np.sqrt(252)) if np.std(excess_returns) > 0 else 0.0
+        excess_returns = [
+            r - risk_free_rate / 252 for r in returns
+        ]  # Daily risk-free rate
+        return (
+            float(np.mean(excess_returns) / np.std(excess_returns) * np.sqrt(252))
+            if np.std(excess_returns) > 0
+            else 0.0
+        )
 
-    def _calculate_sortino_ratio(self, returns: List[float], risk_free_rate: float) -> float:
+    def _calculate_sortino_ratio(
+        self, returns: List[float], risk_free_rate: float
+    ) -> float:
         """Calculate Sortino ratio"""
         if not returns:
             return 0.0
 
-        excess_returns = [r - risk_free_rate/252 for r in returns]
+        excess_returns = [r - risk_free_rate / 252 for r in returns]
         downside_returns = [r for r in excess_returns if r < 0]
 
         if not downside_returns:
-            return float('inf') if np.mean(excess_returns) > 0 else 0.0
+            return float("inf") if np.mean(excess_returns) > 0 else 0.0
 
         downside_deviation = np.std(downside_returns)
-        return np.mean(excess_returns) / downside_deviation * np.sqrt(252) if downside_deviation > 0 else 0.0
+        return (
+            np.mean(excess_returns) / downside_deviation * np.sqrt(252)
+            if downside_deviation > 0
+            else 0.0
+        )
 
-    def _calculate_beta(self, portfolio_returns: List[float], benchmark_returns: List[float]) -> float:
+    def _calculate_beta(
+        self, portfolio_returns: List[float], benchmark_returns: List[float]
+    ) -> float:
         """Calculate portfolio beta"""
-        if len(portfolio_returns) != len(benchmark_returns) or len(portfolio_returns) < 2:
+        if (
+            len(portfolio_returns) != len(benchmark_returns)
+            or len(portfolio_returns) < 2
+        ):
             return 1.0
 
         covariance = np.cov(portfolio_returns, benchmark_returns)[0][1]
@@ -1047,29 +1221,43 @@ class BacktestEngine:
 
         return float(covariance / benchmark_variance) if benchmark_variance > 0 else 1.0
 
-    def _calculate_alpha(self, total_return: float, benchmark_returns: List[float], beta: float) -> float:
+    def _calculate_alpha(
+        self, total_return: float, benchmark_returns: List[float], beta: float
+    ) -> float:
         """Calculate portfolio alpha"""
         if not benchmark_returns:
             return total_return
 
         benchmark_total_return = np.prod([1 + r for r in benchmark_returns]) - 1
-        expected_return = self.config.risk_free_rate + beta * (benchmark_total_return - self.config.risk_free_rate)
+        expected_return = self.config.risk_free_rate + beta * (
+            benchmark_total_return - self.config.risk_free_rate
+        )
 
         return float(total_return - expected_return)
 
-    def _calculate_calmar_ratio(self, total_return: float, max_drawdown: float) -> float:
+    def _calculate_calmar_ratio(
+        self, total_return: float, max_drawdown: float
+    ) -> float:
         """Calculate Calmar ratio"""
         if max_drawdown <= 0:
             return 0.0
 
         annualized_return = self._annualize_return(total_return)
-        return float(float(annualized_return) / abs(max_drawdown)) if abs(max_drawdown) > 0 else 0.0
+        return (
+            float(float(annualized_return) / abs(max_drawdown))
+            if abs(max_drawdown) > 0
+            else 0.0
+        )
 
     def _annualize_return(self, total_return: float) -> float:
         """Annualize the total return based on backtest period"""
         days = (self.config.end_date - self.config.start_date).days
         years = days / 365.25
-        return float(((1 + total_return) ** (1 / years)) - 1) if years > 0 else float(total_return)
+        return (
+            float(((1 + total_return) ** (1 / years)) - 1)
+            if years > 0
+            else float(total_return)
+        )
 
 
 class WalkForwardAnalysis:
@@ -1086,9 +1274,14 @@ class WalkForwardAnalysis:
         self.step_size = step_size
         self.logger = logging.getLogger(__name__)
 
-    async def run_analysis(self, strategy: StrategyInterface, symbols: List[str],
-                          data_source: DataSource, start_date: datetime,
-                          end_date: datetime) -> Dict[str, Any]:
+    async def run_analysis(
+        self,
+        strategy: StrategyInterface,
+        symbols: List[str],
+        data_source: DataSource,
+        start_date: datetime,
+        end_date: datetime,
+    ) -> Dict[str, Any]:
         """Run walk-forward analysis on strategy"""
         self.logger.info("Starting walk-forward analysis")
 
@@ -1104,7 +1297,7 @@ class WalkForwardAnalysis:
                 start_date=test_start,
                 end_date=test_end,
                 initial_capital=100000.0,
-                commission_per_trade=1.0
+                commission_per_trade=1.0,
             )
 
             # Run backtest
@@ -1114,12 +1307,16 @@ class WalkForwardAnalysis:
 
         return self._aggregate_results(results)
 
-    def _generate_windows(self, start_date: datetime, end_date: datetime) -> List[Tuple[datetime, datetime, datetime, datetime]]:
+    def _generate_windows(
+        self, start_date: datetime, end_date: datetime
+    ) -> List[Tuple[datetime, datetime, datetime, datetime]]:
         """Generate overlapping time windows for walk-forward analysis"""
         windows = []
         current_date = start_date
 
-        while current_date + timedelta(days=self.window_size + self.step_size) <= end_date:
+        while (
+            current_date + timedelta(days=self.window_size + self.step_size) <= end_date
+        ):
             train_start = current_date
             train_end = current_date + timedelta(days=self.window_size)
             test_start = train_end
@@ -1135,16 +1332,22 @@ class WalkForwardAnalysis:
         if not results:
             return {}
 
-        total_return = sum(float(r.total_return) for r in results if r.total_return is not None) / len(results)
-        sharpe_ratio = sum(r.sharpe_ratio for r in results if r.sharpe_ratio is not None) / len(results)
-        max_drawdown = max(float(r.max_drawdown) for r in results if r.max_drawdown is not None)
+        total_return = sum(
+            float(r.total_return) for r in results if r.total_return is not None
+        ) / len(results)
+        sharpe_ratio = sum(
+            r.sharpe_ratio for r in results if r.sharpe_ratio is not None
+        ) / len(results)
+        max_drawdown = max(
+            float(r.max_drawdown) for r in results if r.max_drawdown is not None
+        )
 
         return {
-            'average_return': total_return,
-            'average_sharpe': sharpe_ratio,
-            'worst_drawdown': max_drawdown,
-            'num_windows': len(results),
-            'consistency': sum(1 for r in results if r.total_return > 0) / len(results)
+            "average_return": total_return,
+            "average_sharpe": sharpe_ratio,
+            "worst_drawdown": max_drawdown,
+            "num_windows": len(results),
+            "consistency": sum(1 for r in results if r.total_return > 0) / len(results),
         }
 
 
@@ -1173,7 +1376,7 @@ async def example_backtest():
         risk_free_rate=0.02,
         benchmark_symbol="SPY",
         data_frequency=TimeFrame.ONE_DAY,
-        max_leverage=1.0
+        max_leverage=1.0,
     )
 
     # Create strategy (using the existing RSI strategy as example)
@@ -1211,7 +1414,7 @@ async def example_backtest():
         # Show some portfolio snapshots
         if engine.portfolio_history:
             print(f"\n=== Portfolio Evolution ===")
-            for i in [0, len(engine.portfolio_history)//2, -1]:
+            for i in [0, len(engine.portfolio_history) // 2, -1]:
                 snapshot = engine.portfolio_history[i]
                 print(f"Date: {snapshot.timestamp.date()}")
                 print(f"  Total Value: ${snapshot.total_value:,.2f}")
@@ -1245,10 +1448,14 @@ async def example_walk_forward_analysis():
     end_date = datetime(2023, 12, 31)
 
     # Run walk-forward analysis
-    wfa = WalkForwardAnalysis(window_size=252, step_size=21)  # 1 year training, 1 month testing
+    wfa = WalkForwardAnalysis(
+        window_size=252, step_size=21
+    )  # 1 year training, 1 month testing
 
     try:
-        results = await wfa.run_analysis(strategy, symbols, data_source, start_date, end_date)
+        results = await wfa.run_analysis(
+            strategy, symbols, data_source, start_date, end_date
+        )
 
         print(f"\n=== Walk-Forward Analysis Results ===")
         print(f"Strategy: {strategy.get_strategy_name()}")
@@ -1273,7 +1480,7 @@ if __name__ == "__main__":
     # Run the example backtest
     asyncio.run(example_backtest())
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
 
     # Run walk-forward analysis example
     asyncio.run(example_walk_forward_analysis())

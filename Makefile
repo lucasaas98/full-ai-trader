@@ -203,20 +203,20 @@ test-coverage: ## Run tests with coverage report
 
 lint: ## Run linting checks
 	@echo "Running linting checks..."
-	@docker-compose exec data_collector python -m flake8 src/ tests/
-	@docker-compose exec data_collector python -m black --check src/ tests/
-	@docker-compose exec data_collector python -m isort --check-only src/ tests/
+	@flake8 .
+	@black --check .
+	@isort --check-only .
 	@echo "✓ Linting checks completed"
 
 format: ## Format code
 	@echo "Formatting code..."
-	@docker-compose exec data_collector python -m black src/ tests/
-	@docker-compose exec data_collector python -m isort src/ tests/
+	@black .
+	@isort .
 	@echo "✓ Code formatted"
 
 type-check: ## Run type checking
 	@echo "Running type checks..."
-	@docker-compose exec data_collector python -m mypy src/
+	@mypy .
 	@echo "✓ Type checking completed"
 
 # =============================================================================

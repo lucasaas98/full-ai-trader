@@ -9,14 +9,15 @@ across different time horizons.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
 import polars as pl
 
-from .base_strategy import StrategyMode
 from shared.models import TimeFrame
 
+from .base_strategy import StrategyMode
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TimeFrameDataRequest:
     """Request specification for multi-timeframe data."""
+
     symbol: str
     timeframes: List[str]
     periods: int = 100  # Number of periods to fetch
@@ -35,6 +37,7 @@ class TimeFrameDataRequest:
 @dataclass
 class TimeFrameDataResult:
     """Result containing multi-timeframe data."""
+
     symbol: str
     data: Dict[str, pl.DataFrame]
     request_time: datetime
@@ -66,22 +69,22 @@ class MultiTimeFrameDataFetcher:
 
         # Timeframe hierarchies for different strategies
         self.strategy_timeframes = {
-            StrategyMode.DAY_TRADING: ['1m', '5m', '15m', '30m', '1h'],
-            StrategyMode.SWING_TRADING: ['15m', '30m', '1h', '4h', '1d'],
-            StrategyMode.POSITION_TRADING: ['4h', '12h', '1d', '1w', '1M']
+            StrategyMode.DAY_TRADING: ["1m", "5m", "15m", "30m", "1h"],
+            StrategyMode.SWING_TRADING: ["15m", "30m", "1h", "4h", "1d"],
+            StrategyMode.POSITION_TRADING: ["4h", "12h", "1d", "1w", "1M"],
         }
 
         # Cache settings
         self.cache_ttl = {
-            '1m': 60,      # 1 minute
-            '5m': 300,     # 5 minutes
-            '15m': 900,    # 15 minutes
-            '30m': 1800,   # 30 minutes
-            '1h': 3600,    # 1 hour
-            '4h': 14400,   # 4 hours
-            '1d': 86400,   # 1 day
-            '1w': 604800,  # 1 week
-            '1M': 2592000  # 1 month
+            "1m": 60,  # 1 minute
+            "5m": 300,  # 5 minutes
+            "15m": 900,  # 15 minutes
+            "30m": 1800,  # 30 minutes
+            "1h": 3600,  # 1 hour
+            "4h": 14400,  # 4 hours
+            "1d": 86400,  # 1 day
+            "1w": 604800,  # 1 week
+            "1M": 2592000,  # 1 month
         }
 
     async def fetch_multi_timeframe_data(
@@ -89,7 +92,7 @@ class MultiTimeFrameDataFetcher:
         symbol: str,
         strategy_mode: StrategyMode,
         periods: int = 100,
-        custom_timeframes: Optional[List[str]] = None
+        custom_timeframes: Optional[List[str]] = None,
     ) -> TimeFrameDataResult:
         """
         Fetch data for multiple timeframes based on strategy mode.
@@ -113,7 +116,7 @@ class MultiTimeFrameDataFetcher:
                 symbol=symbol,
                 timeframes=timeframes,
                 periods=periods,
-                end_time=datetime.now(timezone.utc)
+                end_time=datetime.now(timezone.utc),
             )
 
             return await self._fetch_data_for_request(request)
@@ -122,7 +125,9 @@ class MultiTimeFrameDataFetcher:
             self.logger.error(f"Error fetching multi-timeframe data for {symbol}: {e}")
             return self._create_error_result(symbol, timeframes, str(e))
 
-    async def _fetch_data_for_request(self, request: TimeFrameDataRequest) -> TimeFrameDataResult:
+    async def _fetch_data_for_request(
+        self, request: TimeFrameDataRequest
+    ) -> TimeFrameDataResult:
         """Fetch data for a specific request."""
         try:
             data_dict = {}
@@ -131,7 +136,9 @@ class MultiTimeFrameDataFetcher:
 
             # Fetch data for each timeframe concurrently
             fetch_tasks = [
-                self._fetch_timeframe_data(request.symbol, tf, request.periods, request.end_time)
+                self._fetch_timeframe_data(
+                    request.symbol, tf, request.periods, request.end_time
+                )
                 for tf in request.timeframes
             ]
 
@@ -142,7 +149,9 @@ class MultiTimeFrameDataFetcher:
                 timeframe = request.timeframes[i]
 
                 if isinstance(result, Exception):
-                    self.logger.warning(f"Failed to fetch data for {request.symbol} {timeframe}: {result}")
+                    self.logger.warning(
+                        f"Failed to fetch data for {request.symbol} {timeframe}: {result}"
+                    )
                     missing_timeframes.append(timeframe)
                 elif result is not None and not result.is_empty():
                     data_dict[timeframe] = result
@@ -151,7 +160,9 @@ class MultiTimeFrameDataFetcher:
                     missing_timeframes.append(timeframe)
 
             # Calculate data quality score
-            quality_score = self._calculate_data_quality_score(data_dict, request.timeframes)
+            quality_score = self._calculate_data_quality_score(
+                data_dict, request.timeframes
+            )
 
             return TimeFrameDataResult(
                 symbol=request.symbol,
@@ -163,8 +174,8 @@ class MultiTimeFrameDataFetcher:
                 metadata={
                     "requested_periods": request.periods,
                     "total_timeframes_requested": len(request.timeframes),
-                    "successful_fetches": len(available_timeframes)
-                }
+                    "successful_fetches": len(available_timeframes),
+                },
             )
 
         except Exception as e:
@@ -172,11 +183,7 @@ class MultiTimeFrameDataFetcher:
             return self._create_error_result(request.symbol, request.timeframes, str(e))
 
     async def _fetch_timeframe_data(
-        self,
-        symbol: str,
-        timeframe: str,
-        periods: int,
-        end_time: Optional[datetime]
+        self, symbol: str, timeframe: str, periods: int, end_time: Optional[datetime]
     ) -> Optional[pl.DataFrame]:
         """Fetch data for a single timeframe."""
         try:
@@ -187,7 +194,9 @@ class MultiTimeFrameDataFetcher:
                     return cached_data
 
             # Fetch from data store
-            data = await self._fetch_from_data_store(symbol, timeframe, periods, end_time)
+            data = await self._fetch_from_data_store(
+                symbol, timeframe, periods, end_time
+            )
 
             if data is not None and not data.is_empty():
                 # Cache the result
@@ -197,13 +206,17 @@ class MultiTimeFrameDataFetcher:
                 return data
 
             # If no data available, try to fetch from external source
-            return await self._fetch_from_external_source(symbol, timeframe, periods, end_time)
+            return await self._fetch_from_external_source(
+                symbol, timeframe, periods, end_time
+            )
 
         except Exception as e:
             self.logger.error(f"Error fetching {symbol} {timeframe} data: {e}")
             return None
 
-    async def _get_cached_data(self, symbol: str, timeframe: str) -> Optional[pl.DataFrame]:
+    async def _get_cached_data(
+        self, symbol: str, timeframe: str
+    ) -> Optional[pl.DataFrame]:
         """Get cached data from Redis."""
         try:
             if not self.redis_client:
@@ -215,13 +228,16 @@ class MultiTimeFrameDataFetcher:
             if cached_json:
                 # Convert JSON back to Polars DataFrame
                 import json
+
                 data_dict = json.loads(cached_json)
                 return pl.DataFrame(data_dict)
 
             return None
 
         except Exception as e:
-            self.logger.error(f"Error getting cached data for {symbol} {timeframe}: {e}")
+            self.logger.error(
+                f"Error getting cached data for {symbol} {timeframe}: {e}"
+            )
             return None
 
     async def _cache_data(self, symbol: str, timeframe: str, data: pl.DataFrame):
@@ -243,11 +259,7 @@ class MultiTimeFrameDataFetcher:
             self.logger.error(f"Error caching data for {symbol} {timeframe}: {e}")
 
     async def _fetch_from_data_store(
-        self,
-        symbol: str,
-        timeframe: str,
-        periods: int,
-        end_time: Optional[datetime]
+        self, symbol: str, timeframe: str, periods: int, end_time: Optional[datetime]
     ) -> Optional[pl.DataFrame]:
         """Fetch data from the data store."""
         try:
@@ -262,21 +274,19 @@ class MultiTimeFrameDataFetcher:
                 symbol=symbol,
                 timeframe=timeframe,
                 start_time=start_time,
-                end_time=end_time or datetime.now(timezone.utc)
+                end_time=end_time or datetime.now(timezone.utc),
             )
 
             return data
 
         except Exception as e:
-            self.logger.error(f"Error fetching from data store for {symbol} {timeframe}: {e}")
+            self.logger.error(
+                f"Error fetching from data store for {symbol} {timeframe}: {e}"
+            )
             return None
 
     async def _fetch_from_external_source(
-        self,
-        symbol: str,
-        timeframe: str,
-        periods: int,
-        end_time: Optional[datetime]
+        self, symbol: str, timeframe: str, periods: int, end_time: Optional[datetime]
     ) -> Optional[pl.DataFrame]:
         """Fetch data from external data source as fallback."""
         try:
@@ -292,32 +302,38 @@ class MultiTimeFrameDataFetcher:
             return None
 
         except Exception as e:
-            self.logger.error(f"Error fetching from external source for {symbol} {timeframe}: {e}")
+            self.logger.error(
+                f"Error fetching from external source for {symbol} {timeframe}: {e}"
+            )
             return None
 
-    def _calculate_start_time(self, timeframe: str, periods: int, end_time: Optional[datetime]) -> datetime:
+    def _calculate_start_time(
+        self, timeframe: str, periods: int, end_time: Optional[datetime]
+    ) -> datetime:
         """Calculate start time based on timeframe and periods."""
         if end_time is None:
             end_time = datetime.now(timezone.utc)
 
         # Timeframe to timedelta mapping
         timeframe_deltas = {
-            '1m': timedelta(minutes=1),
-            '5m': timedelta(minutes=5),
-            '15m': timedelta(minutes=15),
-            '30m': timedelta(minutes=30),
-            '1h': timedelta(hours=1),
-            '4h': timedelta(hours=4),
-            '12h': timedelta(hours=12),
-            '1d': timedelta(days=1),
-            '1w': timedelta(weeks=1),
-            '1M': timedelta(days=30)  # Approximate
+            "1m": timedelta(minutes=1),
+            "5m": timedelta(minutes=5),
+            "15m": timedelta(minutes=15),
+            "30m": timedelta(minutes=30),
+            "1h": timedelta(hours=1),
+            "4h": timedelta(hours=4),
+            "12h": timedelta(hours=12),
+            "1d": timedelta(days=1),
+            "1w": timedelta(weeks=1),
+            "1M": timedelta(days=30),  # Approximate
         }
 
         delta = timeframe_deltas.get(timeframe, timedelta(hours=1))
         return end_time - (delta * periods)
 
-    def _calculate_data_quality_score(self, data_dict: Dict[str, pl.DataFrame], requested_timeframes: List[str]) -> float:
+    def _calculate_data_quality_score(
+        self, data_dict: Dict[str, pl.DataFrame], requested_timeframes: List[str]
+    ) -> float:
         """Calculate data quality score based on available data."""
         try:
             if not data_dict:
@@ -337,7 +353,7 @@ class MultiTimeFrameDataFetcher:
                     completeness_score = 1.0 if not df.is_empty() else 0.0
 
                     # Check for required columns
-                    required_columns = ['open', 'high', 'low', 'close', 'timestamp']
+                    required_columns = ["open", "high", "low", "close", "timestamp"]
                     has_all_columns = all(col in df.columns for col in required_columns)
                     column_score = 1.0 if has_all_columns else 0.5
 
@@ -345,7 +361,9 @@ class MultiTimeFrameDataFetcher:
                     freshness_score = self._calculate_freshness_score(df, timeframe)
 
                     # Combine scores
-                    timeframe_score = (completeness_score + column_score + freshness_score) / 3
+                    timeframe_score = (
+                        completeness_score + column_score + freshness_score
+                    ) / 3
                     total_score += timeframe_score * weight
 
             return (total_score / total_weight) * 100 if total_weight > 0 else 0.0
@@ -357,30 +375,32 @@ class MultiTimeFrameDataFetcher:
     def _calculate_freshness_score(self, df: pl.DataFrame, timeframe: str) -> float:
         """Calculate freshness score based on how recent the data is."""
         try:
-            if df.is_empty() or 'timestamp' not in df.columns:
+            if df.is_empty() or "timestamp" not in df.columns:
                 return 0.0
 
             # Get the latest timestamp
             latest_timestamp = df.select("timestamp").max().item()
 
             if isinstance(latest_timestamp, str):
-                latest_timestamp = datetime.fromisoformat(latest_timestamp.replace('Z', '+00:00'))
+                latest_timestamp = datetime.fromisoformat(
+                    latest_timestamp.replace("Z", "+00:00")
+                )
 
             current_time = datetime.now(timezone.utc)
             time_diff = current_time - latest_timestamp
 
             # Define acceptable delays for different timeframes
             acceptable_delays = {
-                '1m': timedelta(minutes=5),
-                '5m': timedelta(minutes=15),
-                '15m': timedelta(minutes=30),
-                '30m': timedelta(hours=1),
-                '1h': timedelta(hours=2),
-                '4h': timedelta(hours=6),
-                '12h': timedelta(hours=24),
-                '1d': timedelta(days=2),
-                '1w': timedelta(weeks=1),
-                '1M': timedelta(days=7)
+                "1m": timedelta(minutes=5),
+                "5m": timedelta(minutes=15),
+                "15m": timedelta(minutes=30),
+                "30m": timedelta(hours=1),
+                "1h": timedelta(hours=2),
+                "4h": timedelta(hours=6),
+                "12h": timedelta(hours=24),
+                "1d": timedelta(days=2),
+                "1w": timedelta(weeks=1),
+                "1M": timedelta(days=7),
             }
 
             acceptable_delay = acceptable_delays.get(timeframe, timedelta(hours=2))
@@ -398,7 +418,9 @@ class MultiTimeFrameDataFetcher:
             self.logger.error(f"Error calculating freshness score: {e}")
             return 0.5
 
-    def _create_error_result(self, symbol: str, timeframes: List[str], error_message: str) -> TimeFrameDataResult:
+    def _create_error_result(
+        self, symbol: str, timeframes: List[str], error_message: str
+    ) -> TimeFrameDataResult:
         """Create error result for failed data fetch."""
         return TimeFrameDataResult(
             symbol=symbol,
@@ -410,11 +432,13 @@ class MultiTimeFrameDataFetcher:
             metadata={
                 "error": error_message,
                 "total_timeframes_requested": len(timeframes),
-                "successful_fetches": 0
-            }
+                "successful_fetches": 0,
+            },
         )
 
-    async def validate_data_alignment(self, data_dict: Dict[str, pl.DataFrame]) -> Dict[str, Any]:
+    async def validate_data_alignment(
+        self, data_dict: Dict[str, pl.DataFrame]
+    ) -> Dict[str, Any]:
         """
         Validate that data across timeframes is properly aligned.
 
@@ -429,13 +453,15 @@ class MultiTimeFrameDataFetcher:
                 "is_aligned": True,
                 "alignment_issues": [],
                 "timestamp_ranges": {},
-                "data_gaps": {}
+                "data_gaps": {},
             }
 
             # Check timestamp alignment across timeframes
             for timeframe, df in data_dict.items():
-                if df.is_empty() or 'timestamp' not in df.columns:
-                    validation_results["alignment_issues"].append(f"No timestamp data for {timeframe}")
+                if df.is_empty() or "timestamp" not in df.columns:
+                    validation_results["alignment_issues"].append(
+                        f"No timestamp data for {timeframe}"
+                    )
                     validation_results["is_aligned"] = False
                     continue
 
@@ -446,7 +472,7 @@ class MultiTimeFrameDataFetcher:
                 validation_results["timestamp_ranges"][timeframe] = {
                     "start": min_ts,
                     "end": max_ts,
-                    "count": df.height
+                    "count": df.height,
                 }
 
                 # Check for gaps in data
@@ -466,26 +492,28 @@ class MultiTimeFrameDataFetcher:
                 "is_aligned": False,
                 "alignment_issues": [f"Validation error: {str(e)}"],
                 "timestamp_ranges": {},
-                "data_gaps": {}
+                "data_gaps": {},
             }
 
     def _get_expected_intervals(self, timeframe: str) -> Optional[timedelta]:
         """Get expected time interval for a timeframe."""
         intervals = {
-            '1m': timedelta(minutes=1),
-            '5m': timedelta(minutes=5),
-            '15m': timedelta(minutes=15),
-            '30m': timedelta(minutes=30),
-            '1h': timedelta(hours=1),
-            '4h': timedelta(hours=4),
-            '12h': timedelta(hours=12),
-            '1d': timedelta(days=1),
-            '1w': timedelta(weeks=1),
-            '1M': timedelta(days=30)
+            "1m": timedelta(minutes=1),
+            "5m": timedelta(minutes=5),
+            "15m": timedelta(minutes=15),
+            "30m": timedelta(minutes=30),
+            "1h": timedelta(hours=1),
+            "4h": timedelta(hours=4),
+            "12h": timedelta(hours=12),
+            "1d": timedelta(days=1),
+            "1w": timedelta(weeks=1),
+            "1M": timedelta(days=30),
         }
         return intervals.get(timeframe)
 
-    def _detect_gaps(self, df: pl.DataFrame, expected_interval: timedelta) -> List[Dict[str, Any]]:
+    def _detect_gaps(
+        self, df: pl.DataFrame, expected_interval: timedelta
+    ) -> List[Dict[str, Any]]:
         """Detect gaps in time series data."""
         try:
             gaps = []
@@ -496,13 +524,13 @@ class MultiTimeFrameDataFetcher:
 
             for i in range(1, len(timestamps)):
                 current = timestamps[i]
-                previous = timestamps[i-1]
+                previous = timestamps[i - 1]
 
                 # Convert to datetime if needed
                 if isinstance(current, str):
-                    current = datetime.fromisoformat(current.replace('Z', '+00:00'))
+                    current = datetime.fromisoformat(current.replace("Z", "+00:00"))
                 if isinstance(previous, str):
-                    previous = datetime.fromisoformat(previous.replace('Z', '+00:00'))
+                    previous = datetime.fromisoformat(previous.replace("Z", "+00:00"))
 
                 actual_interval = current - previous
 
@@ -510,12 +538,14 @@ class MultiTimeFrameDataFetcher:
                 max_allowed = expected_interval * 1.5
 
                 if actual_interval > max_allowed:
-                    gaps.append({
-                        "start": previous.isoformat(),
-                        "end": current.isoformat(),
-                        "duration": str(actual_interval),
-                        "expected": str(expected_interval)
-                    })
+                    gaps.append(
+                        {
+                            "start": previous.isoformat(),
+                            "end": current.isoformat(),
+                            "duration": str(actual_interval),
+                            "expected": str(expected_interval),
+                        }
+                    )
 
             return gaps
 
@@ -525,7 +555,9 @@ class MultiTimeFrameDataFetcher:
 
 
 # Convenience function for easy integration
-def create_multi_timeframe_fetcher(redis_client=None, data_store=None) -> MultiTimeFrameDataFetcher:
+def create_multi_timeframe_fetcher(
+    redis_client=None, data_store=None
+) -> MultiTimeFrameDataFetcher:
     """
     Create multi-timeframe data fetcher with optional dependencies.
 

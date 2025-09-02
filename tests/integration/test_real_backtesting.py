@@ -5,35 +5,40 @@ This module tests the complete backtesting system that runs the actual AI strate
 against historical data, simulating real trading conditions.
 """
 
-import pytest
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import List, Dict, Optional
-import pandas as pd
-import polars as pl
-from pathlib import Path
 import os
 import sys
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
+from typing import Dict, List, Optional
+
+import pandas as pd
+import polars as pl
+import pytest
 
 # Add project paths
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../backtesting'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/data_collector/src'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../services/strategy_engine/src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../backtesting"))
+sys.path.append(
+    os.path.join(os.path.dirname(__file__), "../../services/data_collector/src")
+)
+sys.path.append(
+    os.path.join(os.path.dirname(__file__), "../../services/strategy_engine/src")
+)
 
+from data_store import DataStore, DataStoreConfig
 from real_backtest_engine import (
-    RealBacktestEngine,
-    RealBacktestConfig,
     BacktestMode,
+    HistoricalDataFeeder,
+    MockRedisClient,
+    RealBacktestConfig,
+    RealBacktestEngine,
     run_monthly_backtest,
     run_previous_month_backtest,
-    HistoricalDataFeeder,
-    MockRedisClient
 )
-from data_store import DataStore, DataStoreConfig
-from shared.models import TimeFrame, SignalType
 
+from shared.models import SignalType, TimeFrame
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -44,9 +49,7 @@ logger = logging.getLogger(__name__)
 def data_store():
     """Create DataStore instance for testing."""
     config = DataStoreConfig(
-        base_path="data/parquet",
-        batch_size=1000,
-        retention_days=365
+        base_path="data/parquet", batch_size=1000, retention_days=365
     )
     return DataStore(config)
 
@@ -61,12 +64,12 @@ def sample_backtest_config():
     return RealBacktestConfig(
         start_date=start_date,
         end_date=end_date,
-        initial_capital=Decimal('50000'),  # Smaller amount for testing
+        initial_capital=Decimal("50000"),  # Smaller amount for testing
         max_positions=5,
         mode=BacktestMode.DEBUG,  # More verbose for testing
         timeframe=TimeFrame.ONE_DAY,
         symbols_to_trade=["AAPL", "MSFT", "GOOGL"],  # Test with known symbols
-        enable_screener_data=False  # Simplify for testing
+        enable_screener_data=False,  # Simplify for testing
     )
 
 
@@ -100,7 +103,9 @@ class TestRealBacktestEngine:
         feeder = HistoricalDataFeeder(data_store, sample_backtest_config)
 
         # Test getting market data for a specific date
-        test_date = datetime(2025, 8, 20, tzinfo=timezone.utc)  # Use a date we know has data
+        test_date = datetime(
+            2025, 8, 20, tzinfo=timezone.utc
+        )  # Use a date we know has data
         symbols = ["AAPL"]
 
         market_data = await feeder.get_market_data_for_date(test_date, symbols)
@@ -141,22 +146,23 @@ class TestRealBacktestEngine:
         market_data = MarketData(
             symbol="AAPL",
             timestamp=test_date,
-            open=Decimal('150.00'),
-            high=Decimal('155.00'),
-            low=Decimal('149.00'),
-            close=Decimal('152.50'),
-            adjusted_close=Decimal('152.50'),
+            open=Decimal("150.00"),
+            high=Decimal("155.00"),
+            low=Decimal("149.00"),
+            close=Decimal("152.50"),
+            adjusted_close=Decimal("152.50"),
             volume=1000000,
-            timeframe=TimeFrame.ONE_DAY
+            timeframe=TimeFrame.ONE_DAY,
         )
 
         # Test position size calculation
         from base_strategy import Signal
+
         signal = Signal(
             action=SignalType.BUY,
             confidence=75.0,
             position_size=0.1,  # 10% of portfolio
-            reasoning="Test signal"
+            reasoning="Test signal",
         )
         signal.symbol = "AAPL"
 
@@ -182,16 +188,18 @@ class TestRealBacktestEngine:
         position = BacktestPosition(
             symbol="AAPL",
             quantity=100,
-            entry_price=Decimal('150.00'),
+            entry_price=Decimal("150.00"),
             entry_date=datetime.now(timezone.utc),
-            current_price=Decimal('155.00')
+            current_price=Decimal("155.00"),
         )
         engine.positions["AAPL"] = position
 
         # Calculate portfolio value
-        portfolio_value = await engine._calculate_portfolio_value(datetime.now(timezone.utc))
+        portfolio_value = await engine._calculate_portfolio_value(
+            datetime.now(timezone.utc)
+        )
 
-        expected_value = engine.cash + (position.current_price * Decimal('100'))
+        expected_value = engine.cash + (position.current_price * Decimal("100"))
         assert portfolio_value == expected_value
 
     @pytest.mark.asyncio
@@ -225,7 +233,9 @@ class TestRealBacktestEngine:
 
             # Basic sanity checks
             assert results.final_portfolio_value > 0
-            assert -1.0 <= results.total_return <= 10.0  # Reasonable return range for short period
+            assert (
+                -1.0 <= results.total_return <= 10.0
+            )  # Reasonable return range for short period
 
         except Exception as e:
             # If backtest fails due to missing data, that's acceptable for testing
@@ -239,7 +249,9 @@ class TestRealBacktestEngine:
         config.enable_screener_data = True
         config.screener_types = ["momentum", "breakouts"]
         config.symbols_to_trade = None  # Use screener results
-        config.start_date = datetime(2025, 8, 22, tzinfo=timezone.utc)  # Date with screener data
+        config.start_date = datetime(
+            2025, 8, 22, tzinfo=timezone.utc
+        )  # Date with screener data
         config.end_date = datetime(2025, 8, 23, tzinfo=timezone.utc)
 
         engine = RealBacktestEngine(config)
@@ -261,7 +273,9 @@ class TestRealBacktestEngine:
             if screener_data:
                 results = await engine.run_backtest()
                 assert results is not None
-                logger.info(f"Screener backtest: {results.total_return:.2%} return, {results.total_trades} trades")
+                logger.info(
+                    f"Screener backtest: {results.total_return:.2%} return, {results.total_trades} trades"
+                )
 
         except Exception as e:
             logger.warning(f"Screener backtest failed: {e}")
@@ -278,8 +292,8 @@ class TestRealBacktestEngine:
             results = await run_monthly_backtest(
                 start_date=start_date,
                 end_date=end_date,
-                initial_capital=Decimal('25000'),
-                symbols=["AAPL"]
+                initial_capital=Decimal("25000"),
+                symbols=["AAPL"],
             )
 
             assert results is not None
@@ -318,8 +332,8 @@ class TestRealBacktestEngine:
         config = RealBacktestConfig(
             start_date=datetime(2025, 8, 15, tzinfo=timezone.utc),
             end_date=datetime(2025, 8, 20, tzinfo=timezone.utc),
-            initial_capital=Decimal('10000'),
-            symbols_to_trade=["AAPL"]
+            initial_capital=Decimal("10000"),
+            symbols_to_trade=["AAPL"],
         )
 
         engine = RealBacktestEngine(config)
@@ -332,38 +346,38 @@ class TestRealBacktestEngine:
                 symbol="AAPL",
                 entry_date=datetime(2025, 8, 15, tzinfo=timezone.utc),
                 exit_date=datetime(2025, 8, 16, tzinfo=timezone.utc),
-                entry_price=Decimal('150.00'),
-                exit_price=Decimal('155.00'),
+                entry_price=Decimal("150.00"),
+                exit_price=Decimal("155.00"),
                 quantity=10,
-                pnl=Decimal('50.00'),
+                pnl=Decimal("50.00"),
                 pnl_percentage=0.033,
-                commission=Decimal('2.00'),
+                commission=Decimal("2.00"),
                 hold_days=1,
                 strategy_reasoning="Test trade",
-                confidence=75.0
+                confidence=75.0,
             ),
             BacktestTrade(
                 symbol="AAPL",
                 entry_date=datetime(2025, 8, 17, tzinfo=timezone.utc),
                 exit_date=datetime(2025, 8, 18, tzinfo=timezone.utc),
-                entry_price=Decimal('155.00'),
-                exit_price=Decimal('150.00'),
+                entry_price=Decimal("155.00"),
+                exit_price=Decimal("150.00"),
                 quantity=10,
-                pnl=Decimal('-50.00'),
+                pnl=Decimal("-50.00"),
                 pnl_percentage=-0.032,
-                commission=Decimal('2.00'),
+                commission=Decimal("2.00"),
                 hold_days=1,
                 strategy_reasoning="Test trade",
-                confidence=60.0
-            )
+                confidence=60.0,
+            ),
         ]
 
         # Add portfolio history
         engine.portfolio_history = [
-            (datetime(2025, 8, 15, tzinfo=timezone.utc), Decimal('10000')),
-            (datetime(2025, 8, 16, tzinfo=timezone.utc), Decimal('10050')),
-            (datetime(2025, 8, 17, tzinfo=timezone.utc), Decimal('10050')),
-            (datetime(2025, 8, 18, tzinfo=timezone.utc), Decimal('10000')),
+            (datetime(2025, 8, 15, tzinfo=timezone.utc), Decimal("10000")),
+            (datetime(2025, 8, 16, tzinfo=timezone.utc), Decimal("10050")),
+            (datetime(2025, 8, 17, tzinfo=timezone.utc), Decimal("10050")),
+            (datetime(2025, 8, 18, tzinfo=timezone.utc), Decimal("10000")),
         ]
 
         # Generate results and test metrics
@@ -393,14 +407,14 @@ class TestBacktestIntegration:
                 ticker="AAPL",
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=test_date,
-                end_date=test_date
+                end_date=test_date,
             )
 
             if not df.is_empty():
                 logger.info(f"Found AAPL data for {test_date}")
                 row = df.row(0, named=True)
-                assert row['close'] > 0
-                assert row['volume'] >= 0
+                assert row["close"] > 0
+                assert row["volume"] >= 0
             else:
                 logger.warning(f"No AAPL data found for {test_date}")
 
@@ -416,11 +430,11 @@ class TestBacktestIntegration:
         config = RealBacktestConfig(
             start_date=datetime(2025, 8, 20, tzinfo=timezone.utc),
             end_date=datetime(2025, 8, 21, tzinfo=timezone.utc),
-            initial_capital=Decimal('10000'),
+            initial_capital=Decimal("10000"),
             max_positions=2,
             mode=BacktestMode.FAST,
             symbols_to_trade=["AAPL"],
-            enable_screener_data=False
+            enable_screener_data=False,
         )
 
         try:
@@ -452,10 +466,10 @@ class TestPerformanceAndScalability:
         config = RealBacktestConfig(
             start_date=datetime(2025, 8, 15, tzinfo=timezone.utc),
             end_date=datetime(2025, 8, 21, tzinfo=timezone.utc),  # 1 week
-            initial_capital=Decimal('50000'),
+            initial_capital=Decimal("50000"),
             mode=BacktestMode.FAST,
             symbols_to_trade=["AAPL", "MSFT"],  # 2 symbols
-            enable_screener_data=False
+            enable_screener_data=False,
         )
 
         try:
@@ -467,7 +481,9 @@ class TestPerformanceAndScalability:
             # Should complete reasonably quickly for a week of data
             assert execution_time < 30.0  # 30 seconds max for 1 week, 2 symbols
 
-            logger.info(f"Performance test: {execution_time:.2f}s for {results.total_trades} trades")
+            logger.info(
+                f"Performance test: {execution_time:.2f}s for {results.total_trades} trades"
+            )
 
         except Exception as e:
             logger.warning(f"Performance test failed: {e}")
@@ -476,8 +492,9 @@ class TestPerformanceAndScalability:
     @pytest.mark.asyncio
     async def test_memory_usage(self):
         """Test that memory usage remains reasonable during backtesting."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -485,9 +502,9 @@ class TestPerformanceAndScalability:
         config = RealBacktestConfig(
             start_date=datetime(2025, 8, 15, tzinfo=timezone.utc),
             end_date=datetime(2025, 8, 21, tzinfo=timezone.utc),
-            initial_capital=Decimal('25000'),
+            initial_capital=Decimal("25000"),
             symbols_to_trade=["AAPL"],
-            enable_screener_data=False
+            enable_screener_data=False,
         )
 
         try:
@@ -498,7 +515,9 @@ class TestPerformanceAndScalability:
             memory_increase = final_memory - initial_memory
 
             # Memory increase should be reasonable (less than 100MB for simple backtest)
-            assert memory_increase < 100, f"Memory usage increased by {memory_increase:.2f}MB"
+            assert (
+                memory_increase < 100
+            ), f"Memory usage increased by {memory_increase:.2f}MB"
 
             logger.info(f"Memory test: {memory_increase:.2f}MB increase")
 

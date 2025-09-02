@@ -5,18 +5,18 @@ This module provides common utility functions including logging setup,
 date/time helpers, and other shared functionality.
 """
 
+import hashlib
+import json
 import logging
 import logging.handlers
 import os
 import sys
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any, Union, List
-from pathlib import Path
-import json
-import hashlib
 import time
+from datetime import datetime, timezone
+from decimal import ROUND_HALF_UP, Decimal
 from functools import wraps
-from decimal import Decimal, ROUND_HALF_UP
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from .config import Config
 
@@ -66,7 +66,7 @@ def setup_logging(config: Config, service_name: Optional[str] = None) -> logging
             filename=log_file,
             maxBytes=config.logging.max_file_size,
             backupCount=config.logging.backup_count,
-            encoding='utf-8'
+            encoding="utf-8",
         )
         file_handler.setLevel(getattr(logging, config.logging.level))
         file_handler.setFormatter(formatter)
@@ -127,7 +127,7 @@ def format_currency(amount: Union[Decimal, float, int], currency: str = "USD") -
         amount = Decimal(str(amount))
 
     # Round to 2 decimal places
-    amount = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    amount = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     return f"{currency} {amount:,.2f}"
 
@@ -162,10 +162,12 @@ def calculate_hash(data: str) -> str:
     Returns:
         Hexadecimal hash string
     """
-    return hashlib.sha256(data.encode('utf-8')).hexdigest()
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def safe_divide(numerator: Union[Decimal, float], denominator: Union[Decimal, float]) -> Optional[Decimal]:
+def safe_divide(
+    numerator: Union[Decimal, float], denominator: Union[Decimal, float]
+) -> Optional[Decimal]:
     """
     Safely divide two numbers, returning None if denominator is zero.
 
@@ -199,6 +201,7 @@ def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 1.0):
     Returns:
         Decorated function
     """
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -213,16 +216,19 @@ def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 1.0):
                         break
 
                     # Calculate backoff delay
-                    delay = backoff_factor * (2 ** attempt)
+                    delay = backoff_factor * (2**attempt)
                     time.sleep(delay)
 
             # Re-raise the last exception
             if last_exception:
                 raise last_exception
             else:
-                raise RuntimeError("All retry attempts failed but no exception was captured")
+                raise RuntimeError(
+                    "All retry attempts failed but no exception was captured"
+                )
 
         return wrapper
+
     return decorator
 
 
@@ -240,7 +246,7 @@ def validate_symbol(symbol: str) -> bool:
         return False
 
     # Basic validation - alphanumeric and common separators
-    allowed_chars = set('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-/')
+    allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-/")
     return all(c in allowed_chars for c in symbol.upper())
 
 
@@ -256,10 +262,12 @@ def chunks(lst: list, n: int):
         List chunks
     """
     for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+        yield lst[i : i + n]
 
 
-def flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
+def flatten_dict(
+    d: Dict[str, Any], parent_key: str = "", sep: str = "."
+) -> Dict[str, Any]:
     """
     Flatten nested dictionary.
 
@@ -295,7 +303,7 @@ def serialize_for_json(obj: Any) -> Any:
         return str(obj)
     elif isinstance(obj, datetime):
         return obj.isoformat()
-    elif hasattr(obj, 'dict'):
+    elif hasattr(obj, "dict"):
         # Pydantic model
         return obj.dict()
     elif isinstance(obj, dict):
@@ -319,10 +327,10 @@ def sanitize_filename(filename: str) -> str:
     # Remove or replace invalid characters
     invalid_chars = '<>:"/\\|?*'
     for char in invalid_chars:
-        filename = filename.replace(char, '_')
+        filename = filename.replace(char, "_")
 
     # Remove leading/trailing spaces and dots
-    filename = filename.strip(' .')
+    filename = filename.strip(" .")
 
     # Limit length
     if len(filename) > 255:
@@ -331,7 +339,9 @@ def sanitize_filename(filename: str) -> str:
     return filename
 
 
-def calculate_price_change(current_price: Decimal, previous_price: Decimal) -> Dict[str, Decimal]:
+def calculate_price_change(
+    current_price: Decimal, previous_price: Decimal
+) -> Dict[str, Decimal]:
     """
     Calculate price change and percentage change.
 
@@ -343,12 +353,9 @@ def calculate_price_change(current_price: Decimal, previous_price: Decimal) -> D
         Dictionary with 'change' and 'change_percent' keys
     """
     change = current_price - previous_price
-    change_percent = safe_divide(change, previous_price) or Decimal('0')
+    change_percent = safe_divide(change, previous_price) or Decimal("0")
 
-    return {
-        'change': change,
-        'change_percent': change_percent
-    }
+    return {"change": change, "change_percent": change_percent}
 
 
 def is_market_hours(config: Config, dt: Optional[datetime] = None) -> bool:
@@ -383,7 +390,7 @@ def is_market_hours(config: Config, dt: Optional[datetime] = None) -> bool:
     return market_open_hour <= current_hour < market_close_hour
 
 
-def round_to_tick_size(price: Decimal, tick_size: Decimal = Decimal('0.01')) -> Decimal:
+def round_to_tick_size(price: Decimal, tick_size: Decimal = Decimal("0.01")) -> Decimal:
     """
     Round price to valid tick size.
 
@@ -394,14 +401,16 @@ def round_to_tick_size(price: Decimal, tick_size: Decimal = Decimal('0.01')) -> 
     Returns:
         Rounded price
     """
-    return (price / tick_size).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * tick_size
+    return (price / tick_size).quantize(
+        Decimal("1"), rounding=ROUND_HALF_UP
+    ) * tick_size
 
 
 def calculate_position_size(
     portfolio_value: Decimal,
     risk_per_trade: Decimal,
     entry_price: Decimal,
-    stop_loss_price: Decimal
+    stop_loss_price: Decimal,
 ) -> int:
     """
     Calculate position size based on risk management rules.
@@ -466,7 +475,7 @@ def load_json_file(file_path: str, default: Any = None) -> Any:
         Parsed JSON data or default value
     """
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, IOError):
         return default
@@ -488,16 +497,13 @@ def save_json_file(data: Any, file_path: str, indent: int = 2) -> bool:
         # Ensure directory exists
         ensure_directory(str(Path(file_path).parent))
 
-        with open(file_path, 'w', encoding='utf-8') as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=indent, default=serialize_for_json)
         return True
     except (IOError, TypeError) as e:
         logger = get_logger(__name__)
         logger.error(f"Failed to save JSON file {file_path}: {e}")
         return False
-
-
-
 
 
 class RateLimiter:
@@ -525,7 +531,9 @@ class RateLimiter:
         now = time.time()
 
         # Remove old requests outside time window
-        self.requests = [req_time for req_time in self.requests if now - req_time < self.time_window]
+        self.requests = [
+            req_time for req_time in self.requests if now - req_time < self.time_window
+        ]
 
         # Check if we can make a new request
         if len(self.requests) < self.max_requests:
@@ -550,6 +558,7 @@ class RateLimiter:
 
 def timing_decorator(func):
     """Decorator to measure function execution time."""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -559,7 +568,10 @@ def timing_decorator(func):
         finally:
             end_time = time.time()
             logger = get_logger(func.__module__)
-            logger.debug(f"{func.__name__} executed in {end_time - start_time:.4f} seconds")
+            logger.debug(
+                f"{func.__name__} executed in {end_time - start_time:.4f} seconds"
+            )
+
     return wrapper
 
 
@@ -587,7 +599,9 @@ def validate_environment_variables(required_vars: List[str]) -> Dict[str, str]:
             env_vars[var] = value
 
     if missing_vars:
-        raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
 
     return env_vars
 
@@ -607,7 +621,7 @@ def truncate_string(text: str, max_length: int = 100, suffix: str = "...") -> st
     if len(text) <= max_length:
         return text
 
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix
 
 
 def parse_timeframe_to_seconds(timeframe: str) -> int:
@@ -648,6 +662,7 @@ def health_check_service(service_url: str, timeout: int = 5) -> bool:
     """
     try:
         import requests
+
         response = requests.get(f"{service_url}/health", timeout=timeout)
         return response.status_code == 200
     except Exception:
@@ -663,6 +678,7 @@ def get_memory_usage() -> Dict[str, Union[float, str]]:
     """
     try:
         import psutil
+
         process = psutil.Process()
         memory_info = process.memory_info()
 
@@ -686,6 +702,7 @@ def get_cpu_usage() -> float:
     """
     try:
         import psutil
+
         return psutil.cpu_percent(interval=1)
     except ImportError:
         return 0.0
@@ -726,7 +743,10 @@ class CircuitBreaker:
             Exception: If circuit is open or function fails
         """
         if self.state == "open":
-            if self.last_failure_time and time.time() - self.last_failure_time > self.timeout:
+            if (
+                self.last_failure_time
+                and time.time() - self.last_failure_time > self.timeout
+            ):
                 self.state = "half-open"
             else:
                 raise Exception("Circuit breaker is open")

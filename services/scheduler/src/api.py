@@ -6,22 +6,23 @@ the trading system scheduler and all its components.
 """
 
 import asyncio
+import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional
 from contextlib import asynccontextmanager
-import httpx
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Query, Response
+import httpx
+import uvicorn
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
-import uvicorn
-import json
+from pydantic import BaseModel, Field
 
-from .scheduler import TradingScheduler, SchedulerAPI, TaskPriority
 from shared.config import get_config
+
+from .scheduler import SchedulerAPI, TaskPriority, TradingScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -32,40 +33,55 @@ api_instance: Optional[SchedulerAPI] = None
 
 class TaskTriggerRequest(BaseModel):
     """Request model for triggering tasks."""
+
     priority: str = Field(default="normal", description="Task priority")
     reason: str = Field(default="manual", description="Reason for triggering")
 
 
 class MaintenanceModeRequest(BaseModel):
     """Request model for maintenance mode."""
+
     enabled: bool = Field(..., description="Enable or disable maintenance mode")
 
 
 class ConfigUpdateRequest(BaseModel):
     """Request model for configuration updates."""
-    config: Dict[str, Any] = Field(..., description="Configuration parameters to update")
+
+    config: Dict[str, Any] = Field(
+        ..., description="Configuration parameters to update"
+    )
 
 
 class PipelineTriggerRequest(BaseModel):
     """Request model for pipeline triggering."""
+
     reason: str = Field(default="manual", description="Reason for triggering pipeline")
 
 
 class MaintenanceTaskRequest(BaseModel):
     """Request model for maintenance task operations."""
+
     task_name: str = Field(..., description="Name of the maintenance task")
-    parameters: Dict[str, Any] = Field(default_factory=dict, description="Optional task parameters")
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict, description="Optional task parameters"
+    )
 
 
 class MaintenanceReportRequest(BaseModel):
     """Request model for maintenance report generation."""
-    report_type: str = Field(default="daily", description="Type of report: daily, weekly, monthly")
-    format_type: str = Field(default="json", description="Export format: json, csv, html")
+
+    report_type: str = Field(
+        default="daily", description="Type of report: daily, weekly, monthly"
+    )
+    format_type: str = Field(
+        default="json", description="Export format: json, csv, html"
+    )
     include_details: bool = Field(default=True, description="Include detailed metrics")
 
 
 class TradeRequest(BaseModel):
     """Request model for manual trade execution."""
+
     symbol: str = Field(..., description="Trading symbol")
     side: str = Field(..., description="Trade side: buy/sell")
     quantity: int = Field(..., description="Number of shares")
@@ -75,6 +91,7 @@ class TradeRequest(BaseModel):
 
 class MaintenanceResponse(BaseModel):
     """Response model for maintenance operations."""
+
     task_name: str
     success: bool
     duration: float
@@ -86,6 +103,7 @@ class MaintenanceResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     """Health check response."""
+
     status: str = Field(..., description="Service status")
     timestamp: datetime = Field(..., description="Check timestamp")
     version: str = Field(..., description="Service version")
@@ -94,13 +112,16 @@ class HealthResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     """System status response."""
+
     scheduler: Dict[str, Any] = Field(..., description="Scheduler status")
     market: Dict[str, Any] = Field(..., description="Market information")
     services: Dict[str, Any] = Field(..., description="Services status")
     tasks: Dict[str, Any] = Field(..., description="Tasks status")
     queues: Dict[str, Any] = Field(..., description="Queue lengths")
     metrics: Dict[str, Any] = Field(..., description="System metrics")
-    maintenance: Dict[str, Any] = Field(default_factory=dict, description="Maintenance system status")
+    maintenance: Dict[str, Any] = Field(
+        default_factory=dict, description="Maintenance system status"
+    )
 
 
 @asynccontextmanager
@@ -141,7 +162,7 @@ app = FastAPI(
     title="Trading Scheduler API",
     description="REST API for controlling and monitoring the trading system scheduler",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -178,26 +199,22 @@ def init_prometheus_metrics():
     """Initialize Prometheus metrics."""
     global tasks_count_gauge, services_count_gauge, tasks_executed_counter, service_health_gauge
 
-    tasks_count_gauge = Gauge(
-        'scheduler_tasks_total',
-        'Number of scheduled tasks'
-    )
+    tasks_count_gauge = Gauge("scheduler_tasks_total", "Number of scheduled tasks")
 
     services_count_gauge = Gauge(
-        'scheduler_services_total',
-        'Number of registered services'
+        "scheduler_services_total", "Number of registered services"
     )
 
     tasks_executed_counter = Counter(
-        'scheduler_tasks_executed_total',
-        'Total number of tasks executed',
-        ['task_id', 'status']
+        "scheduler_tasks_executed_total",
+        "Total number of tasks executed",
+        ["task_id", "status"],
     )
 
     service_health_gauge = Gauge(
-        'scheduler_service_health',
-        'Health status of scheduler components',
-        ['component']
+        "scheduler_service_health",
+        "Health status of scheduler components",
+        ["component"],
     )
 
 
@@ -206,13 +223,20 @@ async def update_prometheus_metrics():
     global tasks_count_gauge, services_count_gauge, service_health_gauge
 
     try:
-        if scheduler_instance and tasks_count_gauge and services_count_gauge and service_health_gauge:
+        if (
+            scheduler_instance
+            and tasks_count_gauge
+            and services_count_gauge
+            and service_health_gauge
+        ):
             tasks_count_gauge.set(len(scheduler_instance.tasks))
             services_count_gauge.set(len(scheduler_instance.services))
 
             # Update component health
-            service_health_gauge.labels(component='scheduler').set(1 if scheduler_instance else 0)
-            service_health_gauge.labels(component='api').set(1 if api_instance else 0)
+            service_health_gauge.labels(component="scheduler").set(
+                1 if scheduler_instance else 0
+            )
+            service_health_gauge.labels(component="api").set(1 if api_instance else 0)
 
     except Exception as e:
         logger.error(f"Failed to update Prometheus metrics: {e}")
@@ -228,17 +252,14 @@ async def get_prometheus_metrics():
         # Generate Prometheus format
         metrics_output = generate_latest()
 
-        return Response(
-            content=metrics_output,
-            media_type="text/plain; version=0.0.4"
-        )
+        return Response(content=metrics_output, media_type="text/plain; version=0.0.4")
 
     except Exception as e:
         logger.error(f"Failed to generate metrics: {e}")
         return Response(
             content=f"# Error generating metrics: {str(e)}\n",
             media_type="text/plain; version=0.0.4",
-            status_code=500
+            status_code=500,
         )
 
 
@@ -249,7 +270,7 @@ async def health_check():
         status="healthy",
         timestamp=datetime.now(),
         version="1.0.0",
-        uptime=0.0  # TODO: Track actual uptime
+        uptime=0.0,  # TODO: Track actual uptime
     )
 
 
@@ -277,9 +298,7 @@ async def get_performance_metrics(api: SchedulerAPI = Depends(get_api)):
 # Task management endpoints
 @app.post("/tasks/{task_id}/trigger")
 async def trigger_task(
-    task_id: str,
-    request: TaskTriggerRequest,
-    api: SchedulerAPI = Depends(get_api)
+    task_id: str, request: TaskTriggerRequest, api: SchedulerAPI = Depends(get_api)
 ):
     """Manually trigger a specific task."""
     try:
@@ -324,10 +343,12 @@ async def list_tasks(scheduler: TradingScheduler = Depends(get_scheduler)):
                 "priority": task.priority.value,
                 "market_hours_only": task.market_hours_only,
                 "last_run": task.last_run.isoformat() if task.last_run else None,
-                "last_success": task.last_success.isoformat() if task.last_success else None,
+                "last_success": (
+                    task.last_success.isoformat() if task.last_success else None
+                ),
                 "error_count": task.error_count,
                 "retry_count": task.retry_count,
-                "max_retries": task.max_retries
+                "max_retries": task.max_retries,
             }
         return {"tasks": tasks_info}
     except Exception as e:
@@ -359,7 +380,9 @@ async def list_services(scheduler: TradingScheduler = Depends(get_scheduler)):
                 "dependencies": service.dependencies,
                 "error_count": service.error_count,
                 "restart_count": service.restart_count,
-                "last_check": service.last_check.isoformat() if service.last_check else None
+                "last_check": (
+                    service.last_check.isoformat() if service.last_check else None
+                ),
             }
         return {"services": services_info}
     except Exception as e:
@@ -368,28 +391,38 @@ async def list_services(scheduler: TradingScheduler = Depends(get_scheduler)):
 
 
 @app.post("/services/{service_name}/start")
-async def start_service(service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)):
+async def start_service(
+    service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)
+):
     """Start a specific service."""
     try:
         success = await scheduler.start_service(service_name)
         if success:
             return {"status": "success", "message": f"Service {service_name} started"}
         else:
-            return {"status": "error", "message": f"Failed to start service {service_name}"}
+            return {
+                "status": "error",
+                "message": f"Failed to start service {service_name}",
+            }
     except Exception as e:
         logger.error(f"Failed to start service {service_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/services/{service_name}/stop")
-async def stop_service(service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)):
+async def stop_service(
+    service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)
+):
     """Stop a specific service."""
     try:
         success = await scheduler.stop_service(service_name)
         if success:
             return {"status": "success", "message": f"Service {service_name} stopped"}
         else:
-            return {"status": "error", "message": f"Failed to stop service {service_name}"}
+            return {
+                "status": "error",
+                "message": f"Failed to stop service {service_name}",
+            }
     except Exception as e:
         logger.error(f"Failed to stop service {service_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -398,8 +431,7 @@ async def stop_service(service_name: str, scheduler: TradingScheduler = Depends(
 # System control endpoints
 @app.post("/system/maintenance")
 async def set_maintenance_mode(
-    request: MaintenanceModeRequest,
-    api: SchedulerAPI = Depends(get_api)
+    request: MaintenanceModeRequest, api: SchedulerAPI = Depends(get_api)
 ):
     """Enable or disable maintenance mode."""
     try:
@@ -435,7 +467,7 @@ async def resume_trading(api: SchedulerAPI = Depends(get_api)):
 @app.post("/system/shutdown")
 async def shutdown_system(
     scheduler: TradingScheduler = Depends(get_scheduler),
-    background_tasks: BackgroundTasks = BackgroundTasks()
+    background_tasks: BackgroundTasks = BackgroundTasks(),
 ):
     """Gracefully shutdown the entire system."""
     try:
@@ -449,8 +481,7 @@ async def shutdown_system(
 # Pipeline control endpoints
 @app.post("/pipeline/trigger")
 async def trigger_pipeline(
-    request: PipelineTriggerRequest,
-    api: SchedulerAPI = Depends(get_api)
+    request: PipelineTriggerRequest, api: SchedulerAPI = Depends(get_api)
 ):
     """Trigger the data pipeline."""
     try:
@@ -467,9 +498,9 @@ async def get_pipeline_status(scheduler: TradingScheduler = Depends(get_schedule
     try:
         # Get pipeline step completion status
         pipeline_status = {}
-        pipeline = getattr(scheduler, 'pipeline', None)
-        redis_client = getattr(scheduler, 'redis', None)
-        if pipeline and redis_client and hasattr(pipeline, 'pipeline_steps'):
+        pipeline = getattr(scheduler, "pipeline", None)
+        redis_client = getattr(scheduler, "redis", None)
+        if pipeline and redis_client and hasattr(pipeline, "pipeline_steps"):
             for step in pipeline.pipeline_steps:
                 key = f"pipeline:step:{step}:completed"
                 completed = await redis_client.get(key)
@@ -510,8 +541,7 @@ async def reload_configuration(api: SchedulerAPI = Depends(get_api)):
 
 @app.post("/config/update")
 async def update_configuration(
-    request: ConfigUpdateRequest,
-    api: SchedulerAPI = Depends(get_api)
+    request: ConfigUpdateRequest, api: SchedulerAPI = Depends(get_api)
 ):
     """Update configuration parameters."""
     try:
@@ -538,7 +568,7 @@ async def get_market_hours(scheduler: TradingScheduler = Depends(get_scheduler))
             "next_market_close": market_hours.get_next_market_close().isoformat(),
             "time_until_open": str(market_hours.time_until_market_open()),
             "time_until_close": str(market_hours.time_until_market_close()),
-            "timezone": str(market_hours.timezone)
+            "timezone": str(market_hours.timezone),
         }
     except Exception as e:
         logger.error(f"Failed to get market hours: {e}")
@@ -549,22 +579,27 @@ async def get_market_hours(scheduler: TradingScheduler = Depends(get_scheduler))
 async def get_market_calendar(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Get market calendar for date range."""
     try:
         from datetime import datetime
+
         start = datetime.strptime(start_date, "%Y-%m-%d").date()
         end = datetime.strptime(end_date, "%Y-%m-%d").date()
 
         calendar_data = []
         current_date = start
         while current_date <= end:
-            calendar_data.append({
-                "date": current_date.isoformat(),
-                "is_trading_day": scheduler.market_hours.is_trading_day(current_date),
-                "day_of_week": current_date.strftime("%A")
-            })
+            calendar_data.append(
+                {
+                    "date": current_date.isoformat(),
+                    "is_trading_day": scheduler.market_hours.is_trading_day(
+                        current_date
+                    ),
+                    "day_of_week": current_date.strftime("%A"),
+                }
+            )
             current_date += timedelta(days=1)
 
         return {"calendar": calendar_data}
@@ -578,7 +613,7 @@ async def get_market_calendar(
 async def get_system_metrics(scheduler: TradingScheduler = Depends(get_scheduler)):
     """Get detailed system metrics."""
     try:
-        monitor = getattr(scheduler, 'monitor', None)
+        monitor = getattr(scheduler, "monitor", None)
         if not monitor:
             raise HTTPException(status_code=503, detail="Monitor not available")
         metrics = monitor.get_system_metrics()
@@ -591,7 +626,7 @@ async def get_system_metrics(scheduler: TradingScheduler = Depends(get_scheduler
 @app.get("/metrics/historical")
 async def get_historical_metrics(
     hours: int = Query(default=24, description="Hours of historical data"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Get historical system metrics."""
     try:
@@ -599,15 +634,12 @@ async def get_historical_metrics(
         now = datetime.now().timestamp()
         start_time = now - (hours * 3600)
 
-        redis_client = getattr(scheduler, 'redis', None)
+        redis_client = getattr(scheduler, "redis", None)
         if not redis_client:
             raise HTTPException(status_code=503, detail="Redis client not available")
 
         metrics = await redis_client.zrangebyscore(
-            "system:metrics:timeseries",
-            start_time,
-            now,
-            withscores=True
+            "system:metrics:timeseries", start_time, now, withscores=True
         )
 
         historical_data = []
@@ -615,7 +647,12 @@ async def get_historical_metrics(
             try:
                 # Parse metric data (stored as string)
                 import ast
-                parsed_data = ast.literal_eval(metric_data.decode() if isinstance(metric_data, bytes) else metric_data)
+
+                parsed_data = ast.literal_eval(
+                    metric_data.decode()
+                    if isinstance(metric_data, bytes)
+                    else metric_data
+                )
                 parsed_data["timestamp"] = timestamp
                 historical_data.append(parsed_data)
             except:
@@ -630,7 +667,7 @@ async def get_historical_metrics(
 @app.get("/logs")
 async def get_logs(
     lines: int = Query(default=100, description="Number of log lines to retrieve"),
-    level: str = Query(default="INFO", description="Minimum log level")
+    level: str = Query(default="INFO", description="Minimum log level"),
 ):
     """Get recent system logs."""
     try:
@@ -639,7 +676,7 @@ async def get_logs(
         return {
             "logs": [
                 f"{datetime.now().isoformat()} - INFO - Scheduler running normally",
-                f"{datetime.now().isoformat()} - INFO - All services healthy"
+                f"{datetime.now().isoformat()} - INFO - All services healthy",
             ]
         }
     except Exception as e:
@@ -650,7 +687,7 @@ async def get_logs(
 @app.get("/alerts")
 async def get_alerts(
     severity: str = Query(default=None, description="Filter by severity"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Get system alerts."""
     try:
@@ -659,7 +696,7 @@ async def get_alerts(
         if severity:
             alerts_key = f"system:alerts:{severity}"
 
-        redis_client = getattr(scheduler, 'redis', None)
+        redis_client = getattr(scheduler, "redis", None)
         if not redis_client:
             raise HTTPException(status_code=503, detail="Redis client not available")
 
@@ -669,7 +706,10 @@ async def get_alerts(
         for alert_data in alerts_data:
             try:
                 import ast
-                alert = ast.literal_eval(alert_data.decode() if isinstance(alert_data, bytes) else alert_data)
+
+                alert = ast.literal_eval(
+                    alert_data.decode() if isinstance(alert_data, bytes) else alert_data
+                )
                 alerts.append(alert)
             except:
                 continue
@@ -684,7 +724,7 @@ async def get_alerts(
 async def clear_alerts(scheduler: TradingScheduler = Depends(get_scheduler)):
     """Clear all system alerts."""
     try:
-        redis_client = getattr(scheduler, 'redis', None)
+        redis_client = getattr(scheduler, "redis", None)
         if not redis_client:
             raise HTTPException(status_code=503, detail="Redis client not available")
 
@@ -704,14 +744,16 @@ async def clear_alerts(scheduler: TradingScheduler = Depends(get_scheduler)):
 async def run_maintenance_task(
     task_name: str,
     request: MaintenanceTaskRequest,
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Run a specific maintenance task."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             result = await maintenance_manager.resume_scheduled_task(task_name)
             return MaintenanceResponse(
                 task_name=result.task_name,
@@ -720,23 +762,29 @@ async def run_maintenance_task(
                 message=result.message,
                 details=result.details,
                 files_processed=result.files_processed,
-                bytes_freed=result.bytes_freed
+                bytes_freed=result.bytes_freed,
             )
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to run maintenance task {task_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/maintenance/run-all")
-async def run_all_maintenance_tasks(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def run_all_maintenance_tasks(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+):
     """Run all maintenance tasks."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             results = await maintenance_manager.run_all_tasks()
 
             # Convert results to response format
@@ -746,12 +794,14 @@ async def run_all_maintenance_tasks(scheduler: TradingScheduler = Depends(get_sc
                     "success": result.success,
                     "duration": result.duration,
                     "message": result.message,
-                    "bytes_freed": result.bytes_freed
+                    "bytes_freed": result.bytes_freed,
                 }
 
             return {"results": response_results}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to run all maintenance tasks: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -761,16 +811,20 @@ async def run_all_maintenance_tasks(scheduler: TradingScheduler = Depends(get_sc
 async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_scheduler)):
     """Get maintenance system status."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            manager = getattr(scheduler, "maintenance_manager", None)
             if not manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
 
             status = {
-                "is_running": getattr(manager, 'is_running', False),
-                "current_task": getattr(manager, 'current_task', None),
-                "maintenance_tasks": list(getattr(manager, 'maintenance_tasks', {}).keys()),
-                "last_run": getattr(manager, 'last_run', None)
+                "is_running": getattr(manager, "is_running", False),
+                "current_task": getattr(manager, "current_task", None),
+                "maintenance_tasks": list(
+                    getattr(manager, "maintenance_tasks", {}).keys()
+                ),
+                "last_run": getattr(manager, "last_run", None),
             }
 
             # Get maintenance history
@@ -780,7 +834,9 @@ async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_sched
 
             return status
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -789,18 +845,20 @@ async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_sched
 @app.get("/maintenance/history")
 async def get_maintenance_history(
     limit: int = Query(default=50, description="Number of records to retrieve"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Get maintenance task history."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             # Get maintenance metrics if available but don't fail if not
             try:
-                if hasattr(scheduler, 'monitor'):
-                    monitor = getattr(scheduler, 'monitor', None)
+                if hasattr(scheduler, "monitor"):
+                    monitor = getattr(scheduler, "monitor", None)
                     if monitor:
                         pass  # Metrics available but not needed for history
             except Exception:
@@ -808,7 +866,9 @@ async def get_maintenance_history(
             history = maintenance_manager.get_maintenance_history()
             return {"history": history}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -817,16 +877,18 @@ async def get_maintenance_history(
 @app.post("/maintenance/reports/generate")
 async def generate_maintenance_report(
     request: MaintenanceReportRequest,
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Generate maintenance report."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
+        if hasattr(scheduler, "maintenance_manager"):
             from .maintenance import MaintenanceReportGenerator
 
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             report_generator = MaintenanceReportGenerator(maintenance_manager)
 
             if request.report_type == "daily":
@@ -838,34 +900,41 @@ async def generate_maintenance_report(
 
             # Export if requested
             if request.format_type != "json":
-                export_path = await report_generator.export_report_to_file(report, request.format_type)
+                export_path = await report_generator.export_report_to_file(
+                    report, request.format_type
+                )
                 report["export_path"] = export_path
 
             return {"report": report}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to generate maintenance report: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/maintenance/schedule")
-async def get_maintenance_schedule(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_maintenance_schedule(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+):
     """Get maintenance task schedule."""
     try:
-        if hasattr(scheduler, 'maintenance_scheduler'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_scheduler"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             schedule = maintenance_manager.get_maintenance_schedule()
             next_tasks = maintenance_manager.get_next_scheduled_tasks()
 
-            return {
-                "scheduled_tasks": schedule,
-                "next_24_hours": next_tasks
-            }
+            return {"scheduled_tasks": schedule, "next_24_hours": next_tasks}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance scheduler not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance scheduler not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance schedule: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -873,19 +942,25 @@ async def get_maintenance_schedule(scheduler: TradingScheduler = Depends(get_sch
 
 @app.post("/maintenance/schedule/{schedule_id}/pause")
 async def pause_maintenance_task(
-    schedule_id: str,
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    schedule_id: str, scheduler: TradingScheduler = Depends(get_scheduler)
 ):
     """Pause a scheduled maintenance task."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             await maintenance_manager.pause_scheduled_task(schedule_id)
-            return {"status": "success", "message": f"Maintenance task {schedule_id} paused"}
+            return {
+                "status": "success",
+                "message": f"Maintenance task {schedule_id} paused",
+            }
         else:
-            raise HTTPException(status_code=503, detail="Maintenance scheduler not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance scheduler not available"
+            )
     except Exception as e:
         logger.error(f"Failed to pause maintenance task {schedule_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -893,19 +968,25 @@ async def pause_maintenance_task(
 
 @app.post("/maintenance/schedule/{schedule_id}/resume")
 async def resume_maintenance_task(
-    schedule_id: str,
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    schedule_id: str, scheduler: TradingScheduler = Depends(get_scheduler)
 ):
     """Resume a scheduled maintenance task."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_manager"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             await maintenance_manager.resume_scheduled_task(schedule_id)
-            return {"status": "success", "message": f"Maintenance task {schedule_id} resumed"}
+            return {
+                "status": "success",
+                "message": f"Maintenance task {schedule_id} resumed",
+            }
         else:
-            raise HTTPException(status_code=503, detail="Maintenance scheduler not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance scheduler not available"
+            )
     except Exception as e:
         logger.error(f"Failed to resume maintenance task {schedule_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -915,14 +996,18 @@ async def resume_maintenance_task(
 async def run_smart_maintenance(scheduler: TradingScheduler = Depends(get_scheduler)):
     """Run intelligent maintenance based on system analysis."""
     try:
-        if hasattr(scheduler, 'maintenance_scheduler'):
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        if hasattr(scheduler, "maintenance_scheduler"):
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             results = await maintenance_manager.run_smart_maintenance()
             return {"results": results}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance scheduler not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance scheduler not available"
+            )
     except Exception as e:
         logger.error(f"Failed to run smart maintenance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -931,96 +1016,125 @@ async def run_smart_maintenance(scheduler: TradingScheduler = Depends(get_schedu
 @app.get("/maintenance/metrics")
 async def get_maintenance_metrics(
     task_name: Optional[str] = Query(None, description="Specific task name"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Get maintenance task metrics."""
     try:
-        maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        maintenance_manager = getattr(scheduler, "maintenance_manager", None)
         if maintenance_manager:
-            monitor = getattr(maintenance_manager, 'monitor', None)
+            monitor = getattr(maintenance_manager, "monitor", None)
             if monitor:
                 metrics = await monitor.get_maintenance_metrics(task_name)
                 return {"metrics": metrics}
             else:
                 return {"metrics": {"error": "Maintenance monitor not available"}}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance metrics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/maintenance/statistics")
-async def get_maintenance_statistics(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_maintenance_statistics(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+):
     """Get comprehensive maintenance statistics."""
     try:
-        maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+        maintenance_manager = getattr(scheduler, "maintenance_manager", None)
         if maintenance_manager:
-            stats = getattr(maintenance_manager, 'get_maintenance_statistics', lambda: {})()
+            stats = getattr(
+                maintenance_manager, "get_maintenance_statistics", lambda: {}
+            )()
             return {"statistics": stats}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/maintenance/dashboard")
-async def get_maintenance_dashboard(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_maintenance_dashboard(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+):
     """Get maintenance dashboard data."""
     try:
-        if hasattr(scheduler, 'maintenance_manager') and hasattr(scheduler, 'maintenance_scheduler'):
+        if hasattr(scheduler, "maintenance_manager") and hasattr(
+            scheduler, "maintenance_scheduler"
+        ):
             dashboard_data = {
                 "system_health": {},
                 "recent_tasks": [],
                 "scheduled_tasks": {},
                 "performance_metrics": {},
                 "alerts": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Get recent maintenance history
-            maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+            maintenance_manager = getattr(scheduler, "maintenance_manager", None)
             if not maintenance_manager:
-                raise HTTPException(status_code=503, detail="Maintenance manager not available")
+                raise HTTPException(
+                    status_code=503, detail="Maintenance manager not available"
+                )
             history = maintenance_manager.get_maintenance_history()
             dashboard_data["recent_tasks"] = history
 
             # Get scheduled tasks
-            if hasattr(maintenance_manager, 'get_maintenance_schedule'):
-                dashboard_data["scheduled_tasks"] = maintenance_manager.get_maintenance_schedule()
+            if hasattr(maintenance_manager, "get_maintenance_schedule"):
+                dashboard_data["scheduled_tasks"] = (
+                    maintenance_manager.get_maintenance_schedule()
+                )
             else:
                 dashboard_data["scheduled_tasks"] = []
 
             # Get maintenance metrics
-            monitor = getattr(maintenance_manager, 'monitor', None)
-            if monitor and hasattr(monitor, 'get_maintenance_metrics'):
+            monitor = getattr(maintenance_manager, "monitor", None)
+            if monitor and hasattr(monitor, "get_maintenance_metrics"):
                 metrics = await monitor.get_maintenance_metrics()
                 dashboard_data["performance_metrics"] = metrics
             else:
-                dashboard_data["performance_metrics"] = {"error": "Monitor not available"}
+                dashboard_data["performance_metrics"] = {
+                    "error": "Monitor not available"
+                }
 
             # Get system health
             try:
                 import psutil
+
                 dashboard_data["system_health"] = {
                     "cpu_percent": psutil.cpu_percent(),
                     "memory_percent": psutil.virtual_memory().percent,
-                    "disk_percent": psutil.disk_usage('/').percent,
-                    "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0]
+                    "disk_percent": psutil.disk_usage("/").percent,
+                    "load_average": (
+                        psutil.getloadavg()
+                        if hasattr(psutil, "getloadavg")
+                        else [0, 0, 0]
+                    ),
                 }
             except Exception:
-                dashboard_data["system_health"] = {"error": "Unable to collect system metrics"}
+                dashboard_data["system_health"] = {
+                    "error": "Unable to collect system metrics"
+                }
 
             # Get recent alerts
-            redis_client = getattr(scheduler, 'redis', None)
+            redis_client = getattr(scheduler, "redis", None)
             if not redis_client:
-                raise HTTPException(status_code=503, detail="Redis client not available")
+                raise HTTPException(
+                    status_code=503, detail="Redis client not available"
+                )
             alerts_data = await redis_client.lrange("system:alerts", 0, -1)
             alerts = []
             for item in alerts_data:
                 try:
-                    alert = json.loads(item.decode() if isinstance(item, bytes) else item)
+                    alert = json.loads(
+                        item.decode() if isinstance(item, bytes) else item
+                    )
                     alerts.append(alert)
                 except:
                     continue
@@ -1028,7 +1142,9 @@ async def get_maintenance_dashboard(scheduler: TradingScheduler = Depends(get_sc
 
             return {"dashboard": dashboard_data}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance system not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance system not available"
+            )
     except Exception as e:
         logger.error(f"Failed to get maintenance dashboard: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1037,75 +1153,89 @@ async def get_maintenance_dashboard(scheduler: TradingScheduler = Depends(get_sc
 @app.post("/maintenance/emergency")
 async def run_emergency_maintenance(
     task_name: Optional[str] = Query(None, description="Specific emergency task"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Run emergency maintenance tasks."""
     try:
-        if hasattr(scheduler, 'maintenance_manager'):
+        if hasattr(scheduler, "maintenance_manager"):
             if task_name:
-                maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+                maintenance_manager = getattr(scheduler, "maintenance_manager", None)
                 if not maintenance_manager:
-                    raise HTTPException(status_code=503, detail="Maintenance manager not available")
-                run_task_func = getattr(maintenance_manager, 'run_task', None)
+                    raise HTTPException(
+                        status_code=503, detail="Maintenance manager not available"
+                    )
+                run_task_func = getattr(maintenance_manager, "run_task", None)
                 if run_task_func:
                     result = await run_task_func(task_name)
                 else:
+
                     class Result:
                         def __init__(self):
                             self.success = False
                             self.message = "Task runner not available"
                             self.duration = 0
+
                     result = Result()
                 return {
                     "emergency_task": task_name,
                     "success": result.success,
                     "message": result.message,
-                    "duration": result.duration
+                    "duration": result.duration,
                 }
             else:
                 # Run all emergency tasks
-                emergency_tasks = ['system_health_check', 'cache_cleanup', 'portfolio_reconciliation']
+                emergency_tasks = [
+                    "system_health_check",
+                    "cache_cleanup",
+                    "portfolio_reconciliation",
+                ]
                 results = {}
-                maintenance_manager = getattr(scheduler, 'maintenance_manager', None)
+                maintenance_manager = getattr(scheduler, "maintenance_manager", None)
                 if maintenance_manager:
-                    run_all_func = getattr(maintenance_manager, 'run_all_tasks', None)
+                    run_all_func = getattr(maintenance_manager, "run_all_tasks", None)
                     if run_all_func:
                         all_results = await run_all_func()
                         results = all_results if isinstance(all_results, dict) else {}
                     else:
                         # Run tasks individually if run_all_tasks not available
                         for task in emergency_tasks:
-                            run_task_func = getattr(maintenance_manager, 'run_task', None)
+                            run_task_func = getattr(
+                                maintenance_manager, "run_task", None
+                            )
                             if run_task_func:
                                 try:
                                     result = await run_task_func(task)
                                     results[task] = {
-                                        "success": getattr(result, 'success', False),
-                                        "message": getattr(result, 'message', 'Task completed'),
-                                        "duration": getattr(result, 'duration', 0)
+                                        "success": getattr(result, "success", False),
+                                        "message": getattr(
+                                            result, "message", "Task completed"
+                                        ),
+                                        "duration": getattr(result, "duration", 0),
                                     }
                                 except Exception as e:
                                     results[task] = {
                                         "success": False,
                                         "message": str(e),
-                                        "duration": 0
+                                        "duration": 0,
                                     }
                             else:
                                 results[task] = {
                                     "success": False,
                                     "message": "Task runner not available",
-                                    "duration": 0
+                                    "duration": 0,
                                 }
                 else:
                     for task in emergency_tasks:
                         results[task] = {
                             "success": False,
                             "message": "Maintenance manager not available",
-                            "duration": 0
+                            "duration": 0,
                         }
                 return {"emergency_results": results}
         else:
-            raise HTTPException(status_code=503, detail="Maintenance manager not available")
+            raise HTTPException(
+                status_code=503, detail="Maintenance manager not available"
+            )
     except Exception as e:
         logger.error(f"Failed to run emergency maintenance: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -1116,7 +1246,7 @@ async def run_emergency_maintenance(
 async def get_queue_status(scheduler: TradingScheduler = Depends(get_scheduler)):
     """Get task queue status."""
     try:
-        task_queue = getattr(scheduler, 'task_queue', None)
+        task_queue = getattr(scheduler, "task_queue", None)
         if not task_queue:
             raise HTTPException(status_code=503, detail="Task queue not available")
         queue_lengths = await task_queue.get_queue_lengths()
@@ -1129,23 +1259,25 @@ async def get_queue_status(scheduler: TradingScheduler = Depends(get_scheduler))
 @app.post("/queues/clear")
 async def clear_queues(
     priority: str = Query(default="all", description="Priority queue to clear"),
-    scheduler: TradingScheduler = Depends(get_scheduler)
+    scheduler: TradingScheduler = Depends(get_scheduler),
 ):
     """Clear task queues."""
     try:
-        task_queue = getattr(scheduler, 'task_queue', None)
-        redis_client = getattr(scheduler, 'redis', None)
+        task_queue = getattr(scheduler, "task_queue", None)
+        redis_client = getattr(scheduler, "redis", None)
         if not task_queue or not redis_client:
-            raise HTTPException(status_code=503, detail="Task queue or Redis not available")
+            raise HTTPException(
+                status_code=503, detail="Task queue or Redis not available"
+            )
 
         if priority == "all":
-            queues = getattr(task_queue, 'queues', {})
+            queues = getattr(task_queue, "queues", {})
             for queue_priority, queue_name in queues.items():
                 await redis_client.delete(queue_name)
         else:
             try:
                 queue_priority = TaskPriority(priority)
-                queues = getattr(task_queue, 'queues', {})
+                queues = getattr(task_queue, "queues", {})
                 queue_name = queues[queue_priority]
                 await redis_client.delete(queue_name)
             except ValueError:
@@ -1190,8 +1322,7 @@ async def execute_manual_trade(request: TradeRequest):
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://trade-executor:9104/trades/manual",
-                json=request.dict()
+                "http://trade-executor:9104/trades/manual", json=request.dict()
             )
             response.raise_for_status()
             return response.json()
@@ -1201,11 +1332,15 @@ async def execute_manual_trade(request: TradeRequest):
 
 
 @app.get("/trades/recent")
-async def get_recent_trades(limit: int = Query(default=50, description="Number of recent trades")):
+async def get_recent_trades(
+    limit: int = Query(default=50, description="Number of recent trades")
+):
     """Get recent trades."""
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(f"http://trade-executor:9104/trades/recent?limit={limit}")
+            response = await client.get(
+                f"http://trade-executor:9104/trades/recent?limit={limit}"
+            )
             response.raise_for_status()
             return response.json()
     except Exception as e:
@@ -1217,7 +1352,7 @@ async def get_recent_trades(limit: int = Query(default=50, description="Number o
 async def export_trades(
     start_date: str = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(default=None, description="End date (YYYY-MM-DD)"),
-    format: str = Query(default="json", description="Export format")
+    format: str = Query(default="json", description="Export format"),
 ):
     """Export trades for external analysis."""
     try:
@@ -1229,8 +1364,7 @@ async def export_trades(
 
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "http://trade-executor:9104/trades/export",
-                params=params
+                "http://trade-executor:9104/trades/export", params=params
             )
             response.raise_for_status()
             return response.json()
@@ -1260,7 +1394,7 @@ async def toggle_strategy(strategy_name: str, enabled: bool):
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"http://strategy-engine:9102/strategies/{strategy_name}/toggle",
-                json={"enabled": enabled}
+                json={"enabled": enabled},
             )
             response.raise_for_status()
             return response.json()
@@ -1274,7 +1408,7 @@ async def run_strategy_backtest(
     strategy_name: str,
     start_date: str = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(default=None, description="End date (YYYY-MM-DD)"),
-    symbols: str = Query(default=None, description="Comma-separated symbols")
+    symbols: str = Query(default=None, description="Comma-separated symbols"),
 ):
     """Run backtest for a specific strategy."""
     try:
@@ -1288,9 +1422,7 @@ async def run_strategy_backtest(
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://strategy-engine:9102/backtest",
-                json=params,
-                timeout=300.0
+                "http://strategy-engine:9102/backtest", json=params, timeout=300.0
             )
             response.raise_for_status()
             return response.json()
@@ -1343,7 +1475,7 @@ async def get_risk_alerts():
 @app.post("/data/update")
 async def trigger_data_update(
     symbols: str = Query(default=None, description="Comma-separated symbols"),
-    timeframe: str = Query(default="1m", description="Data timeframe")
+    timeframe: str = Query(default="1m", description="Data timeframe"),
 ):
     """Trigger data update for specific symbols."""
     try:
@@ -1353,8 +1485,7 @@ async def trigger_data_update(
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://data-collector:9101/market-data/update",
-                json=params
+                "http://data-collector:9101/market-data/update", json=params
             )
             response.raise_for_status()
             return response.json()
@@ -1402,7 +1533,7 @@ async def http_exception_handler(request, exc):
     """Handle HTTP exceptions."""
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.detail, "timestamp": datetime.now().isoformat()}
+        content={"error": exc.detail, "timestamp": datetime.now().isoformat()},
     )
 
 
@@ -1412,7 +1543,10 @@ async def general_exception_handler(request, exc):
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"error": "Internal server error", "timestamp": datetime.now().isoformat()}
+        content={
+            "error": "Internal server error",
+            "timestamp": datetime.now().isoformat(),
+        },
     )
 
 
@@ -1443,5 +1577,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8000,
         reload=config.is_development,
-        log_level=config.logging.level.lower()
+        log_level=config.logging.level.lower(),
     )

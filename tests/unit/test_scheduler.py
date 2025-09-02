@@ -5,27 +5,30 @@ This module contains focused unit tests for the scheduler service,
 testing only the functionality that actually exists and works as implemented.
 """
 
-import pytest
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch, Mock
-from datetime import datetime, timezone, timedelta, time
-from dataclasses import dataclass
-from typing import Optional
-import pandas as pd
-
 
 # Import scheduler components
 import sys
-sys.path.append('/app/shared')
-sys.path.append('/app/services/scheduler/src')
+from dataclasses import dataclass
+from datetime import datetime, time, timedelta, timezone
+from typing import Optional
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pandas as pd
+import pytest
+
+sys.path.append("/app/shared")
+sys.path.append("/app/services/scheduler/src")
 
 from services.scheduler.src.scheduler import (
-    TradingScheduler, ServiceStatus, TaskPriority,
-    ScheduledTask, ServiceInfo
+    ScheduledTask,
+    ServiceInfo,
+    ServiceStatus,
+    TaskPriority,
+    TradingScheduler,
 )
-from shared.market_hours import MarketSession
-from shared.market_hours import MarketHoursService
+from shared.market_hours import MarketHoursService, MarketSession
 
 
 # Mock config classes that match TradingScheduler expectations
@@ -68,19 +71,19 @@ class TestTradingScheduler:
     @pytest.fixture
     def scheduler_config(self):
         """Scheduler configuration for testing."""
-        return MockConfig(timezone='US/Eastern')
+        return MockConfig(timezone="US/Eastern")
 
     @pytest.fixture
     def scheduler(self, mock_redis, scheduler_config):
         """Create TradingScheduler instance for testing."""
-        with patch('redis.asyncio.from_url', return_value=mock_redis):
+        with patch("redis.asyncio.from_url", return_value=mock_redis):
             scheduler = TradingScheduler(scheduler_config)
             return scheduler
 
     @pytest.mark.unit
     def test_scheduler_initialization(self, scheduler_config):
         """Test scheduler initialization with correct attributes."""
-        with patch('redis.asyncio.from_url') as mock_redis_factory:
+        with patch("redis.asyncio.from_url") as mock_redis_factory:
             mock_redis = AsyncMock()
             mock_redis_factory.return_value = mock_redis
 
@@ -98,9 +101,9 @@ class TestTradingScheduler:
     async def test_scheduler_startup_initialization(self, scheduler, mock_redis):
         """Test scheduler initialization process."""
         # Test that initialize method can be called without errors
-        with patch('services.scheduler.src.scheduler.SystemMonitor'), \
-             patch('services.scheduler.src.scheduler.TaskQueue'), \
-             patch('services.scheduler.src.scheduler.DataPipelineOrchestrator'):
+        with patch("services.scheduler.src.scheduler.SystemMonitor"), patch(
+            "services.scheduler.src.scheduler.TaskQueue"
+        ), patch("services.scheduler.src.scheduler.DataPipelineOrchestrator"):
 
             await scheduler.initialize()
 
@@ -114,7 +117,7 @@ class TestMarketHoursService:
     @pytest.fixture
     def market_service(self):
         """Create MarketHoursService instance for testing."""
-        return MarketHoursService(timezone_name='US/Eastern')
+        return MarketHoursService(timezone_name="US/Eastern")
 
     @pytest.mark.unit
     def test_market_service_initialization(self, market_service):
@@ -134,7 +137,7 @@ class TestMarketHoursService:
             MarketSession.PRE_MARKET,
             MarketSession.REGULAR,
             MarketSession.AFTER_HOURS,
-            MarketSession.CLOSED
+            MarketSession.CLOSED,
         ]
 
     @pytest.mark.unit
@@ -166,6 +169,7 @@ class TestScheduledTask:
     @pytest.mark.unit
     def test_scheduled_task_creation(self):
         """Test ScheduledTask dataclass creation."""
+
         def dummy_function():
             pass
 
@@ -174,7 +178,7 @@ class TestScheduledTask:
             name="Test Task",
             function=dummy_function,
             trigger=None,
-            priority=TaskPriority.NORMAL
+            priority=TaskPriority.NORMAL,
         )
 
         assert task.id == "test_task"
@@ -188,6 +192,7 @@ class TestScheduledTask:
     @pytest.mark.unit
     def test_scheduled_task_with_custom_values(self):
         """Test ScheduledTask with custom values."""
+
         def dummy_function():
             pass
 
@@ -200,7 +205,7 @@ class TestScheduledTask:
             enabled=False,
             market_hours_only=False,
             dependencies=["dep1", "dep2"],
-            retry_count=3
+            retry_count=3,
         )
 
         assert task.enabled is False
@@ -219,7 +224,7 @@ class TestServiceInfo:
             name="test_service",
             url="http://localhost:8000",
             health_endpoint="/health",
-            dependencies=["redis", "database"]
+            dependencies=["redis", "database"],
         )
 
         assert service.name == "test_service"
@@ -241,8 +246,8 @@ class TestMarketHoursManager:
 
         # Test that basic attributes are set
         assert manager.timezone is not None
-        assert hasattr(manager, 'pre_market_start')
-        assert hasattr(manager, 'market_open')
+        assert hasattr(manager, "pre_market_start")
+        assert hasattr(manager, "market_open")
 
     @pytest.mark.unit
     def test_market_hours_manager_with_different_timezone(self):
@@ -289,12 +294,12 @@ class TestSchedulerBasicOperations:
     @pytest.fixture
     def scheduler_config(self):
         """Scheduler configuration for testing."""
-        return MockConfig(timezone='US/Eastern')
+        return MockConfig(timezone="US/Eastern")
 
     @pytest.mark.unit
     def test_scheduler_task_registry(self, scheduler_config):
         """Test that scheduler can manage task registry."""
-        with patch('redis.asyncio.from_url'):
+        with patch("redis.asyncio.from_url"):
             scheduler = TradingScheduler(scheduler_config)
 
             # Tasks should start empty
@@ -309,7 +314,7 @@ class TestSchedulerBasicOperations:
                 name="Test",
                 function=dummy_task,
                 trigger=None,
-                priority=TaskPriority.NORMAL
+                priority=TaskPriority.NORMAL,
             )
 
             scheduler.tasks["test"] = task
@@ -319,7 +324,7 @@ class TestSchedulerBasicOperations:
     @pytest.mark.unit
     def test_scheduler_service_registry(self, scheduler_config):
         """Test that scheduler can manage service registry."""
-        with patch('redis.asyncio.from_url'):
+        with patch("redis.asyncio.from_url"):
             scheduler = TradingScheduler(scheduler_config)
 
             # Services should start empty
@@ -330,7 +335,7 @@ class TestSchedulerBasicOperations:
                 name="test_service",
                 url="http://localhost:8000",
                 health_endpoint="/health",
-                dependencies=[]
+                dependencies=[],
             )
 
             scheduler.services["test_service"] = service

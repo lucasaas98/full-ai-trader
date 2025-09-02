@@ -10,21 +10,20 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, Any
-import tempfile
-import shutil
+from typing import Any, Dict
 
 # Import MaintenanceResult for type compatibility
 from .maintenance import MaintenanceResult
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -79,7 +78,7 @@ class MaintenanceSystemTester:
             "data/temp",
             "data/exports",
             "data/backups",
-            "data/strategy_results"
+            "data/strategy_results",
         ]
 
         for dir_path in directories:
@@ -95,13 +94,13 @@ class MaintenanceSystemTester:
 
         # Large log file for rotation testing
         large_log = log_dir / "large_test.log"
-        with open(large_log, 'w') as f:
+        with open(large_log, "w") as f:
             for i in range(10000):
                 f.write(f"2024-01-{i%30+1:02d} 12:00:00 - INFO - Test log entry {i}\n")
 
         # Old log file for compression testing
         old_log = log_dir / "old_test.log"
-        with open(old_log, 'w') as f:
+        with open(old_log, "w") as f:
             f.write("2023-01-01 12:00:00 - INFO - Old log entry\n")
 
         # Set old timestamp
@@ -120,15 +119,17 @@ class MaintenanceSystemTester:
             # Create multiple small files for consolidation testing
             for i in range(40):  # 40 days of data
                 date = datetime.now() - timedelta(days=i)
-                df = pd.DataFrame({
-                    'timestamp': [date],
-                    'symbol': [symbol],
-                    'open': [100.0 + i],
-                    'high': [105.0 + i],
-                    'low': [95.0 + i],
-                    'close': [102.0 + i],
-                    'volume': [1000000]
-                })
+                df = pd.DataFrame(
+                    {
+                        "timestamp": [date],
+                        "symbol": [symbol],
+                        "open": [100.0 + i],
+                        "high": [105.0 + i],
+                        "low": [95.0 + i],
+                        "close": [102.0 + i],
+                        "volume": [1000000],
+                    }
+                )
 
                 filename = f"{date.strftime('%Y-%m-%d')}_1d.parquet"
                 df.to_parquet(symbol_dir / filename, index=False)
@@ -139,7 +140,7 @@ class MaintenanceSystemTester:
         temp_dir = self.temp_dir / "data/temp"
         for i in range(5):
             temp_file = temp_dir / f"temp_file_{i}.tmp"
-            with open(temp_file, 'w') as f:
+            with open(temp_file, "w") as f:
                 f.write(f"Temporary data {i}")
 
         # Create old export files
@@ -147,7 +148,7 @@ class MaintenanceSystemTester:
             raise RuntimeError("Temp directory not initialized")
         export_dir = self.temp_dir / "data/exports"
         old_export = export_dir / "old_export.csv"
-        with open(old_export, 'w') as f:
+        with open(old_export, "w") as f:
             f.write("symbol,price\nAAPL,150.00\n")
 
         old_timestamp = (datetime.now() - timedelta(days=10)).timestamp()
@@ -158,6 +159,7 @@ class MaintenanceSystemTester:
 
     async def _setup_mock_config(self):
         """Setup mock configuration for testing."""
+
         class MockConfig:
             def __init__(self, temp_dir: Path):
                 self.data = MockDataConfig(temp_dir)
@@ -199,6 +201,7 @@ class MaintenanceSystemTester:
             if self.config is None:
                 raise RuntimeError("Config not initialized")
             import redis.asyncio as redis
+
             self.redis_client = redis.from_url(self.config.redis.url)
 
             # Test connection
@@ -217,7 +220,9 @@ class MaintenanceSystemTester:
 
             if self.config is None or self.redis_client is None:
                 raise RuntimeError("Config or Redis client not initialized")
-            self.maintenance_manager = MaintenanceManager(self.config, self.redis_client)
+            self.maintenance_manager = MaintenanceManager(
+                self.config, self.redis_client
+            )
             await self.maintenance_manager.register_tasks()
 
             self.maintenance_scheduler = MaintenanceScheduler(self.maintenance_manager)
@@ -249,7 +254,7 @@ class MaintenanceSystemTester:
             ("maintenance_monitoring", self.test_maintenance_monitoring),
             ("maintenance_reporting", self.test_maintenance_reporting),
             ("error_handling", self.test_error_handling),
-            ("performance", self.test_performance)
+            ("performance", self.test_performance),
         ]
 
         results = {}
@@ -265,9 +270,9 @@ class MaintenanceSystemTester:
                 test_duration = time.time() - test_start
 
                 results[test_name] = {
-                    'passed': result,
-                    'duration': test_duration,
-                    'error': None
+                    "passed": result,
+                    "duration": test_duration,
+                    "error": None,
                 }
 
                 if result:
@@ -280,9 +285,9 @@ class MaintenanceSystemTester:
             except Exception as e:
                 test_duration = time.time() - test_start
                 results[test_name] = {
-                    'passed': False,
-                    'duration': test_duration,
-                    'error': str(e)
+                    "passed": False,
+                    "duration": test_duration,
+                    "error": str(e),
                 }
                 self.failed_tests.append(test_name)
                 logger.error(f"❌ {test_name} failed with exception: {e}")
@@ -306,9 +311,9 @@ class MaintenanceSystemTester:
 
             # Verify files were processed
             success = (
-                result.success and
-                result.files_processed > 0 and
-                "cleanup" in result.message.lower()
+                result.success
+                and result.files_processed > 0
+                and "cleanup" in result.message.lower()
             )
 
             # Check that old files were actually removed
@@ -342,9 +347,9 @@ class MaintenanceSystemTester:
             final_files = list(log_dir.glob("*.log*"))
 
             return (
-                result.success and
-                len(final_files) != len(initial_files) and
-                "rotated" in result.message.lower()
+                result.success
+                and len(final_files) != len(initial_files)
+                and "rotated" in result.message.lower()
             )
 
         except Exception as e:
@@ -355,7 +360,7 @@ class MaintenanceSystemTester:
         """Test cache cleanup task functionality."""
         try:
             # Add some test cache data
-            if self.redis_client is not None and hasattr(self.redis_client, 'setex'):
+            if self.redis_client is not None and hasattr(self.redis_client, "setex"):
                 await self.redis_client.setex("test:cache:key1", 3600, "value1")
                 await self.redis_client.setex("test:temp:key2", 3600, "value2")
 
@@ -380,12 +385,14 @@ class MaintenanceSystemTester:
             if self.temp_dir is None:
                 return False
             backup_dir = self.temp_dir / "data/backups"
-            backup_files = list(backup_dir.glob("*.tar.gz")) if backup_dir.exists() else []
+            backup_files = (
+                list(backup_dir.glob("*.tar.gz")) if backup_dir.exists() else []
+            )
 
             return (
-                result.success and
-                len(backup_files) > 0 and
-                "backup" in result.message.lower()
+                result.success
+                and len(backup_files) > 0
+                and "backup" in result.message.lower()
             )
 
         except Exception as e:
@@ -400,9 +407,9 @@ class MaintenanceSystemTester:
             result = await self.maintenance_manager.run_task("database_maintenance")
 
             return (
-                result.success and
-                "maintenance" in result.message.lower() and
-                result.details is not None
+                result.success
+                and "maintenance" in result.message.lower()
+                and result.details is not None
             )
 
         except Exception as e:
@@ -417,10 +424,10 @@ class MaintenanceSystemTester:
             result = await self.maintenance_manager.run_task("system_health_check")
 
             return (
-                result.success and
-                "health" in result.message.lower() and
-                result.details is not None and
-                'health_checks' in result.details
+                result.success
+                and "health" in result.message.lower()
+                and result.details is not None
+                and "health_checks" in result.details
             )
 
         except Exception as e:
@@ -433,7 +440,9 @@ class MaintenanceSystemTester:
             if self.maintenance_manager is None:
                 return False
             if self.maintenance_manager is not None:
-                result = await self.maintenance_manager.run_task("trading_data_maintenance")
+                result = await self.maintenance_manager.run_task(
+                    "trading_data_maintenance"
+                )
             else:
                 return False
 
@@ -444,9 +453,10 @@ class MaintenanceSystemTester:
             aapl_files = list((parquet_dir / "AAPL").glob("*.parquet"))
 
             return (
-                result.success and
-                "trading data" in result.message.lower() and
-                len(aapl_files) > 0  # Files should still exist, possibly consolidated
+                result.success
+                and "trading data" in result.message.lower()
+                and len(aapl_files)
+                > 0  # Files should still exist, possibly consolidated
             )
 
         except Exception as e:
@@ -466,9 +476,9 @@ class MaintenanceSystemTester:
             export_dir = self.temp_dir / "data/exports/tradenote"
 
             return (
-                result.success and
-                "export" in result.message.lower() and
-                export_dir.exists()
+                result.success
+                and "export" in result.message.lower()
+                and export_dir.exists()
             )
 
         except Exception as e:
@@ -479,29 +489,26 @@ class MaintenanceSystemTester:
         """Test portfolio reconciliation task functionality."""
         try:
             # Add some test position data
-            if hasattr(self.redis_client, 'setex'):
+            if hasattr(self.redis_client, "setex"):
                 position_data = {
-                    'symbol': 'AAPL',
-                    'quantity': 100,
-                    'avg_price': 150.00,
-                    'timestamp': datetime.now().isoformat()
+                    "symbol": "AAPL",
+                    "quantity": 100,
+                    "avg_price": 150.00,
+                    "timestamp": datetime.now().isoformat(),
                 }
                 if self.redis_client is not None:
                     await self.redis_client.setex(
-                        "positions:AAPL",
-                        3600,
-                        json.dumps(position_data)
+                        "positions:AAPL", 3600, json.dumps(position_data)
                     )
 
             if self.maintenance_manager is not None:
-                result = await self.maintenance_manager.run_task("portfolio_reconciliation")
+                result = await self.maintenance_manager.run_task(
+                    "portfolio_reconciliation"
+                )
             else:
                 return False
 
-            return (
-                result.success and
-                "reconciliation" in result.message.lower()
-            )
+            return result.success and "reconciliation" in result.message.lower()
 
         except Exception as e:
             logger.error(f"Portfolio reconciliation test failed: {e}")
@@ -511,15 +518,17 @@ class MaintenanceSystemTester:
         """Test intelligent maintenance task functionality."""
         try:
             if self.maintenance_manager is not None:
-                result = await self.maintenance_manager.run_task("intelligent_maintenance")
+                result = await self.maintenance_manager.run_task(
+                    "intelligent_maintenance"
+                )
             else:
                 return False
 
             return (
-                result.success and
-                "analysis" in result.message.lower() and
-                result.details is not None and
-                'performance_score' in result.details
+                result.success
+                and "analysis" in result.message.lower()
+                and result.details is not None
+                and "performance_score" in result.details
             )
 
         except Exception as e:
@@ -536,19 +545,23 @@ class MaintenanceSystemTester:
             schedule = self.maintenance_scheduler.get_maintenance_schedule()
 
             expected_daily_tasks = [
-                'daily_data_cleanup',
-                'daily_log_rotation',
-                'daily_cache_cleanup',
-                'daily_system_health_check',
-                'daily_tradenote_export',
-                'daily_api_rate_limit_reset',
-                'daily_intelligent_maintenance'
+                "daily_data_cleanup",
+                "daily_log_rotation",
+                "daily_cache_cleanup",
+                "daily_system_health_check",
+                "daily_tradenote_export",
+                "daily_api_rate_limit_reset",
+                "daily_intelligent_maintenance",
             ]
 
             scheduled_tasks = list(schedule.keys())
-            daily_tasks_found = sum(1 for task in expected_daily_tasks if task in scheduled_tasks)
+            daily_tasks_found = sum(
+                1 for task in expected_daily_tasks if task in scheduled_tasks
+            )
 
-            return daily_tasks_found >= len(expected_daily_tasks) * 0.8  # At least 80% found
+            return (
+                daily_tasks_found >= len(expected_daily_tasks) * 0.8
+            )  # At least 80% found
 
         except Exception as e:
             logger.error(f"Maintenance scheduling test failed: {e}")
@@ -557,7 +570,9 @@ class MaintenanceSystemTester:
     async def test_maintenance_monitoring(self) -> bool:
         """Test maintenance monitoring functionality."""
         try:
-            if self.maintenance_manager is None or not hasattr(self.maintenance_manager, 'monitor'):
+            if self.maintenance_manager is None or not hasattr(
+                self.maintenance_manager, "monitor"
+            ):
                 return False
 
             monitor = self.maintenance_manager.monitor
@@ -594,10 +609,10 @@ class MaintenanceSystemTester:
             weekly_report = await report_generator.generate_weekly_report()
 
             return (
-                isinstance(daily_report, dict) and
-                isinstance(weekly_report, dict) and
-                'summary' in daily_report and
-                'trends' in weekly_report
+                isinstance(daily_report, dict)
+                and isinstance(weekly_report, dict)
+                and "summary" in daily_report
+                and "trends" in weekly_report
             )
 
         except Exception as e:
@@ -635,7 +650,7 @@ class MaintenanceSystemTester:
                 "log_cleanup",
                 "cache_cleanup",
                 "data_cleanup",
-                "system_health_check"
+                "system_health_check",
             ]
 
             for task_name in tasks_to_test:
@@ -654,11 +669,13 @@ class MaintenanceSystemTester:
             logger.error(f"Performance test failed: {e}")
             return False
 
-    async def _generate_test_summary(self, results: Dict[str, Any], total_duration: float):
+    async def _generate_test_summary(
+        self, results: Dict[str, Any], total_duration: float
+    ):
         """Generate comprehensive test summary."""
-        logger.info("\n" + "="*60)
+        logger.info("\n" + "=" * 60)
         logger.info("MAINTENANCE SYSTEM TEST SUMMARY")
-        logger.info("="*60)
+        logger.info("=" * 60)
 
         passed_count = len(self.passed_tests)
         failed_count = len(self.failed_tests)
@@ -673,42 +690,46 @@ class MaintenanceSystemTester:
         if self.failed_tests:
             logger.info("\nFailed Tests:")
             for test_name in self.failed_tests:
-                error = results.get(test_name, {}).get('error')
+                error = results.get(test_name, {}).get("error")
                 logger.info(f"  ❌ {test_name}" + (f" - {error}" if error else ""))
 
         if self.passed_tests:
             logger.info("\nPassed Tests:")
             for test_name in self.passed_tests:
-                duration = results.get(test_name, {}).get('duration', 0)
+                duration = results.get(test_name, {}).get("duration", 0)
                 logger.info(f"  ✅ {test_name} ({duration:.2f}s)")
 
         # Export test results
         await self._export_test_results(results, total_duration)
 
-    async def _export_test_results(self, results: Dict[str, Any], total_duration: float):
+    async def _export_test_results(
+        self, results: Dict[str, Any], total_duration: float
+    ):
         """Export test results to file."""
         try:
             test_report = {
-                'test_timestamp': datetime.now().isoformat(),
-                'total_duration': total_duration,
-                'summary': {
-                    'total_tests': len(results),
-                    'passed_tests': len(self.passed_tests),
-                    'failed_tests': len(self.failed_tests),
-                    'success_rate': (len(self.passed_tests) / len(results) * 100) if results else 0
+                "test_timestamp": datetime.now().isoformat(),
+                "total_duration": total_duration,
+                "summary": {
+                    "total_tests": len(results),
+                    "passed_tests": len(self.passed_tests),
+                    "failed_tests": len(self.failed_tests),
+                    "success_rate": (
+                        (len(self.passed_tests) / len(results) * 100) if results else 0
+                    ),
                 },
-                'detailed_results': results,
-                'failed_tests': self.failed_tests,
-                'passed_tests': self.passed_tests
+                "detailed_results": results,
+                "failed_tests": self.failed_tests,
+                "passed_tests": self.passed_tests,
             }
 
             export_path = Path("data/test_results")
             export_path.mkdir(exist_ok=True)
 
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_file = export_path / f"maintenance_test_results_{timestamp}.json"
 
-            with open(report_file, 'w') as f:
+            with open(report_file, "w") as f:
                 json.dump(test_report, f, indent=2, default=str)
 
             logger.info(f"Test results exported to: {report_file}")
@@ -719,7 +740,7 @@ class MaintenanceSystemTester:
     async def cleanup_test_environment(self):
         """Clean up test environment."""
         try:
-            if self.redis_client and hasattr(self.redis_client, 'close'):
+            if self.redis_client and hasattr(self.redis_client, "close"):
                 await self.redis_client.close()
 
             if self.temp_dir and self.temp_dir.exists():
@@ -749,14 +770,14 @@ class MockRedisClient:
         self.data.pop(key, None)
 
     async def keys(self, pattern):
-        return [k for k in self.data.keys() if pattern.replace('*', '') in k]
+        return [k for k in self.data.keys() if pattern.replace("*", "") in k]
 
     async def info(self):
         return {
-            'used_memory': 1024*1024,
-            'connected_clients': 1,
-            'keyspace_hits': 100,
-            'keyspace_misses': 10
+            "used_memory": 1024 * 1024,
+            "connected_clients": 1,
+            "keyspace_hits": 100,
+            "keyspace_misses": 10,
         }
 
     async def lrange(self, key, start, end):
@@ -792,7 +813,7 @@ class MockMaintenanceResult(MaintenanceResult):
             message="Test task completed",
             details={"test": True},
             files_processed=1,
-            bytes_freed=1024
+            bytes_freed=1024,
         )
 
 
@@ -805,7 +826,9 @@ async def main():
 
     # Display test summary
     total_tests = len(results)
-    passed_tests = sum(1 for r in results.values() if isinstance(r, dict) and r.get('passed', False))
+    passed_tests = sum(
+        1 for r in results.values() if isinstance(r, dict) and r.get("passed", False)
+    )
     logger.info(f"Test Summary: {passed_tests}/{total_tests} tests passed")
 
     # Exit with appropriate code

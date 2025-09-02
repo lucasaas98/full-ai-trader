@@ -5,18 +5,19 @@ This module contains comprehensive tests for the enhanced calculate_optimal_inte
 function and other scheduler-related functionality in the data collector service.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
-from datetime import datetime, timezone
-from typing import Dict, List
-
 # Add path for imports
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Dict, List
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from shared.models import TimeFrame
 from services.data_collector.src.scheduler_service import calculate_optimal_intervals
+from shared.models import TimeFrame
 
 
 class TestCalculateOptimalIntervals:
@@ -27,8 +28,8 @@ class TestCalculateOptimalIntervals:
         """Basic API rate limits for testing."""
         return {
             "twelvedata": 800,  # requests per minute
-            "finviz": 100,      # requests per minute
-            "redis": 10000      # requests per minute
+            "finviz": 100,  # requests per minute
+            "redis": 10000,  # requests per minute
         }
 
     @pytest.fixture
@@ -38,7 +39,7 @@ class TestCalculateOptimalIntervals:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -49,7 +50,7 @@ class TestCalculateOptimalIntervals:
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
         )
 
         # Should return intervals for all timeframes
@@ -77,7 +78,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=1.0
+            market_volatility=1.0,
         )
 
         # High volatility
@@ -85,7 +86,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=2.0
+            market_volatility=2.0,
         )
 
         # High volatility should result in shorter intervals (more frequent updates)
@@ -102,7 +103,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=1.0
+            market_volatility=1.0,
         )
 
         # Low volatility
@@ -110,7 +111,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=0.5
+            market_volatility=0.5,
         )
 
         # Low volatility should result in longer intervals (less frequent updates)
@@ -124,33 +125,30 @@ class TestCalculateOptimalIntervals:
         timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
 
         # High priority for 5-minute data
-        high_priority_weights = {
-            TimeFrame.FIVE_MINUTES: 5.0,
-            TimeFrame.ONE_HOUR: 1.0
-        }
+        high_priority_weights = {TimeFrame.FIVE_MINUTES: 5.0, TimeFrame.ONE_HOUR: 1.0}
 
         # Equal priority
-        equal_priority_weights = {
-            TimeFrame.FIVE_MINUTES: 2.0,
-            TimeFrame.ONE_HOUR: 2.0
-        }
+        equal_priority_weights = {TimeFrame.FIVE_MINUTES: 2.0, TimeFrame.ONE_HOUR: 2.0}
 
         high_priority_intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=timeframes,
-            priority_weights=high_priority_weights
+            priority_weights=high_priority_weights,
         )
 
         equal_priority_intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=timeframes,
-            priority_weights=equal_priority_weights
+            priority_weights=equal_priority_weights,
         )
 
         # Higher priority should result in shorter intervals
-        assert high_priority_intervals[TimeFrame.FIVE_MINUTES] <= equal_priority_intervals[TimeFrame.FIVE_MINUTES]
+        assert (
+            high_priority_intervals[TimeFrame.FIVE_MINUTES]
+            <= equal_priority_intervals[TimeFrame.FIVE_MINUTES]
+        )
 
     @pytest.mark.unit
     def test_rate_limit_constraints(self, all_timeframes):
@@ -158,14 +156,12 @@ class TestCalculateOptimalIntervals:
         active_tickers = 100
 
         # Very restrictive rate limits
-        restrictive_limits = {
-            "api": 10  # Only 10 requests per minute
-        }
+        restrictive_limits = {"api": 10}  # Only 10 requests per minute
 
         intervals = calculate_optimal_intervals(
             api_rate_limits=restrictive_limits,
             active_tickers=active_tickers,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
         )
 
         # With many tickers and low rate limits, intervals should be longer
@@ -179,9 +175,7 @@ class TestCalculateOptimalIntervals:
         active_tickers = 20
 
         intervals = calculate_optimal_intervals(
-            api_rate_limits={},
-            active_tickers=active_tickers,
-            timeframes=all_timeframes
+            api_rate_limits={}, active_tickers=active_tickers, timeframes=all_timeframes
         )
 
         # Should use default rate limits and still return valid intervals
@@ -195,7 +189,7 @@ class TestCalculateOptimalIntervals:
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=0,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
         )
 
         # Should still return valid intervals (might use minimum batch size)
@@ -207,9 +201,7 @@ class TestCalculateOptimalIntervals:
     def test_no_timeframes(self, basic_api_limits):
         """Test behavior with empty timeframes list."""
         intervals = calculate_optimal_intervals(
-            api_rate_limits=basic_api_limits,
-            active_tickers=20,
-            timeframes=[]
+            api_rate_limits=basic_api_limits, active_tickers=20, timeframes=[]
         )
 
         # Should return empty dictionary
@@ -225,7 +217,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=10.0  # Extremely high
+            market_volatility=10.0,  # Extremely high
         )
 
         # Test very low volatility
@@ -233,7 +225,7 @@ class TestCalculateOptimalIntervals:
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=0.1  # Extremely low
+            market_volatility=0.1,  # Extremely low
         )
 
         # Both should return valid intervals (function should clamp extreme values)
@@ -252,7 +244,7 @@ class TestRealWorldScenarios:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -265,8 +257,8 @@ class TestRealWorldScenarios:
             market_volatility=1.5,  # Active market
             priority_weights={
                 TimeFrame.FIVE_MINUTES: 4.0,
-                TimeFrame.FIFTEEN_MINUTES: 2.0
-            }
+                TimeFrame.FIFTEEN_MINUTES: 2.0,
+            },
         )
 
         # Should prioritize 5-minute updates while respecting API limits
@@ -283,7 +275,7 @@ class TestRealWorldScenarios:
             active_tickers=500,  # Large portfolio
             timeframes=all_timeframes,
             market_volatility=1.0,  # Normal market
-            priority_weights={tf: 2.0 for tf in all_timeframes}  # Equal priority
+            priority_weights={tf: 2.0 for tf in all_timeframes},  # Equal priority
         )
 
         # Should handle large ticker count efficiently
@@ -297,11 +289,11 @@ class TestRealWorldScenarios:
     def test_mixed_api_provider_scenario(self, all_timeframes):
         """Test scenario with mixed API providers having different rate limits."""
         mixed_limits = {
-            "alpha_vantage": 25,    # Most restrictive
-            "twelvedata": 800,      # Good tier
-            "finnhub": 300,         # Medium tier
-            "polygon": 1000,        # Premium tier
-            "redis_cache": 10000    # Local cache
+            "alpha_vantage": 25,  # Most restrictive
+            "twelvedata": 800,  # Good tier
+            "finnhub": 300,  # Medium tier
+            "polygon": 1000,  # Premium tier
+            "redis_cache": 10000,  # Local cache
         }
 
         active_tickers = 60
@@ -310,7 +302,7 @@ class TestRealWorldScenarios:
             api_rate_limits=mixed_limits,
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            market_volatility=1.2
+            market_volatility=1.2,
         )
 
         # Should be constrained by Alpha Vantage (25 req/min)
@@ -321,7 +313,9 @@ class TestRealWorldScenarios:
             requests_per_minute = 60 / interval * batches_needed
 
             # Should respect the most restrictive rate limit with safety margin
-            assert requests_per_minute <= 20, f"Too many requests for restrictive API: {requests_per_minute}"
+            assert (
+                requests_per_minute <= 20
+            ), f"Too many requests for restrictive API: {requests_per_minute}"
 
 
 class TestBackwardCompatibility:
@@ -330,11 +324,7 @@ class TestBackwardCompatibility:
     @pytest.fixture
     def basic_api_limits(self) -> Dict[str, int]:
         """Basic API rate limits for testing."""
-        return {
-            "twelvedata": 800,
-            "finviz": 100,
-            "redis": 10000
-        }
+        return {"twelvedata": 800, "finviz": 100, "redis": 10000}
 
     @pytest.fixture
     def all_timeframes(self) -> List[TimeFrame]:
@@ -343,7 +333,7 @@ class TestBackwardCompatibility:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -372,7 +362,7 @@ class TestBackwardCompatibility:
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=30,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
             # No volatility or priority weights (should use defaults)
         )
 
@@ -384,7 +374,9 @@ class TestBackwardCompatibility:
             assert 30 <= intervals[timeframe] <= 86400
 
     @pytest.mark.unit
-    def test_enhanced_features_dont_break_basics(self, basic_api_limits, all_timeframes):
+    def test_enhanced_features_dont_break_basics(
+        self, basic_api_limits, all_timeframes
+    ):
         """Test that enhanced features don't break basic functionality."""
         active_tickers = 25
 
@@ -392,7 +384,7 @@ class TestBackwardCompatibility:
         basic_intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
         )
 
         # Test enhanced call with neutral parameters
@@ -401,7 +393,7 @@ class TestBackwardCompatibility:
             active_tickers=active_tickers,
             timeframes=all_timeframes,
             market_volatility=1.0,  # Neutral volatility
-            priority_weights=None   # Use defaults
+            priority_weights=None,  # Use defaults
         )
 
         # Results should be very similar
@@ -411,7 +403,9 @@ class TestBackwardCompatibility:
 
             # Allow small differences due to internal optimizations
             diff_ratio = abs(enhanced_val - basic_val) / basic_val
-            assert diff_ratio <= 0.1, f"Enhanced version changed basic behavior too much: {diff_ratio}"
+            assert (
+                diff_ratio <= 0.1
+            ), f"Enhanced version changed basic behavior too much: {diff_ratio}"
 
     @pytest.mark.unit
     def test_return_type_consistency(self, basic_api_limits, all_timeframes):
@@ -420,7 +414,7 @@ class TestBackwardCompatibility:
             api_rate_limits=basic_api_limits,
             active_tickers=40,
             timeframes=all_timeframes,
-            market_volatility=1.5
+            market_volatility=1.5,
         )
 
         # Should return a dictionary
@@ -446,7 +440,7 @@ class TestEdgeCasesAndValidation:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -466,13 +460,15 @@ class TestEdgeCasesAndValidation:
                     api_rate_limits=api_limits,
                     active_tickers=active_tickers,
                     timeframes=all_timeframes,
-                    market_volatility=volatility
+                    market_volatility=volatility,
                 )
 
                 # Should handle edge cases gracefully
                 assert len(intervals) == 4, f"Failed for {description}"
                 for interval in intervals.values():
-                    assert 30 <= interval <= 86400, f"Invalid interval for {description}: {interval}"
+                    assert (
+                        30 <= interval <= 86400
+                    ), f"Invalid interval for {description}: {interval}"
 
             except Exception as e:
                 pytest.fail(f"Edge case '{description}' raised exception: {e}")
@@ -489,8 +485,8 @@ class TestEdgeCasesAndValidation:
                 TimeFrame.FIVE_MINUTES: 3.5,
                 TimeFrame.FIFTEEN_MINUTES: 2.8,
                 TimeFrame.ONE_HOUR: 2.0,
-                TimeFrame.ONE_DAY: 1.2
-            }
+                TimeFrame.ONE_DAY: 1.2,
+            },
         }
 
         # Run calculation multiple times
@@ -510,17 +506,17 @@ class TestEdgeCasesAndValidation:
 
         # Extreme priority weights
         extreme_weights = {
-            TimeFrame.FIVE_MINUTES: 100.0,   # Extremely high
-            TimeFrame.FIFTEEN_MINUTES: 0.01, # Extremely low
-            TimeFrame.ONE_HOUR: 2.0,         # Normal
-            TimeFrame.ONE_DAY: 0.0           # Zero (edge case)
+            TimeFrame.FIVE_MINUTES: 100.0,  # Extremely high
+            TimeFrame.FIFTEEN_MINUTES: 0.01,  # Extremely low
+            TimeFrame.ONE_HOUR: 2.0,  # Normal
+            TimeFrame.ONE_DAY: 0.0,  # Zero (edge case)
         }
 
         intervals = calculate_optimal_intervals(
             api_rate_limits={"api": 500},
             active_tickers=active_tickers,
             timeframes=all_timeframes,
-            priority_weights=extreme_weights
+            priority_weights=extreme_weights,
         )
 
         # Should handle extreme weights gracefully
@@ -537,12 +533,12 @@ class TestEdgeCasesAndValidation:
             api_rate_limits={"api": 10000},  # Unlimited API
             active_tickers=active_tickers,
             timeframes=[TimeFrame.FIVE_MINUTES, TimeFrame.ONE_DAY],
-            market_volatility=3.0  # High volatility
+            market_volatility=3.0,  # High volatility
         )
 
         # Should never go below base intervals
-        assert intervals[TimeFrame.FIVE_MINUTES] >= 300   # 5 minutes minimum
-        assert intervals[TimeFrame.ONE_DAY] >= 86400      # 1 day minimum
+        assert intervals[TimeFrame.FIVE_MINUTES] >= 300  # 5 minutes minimum
+        assert intervals[TimeFrame.ONE_DAY] >= 86400  # 1 day minimum
 
 
 class TestPerformanceAndScalability:
@@ -555,7 +551,7 @@ class TestPerformanceAndScalability:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -570,7 +566,7 @@ class TestPerformanceAndScalability:
             intervals = calculate_optimal_intervals(
                 api_rate_limits=api_limits,
                 active_tickers=ticker_count,
-                timeframes=all_timeframes
+                timeframes=all_timeframes,
             )
 
             # All intervals should be valid
@@ -593,7 +589,7 @@ class TestPerformanceAndScalability:
             "active_tickers": 1000,
             "timeframes": all_timeframes,
             "market_volatility": 1.5,
-            "priority_weights": {tf: 2.0 for tf in all_timeframes}
+            "priority_weights": {tf: 2.0 for tf in all_timeframes},
         }
 
         start_time = time.perf_counter()
@@ -625,7 +621,7 @@ class TestPerformanceAndScalability:
                 api_rate_limits={"api": 500},
                 active_tickers=500,
                 timeframes=all_timeframes,
-                market_volatility=1.2
+                market_volatility=1.2,
             )
 
         # Get memory usage
@@ -651,7 +647,7 @@ class TestAlgorithmValidation:
             TimeFrame.FIVE_MINUTES,
             TimeFrame.FIFTEEN_MINUTES,
             TimeFrame.ONE_HOUR,
-            TimeFrame.ONE_DAY
+            TimeFrame.ONE_DAY,
         ]
 
     @pytest.mark.unit
@@ -662,7 +658,7 @@ class TestAlgorithmValidation:
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
             active_tickers=active_tickers,
-            timeframes=all_timeframes
+            timeframes=all_timeframes,
         )
 
         # For each timeframe, verify that the calculated interval won't exceed rate limits
@@ -685,8 +681,9 @@ class TestAlgorithmValidation:
             requests_per_minute = (60 / interval) * batches_needed
 
             # Should not exceed safe rate limit
-            assert requests_per_minute <= safe_rate * 1.1, \
-                f"Rate limit violation for {timeframe}: {requests_per_minute} > {safe_rate}"
+            assert (
+                requests_per_minute <= safe_rate * 1.1
+            ), f"Rate limit violation for {timeframe}: {requests_per_minute} > {safe_rate}"
 
     @pytest.mark.unit
     def test_priority_weight_monotonicity(self, basic_api_limits):
@@ -699,21 +696,18 @@ class TestAlgorithmValidation:
             (1.0, 1.0),  # Equal priority
             (2.0, 1.0),  # Higher priority for 5-minute
             (3.0, 1.0),  # Even higher priority for 5-minute
-            (5.0, 1.0)   # Maximum practical priority for 5-minute
+            (5.0, 1.0),  # Maximum practical priority for 5-minute
         ]
 
         results = []
         for weight_5m, weight_1h in weight_combinations:
-            weights = {
-                TimeFrame.FIVE_MINUTES: weight_5m,
-                TimeFrame.ONE_HOUR: weight_1h
-            }
+            weights = {TimeFrame.FIVE_MINUTES: weight_5m, TimeFrame.ONE_HOUR: weight_1h}
 
             intervals = calculate_optimal_intervals(
                 api_rate_limits=basic_api_limits,
                 active_tickers=active_tickers,
                 timeframes=timeframes,
-                priority_weights=weights
+                priority_weights=weights,
             )
             results.append(intervals[TimeFrame.FIVE_MINUTES])
 
@@ -734,7 +728,7 @@ class TestAlgorithmValidation:
             "api_rate_limits": basic_api_limits,
             "active_tickers": 35,
             "timeframes": all_timeframes,
-            "market_volatility": 1.5
+            "market_volatility": 1.5,
         }
 
         # Call function multiple times with identical parameters
@@ -754,30 +748,30 @@ class TestAlgorithmValidation:
         extreme_scenarios = [
             {"active_tickers": 1, "market_volatility": 5.0},
             {"active_tickers": 5000, "market_volatility": 0.1},
-            {"active_tickers": 100, "market_volatility": 10.0}
+            {"active_tickers": 100, "market_volatility": 10.0},
         ]
 
         for scenario in extreme_scenarios:
             intervals = calculate_optimal_intervals(
-                api_rate_limits=basic_api_limits,
-                timeframes=all_timeframes,
-                **scenario
+                api_rate_limits=basic_api_limits, timeframes=all_timeframes, **scenario
             )
 
             # All intervals must be strictly within bounds
             for timeframe, interval in intervals.items():
-                assert 30 <= interval <= 86400, \
-                    f"Interval {interval} out of bounds for scenario {scenario}"
+                assert (
+                    30 <= interval <= 86400
+                ), f"Interval {interval} out of bounds for scenario {scenario}"
 
                 # Should respect timeframe minimums
                 base_minimums = {
                     TimeFrame.FIVE_MINUTES: 300,
                     TimeFrame.FIFTEEN_MINUTES: 900,
                     TimeFrame.ONE_HOUR: 3600,
-                    TimeFrame.ONE_DAY: 86400
+                    TimeFrame.ONE_DAY: 86400,
                 }
-                assert interval >= base_minimums[timeframe], \
-                    f"Interval {interval} below base minimum for {timeframe}"
+                assert (
+                    interval >= base_minimums[timeframe]
+                ), f"Interval {interval} below base minimum for {timeframe}"
 
 
 class TestDocumentationExamples:
@@ -790,7 +784,7 @@ class TestDocumentationExamples:
         intervals = calculate_optimal_intervals(
             api_rate_limits={"api": 500},
             active_tickers=25,
-            timeframes=[TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
+            timeframes=[TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR],
         )
 
         assert len(intervals) == 2
@@ -806,9 +800,9 @@ class TestDocumentationExamples:
             timeframes=[TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES],
             market_volatility=1.8,  # High volatility
             priority_weights={
-                TimeFrame.FIVE_MINUTES: 4.0,    # High priority
-                TimeFrame.FIFTEEN_MINUTES: 2.0  # Medium priority
-            }
+                TimeFrame.FIVE_MINUTES: 4.0,  # High priority
+                TimeFrame.FIFTEEN_MINUTES: 2.0,  # Medium priority
+            },
         )
 
         assert len(intervals) == 2
@@ -825,7 +819,7 @@ class TestDocumentationExamples:
             api_rate_limits={"free_api": 25},  # Very limited
             active_tickers=50,
             timeframes=[TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR],
-            market_volatility=0.8  # Calm market
+            market_volatility=0.8,  # Calm market
         )
 
         # Should be conservative with limited resources

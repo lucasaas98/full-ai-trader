@@ -24,38 +24,41 @@ Examples:
     python scripts/run_ollama_backtest.py --start-date 2025-07-01 --end-date 2025-07-31 --detailed-report
 """
 
+import argparse
 import asyncio
+import json
 import logging
 import sys
-import argparse
-import json
-import pandas as pd
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
-import time
+from typing import Any, Dict, List, Optional, Tuple
+
+import pandas as pd
 
 # Add project paths
 script_dir = Path(__file__).parent
 project_root = script_dir.parent
-sys.path.extend([
-    str(project_root),
-    str(project_root / "backtesting"),
-    str(project_root / "services" / "data_collector" / "src"),
-    str(project_root / "services" / "strategy_engine" / "src"),
-    str(project_root / "shared")
-])
+sys.path.extend(
+    [
+        str(project_root),
+        str(project_root / "backtesting"),
+        str(project_root / "services" / "data_collector" / "src"),
+        str(project_root / "services" / "strategy_engine" / "src"),
+        str(project_root / "shared"),
+    ]
+)
 
 try:
-    from real_backtest_engine import (
-        RealBacktestEngine,
-        RealBacktestConfig,
-        BacktestMode
-    )
-    from backtest_models import TimeFrame, SignalType, BacktestResults
-    from simple_data_store import SimpleDataStore
+    from backtest_models import BacktestResults, SignalType, TimeFrame
     from ollama_ai_strategy_adapter import OllamaAIStrategyAdapter
+    from real_backtest_engine import (
+        BacktestMode,
+        RealBacktestConfig,
+        RealBacktestEngine,
+    )
+    from simple_data_store import SimpleDataStore
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("Make sure you're running this from the project root directory")
@@ -81,13 +84,13 @@ class OllamaBacktestRunner:
         log_level = logging.DEBUG if self.args.verbose else logging.INFO
         logging.basicConfig(
             level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%H:%M:%S'
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%H:%M:%S",
         )
 
         # Reduce noise from some modules
-        logging.getLogger('aiohttp').setLevel(logging.WARNING)
-        logging.getLogger('urllib3').setLevel(logging.WARNING)
+        logging.getLogger("aiohttp").setLevel(logging.WARNING)
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
 
     async def run_comprehensive_backtest(self) -> Dict[str, Any]:
         """Run comprehensive Ollama-powered backtest."""
@@ -113,25 +116,27 @@ class OllamaBacktestRunner:
         results, config = await self._execute_backtest(start_date, end_date, symbols)
 
         print("📈 Generating comprehensive report...")
-        report = await self._generate_comprehensive_report(results, config, start_date, end_date, symbols)
+        report = await self._generate_comprehensive_report(
+            results, config, start_date, end_date, symbols
+        )
 
         # Add trade details to report for display
-        if hasattr(results, 'trades') and results.trades:
-            report['trade_details'] = []
+        if hasattr(results, "trades") and results.trades:
+            report["trade_details"] = []
             for trade in results.trades:
                 trade_dict = {
-                    'symbol': trade.symbol,
-                    'entry_date': trade.entry_date,
-                    'exit_date': trade.exit_date,
-                    'entry_price': float(trade.entry_price),
-                    'exit_price': float(trade.exit_price),
-                    'quantity': trade.quantity,
-                    'pnl': float(trade.pnl),
-                    'pnl_percentage': float(trade.pnl_percentage),
-                    'hold_days': trade.hold_days,
-                    'commission': float(trade.commission)
+                    "symbol": trade.symbol,
+                    "entry_date": trade.entry_date,
+                    "exit_date": trade.exit_date,
+                    "entry_price": float(trade.entry_price),
+                    "exit_price": float(trade.exit_price),
+                    "quantity": trade.quantity,
+                    "pnl": float(trade.pnl),
+                    "pnl_percentage": float(trade.pnl_percentage),
+                    "hold_days": trade.hold_days,
+                    "commission": float(trade.commission),
                 }
-                report['trade_details'].append(trade_dict)
+                report["trade_details"].append(trade_dict)
 
         # Save results if requested
         if self.args.save_results or self.args.save_trades:
@@ -175,14 +180,22 @@ class OllamaBacktestRunner:
         """Parse and validate date range."""
 
         if self.args.start_date and self.args.end_date:
-            start_date = datetime.strptime(self.args.start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-            end_date = datetime.strptime(self.args.end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            start_date = datetime.strptime(self.args.start_date, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
+            end_date = datetime.strptime(self.args.end_date, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
         elif self.args.days:
-            end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             start_date = end_date - timedelta(days=self.args.days)
         else:
             # Default to last 7 days
-            end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             start_date = end_date - timedelta(days=7)
 
         return start_date, end_date
@@ -191,7 +204,7 @@ class OllamaBacktestRunner:
         """Get symbols to test."""
 
         if self.args.symbols:
-            symbols = [s.strip().upper() for s in self.args.symbols.split(',')]
+            symbols = [s.strip().upper() for s in self.args.symbols.split(",")]
         else:
             # Auto-select symbols with good data availability
             print("🔍 Auto-selecting symbols with good data coverage...")
@@ -199,7 +212,17 @@ class OllamaBacktestRunner:
             all_symbols = self.data_store.get_available_symbols()
 
             # Priority symbols (large caps with good liquidity)
-            priority_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'SPY', 'QQQ']
+            priority_symbols = [
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "AMZN",
+                "TSLA",
+                "NVDA",
+                "META",
+                "SPY",
+                "QQQ",
+            ]
 
             symbols = []
             for symbol in priority_symbols:
@@ -223,20 +246,24 @@ class OllamaBacktestRunner:
         print("🤖 Initializing Ollama AI Strategy...")
 
         config = {
-            'confidence_threshold': self.args.confidence_threshold,
-            'max_position_size': self.args.max_position_size,
-            'risk_tolerance': 'medium'
+            "confidence_threshold": self.args.confidence_threshold,
+            "max_position_size": self.args.max_position_size,
+            "risk_tolerance": "medium",
         }
 
         self.ollama_strategy = OllamaAIStrategyAdapter(
             ollama_url=self.args.ollama_url,
             ollama_model=self.args.ollama_model,
-            config=config
+            config=config,
         )
 
-        print(f"✅ AI Strategy initialized with confidence threshold {self.args.confidence_threshold}%")
+        print(
+            f"✅ AI Strategy initialized with confidence threshold {self.args.confidence_threshold}%"
+        )
 
-    async def _execute_backtest(self, start_date: datetime, end_date: datetime, symbols: List[str]) -> tuple:
+    async def _execute_backtest(
+        self, start_date: datetime, end_date: datetime, symbols: List[str]
+    ) -> tuple:
         """Execute the backtest."""
         print("⚡ Running backtest...")
 
@@ -244,15 +271,17 @@ class OllamaBacktestRunner:
             start_date=start_date,
             end_date=end_date,
             initial_capital=Decimal(str(self.args.capital)),
-            max_positions=min(len(symbols), 10),  # Don't exceed reasonable position count
+            max_positions=min(
+                len(symbols), 10
+            ),  # Don't exceed reasonable position count
             mode=BacktestMode.FAST,
             timeframe=TimeFrame.ONE_DAY,
             symbols_to_trade=symbols,
             enable_screener_data=False,  # Use specified symbols only
             ai_strategy_config={
-                'confidence_threshold': self.args.confidence_threshold,
-                'max_position_size': self.args.max_position_size
-            }
+                "confidence_threshold": self.args.confidence_threshold,
+                "max_position_size": self.args.max_position_size,
+            },
         )
 
         # Create engine and replace AI strategy with Ollama
@@ -267,15 +296,24 @@ class OllamaBacktestRunner:
 
         return results, config
 
-    async def _generate_comprehensive_report(self, results: BacktestResults, config: RealBacktestConfig,
-                                           start_date: datetime, end_date: datetime,
-                                           symbols: List[str]) -> Dict[str, Any]:
+    async def _generate_comprehensive_report(
+        self,
+        results: BacktestResults,
+        config: RealBacktestConfig,
+        start_date: datetime,
+        end_date: datetime,
+        symbols: List[str],
+    ) -> Dict[str, Any]:
         """Generate comprehensive backtest report."""
 
         print("📈 Generating comprehensive report...")
 
         # Get AI strategy performance
-        ai_performance = self.ollama_strategy.get_performance_summary() if self.ollama_strategy else {}
+        ai_performance = (
+            self.ollama_strategy.get_performance_summary()
+            if self.ollama_strategy
+            else {}
+        )
 
         # Calculate additional metrics
         days_tested = (end_date - start_date).days
@@ -283,68 +321,72 @@ class OllamaBacktestRunner:
 
         report = {
             # Basic Info
-            'backtest_info': {
-                'start_date': start_date.isoformat(),
-                'end_date': end_date.isoformat(),
-                'days_tested': days_tested,
-                'symbols_tested': symbols,
-                'ai_model': self.args.ollama_model,
-                'ai_backend': 'ollama',
-                'confidence_threshold': self.args.confidence_threshold,
-                'execution_time': results.execution_time_seconds
+            "backtest_info": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "days_tested": days_tested,
+                "symbols_tested": symbols,
+                "ai_model": self.args.ollama_model,
+                "ai_backend": "ollama",
+                "confidence_threshold": self.args.confidence_threshold,
+                "execution_time": results.execution_time_seconds,
             },
-
             # Portfolio Performance
-            'portfolio_performance': {
-                'initial_capital': float(config.initial_capital),
-                'final_value': float(results.final_portfolio_value),
-                'total_return': results.total_return,
-                'total_return_pct': results.total_return * 100,
-                'annualized_return': results.annualized_return,
-                'max_drawdown': results.max_drawdown,
-                'max_drawdown_pct': results.max_drawdown * 100,
-                'sharpe_ratio': results.sharpe_ratio,
-                'profit_factor': results.profit_factor
+            "portfolio_performance": {
+                "initial_capital": float(config.initial_capital),
+                "final_value": float(results.final_portfolio_value),
+                "total_return": results.total_return,
+                "total_return_pct": results.total_return * 100,
+                "annualized_return": results.annualized_return,
+                "max_drawdown": results.max_drawdown,
+                "max_drawdown_pct": results.max_drawdown * 100,
+                "sharpe_ratio": results.sharpe_ratio,
+                "profit_factor": results.profit_factor,
             },
-
             # Trading Activity
-            'trading_activity': {
-                'total_trades': results.total_trades,
-                'winning_trades': results.winning_trades,
-                'losing_trades': results.losing_trades,
-                'win_rate': results.win_rate,
-                'win_rate_pct': results.win_rate * 100,
-                'average_win': results.average_win,
-                'average_loss': results.average_loss,
-                'largest_win': results.largest_win,
-                'largest_loss': results.largest_loss,
-                'trades_per_day': trades_per_day
+            "trading_activity": {
+                "total_trades": results.total_trades,
+                "winning_trades": results.winning_trades,
+                "losing_trades": results.losing_trades,
+                "win_rate": results.win_rate,
+                "win_rate_pct": results.win_rate * 100,
+                "average_win": results.average_win,
+                "average_loss": results.average_loss,
+                "largest_win": results.largest_win,
+                "largest_loss": results.largest_loss,
+                "trades_per_day": trades_per_day,
             },
-
             # AI Strategy Performance
-            'ai_performance': {
-                'total_ai_calls': ai_performance.get('total_calls', 0),
-                'successful_calls': ai_performance.get('successful_calls', 0),
-                'success_rate': ai_performance.get('success_rate', 0),
-                'average_response_time': ai_performance.get('average_response_time', 0),
-                'total_cost': ai_performance.get('total_cost', 0),  # Always 0 for Ollama
-                'signals_generated': results.signals_generated,
-                'signals_executed': results.signals_executed,
-                'signal_execution_rate': (results.signals_executed / max(1, results.signals_generated)) * 100
+            "ai_performance": {
+                "total_ai_calls": ai_performance.get("total_calls", 0),
+                "successful_calls": ai_performance.get("successful_calls", 0),
+                "success_rate": ai_performance.get("success_rate", 0),
+                "average_response_time": ai_performance.get("average_response_time", 0),
+                "total_cost": ai_performance.get(
+                    "total_cost", 0
+                ),  # Always 0 for Ollama
+                "signals_generated": results.signals_generated,
+                "signals_executed": results.signals_executed,
+                "signal_execution_rate": (
+                    results.signals_executed / max(1, results.signals_generated)
+                )
+                * 100,
             },
-
             # Cost Analysis
-            'cost_analysis': {
-                'total_ai_cost': 0.0,  # Free with Ollama
-                'commission_costs': float(results.total_commissions),
-                'cost_per_trade': float(results.total_commissions) / max(1, results.total_trades),
-                'cost_savings_vs_cloud_ai': self._estimate_cloud_ai_cost_savings(ai_performance.get('total_calls', 0))
-            }
+            "cost_analysis": {
+                "total_ai_cost": 0.0,  # Free with Ollama
+                "commission_costs": float(results.total_commissions),
+                "cost_per_trade": float(results.total_commissions)
+                / max(1, results.total_trades),
+                "cost_savings_vs_cloud_ai": self._estimate_cloud_ai_cost_savings(
+                    ai_performance.get("total_calls", 0)
+                ),
+            },
         }
 
         # Add trade details if available
-        if hasattr(results, 'trades') and results.trades:
-            report['trade_details'] = self._analyze_trade_details(results.trades)
+        if hasattr(results, "trades") and results.trades:
+            report["trade_details"] = self._analyze_trade_details(results.trades)
 
         return report
 
@@ -364,7 +406,7 @@ class OllamaBacktestRunner:
         # Group trades by symbol
         trades_by_symbol = {}
         hold_periods = []
-        returns_by_action = {'BUY': [], 'SELL': []}
+        returns_by_action = {"BUY": [], "SELL": []}
 
         for trade in trades:
             symbol = trade.symbol
@@ -373,37 +415,51 @@ class OllamaBacktestRunner:
             trades_by_symbol[symbol].append(trade)
 
             # Collect metrics
-            if hasattr(trade, 'hold_period_days'):
+            if hasattr(trade, "hold_period_days"):
                 hold_periods.append(trade.hold_period_days)
 
-            if hasattr(trade, 'return_percentage') and hasattr(trade, 'action'):
-                action = trade.action.value if hasattr(trade.action, 'value') else str(trade.action)
+            if hasattr(trade, "return_percentage") and hasattr(trade, "action"):
+                action = (
+                    trade.action.value
+                    if hasattr(trade.action, "value")
+                    else str(trade.action)
+                )
                 if action in returns_by_action:
                     returns_by_action[action].append(trade.return_percentage)
 
         # Calculate symbol performance
         symbol_performance = {}
         for symbol, symbol_trades in trades_by_symbol.items():
-            total_return = sum(t.profit_loss for t in symbol_trades if hasattr(t, 'profit_loss'))
+            total_return = sum(
+                t.profit_loss for t in symbol_trades if hasattr(t, "profit_loss")
+            )
             trade_count = len(symbol_trades)
-            win_rate = len([t for t in symbol_trades if hasattr(t, 'profit_loss') and t.profit_loss > 0]) / max(1, trade_count)
+            win_rate = len(
+                [
+                    t
+                    for t in symbol_trades
+                    if hasattr(t, "profit_loss") and t.profit_loss > 0
+                ]
+            ) / max(1, trade_count)
 
             symbol_performance[symbol] = {
-                'trades': trade_count,
-                'total_return': float(total_return),
-                'win_rate': win_rate,
-                'avg_return_per_trade': float(total_return) / max(1, trade_count)
+                "trades": trade_count,
+                "total_return": float(total_return),
+                "win_rate": win_rate,
+                "avg_return_per_trade": float(total_return) / max(1, trade_count),
             }
 
         return {
-            'symbol_performance': symbol_performance,
-            'average_hold_period': sum(hold_periods) / max(1, len(hold_periods)),
-            'buy_vs_sell_performance': {
-                'buy_avg_return': sum(returns_by_action['BUY']) / max(1, len(returns_by_action['BUY'])),
-                'sell_avg_return': sum(returns_by_action['SELL']) / max(1, len(returns_by_action['SELL'])),
-                'buy_trade_count': len(returns_by_action['BUY']),
-                'sell_trade_count': len(returns_by_action['SELL'])
-            }
+            "symbol_performance": symbol_performance,
+            "average_hold_period": sum(hold_periods) / max(1, len(hold_periods)),
+            "buy_vs_sell_performance": {
+                "buy_avg_return": sum(returns_by_action["BUY"])
+                / max(1, len(returns_by_action["BUY"])),
+                "sell_avg_return": sum(returns_by_action["SELL"])
+                / max(1, len(returns_by_action["SELL"])),
+                "buy_trade_count": len(returns_by_action["BUY"]),
+                "sell_trade_count": len(returns_by_action["SELL"]),
+            },
         }
 
     def _print_summary_report(self, report: Dict[str, Any]):
@@ -413,7 +469,7 @@ class OllamaBacktestRunner:
         print("=" * 80)
 
         # Portfolio Performance
-        perf = report['portfolio_performance']
+        perf = report["portfolio_performance"]
         print(f"\n📊 PORTFOLIO PERFORMANCE")
         print(f"   Initial Capital: ${perf['initial_capital']:,.2f}")
         print(f"   Final Value:     ${perf['final_value']:,.2f}")
@@ -423,17 +479,19 @@ class OllamaBacktestRunner:
         print(f"   Sharpe Ratio:    {perf['sharpe_ratio']:.2f}")
 
         # Trading Activity
-        trading = report['trading_activity']
+        trading = report["trading_activity"]
         print(f"\n📈 TRADING ACTIVITY")
         print(f"   Total Trades:    {trading['total_trades']}")
-        print(f"   Win Rate:        {trading['win_rate_pct']:.1f}% ({trading['winning_trades']}/{trading['total_trades']})")
+        print(
+            f"   Win Rate:        {trading['win_rate_pct']:.1f}% ({trading['winning_trades']}/{trading['total_trades']})"
+        )
         print(f"   Avg Win:         ${trading['average_win']:.2f}")
         print(f"   Avg Loss:        ${trading['average_loss']:.2f}")
         print(f"   Profit Factor:   {perf['profit_factor']:.2f}")
         print(f"   Trades/Day:      {trading['trades_per_day']:.1f}")
 
         # AI Performance
-        ai_perf = report['ai_performance']
+        ai_perf = report["ai_performance"]
         print(f"\n🤖 AI STRATEGY PERFORMANCE")
         print(f"   AI Calls Made:   {ai_perf['total_ai_calls']}")
         print(f"   Success Rate:    {ai_perf['success_rate']:.1f}%")
@@ -443,7 +501,7 @@ class OllamaBacktestRunner:
         print(f"   Execution Rate:    {ai_perf['signal_execution_rate']:.1f}%")
 
         # Cost Analysis
-        costs = report['cost_analysis']
+        costs = report["cost_analysis"]
         print(f"\n💰 COST ANALYSIS")
         print(f"   AI Costs:        $0.00 (Free with Ollama! 🎉)")
         print(f"   Commission:      ${costs['commission_costs']:.2f}")
@@ -451,7 +509,7 @@ class OllamaBacktestRunner:
         print(f"   Savings vs Cloud: ~${costs['cost_savings_vs_cloud_ai']:.2f}")
 
         # Configuration
-        info = report['backtest_info']
+        info = report["backtest_info"]
         print(f"\n⚙️  CONFIGURATION")
         print(f"   Period:          {info['days_tested']} days")
         print(f"   Symbols:         {', '.join(info['symbols_tested'])}")
@@ -460,44 +518,55 @@ class OllamaBacktestRunner:
         print(f"   Execution Time:  {info['execution_time']:.2f}s")
 
         # Symbol Performance (if available)
-        if 'trade_details' in report and 'symbol_performance' in report['trade_details']:
+        if (
+            "trade_details" in report
+            and "symbol_performance" in report["trade_details"]
+        ):
             print(f"\n🎯 SYMBOL PERFORMANCE")
-            symbol_perf = report['trade_details']['symbol_performance']
+            symbol_perf = report["trade_details"]["symbol_performance"]
             for symbol, perf in symbol_perf.items():
-                print(f"   {symbol}: {perf['trades']} trades, {perf['total_return']:+.2f} return, {perf['win_rate']*100:.0f}% win rate")
+                print(
+                    f"   {symbol}: {perf['trades']} trades, {perf['total_return']:+.2f} return, {perf['win_rate']*100:.0f}% win rate"
+                )
 
         print("=" * 80)
 
         # Performance Assessment
-        total_return_pct = perf['total_return_pct']
-        win_rate_pct = trading['win_rate_pct']
+        total_return_pct = perf["total_return_pct"]
+        win_rate_pct = trading["win_rate_pct"]
 
         if total_return_pct > 10 and win_rate_pct > 60:
             print("🏆 EXCELLENT PERFORMANCE! Strategy shows strong potential.")
         elif total_return_pct > 5 and win_rate_pct > 50:
-            print("👍 GOOD PERFORMANCE. Strategy shows promise with room for optimization.")
+            print(
+                "👍 GOOD PERFORMANCE. Strategy shows promise with room for optimization."
+            )
         elif total_return_pct > 0:
             print("📊 MODEST PERFORMANCE. Consider adjusting parameters or strategy.")
         else:
             print("⚠️  UNDERPERFORMANCE. Strategy may need significant adjustments.")
 
         print("\n💡 Next Steps:")
-        if ai_perf['success_rate'] < 80:
+        if ai_perf["success_rate"] < 80:
             print("   - Consider adjusting confidence threshold or prompt templates")
-        if trading['trades_per_day'] < 0.1:
-            print("   - Strategy may be too conservative, consider lower confidence threshold")
-        if perf['max_drawdown_pct'] > 10:
+        if trading["trades_per_day"] < 0.1:
+            print(
+                "   - Strategy may be too conservative, consider lower confidence threshold"
+            )
+        if perf["max_drawdown_pct"] > 10:
             print("   - Implement better risk management and position sizing")
-        if costs['cost_per_trade'] > 5:
-            print("   - Consider optimizing trade frequency to reduce commission impact")
+        if costs["cost_per_trade"] > 5:
+            print(
+                "   - Consider optimizing trade frequency to reduce commission impact"
+            )
 
         print("   - Try different time periods and market conditions")
         print("   - Test with different AI models (try deepseek-r1:8b for comparison)")
         print("   - Experiment with technical indicator parameters")
 
         # Show individual trade results if available
-        if 'trade_details' in report and report['trade_details']:
-            self._print_individual_trades(report['trade_details'])
+        if "trade_details" in report and report["trade_details"]:
+            self._print_individual_trades(report["trade_details"])
 
         print("=" * 80)
 
@@ -510,21 +579,23 @@ class OllamaBacktestRunner:
         print("-" * 80)
 
         for i, trade in enumerate(trades, 1):
-            symbol = trade.get('symbol', 'N/A')
-            pnl = trade.get('pnl', 0)
-            pnl_pct = trade.get('pnl_percentage', 0)
-            entry_price = trade.get('entry_price', 0)
-            exit_price = trade.get('exit_price', 0)
-            hold_days = trade.get('hold_days', 0)
-            quantity = trade.get('quantity', 0)
+            symbol = trade.get("symbol", "N/A")
+            pnl = trade.get("pnl", 0)
+            pnl_pct = trade.get("pnl_percentage", 0)
+            entry_price = trade.get("entry_price", 0)
+            exit_price = trade.get("exit_price", 0)
+            hold_days = trade.get("hold_days", 0)
+            quantity = trade.get("quantity", 0)
             direction = "LONG" if quantity > 0 else "SHORT"
 
             result_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚫"
 
-            print(f"{i:2d}. {result_emoji} {direction} {symbol:6s} | "
-                  f"${pnl:+8.2f} ({pnl_pct:+6.2f}%) | "
-                  f"{hold_days:2d}d | "
-                  f"${entry_price:7.2f} → ${exit_price:7.2f}")
+            print(
+                f"{i:2d}. {result_emoji} {direction} {symbol:6s} | "
+                f"${pnl:+8.2f} ({pnl_pct:+6.2f}%) | "
+                f"{hold_days:2d}d | "
+                f"${entry_price:7.2f} → ${exit_price:7.2f}"
+            )
 
         print("-" * 80)
 
@@ -536,30 +607,64 @@ class OllamaBacktestRunner:
         # Save JSON report
         if self.args.save_results:
             results_file = f"backtest_results_{timestamp}.json"
-            with open(results_file, 'w') as f:
+            with open(results_file, "w") as f:
                 json.dump(report, f, indent=2, default=str)
             print(f"📁 Results saved to {results_file}")
 
         # Save trade details
-        if self.args.save_trades and hasattr(results, 'trades') and results.trades:
+        if self.args.save_trades and hasattr(results, "trades") and results.trades:
             trades_data = []
             for trade in results.trades:
                 trade_dict = {
-                    'symbol': trade.symbol,
-                    'action': trade.action.value if hasattr(trade.action, 'value') else str(trade.action),
-                    'entry_date': trade.entry_date.isoformat() if hasattr(trade, 'entry_date') else None,
-                    'exit_date': trade.exit_date.isoformat() if hasattr(trade, 'exit_date') else None,
-                    'entry_price': float(trade.entry_price) if hasattr(trade, 'entry_price') else None,
-                    'exit_price': float(trade.exit_price) if hasattr(trade, 'exit_price') else None,
-                    'quantity': float(trade.quantity) if hasattr(trade, 'quantity') else None,
-                    'profit_loss': float(trade.profit_loss) if hasattr(trade, 'profit_loss') else None,
-                    'return_percentage': trade.return_percentage if hasattr(trade, 'return_percentage') else None,
-                    'hold_period_days': trade.hold_period_days if hasattr(trade, 'hold_period_days') else None
+                    "symbol": trade.symbol,
+                    "action": (
+                        trade.action.value
+                        if hasattr(trade.action, "value")
+                        else str(trade.action)
+                    ),
+                    "entry_date": (
+                        trade.entry_date.isoformat()
+                        if hasattr(trade, "entry_date")
+                        else None
+                    ),
+                    "exit_date": (
+                        trade.exit_date.isoformat()
+                        if hasattr(trade, "exit_date")
+                        else None
+                    ),
+                    "entry_price": (
+                        float(trade.entry_price)
+                        if hasattr(trade, "entry_price")
+                        else None
+                    ),
+                    "exit_price": (
+                        float(trade.exit_price)
+                        if hasattr(trade, "exit_price")
+                        else None
+                    ),
+                    "quantity": (
+                        float(trade.quantity) if hasattr(trade, "quantity") else None
+                    ),
+                    "profit_loss": (
+                        float(trade.profit_loss)
+                        if hasattr(trade, "profit_loss")
+                        else None
+                    ),
+                    "return_percentage": (
+                        trade.return_percentage
+                        if hasattr(trade, "return_percentage")
+                        else None
+                    ),
+                    "hold_period_days": (
+                        trade.hold_period_days
+                        if hasattr(trade, "hold_period_days")
+                        else None
+                    ),
                 }
                 trades_data.append(trade_dict)
 
             trades_file = f"backtest_trades_{timestamp}.json"
-            with open(trades_file, 'w') as f:
+            with open(trades_file, "w") as f:
                 json.dump(trades_data, f, indent=2)
             print(f"📁 Trades saved to {trades_file}")
 
@@ -587,43 +692,69 @@ Examples:
 
   # Full analysis with trade details
   python scripts/run_ollama_backtest.py --start-date 2025-07-01 --end-date 2025-07-31 --save-trades --detailed-report
-"""
+""",
     )
 
     # Date range options
     date_group = parser.add_mutually_exclusive_group()
-    date_group.add_argument('--days', type=int, default=7,
-                          help='Number of days to backtest (default: 7)')
-    date_group.add_argument('--start-date', type=str,
-                          help='Start date (YYYY-MM-DD)')
-    parser.add_argument('--end-date', type=str,
-                       help='End date (YYYY-MM-DD, required with --start-date)')
+    date_group.add_argument(
+        "--days", type=int, default=7, help="Number of days to backtest (default: 7)"
+    )
+    date_group.add_argument("--start-date", type=str, help="Start date (YYYY-MM-DD)")
+    parser.add_argument(
+        "--end-date", type=str, help="End date (YYYY-MM-DD, required with --start-date)"
+    )
 
     # Symbols and capital
-    parser.add_argument('--symbols', type=str,
-                       help='Comma-separated symbols (e.g., AAPL,MSFT,GOOGL)')
-    parser.add_argument('--capital', type=float, default=100000,
-                       help='Initial capital (default: 100000)')
+    parser.add_argument(
+        "--symbols", type=str, help="Comma-separated symbols (e.g., AAPL,MSFT,GOOGL)"
+    )
+    parser.add_argument(
+        "--capital",
+        type=float,
+        default=100000,
+        help="Initial capital (default: 100000)",
+    )
 
     # AI configuration
-    parser.add_argument('--ollama-url', type=str, default='http://192.168.1.133:11434',
-                       help='Ollama server URL (default: http://192.168.1.133:11434)')
-    parser.add_argument('--ollama-model', type=str, default='llama3.1:latest',
-                       help='Ollama model to use (default: llama3.1:latest)')
-    parser.add_argument('--confidence-threshold', type=float, default=60.0,
-                       help='AI confidence threshold %% (default: 60.0)')
-    parser.add_argument('--max-position-size', type=float, default=0.10,
-                       help='Maximum position size as decimal (default: 0.10)')
+    parser.add_argument(
+        "--ollama-url",
+        type=str,
+        default="http://192.168.1.133:11434",
+        help="Ollama server URL (default: http://192.168.1.133:11434)",
+    )
+    parser.add_argument(
+        "--ollama-model",
+        type=str,
+        default="llama3.1:latest",
+        help="Ollama model to use (default: llama3.1:latest)",
+    )
+    parser.add_argument(
+        "--confidence-threshold",
+        type=float,
+        default=60.0,
+        help="AI confidence threshold %% (default: 60.0)",
+    )
+    parser.add_argument(
+        "--max-position-size",
+        type=float,
+        default=0.10,
+        help="Maximum position size as decimal (default: 0.10)",
+    )
 
     # Output options
-    parser.add_argument('--save-results', action='store_true',
-                       help='Save results to JSON file')
-    parser.add_argument('--save-trades', action='store_true',
-                       help='Save individual trade details')
-    parser.add_argument('--detailed-report', action='store_true',
-                       help='Show detailed analysis report')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Enable verbose logging')
+    parser.add_argument(
+        "--save-results", action="store_true", help="Save results to JSON file"
+    )
+    parser.add_argument(
+        "--save-trades", action="store_true", help="Save individual trade details"
+    )
+    parser.add_argument(
+        "--detailed-report", action="store_true", help="Show detailed analysis report"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Enable verbose logging"
+    )
 
     return parser
 
@@ -666,6 +797,7 @@ async def main():
         print(f"\n❌ Backtest failed: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
     finally:

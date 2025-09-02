@@ -1,26 +1,37 @@
-import pytest
 import asyncio
 import json
-import redis
-
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Optional, List
-from pathlib import Path
-import tempfile
 import shutil
-from datetime import datetime, timezone, timedelta
-import pandas as pd
-import numpy as np
-from decimal import Decimal
 
 # Import shared modules
 import sys
-sys.path.append('/app/shared')
-from shared.models import TradeSignal, Trade, Position, PortfolioState, OrderSide, SignalType, OrderRequest, OrderType
+import tempfile
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from pathlib import Path
+from typing import List, Optional
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
+import redis
+
+sys.path.append("/app/shared")
+from shared.models import (
+    OrderRequest,
+    OrderSide,
+    OrderType,
+    PortfolioState,
+    Position,
+    SignalType,
+    Trade,
+    TradeSignal,
+)
 
 
 class MockDatabaseManager:
     """Mock database manager for testing"""
+
     def __init__(self):
         pass
 
@@ -33,6 +44,7 @@ class MockDatabaseManager:
 
 class MockMarketData:
     """Mock market data for testing"""
+
     def __init__(self, symbol, timestamp, price, volume, bid=None, ask=None):
         self.symbol = symbol
         self.timestamp = timestamp
@@ -44,6 +56,7 @@ class MockMarketData:
 
 class MockOHLCV:
     """Mock OHLCV data for testing"""
+
     def __init__(self, timestamp, open_price, high, low, close, volume):
         self.timestamp = timestamp
         self.open = open_price
@@ -103,7 +116,7 @@ def sample_market_data():
         price=150.50,
         volume=1000000,
         bid=150.25,
-        ask=150.75
+        ask=150.75,
     )
 
 
@@ -116,7 +129,7 @@ def sample_ohlcv_data():
         high=151.00,
         low=149.50,
         close=150.50,
-        volume=1000000
+        volume=1000000,
     )
 
 
@@ -133,10 +146,7 @@ def sample_trading_signal():
         stop_loss=Decimal("145.0"),
         take_profit=Decimal("155.0"),
         timestamp=datetime.now(timezone.utc),
-        metadata={
-            "rsi": 30.5,
-            "sma_crossover": True
-        }
+        metadata={"rsi": 30.5, "sma_crossover": True},
     )
 
 
@@ -151,7 +161,7 @@ def sample_order():
         price=None,
         stop_price=None,
         time_in_force="day",
-        client_order_id=None
+        client_order_id=None,
     )
 
 
@@ -159,6 +169,7 @@ def sample_order():
 def sample_trade():
     """Sample executed trade for testing"""
     from uuid import uuid4
+
     return Trade(
         order_id=uuid4(),
         symbol="AAPL",
@@ -183,7 +194,7 @@ def sample_position():
         market_value=Decimal("15050.00"),
         cost_basis=Decimal("15025.00"),
         current_price=Decimal("150.50"),
-        unrealized_pnl=Decimal("25.00")
+        unrealized_pnl=Decimal("25.00"),
     )
 
 
@@ -203,20 +214,16 @@ def sample_portfolio():
                 market_value=Decimal("15050.00"),
                 cost_basis=Decimal("15025.00"),
                 current_price=Decimal("150.50"),
-                unrealized_pnl=Decimal("25.00")
+                unrealized_pnl=Decimal("25.00"),
             )
-        ]
+        ],
     )
 
 
 @pytest.fixture
 def sample_historical_data():
     """Sample historical market data for backtesting"""
-    dates = pd.date_range(
-        start="2023-01-01",
-        end="2023-12-31",
-        freq="D"
-    )
+    dates = pd.date_range(start="2023-01-01", end="2023-12-31", freq="D")
 
     # Generate realistic OHLCV data
     np.random.seed(42)  # For reproducible tests
@@ -226,7 +233,7 @@ def sample_historical_data():
     for i in range(len(dates)):
         # Random walk with slight upward trend
         change = np.random.normal(0.001, 0.02)  # 0.1% mean, 2% std dev
-        base_price *= (1 + change)
+        base_price *= 1 + change
 
         # Generate OHLC from base price
         high = base_price * (1 + abs(np.random.normal(0, 0.01)))
@@ -235,14 +242,16 @@ def sample_historical_data():
         close_price = base_price
         volume = int(np.random.normal(1000000, 200000))
 
-        prices.append({
-            'timestamp': dates[i],
-            'open': round(open_price, 2),
-            'high': round(high, 2),
-            'low': round(low, 2),
-            'close': round(close_price, 2),
-            'volume': max(volume, 100000)  # Ensure minimum volume
-        })
+        prices.append(
+            {
+                "timestamp": dates[i],
+                "open": round(open_price, 2),
+                "high": round(high, 2),
+                "low": round(low, 2),
+                "close": round(close_price, 2),
+                "volume": max(volume, 100000),  # Ensure minimum volume
+            }
+        )
 
     return pd.DataFrame(prices)
 
@@ -259,84 +268,84 @@ def temp_data_dir():
 def mock_external_apis():
     """Mock external API responses"""
     return {
-        'twelve_data': {
-            'time_series': {
-                'AAPL': {
-                    'meta': {
-                        'symbol': 'AAPL',
-                        'interval': '1min',
-                        'currency': 'USD',
-                        'exchange_timezone': 'America/New_York'
+        "twelve_data": {
+            "time_series": {
+                "AAPL": {
+                    "meta": {
+                        "symbol": "AAPL",
+                        "interval": "1min",
+                        "currency": "USD",
+                        "exchange_timezone": "America/New_York",
                     },
-                    'values': [
+                    "values": [
                         {
-                            'datetime': '2023-12-01 15:59:00',
-                            'open': '150.00',
-                            'high': '150.50',
-                            'low': '149.75',
-                            'close': '150.25',
-                            'volume': '1500000'
+                            "datetime": "2023-12-01 15:59:00",
+                            "open": "150.00",
+                            "high": "150.50",
+                            "low": "149.75",
+                            "close": "150.25",
+                            "volume": "1500000",
                         }
-                    ]
+                    ],
                 }
             }
         },
-        'alpaca': {
-            'account': {
-                'id': 'test_account',
-                'account_number': '123456789',
-                'status': 'ACTIVE',
-                'currency': 'USD',
-                'buying_power': '50000.00',
-                'cash': '25000.00',
-                'portfolio_value': '75000.00'
+        "alpaca": {
+            "account": {
+                "id": "test_account",
+                "account_number": "123456789",
+                "status": "ACTIVE",
+                "currency": "USD",
+                "buying_power": "50000.00",
+                "cash": "25000.00",
+                "portfolio_value": "75000.00",
             },
-            'positions': [
+            "positions": [
                 {
-                    'symbol': 'AAPL',
-                    'qty': '100',
-                    'side': 'long',
-                    'market_value': '15050.00',
-                    'cost_basis': '15000.00',
-                    'unrealized_pl': '50.00',
-                    'unrealized_plpc': '0.0033'
+                    "symbol": "AAPL",
+                    "qty": "100",
+                    "side": "long",
+                    "market_value": "15050.00",
+                    "cost_basis": "15000.00",
+                    "unrealized_pl": "50.00",
+                    "unrealized_plpc": "0.0033",
                 }
             ],
-            'orders': {
-                'id': 'test_order_001',
-                'client_order_id': 'client_001',
-                'created_at': '2023-12-01T15:59:00Z',
-                'updated_at': '2023-12-01T15:59:00Z',
-                'submitted_at': '2023-12-01T15:59:00Z',
-                'filled_at': None,
-                'expired_at': None,
-                'canceled_at': None,
-                'failed_at': None,
-                'replaced_at': None,
-                'replaced_by': None,
-                'replaces': None,
-                'asset_id': 'asset_001',
-                'symbol': 'AAPL',
-                'asset_class': 'us_equity',
-                'notional': None,
-                'qty': '100',
-                'filled_qty': '0',
-                'filled_avg_price': None,
-                'order_class': '',
-                'order_type': 'market',
-                'type': 'market',
-                'side': 'buy',
-                'time_in_force': 'day',
-                'limit_price': None,
-                'stop_price': None,
-                'status': 'accepted',
-                'extended_hours': False,
-                'legs': None,
-                'trail_percent': None,
-                'trail_price': None,
-                'hwm': None
-            }
-        }
+            "orders": {
+                "id": "test_order_001",
+                "client_order_id": "client_001",
+                "created_at": "2023-12-01T15:59:00Z",
+                "updated_at": "2023-12-01T15:59:00Z",
+                "submitted_at": "2023-12-01T15:59:00Z",
+                "filled_at": None,
+                "expired_at": None,
+                "canceled_at": None,
+                "failed_at": None,
+                "replaced_at": None,
+                "replaced_by": None,
+                "replaces": None,
+                "asset_id": "asset_001",
+                "symbol": "AAPL",
+                "asset_class": "us_equity",
+                "notional": None,
+                "qty": "100",
+                "filled_qty": "0",
+                "filled_avg_price": None,
+                "order_class": "",
+                "order_type": "market",
+                "type": "market",
+                "side": "buy",
+                "time_in_force": "day",
+                "limit_price": None,
+                "stop_price": None,
+                "status": "accepted",
+                "extended_hours": False,
+                "legs": None,
+                "trail_percent": None,
+                "trail_price": None,
+                "hwm": None,
+            },
+        },
     }
 
 
@@ -345,12 +354,12 @@ def mock_gotify_client():
     """Mock Gotify client for notifications"""
     mock_client = MagicMock()
     mock_client.send_message.return_value = {
-        'id': 1,
-        'appid': 1,
-        'message': 'Test message',
-        'title': 'Test title',
-        'priority': 5,
-        'date': datetime.now(timezone.utc).isoformat()
+        "id": 1,
+        "appid": 1,
+        "message": "Test message",
+        "title": "Test title",
+        "priority": 5,
+        "date": datetime.now(timezone.utc).isoformat(),
     }
     return mock_client
 
@@ -359,89 +368,89 @@ def mock_gotify_client():
 def test_config():
     """Test configuration dictionary"""
     return {
-        'database': {
-            'host': 'localhost',
-            'port': 5432,
-            'name': 'test_trading_system',
-            'user': 'test_trader',
-            'password': 'test_password'
+        "database": {
+            "host": "localhost",
+            "port": 5432,
+            "name": "test_trading_system",
+            "user": "test_trader",
+            "password": "test_password",
         },
-        'redis': {
-            'host': 'localhost',
-            'port': 6379,
-            'password': None,
-            'db': 1  # Use different DB for tests
+        "redis": {
+            "host": "localhost",
+            "port": 6379,
+            "password": None,
+            "db": 1,  # Use different DB for tests
         },
-        'external_apis': {
-            'twelve_data': {
-                'api_key': 'test_twelve_data_key',
-                'base_url': 'https://api.twelvedata.com'
+        "external_apis": {
+            "twelve_data": {
+                "api_key": "test_twelve_data_key",
+                "base_url": "https://api.twelvedata.com",
             },
-            'alpaca': {
-                'api_key': 'test_alpaca_key',
-                'secret_key': 'test_alpaca_secret',
-                'base_url': 'https://paper-api.alpaca.markets',
-                'data_url': 'https://data.alpaca.markets'
+            "alpaca": {
+                "api_key": "test_alpaca_key",
+                "secret_key": "test_alpaca_secret",
+                "base_url": "https://paper-api.alpaca.markets",
+                "data_url": "https://data.alpaca.markets",
+            },
+        },
+        "risk_management": {
+            "max_position_size": 0.05,
+            "max_portfolio_risk": 0.02,
+            "max_drawdown": 0.15,
+            "max_correlation": 0.7,
+        },
+        "strategies": {
+            "momentum": {
+                "rsi_period": 14,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+                "sma_short": 20,
+                "sma_long": 50,
             }
         },
-        'risk_management': {
-            'max_position_size': 0.05,
-            'max_portfolio_risk': 0.02,
-            'max_drawdown': 0.15,
-            'max_correlation': 0.7
-        },
-        'strategies': {
-            'momentum': {
-                'rsi_period': 14,
-                'rsi_oversold': 30,
-                'rsi_overbought': 70,
-                'sma_short': 20,
-                'sma_long': 50
-            }
-        },
-        'gotify': {
-            'url': 'http://localhost:8080',
-            'token': 'test_gotify_token'
-        }
+        "gotify": {"url": "http://localhost:8080", "token": "test_gotify_token"},
     }
 
 
 @pytest.fixture
 def trading_signal_factory():
     """Factory for creating trading signals with different parameters"""
+
     def create_signal(
         symbol: str = "AAPL",
         signal_type: str = "BUY",
         strength: float = 0.8,
         price: float = 150.50,
         strategy_name: str = "test_strategy",
-        **kwargs
+        **kwargs,
     ) -> TradeSignal:
         return TradeSignal(
             symbol=symbol,
             signal_type=SignalType.BUY if signal_type == "BUY" else SignalType.SELL,
             confidence=strength,
             price=Decimal(str(price)),
-            quantity=kwargs.get('quantity', 100),
+            quantity=kwargs.get("quantity", 100),
             strategy_name=strategy_name,
             stop_loss=Decimal(str(price * 0.95)),
             take_profit=Decimal(str(price * 1.05)),
             timestamp=datetime.now(timezone.utc),
-            metadata=kwargs
+            metadata=kwargs,
         )
+
     return create_signal
 
 
 @pytest.fixture
 def order_factory():
     """Factory for creating orders with different parameters"""
+
     def create_order(
         symbol: str = "AAPL",
         side: str = "buy",
         quantity: int = 100,
         order_type: str = "market",
         price: Optional[float] = None,
-        **kwargs
+        **kwargs,
     ) -> OrderRequest:
         return OrderRequest(
             symbol=symbol,
@@ -451,22 +460,25 @@ def order_factory():
             price=Decimal(str(price)) if price else None,
             stop_price=None,
             time_in_force="day",
-            client_order_id=None
+            client_order_id=None,
         )
+
     return create_order
 
 
 @pytest.fixture
 def trade_factory():
     """Factory for creating executed trades"""
+
     def create_trade(
         symbol: str = "AAPL",
         side: str = "buy",
         quantity: int = 100,
         price: float = 150.50,
-        **kwargs
+        **kwargs,
     ) -> Trade:
         from uuid import uuid4
+
         return Trade(
             order_id=uuid4(),
             symbol=symbol,
@@ -477,19 +489,18 @@ def trade_factory():
             timestamp=datetime.now(timezone.utc),
             strategy_name=kwargs.get("strategy_name", "test_strategy"),
             pnl=None,
-            fees=Decimal(str(kwargs.get("fees", 0.50)))
+            fees=Decimal(str(kwargs.get("fees", 0.50))),
         )
+
     return create_trade
 
 
 @pytest.fixture
 def market_data_factory():
     """Factory for creating market data"""
+
     def create_market_data(
-        symbol: str = "AAPL",
-        price: float = 150.50,
-        volume: int = 1000000,
-        **kwargs
+        symbol: str = "AAPL", price: float = 150.50, volume: int = 1000000, **kwargs
     ) -> MockMarketData:
         return MockMarketData(
             symbol=symbol,
@@ -497,19 +508,18 @@ def market_data_factory():
             price=price,
             volume=volume,
             bid=kwargs.get("bid", price - 0.05),
-            ask=kwargs.get("ask", price + 0.05)
+            ask=kwargs.get("ask", price + 0.05),
         )
+
     return create_market_data
 
 
 @pytest.fixture
 def ohlcv_factory():
     """Factory for creating OHLCV data"""
+
     def create_ohlcv(
-        symbol: str = "AAPL",
-        close: float = 150.50,
-        timeframe: str = "1m",
-        **kwargs
+        symbol: str = "AAPL", close: float = 150.50, timeframe: str = "1m", **kwargs
     ) -> MockOHLCV:
         open_price = kwargs.get("open", close * 0.999)
         high = kwargs.get("high", max(open_price, close) * 1.001)
@@ -521,8 +531,9 @@ def ohlcv_factory():
             high=high,
             low=low,
             close=close,
-            volume=kwargs.get("volume", 1000000)
+            volume=kwargs.get("volume", 1000000),
         )
+
     return create_ohlcv
 
 
@@ -554,6 +565,7 @@ def mock_prometheus_metrics():
 @pytest.fixture
 def mock_twelve_data_api():
     """Mock TwelveData API responses"""
+
     def mock_response(symbol: str = "AAPL", interval: str = "1min"):
         return {
             "meta": {
@@ -563,7 +575,7 @@ def mock_twelve_data_api():
                 "exchange_timezone": "America/New_York",
                 "exchange": "NASDAQ",
                 "mic_code": "XNGS",
-                "type": "Common Stock"
+                "type": "Common Stock",
             },
             "values": [
                 {
@@ -572,7 +584,7 @@ def mock_twelve_data_api():
                     "high": "150.50",
                     "low": "149.75",
                     "close": "150.25",
-                    "volume": "1500000"
+                    "volume": "1500000",
                 },
                 {
                     "datetime": "2023-12-01 15:58:00",
@@ -580,11 +592,12 @@ def mock_twelve_data_api():
                     "high": "150.05",
                     "low": "149.60",
                     "close": "150.00",
-                    "volume": "1200000"
-                }
+                    "volume": "1200000",
+                },
             ],
-            "status": "ok"
+            "status": "ok",
         }
+
     return mock_response
 
 
@@ -623,7 +636,7 @@ def mock_alpaca_api():
             "maintenance_margin": "15000.00",
             "last_maintenance_margin": "15000.00",
             "sma": "75000.00",
-            "daytrade_count": 0
+            "daytrade_count": 0,
         }
     }
 
@@ -640,6 +653,7 @@ async def clean_test_data():
 @pytest.fixture
 def performance_test_data():
     """Generate performance test data"""
+
     def generate_data(num_symbols: int = 10, num_days: int = 30):
         symbols = [f"TEST{i:03d}" for i in range(num_symbols)]
         data = {}
@@ -647,11 +661,7 @@ def performance_test_data():
         for symbol in symbols:
             start_date = datetime.now() - timedelta(days=num_days)
             end_date = datetime.now()
-            dates = pd.date_range(
-                start=start_date,
-                end=end_date,
-                freq="1min"
-            )
+            dates = pd.date_range(start=start_date, end=end_date, freq="1min")
 
             # Generate random but realistic price data
             np.random.seed(hash(symbol) % 2**32)  # Deterministic per symbol
@@ -660,16 +670,18 @@ def performance_test_data():
             prices = []
             for date in dates:
                 change = np.random.normal(0, 0.001)  # Small random changes
-                base_price *= (1 + change)
+                base_price *= 1 + change
 
-                prices.append({
-                    'symbol': symbol,
-                    'timestamp': date,
-                    'price': round(base_price, 2),
-                    'volume': int(np.random.normal(100000, 20000)),
-                    'bid': round(base_price - 0.01, 2),
-                    'ask': round(base_price + 0.01, 2)
-                })
+                prices.append(
+                    {
+                        "symbol": symbol,
+                        "timestamp": date,
+                        "price": round(base_price, 2),
+                        "volume": int(np.random.normal(100000, 20000)),
+                        "bid": round(base_price - 0.01, 2),
+                        "ask": round(base_price + 0.01, 2),
+                    }
+                )
 
             data[symbol] = pd.DataFrame(prices)
 
@@ -682,19 +694,19 @@ def performance_test_data():
 def load_test_config():
     """Configuration for load testing"""
     return {
-        'concurrent_users': 10,
-        'requests_per_user': 100,
-        'ramp_up_time': 30,  # seconds
-        'test_duration': 300,  # seconds
-        'target_endpoints': [
-            'http://localhost:9101/health',
-            'http://localhost:9102/health',
-            'http://localhost:9103/health',
-            'http://localhost:9104/health',
-            'http://localhost:9105/health'
+        "concurrent_users": 10,
+        "requests_per_user": 100,
+        "ramp_up_time": 30,  # seconds
+        "test_duration": 300,  # seconds
+        "target_endpoints": [
+            "http://localhost:9101/health",
+            "http://localhost:9102/health",
+            "http://localhost:9103/health",
+            "http://localhost:9104/health",
+            "http://localhost:9105/health",
         ],
-        'acceptable_response_time': 1.0,  # seconds
-        'acceptable_error_rate': 0.01  # 1%
+        "acceptable_response_time": 1.0,  # seconds
+        "acceptable_error_rate": 0.01,  # 1%
     }
 
 
@@ -719,7 +731,12 @@ class TestHelper:
         assert order.symbol is not None
         assert order.side in [OrderSide.BUY, OrderSide.SELL]
         assert order.quantity > 0
-        assert order.order_type in [OrderType.MARKET, OrderType.LIMIT, OrderType.STOP, OrderType.STOP_LIMIT]
+        assert order.order_type in [
+            OrderType.MARKET,
+            OrderType.LIMIT,
+            OrderType.STOP,
+            OrderType.STOP_LIMIT,
+        ]
         if order.order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
             assert order.price and order.price > 0
 
@@ -745,7 +762,9 @@ class TestHelper:
         assert market_data.timestamp is not None
 
     @staticmethod
-    def create_test_portfolio(symbols: List[str], cash: float = 10000.0) -> PortfolioState:
+    def create_test_portfolio(
+        symbols: List[str], cash: float = 10000.0
+    ) -> PortfolioState:
         """Create a test portfolio with given symbols"""
         positions = []
         for symbol in symbols:
@@ -756,7 +775,7 @@ class TestHelper:
                 market_value=Decimal("10500.0"),
                 cost_basis=Decimal("10000.0"),
                 current_price=Decimal("105.0"),
-                unrealized_pnl=Decimal("500.0")
+                unrealized_pnl=Decimal("500.0"),
             )
             positions.append(position)
 
@@ -765,7 +784,7 @@ class TestHelper:
             cash=Decimal(str(cash)),
             buying_power=Decimal(str(cash * 2)),
             total_equity=Decimal(str(cash + len(symbols) * 500)),
-            positions=positions
+            positions=positions,
         )
 
 
@@ -773,9 +792,6 @@ class TestHelper:
 def test_helper():
     """Provide TestHelper instance"""
     return TestHelper()
-
-
-
 
 
 # Performance testing markers
@@ -804,24 +820,24 @@ def cleanup_test_environment():
 def mock_environment_variables():
     """Mock environment variables for testing"""
     test_env = {
-        'ENVIRONMENT': 'test',
-        'LOG_LEVEL': 'DEBUG',
-        'DB_HOST': 'localhost',
-        'DB_PORT': '5432',
-        'DB_NAME': 'test_trading_system',
-        'DB_USER': 'test_trader',
-        'DB_PASSWORD': 'test_password',
-        'REDIS_HOST': 'localhost',
-        'REDIS_PORT': '6379',
-        'REDIS_PASSWORD': '',
-        'TWELVE_DATA_API_KEY': 'test_twelve_data_key',
-        'ALPACA_API_KEY': 'test_alpaca_key',
-        'ALPACA_SECRET_KEY': 'test_alpaca_secret',
-        'GOTIFY_URL': 'http://localhost:8080',
-        'GOTIFY_TOKEN': 'test_gotify_token'
+        "ENVIRONMENT": "test",
+        "LOG_LEVEL": "DEBUG",
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "test_trading_system",
+        "DB_USER": "test_trader",
+        "DB_PASSWORD": "test_password",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "",
+        "TWELVE_DATA_API_KEY": "test_twelve_data_key",
+        "ALPACA_API_KEY": "test_alpaca_key",
+        "ALPACA_SECRET_KEY": "test_alpaca_secret",
+        "GOTIFY_URL": "http://localhost:8080",
+        "GOTIFY_TOKEN": "test_gotify_token",
     }
 
-    with patch.dict('os.environ', test_env, clear=True):
+    with patch.dict("os.environ", test_env, clear=True):
         yield test_env
 
 
@@ -839,12 +855,14 @@ def mock_websocket():
     """Mock WebSocket connection for testing real-time data"""
     mock_ws = AsyncMock()
     mock_ws.send.return_value = None
-    mock_ws.recv.return_value = json.dumps({
-        "symbol": "AAPL",
-        "price": 150.50,
-        "volume": 1000,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
+    mock_ws.recv.return_value = json.dumps(
+        {
+            "symbol": "AAPL",
+            "price": 150.50,
+            "volume": 1000,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+    )
     mock_ws.close.return_value = None
     return mock_ws
 
@@ -853,7 +871,7 @@ def mock_websocket():
 def benchmark_data():
     """Benchmark data for performance comparisons"""
     return {
-        'sp500_returns': pd.Series([0.001, 0.002, -0.001, 0.003, -0.002] * 100),
-        'nasdaq_returns': pd.Series([0.002, 0.003, -0.002, 0.004, -0.001] * 100),
-        'risk_free_rate': 0.02  # 2% annual
+        "sp500_returns": pd.Series([0.001, 0.002, -0.001, 0.003, -0.002] * 100),
+        "nasdaq_returns": pd.Series([0.002, 0.003, -0.002, 0.004, -0.001] * 100),
+        "risk_free_rate": 0.02,  # 2% annual
     }

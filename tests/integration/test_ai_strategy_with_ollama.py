@@ -5,31 +5,33 @@ This test suite validates that the AI strategy engine can use Ollama as a backen
 while maintaining compatibility with the existing prompt system and production data flows.
 """
 
-import pytest
 import asyncio
-import os
-import pandas as pd
 import json
+import os
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pandas as pd
+import pytest
+
+from services.data_collector.src.data_store import DataStore, DataStoreConfig
 
 # Import AI strategy components
 from services.strategy_engine.src.ai_strategy import (
-    AIStrategyEngine,
-    AnthropicClient,
-    DataContextBuilder,
-    ConsensusEngine,
+    AIDecision,
     AIModel,
     AIResponse,
-    AIDecision,
-    MarketContext
+    AIStrategyEngine,
+    AnthropicClient,
+    ConsensusEngine,
+    DataContextBuilder,
+    MarketContext,
 )
 from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
 from services.strategy_engine.src.ollama_client import OllamaClient, OllamaResponse
-from services.data_collector.src.data_store import DataStore, DataStoreConfig
 
 
 class OllamaAnthropicAdapter:
@@ -42,13 +44,15 @@ class OllamaAnthropicAdapter:
         self.rate_limiter = MagicMock()
         self.cache = MagicMock()
 
-    async def query(self, prompt: str, model: AIModel = AIModel.HAIKU, **kwargs) -> AIResponse:
+    async def query(
+        self, prompt: str, model: AIModel = AIModel.HAIKU, **kwargs
+    ) -> AIResponse:
         """Query Ollama and return in AIResponse format."""
         # Use Ollama instead of Anthropic
         ollama_response = await self.ollama_client.query(
             prompt,
-            max_tokens=kwargs.get('max_tokens', 2000),
-            temperature=kwargs.get('temperature', 0.3)
+            max_tokens=kwargs.get("max_tokens", 2000),
+            temperature=kwargs.get("temperature", 0.3),
         )
 
         # Convert to AIResponse format
@@ -59,36 +63,46 @@ class OllamaAnthropicAdapter:
             completion_tokens=ollama_response.tokens_used,
             total_tokens=len(prompt.split()) * 1.3 + ollama_response.tokens_used,
             cost=0.0,  # Free for local models
-            response_time=ollama_response.response_time
+            response_time=ollama_response.response_time,
         )
 
 
 class OllamaAIStrategyEngine(AIStrategyEngine):
     """AI Strategy Engine modified to use Ollama backend."""
 
-    def __init__(self, config: StrategyConfig, ollama_url: str = None, ollama_model: str = None):
+    def __init__(
+        self, config: StrategyConfig, ollama_url: str = None, ollama_model: str = None
+    ):
         """Initialize with Ollama backend."""
         # Initialize base components
         self.config = config
 
         # Load prompts configuration
-        config_path = Path(__file__).parent.parent.parent / "config" / "ai_strategy" / "prompts.yaml"
+        config_path = (
+            Path(__file__).parent.parent.parent
+            / "config"
+            / "ai_strategy"
+            / "prompts.yaml"
+        )
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 import yaml
+
                 prompts_config = yaml.safe_load(f)
                 self.prompts_config = prompts_config if prompts_config else {}
         except FileNotFoundError:
             self.prompts_config = {}
 
         # Initialize Ollama client
-        ollama_url = ollama_url or os.getenv('OLLAMA_URL', 'http://192.168.1.133:11434')
-        ollama_model = ollama_model or os.getenv('OLLAMA_MODEL', 'llama3.1:latest')
+        ollama_url = ollama_url or os.getenv("OLLAMA_URL", "http://192.168.1.133:11434")
+        ollama_model = ollama_model or os.getenv("OLLAMA_MODEL", "llama3.1:latest")
 
         ollama_client = OllamaClient(ollama_url, ollama_model)
 
         # Use adapter to make Ollama compatible with existing code
-        self.anthropic_client = OllamaAnthropicAdapter(ollama_client, self.prompts_config)
+        self.anthropic_client = OllamaAnthropicAdapter(
+            ollama_client, self.prompts_config
+        )
 
         # Initialize other components
         self.context_builder = DataContextBuilder()
@@ -101,25 +115,29 @@ class OllamaAIStrategyEngine(AIStrategyEngine):
 
         # Performance tracking
         self.ai_performance = {
-            'total_decisions': 0,
-            'correct_decisions': 0,
-            'total_cost': 0.0,
-            'decisions_by_model': {},
-            'backend': 'ollama'
+            "total_decisions": 0,
+            "correct_decisions": 0,
+            "total_cost": 0.0,
+            "decisions_by_model": {},
+            "backend": "ollama",
         }
 
     def _setup_indicators(self):
         """Setup technical indicators (inherited method)."""
         pass
 
-    async def _query_multiple_models(self, context: Dict[str, Any], symbol: str) -> List[AIResponse]:
+    async def _query_multiple_models(
+        self, context: Dict[str, Any], symbol: str
+    ) -> List[AIResponse]:
         """Query Ollama using production prompts."""
         try:
             responses = []
 
             # Get master analyst prompt from YAML config
-            master_analyst_config = self.prompts_config.get('prompts', {}).get('master_analyst', {})
-            prompt_template = master_analyst_config.get('template', '')
+            master_analyst_config = self.prompts_config.get("prompts", {}).get(
+                "master_analyst", {}
+            )
+            prompt_template = master_analyst_config.get("template", "")
 
             if not prompt_template:
                 # Fallback to simple prompt
@@ -135,8 +153,8 @@ class OllamaAIStrategyEngine(AIStrategyEngine):
             ]
 
             # Add OPUS for high-value trades
-            current_price = float(context.get('current_price', 0))
-            if current_price > 100 or abs(float(context.get('daily_change', 0))) > 5:
+            current_price = float(context.get("current_price", 0))
+            if current_price > 100 or abs(float(context.get("daily_change", 0))) > 5:
                 models_to_simulate.append((AIModel.OPUS, 0.4))
 
             for model, temperature in models_to_simulate:
@@ -145,7 +163,7 @@ class OllamaAIStrategyEngine(AIStrategyEngine):
                         prompt=prompt,
                         model=model,
                         max_tokens=2000,
-                        temperature=temperature
+                        temperature=temperature,
                     )
 
                     if response:
@@ -161,36 +179,42 @@ class OllamaAIStrategyEngine(AIStrategyEngine):
             print(f"Error in multi-model query: {e}")
             return []
 
-    def _build_production_prompt(self, template: str, context: Dict[str, Any], symbol: str) -> str:
+    def _build_production_prompt(
+        self, template: str, context: Dict[str, Any], symbol: str
+    ) -> str:
         """Build prompt using production YAML template."""
         try:
             # Extract all context values
             template_data = {
-                'market_context': self._format_market_context(),
-                'ticker': symbol,
-                'current_price': context.get('current_price', 0),
-                'daily_change': context.get('daily_change', 0),
-                'volume': context.get('volume', 0),
-                'avg_volume': context.get('volume', 0) * 0.8,  # Estimate
-                'rsi': context.get('rsi', 50),
-                'macd_signal': context.get('macd_signal', 0),
-                'macd_histogram': context.get('macd_histogram', 0),
-                'price_vs_sma20': context.get('price_vs_sma20', 0),
-                'price_vs_sma50': context.get('price_vs_sma50', 0),
-                'sma20_vs_sma50': context.get('sma20_vs_sma50', 0),
-                'bb_position': context.get('bb_position', 50),
-                'atr': context.get('atr', context.get('current_price', 100) * 0.02),
-                'atr_percentage': context.get('atr_percentage', 2.0),
-                'support_level': context.get('support', context.get('current_price', 100) * 0.95),
-                'resistance_level': context.get('resistance', context.get('current_price', 100) * 1.05),
-                'market_cap': context.get('market_cap', 'N/A'),
-                'pe_ratio': context.get('pe_ratio', 'N/A'),
-                'sector': context.get('sector', 'Unknown'),
-                'sector_performance': context.get('sector_performance', 0),
-                'float_shares': context.get('float_shares', 'N/A'),
-                'short_interest': context.get('short_interest', 'N/A'),
-                'recent_candles': self._describe_recent_candles(context),
-                'identified_patterns': self._identify_patterns(context)
+                "market_context": self._format_market_context(),
+                "ticker": symbol,
+                "current_price": context.get("current_price", 0),
+                "daily_change": context.get("daily_change", 0),
+                "volume": context.get("volume", 0),
+                "avg_volume": context.get("volume", 0) * 0.8,  # Estimate
+                "rsi": context.get("rsi", 50),
+                "macd_signal": context.get("macd_signal", 0),
+                "macd_histogram": context.get("macd_histogram", 0),
+                "price_vs_sma20": context.get("price_vs_sma20", 0),
+                "price_vs_sma50": context.get("price_vs_sma50", 0),
+                "sma20_vs_sma50": context.get("sma20_vs_sma50", 0),
+                "bb_position": context.get("bb_position", 50),
+                "atr": context.get("atr", context.get("current_price", 100) * 0.02),
+                "atr_percentage": context.get("atr_percentage", 2.0),
+                "support_level": context.get(
+                    "support", context.get("current_price", 100) * 0.95
+                ),
+                "resistance_level": context.get(
+                    "resistance", context.get("current_price", 100) * 1.05
+                ),
+                "market_cap": context.get("market_cap", "N/A"),
+                "pe_ratio": context.get("pe_ratio", "N/A"),
+                "sector": context.get("sector", "Unknown"),
+                "sector_performance": context.get("sector_performance", 0),
+                "float_shares": context.get("float_shares", "N/A"),
+                "short_interest": context.get("short_interest", "N/A"),
+                "recent_candles": self._describe_recent_candles(context),
+                "identified_patterns": self._identify_patterns(context),
             }
 
             return template.format(**template_data)
@@ -236,20 +260,20 @@ Provide analysis in JSON format:
 
     def _describe_recent_candles(self, context: Dict[str, Any]) -> str:
         """Describe recent price action."""
-        change = context.get('daily_change', 0)
+        change = context.get("daily_change", 0)
         return f"Recent price action shows {'bullish' if change > 0 else 'bearish'} momentum with {abs(change):.1f}% daily change"
 
     def _identify_patterns(self, context: Dict[str, Any]) -> str:
         """Identify technical patterns."""
         patterns = []
-        rsi = context.get('rsi', 50)
+        rsi = context.get("rsi", 50)
 
         if rsi > 70:
             patterns.append("Overbought conditions (RSI > 70)")
         elif rsi < 30:
             patterns.append("Oversold conditions (RSI < 30)")
 
-        price_vs_sma20 = context.get('price_vs_sma20', 0)
+        price_vs_sma20 = context.get("price_vs_sma20", 0)
         if abs(price_vs_sma20) > 3:
             direction = "above" if price_vs_sma20 > 0 else "below"
             patterns.append(f"Price significantly {direction} SMA20")
@@ -258,7 +282,7 @@ Provide analysis in JSON format:
 
     async def close(self):
         """Close the Ollama client."""
-        if hasattr(self.anthropic_client, 'ollama_client'):
+        if hasattr(self.anthropic_client, "ollama_client"):
             await self.anthropic_client.ollama_client.close()
 
 
@@ -276,10 +300,7 @@ class TestAIStrategyWithOllama:
             lookback_period=20,
             min_confidence=60.0,
             enabled=True,
-            parameters={
-                'max_position_size': 0.1,
-                'risk_tolerance': 'medium'
-            }
+            parameters={"max_position_size": 0.1, "risk_tolerance": "medium"},
         )
 
     @pytest.fixture
@@ -305,9 +326,9 @@ class TestAIStrategyWithOllama:
 
         config = DataStoreConfig(
             base_path=str(parquet_path),
-            compression='snappy',
+            compression="snappy",
             batch_size=100,
-            retention_days=30
+            retention_days=30,
         )
 
         return DataStore(config)
@@ -316,67 +337,75 @@ class TestAIStrategyWithOllama:
     def sample_market_data(self):
         """Sample market data for testing."""
         return {
-            'symbol': 'AAPL',
-            'current_price': 150.25,
-            'daily_change': 1.5,
-            'volume': 1500000,
-            'rsi': 65.2,
-            'macd_signal': 0.25,
-            'macd_histogram': 0.15,
-            'price_vs_sma20': 2.3,
-            'price_vs_sma50': 5.1,
-            'bb_position': 75.0,
-            'atr': 3.15,
-            'support': 147.50,
-            'resistance': 153.00,
-            'market_cap': 2500000000,
-            'sector': 'Technology',
-            'timestamp': datetime.now()
+            "symbol": "AAPL",
+            "current_price": 150.25,
+            "daily_change": 1.5,
+            "volume": 1500000,
+            "rsi": 65.2,
+            "macd_signal": 0.25,
+            "macd_histogram": 0.15,
+            "price_vs_sma20": 2.3,
+            "price_vs_sma50": 5.1,
+            "bb_position": 75.0,
+            "atr": 3.15,
+            "support": 147.50,
+            "resistance": 153.00,
+            "market_cap": 2500000000,
+            "sector": "Technology",
+            "timestamp": datetime.now(),
         }
 
     async def test_yaml_prompt_loading(self, ollama_strategy):
         """Test that YAML prompts are loaded correctly."""
         assert ollama_strategy.prompts_config is not None
-        assert 'prompts' in ollama_strategy.prompts_config
+        assert "prompts" in ollama_strategy.prompts_config
 
         # Check for key prompt templates
-        prompts = ollama_strategy.prompts_config.get('prompts', {})
-        assert 'master_analyst' in prompts
+        prompts = ollama_strategy.prompts_config.get("prompts", {})
+        assert "master_analyst" in prompts
 
-        master_analyst = prompts['master_analyst']
-        assert 'template' in master_analyst
-        assert 'model_preference' in master_analyst
+        master_analyst = prompts["master_analyst"]
+        assert "template" in master_analyst
+        assert "model_preference" in master_analyst
 
         print(f"Loaded prompts: {list(prompts.keys())}")
 
-    async def test_production_prompt_formatting(self, ollama_strategy, sample_market_data):
+    async def test_production_prompt_formatting(
+        self, ollama_strategy, sample_market_data
+    ):
         """Test that production prompts are formatted correctly."""
         # Get the master analyst template
-        master_analyst_config = ollama_strategy.prompts_config.get('prompts', {}).get('master_analyst', {})
-        template = master_analyst_config.get('template', '')
+        master_analyst_config = ollama_strategy.prompts_config.get("prompts", {}).get(
+            "master_analyst", {}
+        )
+        template = master_analyst_config.get("template", "")
 
         assert template, "Master analyst template should not be empty"
 
         # Test prompt building
-        prompt = ollama_strategy._build_production_prompt(template, sample_market_data, 'AAPL')
+        prompt = ollama_strategy._build_production_prompt(
+            template, sample_market_data, "AAPL"
+        )
 
-        assert 'AAPL' in prompt
-        assert '150.25' in prompt  # Current price
-        assert 'RSI' in prompt
-        assert 'JSON format' in prompt
+        assert "AAPL" in prompt
+        assert "150.25" in prompt  # Current price
+        assert "RSI" in prompt
+        assert "JSON format" in prompt
 
         print(f"Generated prompt length: {len(prompt)} characters")
         print(f"Prompt preview: {prompt[:500]}...")
 
-    async def test_ai_analysis_with_production_prompts(self, ollama_strategy, sample_market_data):
+    async def test_ai_analysis_with_production_prompts(
+        self, ollama_strategy, sample_market_data
+    ):
         """Test complete AI analysis using production prompts."""
         # Update market context
         ollama_strategy.market_context = MarketContext(
-            spy_data={'price': 450.0, 'change': 0.5},
-            vix_data={'level': 20.0, 'change': -0.5},
-            sector_performance={'Technology': 1.2},
-            market_regime='trending_bullish',
-            last_update=datetime.now()
+            spy_data={"price": 450.0, "change": 0.5},
+            vix_data={"level": 20.0, "change": -0.5},
+            sector_performance={"Technology": 1.2},
+            market_regime="trending_bullish",
+            last_update=datetime.now(),
         )
 
         # Perform analysis
@@ -384,7 +413,7 @@ class TestAIStrategyWithOllama:
 
         # Validate decision
         assert decision is not None
-        assert decision.decision in ['BUY', 'SELL', 'HOLD']
+        assert decision.decision in ["BUY", "SELL", "HOLD"]
         assert 0 <= decision.confidence <= 100
         assert decision.reasoning is not None
         assert decision.total_cost == 0.0  # Ollama is free
@@ -396,10 +425,14 @@ class TestAIStrategyWithOllama:
         print(f"Models used: {decision.models_used}")
         print(f"Response time: {decision.response_time:.2f}s")
 
-    async def test_consensus_mechanism_with_ollama(self, ollama_strategy, sample_market_data):
+    async def test_consensus_mechanism_with_ollama(
+        self, ollama_strategy, sample_market_data
+    ):
         """Test that consensus mechanism works with Ollama responses."""
         # Query multiple models (simulated)
-        responses = await ollama_strategy._query_multiple_models(sample_market_data, 'AAPL')
+        responses = await ollama_strategy._query_multiple_models(
+            sample_market_data, "AAPL"
+        )
 
         assert len(responses) > 0, "Should get at least one response"
 
@@ -409,8 +442,8 @@ class TestAIStrategyWithOllama:
         for response in responses:
             try:
                 # Parse JSON from Ollama response
-                json_start = response.content.find('{')
-                json_end = response.content.rfind('}') + 1
+                json_start = response.content.find("{")
+                json_end = response.content.rfind("}") + 1
 
                 if json_start >= 0 and json_end > json_start:
                     json_str = response.content[json_start:json_end]
@@ -421,11 +454,11 @@ class TestAIStrategyWithOllama:
                         model=response.model,
                         prompt_type="master_analyst",
                         response=parsed,
-                        confidence=parsed.get('confidence', 50),
+                        confidence=parsed.get("confidence", 50),
                         tokens_used=response.total_tokens,
                         cost=0.0,
                         timestamp=datetime.now(),
-                        cache_hit=False
+                        cache_hit=False,
                     )
                     formatted_responses.append(formatted_response)
 
@@ -434,21 +467,27 @@ class TestAIStrategyWithOllama:
                 continue
 
         if formatted_responses:
-            consensus = await ollama_strategy.consensus_engine.build_consensus(formatted_responses)
+            consensus = await ollama_strategy.consensus_engine.build_consensus(
+                formatted_responses
+            )
 
             assert consensus is not None
-            assert consensus.action in ['BUY', 'SELL', 'HOLD']
-            print(f"Consensus: {consensus.action} with {consensus.confidence}% confidence")
+            assert consensus.action in ["BUY", "SELL", "HOLD"]
+            print(
+                f"Consensus: {consensus.action} with {consensus.confidence}% confidence"
+            )
         else:
             print("Could not parse any responses for consensus")
 
-    async def test_production_data_integration(self, ollama_strategy, production_data_store):
+    async def test_production_data_integration(
+        self, ollama_strategy, production_data_store
+    ):
         """Test AI strategy with real production data."""
         try:
             # Get available data summary
             summary = await production_data_store.get_data_summary()
 
-            if summary['total_files'] == 0:
+            if summary["total_files"] == 0:
                 pytest.skip("No production data available")
 
             # Get available tickers
@@ -471,21 +510,25 @@ class TestAIStrategyWithOllama:
 
             # Build market data context
             market_data = {
-                'symbol': ticker,
-                'current_price': float(latest.get('close', latest.get('price', 100))),
-                'daily_change': float(latest.get('change_percent', 0)),
-                'volume': int(latest.get('volume', 1000000)),
-                'rsi': 55.0,  # Would calculate from historical data
-                'timestamp': datetime.now()
+                "symbol": ticker,
+                "current_price": float(latest.get("close", latest.get("price", 100))),
+                "daily_change": float(latest.get("change_percent", 0)),
+                "volume": int(latest.get("volume", 1000000)),
+                "rsi": 55.0,  # Would calculate from historical data
+                "timestamp": datetime.now(),
             }
 
-            print(f"\nAnalyzing {ticker} with real data: ${market_data['current_price']}")
+            print(
+                f"\nAnalyzing {ticker} with real data: ${market_data['current_price']}"
+            )
 
             # Analyze with AI
             decision = await ollama_strategy.analyze(market_data)
 
             assert decision is not None
-            print(f"Real data analysis - {ticker}: {decision.decision} ({decision.confidence}%)")
+            print(
+                f"Real data analysis - {ticker}: {decision.decision} ({decision.confidence}%)"
+            )
             print(f"Reasoning: {decision.reasoning}")
 
         except Exception as e:
@@ -499,9 +542,12 @@ class TestAIStrategyWithOllama:
         decision = await ollama_strategy.analyze(sample_market_data)
 
         # Check performance was updated
-        assert ollama_strategy.ai_performance['total_decisions'] > initial_performance['total_decisions']
-        assert ollama_strategy.ai_performance['backend'] == 'ollama'
-        assert ollama_strategy.ai_performance['total_cost'] == 0.0
+        assert (
+            ollama_strategy.ai_performance["total_decisions"]
+            > initial_performance["total_decisions"]
+        )
+        assert ollama_strategy.ai_performance["backend"] == "ollama"
+        assert ollama_strategy.ai_performance["total_cost"] == 0.0
 
         print(f"Performance tracking: {ollama_strategy.ai_performance}")
 
@@ -509,25 +555,25 @@ class TestAIStrategyWithOllama:
         """Test error handling with invalid data."""
         # Test with minimal data
         minimal_data = {
-            'symbol': 'TEST',
-            'current_price': 100,
-            'timestamp': datetime.now()
+            "symbol": "TEST",
+            "current_price": 100,
+            "timestamp": datetime.now(),
         }
 
         decision = await ollama_strategy.analyze(minimal_data)
 
         # Should handle gracefully
         if decision:
-            assert decision.decision in ['BUY', 'SELL', 'HOLD']
+            assert decision.decision in ["BUY", "SELL", "HOLD"]
             print(f"Handled minimal data: {decision.decision}")
         else:
             print("Returned None for minimal data (acceptable)")
 
         # Test with invalid price
         invalid_data = {
-            'symbol': 'INVALID',
-            'current_price': 'not_a_number',
-            'timestamp': datetime.now()
+            "symbol": "INVALID",
+            "current_price": "not_a_number",
+            "timestamp": datetime.now(),
         }
 
         try:
@@ -537,7 +583,9 @@ class TestAIStrategyWithOllama:
             print(f"Error handled: {e}")
 
     @pytest.mark.slow
-    async def test_realistic_trading_workflow(self, ollama_strategy, sample_market_data):
+    async def test_realistic_trading_workflow(
+        self, ollama_strategy, sample_market_data
+    ):
         """Test complete realistic trading workflow."""
         print("\n=== Realistic Trading Workflow Test ===")
 
@@ -549,11 +597,11 @@ class TestAIStrategyWithOllama:
 
         # Set market context
         ollama_strategy.market_context = MarketContext(
-            spy_data={'price': 450.0, 'change': 0.3},
-            vix_data={'level': 18.5, 'change': -1.2},
-            sector_performance={'Technology': 0.8},
-            market_regime='trending_bullish',
-            last_update=datetime.now()
+            spy_data={"price": 450.0, "change": 0.3},
+            vix_data={"level": 18.5, "change": -1.2},
+            sector_performance={"Technology": 0.8},
+            market_regime="trending_bullish",
+            last_update=datetime.now(),
         )
 
         print("🌐 Market context set")
@@ -592,7 +640,7 @@ class TestAIStrategyWithOllama:
 
         # Final assertions
         assert decision is not None
-        assert decision.decision in ['BUY', 'SELL', 'HOLD']
+        assert decision.decision in ["BUY", "SELL", "HOLD"]
         assert 0 <= decision.confidence <= 100
         assert processing_time > 0
 

@@ -9,13 +9,12 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import redis.asyncio as redis
 from pydantic import BaseModel, Field
 
-from shared.models import MarketData, FinVizData, TimeFrame
-
+from shared.models import FinVizData, MarketData, TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,9 @@ class RedisConfig(BaseModel):
     max_connections: int = Field(default=20, description="Maximum connections in pool")
     socket_timeout: float = Field(default=5.0, description="Socket timeout in seconds")
     retry_on_timeout: bool = Field(default=True, description="Retry on timeout")
-    decode_responses: bool = Field(default=True, description="Decode responses to strings")
+    decode_responses: bool = Field(
+        default=True, description="Decode responses to strings"
+    )
 
     @property
     def url(self) -> str:
@@ -81,7 +82,7 @@ class RedisClient:
                 max_connections=self.config.max_connections,
                 socket_timeout=self.config.socket_timeout,
                 retry_on_timeout=self.config.retry_on_timeout,
-                decode_responses=self.config.decode_responses
+                decode_responses=self.config.decode_responses,
             )
 
             # Test connection
@@ -107,7 +108,9 @@ class RedisClient:
         """Async context manager exit."""
         await self.disconnect()
 
-    async def publish_new_tickers(self, tickers: List[str], metadata: Optional[Dict[str, Any]] = None):
+    async def publish_new_tickers(
+        self, tickers: List[str], metadata: Optional[Dict[str, Any]] = None
+    ):
         """
         Publish new ticker selections to Redis channel.
 
@@ -122,13 +125,12 @@ class RedisClient:
             "tickers": tickers,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "count": len(tickers),
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
         try:
             await self.redis.publish(
-                RedisChannels.TICKERS_NEW,
-                json.dumps(message, default=str)
+                RedisChannels.TICKERS_NEW, json.dumps(message, default=str)
             )
 
             # Also update the active tickers list
@@ -144,7 +146,7 @@ class RedisClient:
         self,
         ticker: str,
         price_data: Union[MarketData, Dict[str, Any]],
-        ttl: int = 300  # 5 minutes default
+        ttl: int = 300,  # 5 minutes default
     ):
         """
         Publish price update for a specific ticker.
@@ -168,7 +170,7 @@ class RedisClient:
                 "low": float(price_data.low),
                 "close": float(price_data.close),
                 "volume": price_data.volume,
-                "asset_type": price_data.asset_type.value
+                "asset_type": price_data.asset_type.value,
             }
         else:
             data_dict = price_data
@@ -181,11 +183,7 @@ class RedisClient:
 
             # Cache the latest price with TTL
             cache_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
-            await self.redis.setex(
-                cache_key,
-                ttl,
-                json.dumps(data_dict, default=str)
-            )
+            await self.redis.setex(cache_key, ttl, json.dumps(data_dict, default=str))
 
             logger.debug(f"Published price update for {ticker}")
 
@@ -194,9 +192,7 @@ class RedisClient:
             raise
 
     async def publish_screener_update(
-        self,
-        screener_data: List[FinVizData],
-        screener_type: str = "momentum"
+        self, screener_data: List[FinVizData], screener_type: str = "momentum"
     ):
         """
         Publish screener update to Redis.
@@ -211,39 +207,46 @@ class RedisClient:
         # Convert to serializable format
         data_list = []
         for item in screener_data:
-            data_list.append({
-                "symbol": item.symbol,
-                "company": item.company or "",
-                "sector": item.sector or "",
-                "industry": item.industry or "",
-                "country": item.country or "",
-                "market_cap": str(item.market_cap) if item.market_cap is not None else None,
-                "pe_ratio": float(item.pe_ratio) if item.pe_ratio is not None else None,
-                "price": float(item.price) if item.price is not None else None,
-                "change": float(item.change) if item.change is not None else None,
-                "volume": int(item.volume) if item.volume is not None else None,
-                "timestamp": item.timestamp.isoformat() if item.timestamp else datetime.now(timezone.utc).isoformat()
-            })
+            data_list.append(
+                {
+                    "symbol": item.symbol,
+                    "company": item.company or "",
+                    "sector": item.sector or "",
+                    "industry": item.industry or "",
+                    "country": item.country or "",
+                    "market_cap": (
+                        str(item.market_cap) if item.market_cap is not None else None
+                    ),
+                    "pe_ratio": (
+                        float(item.pe_ratio) if item.pe_ratio is not None else None
+                    ),
+                    "price": float(item.price) if item.price is not None else None,
+                    "change": float(item.change) if item.change is not None else None,
+                    "volume": int(item.volume) if item.volume is not None else None,
+                    "timestamp": (
+                        item.timestamp.isoformat()
+                        if item.timestamp
+                        else datetime.now(timezone.utc).isoformat()
+                    ),
+                }
+            )
 
         message = {
             "screener_type": screener_type,
             "data": data_list,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "count": len(data_list)
+            "count": len(data_list),
         }
 
         try:
             await self.redis.publish(
-                RedisChannels.SCREENER_UPDATES,
-                json.dumps(message, default=str)
+                RedisChannels.SCREENER_UPDATES, json.dumps(message, default=str)
             )
 
             # Cache screener results
             cache_key = f"{RedisKeys.SCREENER_CACHE_PREFIX}{screener_type}"
             await self.redis.setex(
-                cache_key,
-                1800,  # 30 minutes TTL
-                json.dumps(message, default=str)
+                cache_key, 1800, json.dumps(message, default=str)  # 30 minutes TTL
             )
 
             logger.info(f"Published screener update with {len(data_list)} items")
@@ -257,7 +260,7 @@ class RedisClient:
         ticker: str,
         timeframe: TimeFrame,
         data: List[MarketData],
-        ttl: int = 3600  # 1 hour default
+        ttl: int = 3600,  # 1 hour default
     ):
         """
         Cache market data in Redis.
@@ -276,21 +279,19 @@ class RedisClient:
         # Convert to serializable format
         data_list = []
         for item in data:
-            data_list.append({
-                "timestamp": item.timestamp.isoformat(),
-                "open": float(item.open),
-                "high": float(item.high),
-                "low": float(item.low),
-                "close": float(item.close),
-                "volume": item.volume
-            })
+            data_list.append(
+                {
+                    "timestamp": item.timestamp.isoformat(),
+                    "open": float(item.open),
+                    "high": float(item.high),
+                    "low": float(item.low),
+                    "close": float(item.close),
+                    "volume": item.volume,
+                }
+            )
 
         try:
-            await self.redis.setex(
-                cache_key,
-                ttl,
-                json.dumps(data_list, default=str)
-            )
+            await self.redis.setex(cache_key, ttl, json.dumps(data_list, default=str))
 
             logger.debug(f"Cached {len(data)} records for {ticker} {timeframe}")
 
@@ -298,9 +299,7 @@ class RedisClient:
             logger.error(f"Failed to cache market data for {ticker}: {e}")
 
     async def get_cached_market_data(
-        self,
-        ticker: str,
-        timeframe: TimeFrame
+        self, ticker: str, timeframe: TimeFrame
     ) -> Optional[List[Dict[str, Any]]]:
         """
         Get cached market data from Redis.
@@ -400,10 +399,7 @@ class RedisClient:
             logger.error(f"Failed to remove ticker {ticker}: {e}")
 
     async def update_last_update_time(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        timestamp: Optional[datetime] = None
+        self, ticker: str, timeframe: TimeFrame, timestamp: Optional[datetime] = None
     ):
         """
         Update last update time for a ticker/timeframe combination.
@@ -429,9 +425,7 @@ class RedisClient:
             logger.error(f"Failed to update last update time for {ticker}: {e}")
 
     async def get_last_update_time(
-        self,
-        ticker: str,
-        timeframe: TimeFrame
+        self, ticker: str, timeframe: TimeFrame
     ) -> Optional[datetime]:
         """
         Get last update time for a ticker/timeframe combination.
@@ -459,10 +453,7 @@ class RedisClient:
         return None
 
     async def publish_data_validation_alert(
-        self,
-        ticker: str,
-        issues: List[str],
-        severity: str = "warning"
+        self, ticker: str, issues: List[str], severity: str = "warning"
     ):
         """
         Publish data validation alert.
@@ -480,16 +471,17 @@ class RedisClient:
             "issues": issues,
             "severity": severity,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "alert_type": "data_validation"
+            "alert_type": "data_validation",
         }
 
         try:
             await self.redis.publish(
-                RedisChannels.DATA_VALIDATION,
-                json.dumps(alert, default=str)
+                RedisChannels.DATA_VALIDATION, json.dumps(alert, default=str)
             )
 
-            logger.info(f"Published data validation alert for {ticker}: {len(issues)} issues")
+            logger.info(
+                f"Published data validation alert for {ticker}: {len(issues)} issues"
+            )
 
         except Exception as e:
             logger.error(f"Failed to publish validation alert: {e}")
@@ -499,7 +491,7 @@ class RedisClient:
         ticker: str,
         timeframe: TimeFrame,
         stats: Dict[str, Any],
-        ttl: int = 7200  # 2 hours default
+        ttl: int = 7200,  # 2 hours default
     ):
         """
         Cache data statistics in Redis.
@@ -516,11 +508,7 @@ class RedisClient:
         key = f"{RedisKeys.DATA_STATS_PREFIX}{ticker.upper()}:{timeframe.value}"
 
         try:
-            await self.redis.setex(
-                key,
-                ttl,
-                json.dumps(stats, default=str)
-            )
+            await self.redis.setex(key, ttl, json.dumps(stats, default=str))
 
             logger.debug(f"Cached statistics for {ticker} {timeframe}")
 
@@ -528,9 +516,7 @@ class RedisClient:
             logger.error(f"Failed to cache statistics for {ticker}: {e}")
 
     async def get_cached_statistics(
-        self,
-        ticker: str,
-        timeframe: TimeFrame
+        self, ticker: str, timeframe: TimeFrame
     ) -> Optional[Dict[str, Any]]:
         """
         Get cached statistics from Redis.
@@ -558,10 +544,7 @@ class RedisClient:
         return None
 
     async def set_system_status(
-        self,
-        component: str,
-        status: str,
-        details: Optional[Dict[str, Any]] = None
+        self, component: str, status: str, details: Optional[Dict[str, Any]] = None
     ):
         """
         Set system component status in Redis.
@@ -577,16 +560,14 @@ class RedisClient:
         status_data = {
             "status": status,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "details": details or {}
+            "details": details or {},
         }
 
         key = f"system_status:{component}"
 
         try:
             await self.redis.setex(
-                key,
-                300,  # 5 minutes TTL
-                json.dumps(status_data, default=str)
+                key, 300, json.dumps(status_data, default=str)  # 5 minutes TTL
             )
 
             logger.debug(f"Updated system status for {component}: {status}")
@@ -620,9 +601,7 @@ class RedisClient:
         return None
 
     async def batch_cache_prices(
-        self,
-        price_data: Dict[str, Union[MarketData, Dict[str, Any]]],
-        ttl: int = 300
+        self, price_data: Dict[str, Union[MarketData, Dict[str, Any]]], ttl: int = 300
     ):
         """
         Cache multiple price updates in batch.
@@ -647,7 +626,7 @@ class RedisClient:
                         "open": float(data.open),
                         "high": float(data.high),
                         "low": float(data.low),
-                        "volume": data.volume
+                        "volume": data.volume,
                     }
                 else:
                     data_dict = data
@@ -669,7 +648,9 @@ class RedisClient:
             logger.error(f"Failed to batch cache prices: {e}")
             raise
 
-    async def get_batch_cached_prices(self, tickers: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
+    async def get_batch_cached_prices(
+        self, tickers: List[str]
+    ) -> Dict[str, Optional[Dict[str, Any]]]:
         """
         Get cached prices for multiple tickers.
 
@@ -714,7 +695,7 @@ class RedisClient:
         ticker: str,
         timeframe: TimeFrame,
         record_count: int,
-        update_type: str = "new_data"
+        update_type: str = "new_data",
     ):
         """
         Publish market data update notification.
@@ -733,25 +714,23 @@ class RedisClient:
             "timeframe": timeframe.value,
             "record_count": record_count,
             "update_type": update_type,
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         try:
             await self.redis.publish(
-                RedisChannels.MARKET_DATA_UPDATES,
-                json.dumps(message, default=str)
+                RedisChannels.MARKET_DATA_UPDATES, json.dumps(message, default=str)
             )
 
-            logger.debug(f"Published market data update for {ticker} {timeframe}: {record_count} records")
+            logger.debug(
+                f"Published market data update for {ticker} {timeframe}: {record_count} records"
+            )
 
         except Exception as e:
             logger.error(f"Failed to publish market data update: {e}")
 
     async def subscribe_to_channel(
-        self,
-        channel: str,
-        callback: Callable,
-        pattern: bool = False
+        self, channel: str, callback: Callable, pattern: bool = False
     ):
         """
         Subscribe to Redis channel with callback.
@@ -772,10 +751,14 @@ class RedisClient:
                 pubsub = self.redis.pubsub()
                 await pubsub.subscribe(channel)
 
-            logger.info(f"Subscribed to {'pattern' if pattern else 'channel'}: {channel}")
+            logger.info(
+                f"Subscribed to {'pattern' if pattern else 'channel'}: {channel}"
+            )
 
             async for message in pubsub.listen():
-                if message["type"] == "message" or (pattern and message["type"] == "pmessage"):
+                if message["type"] == "message" or (
+                    pattern and message["type"] == "pmessage"
+                ):
                     try:
                         data = json.loads(message["data"])
                         await callback(data)
@@ -797,7 +780,7 @@ class RedisClient:
             "connected": False,
             "latency_ms": None,
             "memory_usage": None,
-            "error": None
+            "error": None,
         }
 
         if not self.redis:
@@ -819,7 +802,7 @@ class RedisClient:
                 "used_memory": info.get("used_memory"),
                 "used_memory_human": info.get("used_memory_human"),
                 "used_memory_peak": info.get("used_memory_peak"),
-                "used_memory_peak_human": info.get("used_memory_peak_human")
+                "used_memory_peak_human": info.get("used_memory_peak_human"),
             }
 
         except Exception as e:
@@ -850,7 +833,7 @@ class RedisClient:
                     f"{RedisKeys.PRICE_CACHE_PREFIX}*",
                     f"{RedisKeys.SCREENER_CACHE_PREFIX}*",
                     f"{RedisKeys.DATA_STATS_PREFIX}*",
-                    "market_data:*"
+                    "market_data:*",
                 ]
 
                 total_cleared = 0
@@ -890,15 +873,15 @@ class RedisClient:
                     "prices": len(price_keys),
                     "screener": len(screener_keys),
                     "market_data": len(market_data_keys),
-                    "statistics": len(stats_keys)
+                    "statistics": len(stats_keys),
                 },
                 "memory_usage": {
                     "used": info.get("used_memory_human"),
                     "peak": info.get("used_memory_peak_human"),
-                    "percentage": info.get("used_memory_percentage")
+                    "percentage": info.get("used_memory_percentage"),
                 },
                 "connections": info.get("connected_clients", 0),
-                "commands_processed": info.get("total_commands_processed", 0)
+                "commands_processed": info.get("total_commands_processed", 0),
             }
 
         except Exception as e:
@@ -906,10 +889,7 @@ class RedisClient:
             return {"error": str(e)}
 
     async def set_rate_limit_counter(
-        self,
-        service: str,
-        count: int,
-        window_seconds: int = 60
+        self, service: str, count: int, window_seconds: int = 60
     ):
         """
         Set rate limit counter for a service.
@@ -980,7 +960,7 @@ class RedisClient:
 async def publish_ticker_discovery(
     redis_client: RedisClient,
     discovered_tickers: List[str],
-    source: str = "finviz_screener"
+    source: str = "finviz_screener",
 ):
     """
     Convenience function to publish ticker discovery.
@@ -990,18 +970,13 @@ async def publish_ticker_discovery(
         discovered_tickers: List of discovered tickers
         source: Source of discovery
     """
-    metadata = {
-        "source": source,
-        "discovery_method": "automated_screening"
-    }
+    metadata = {"source": source, "discovery_method": "automated_screening"}
 
     await redis_client.publish_new_tickers(discovered_tickers, metadata)
 
 
 async def cache_latest_prices(
-    redis_client: RedisClient,
-    market_data: List[MarketData],
-    ttl: int = 300
+    redis_client: RedisClient, market_data: List[MarketData], ttl: int = 300
 ):
     """
     Cache latest prices from market data.
@@ -1018,7 +993,10 @@ async def cache_latest_prices(
     latest_prices = {}
     for data in market_data:
         ticker = data.symbol
-        if ticker not in latest_prices or data.timestamp > latest_prices[ticker].timestamp:
+        if (
+            ticker not in latest_prices
+            or data.timestamp > latest_prices[ticker].timestamp
+        ):
             latest_prices[ticker] = data
 
     await redis_client.batch_cache_prices(latest_prices, ttl)
@@ -1026,13 +1004,9 @@ async def cache_latest_prices(
 
 # Example usage
 if __name__ == "__main__":
+
     async def main():
-        config = RedisConfig(
-            host="localhost",
-            port=6379,
-            db=0,
-            password=None
-        )
+        config = RedisConfig(host="localhost", port=6379, db=0, password=None)
 
         async with RedisClient(config) as redis_client:
             # Health check
@@ -1048,7 +1022,7 @@ if __name__ == "__main__":
                 "symbol": "AAPL",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "price": 150.25,
-                "volume": 1000000
+                "volume": 1000000,
             }
             await redis_client.publish_price_update("AAPL", test_price_data)
 

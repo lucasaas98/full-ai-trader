@@ -12,24 +12,23 @@ This module provides comprehensive maintenance tasks including:
 """
 
 import asyncio
+import gzip
+import json
 import logging
 import os
 import shutil
-
+import subprocess
+import tarfile
+import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
-import gzip
-import json
-import pandas as pd
-import redis.asyncio as redis
-import httpx
-import zipfile
-import tarfile
-import subprocess
-import psutil
-from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Union
 
+import httpx
+import pandas as pd
+import psutil
+import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +36,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MaintenanceResult:
     """Result of a maintenance task."""
+
     task_name: str
     success: bool
     duration: float
@@ -80,10 +80,10 @@ class MaintenanceConfig:
     def get_retention_cutoff(self, retention_type: str) -> datetime:
         """Get cutoff date for retention policies."""
         retention_map = {
-            'data': self.data_retention_days,
-            'logs': self.log_retention_days,
-            'backups': self.backup_retention_days,
-            'remote_backups': self.remote_backup_retention_days
+            "data": self.data_retention_days,
+            "logs": self.log_retention_days,
+            "backups": self.backup_retention_days,
+            "remote_backups": self.remote_backup_retention_days,
         }
 
         days = retention_map.get(retention_type, 30)
@@ -97,7 +97,9 @@ class MaintenanceMonitor:
         self.redis = redis_client
         self.metrics = {}
         self.alerts = []
-        self._is_async_redis = hasattr(redis_client, '__aenter__') or str(type(redis_client).__name__).startswith('AsyncRedis')
+        self._is_async_redis = hasattr(redis_client, "__aenter__") or str(
+            type(redis_client).__name__
+        ).startswith("AsyncRedis")
 
     async def _safe_redis_lpush(self, key: str, value: str) -> int:
         """Safely handle Redis lpush operation for both sync and async clients."""
@@ -156,7 +158,7 @@ class MaintenanceMonitor:
         await self.redis.setex(
             f"maintenance:running:{task_name}",
             1800,  # 30 minutes
-            datetime.now().isoformat()
+            datetime.now().isoformat(),
         )
 
     async def record_task_completion(self, result: MaintenanceResult):
@@ -176,7 +178,7 @@ class MaintenanceMonitor:
             # Store execution time
             await self.redis.zadd(
                 f"maintenance:metrics:{result.task_name}:duration",
-                {str(int(datetime.now().timestamp())): result.duration}
+                {str(int(datetime.now().timestamp())): result.duration},
             )
 
             # Store success rate
@@ -189,7 +191,7 @@ class MaintenanceMonitor:
             if result.bytes_freed > 0:
                 await self.redis.zadd(
                     f"maintenance:metrics:{result.task_name}:bytes_freed",
-                    {str(int(datetime.now().timestamp())): result.bytes_freed}
+                    {str(int(datetime.now().timestamp())): result.bytes_freed},
                 )
 
         except Exception as e:
@@ -202,40 +204,53 @@ class MaintenanceMonitor:
 
             # Check for failures
             if not result.success:
-                alerts.append({
-                    'type': 'maintenance_failure',
-                    'task': result.task_name,
-                    'message': result.message,
-                    'timestamp': datetime.now().isoformat()
-                })
+                alerts.append(
+                    {
+                        "type": "maintenance_failure",
+                        "task": result.task_name,
+                        "message": result.message,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
 
             # Check for long execution times
             if result.duration > 1800:  # 30 minutes
-                alerts.append({
-                    'type': 'maintenance_slow',
-                    'task': result.task_name,
-                    'duration': result.duration,
-                    'timestamp': datetime.now().isoformat()
-                })
+                alerts.append(
+                    {
+                        "type": "maintenance_slow",
+                        "task": result.task_name,
+                        "duration": result.duration,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
 
             # Check for low space freed
-            if result.task_name in ['data_cleanup', 'cache_cleanup'] and result.bytes_freed < 1024 * 1024:  # Less than 1MB
-                alerts.append({
-                    'type': 'maintenance_low_impact',
-                    'task': result.task_name,
-                    'bytes_freed': result.bytes_freed,
-                    'timestamp': datetime.now().isoformat()
-                })
+            if (
+                result.task_name in ["data_cleanup", "cache_cleanup"]
+                and result.bytes_freed < 1024 * 1024
+            ):  # Less than 1MB
+                alerts.append(
+                    {
+                        "type": "maintenance_low_impact",
+                        "task": result.task_name,
+                        "bytes_freed": result.bytes_freed,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
 
             # Store alerts
             for alert in alerts:
                 await self._safe_redis_lpush("maintenance:alerts", json.dumps(alert))
-                await self._safe_redis_ltrim("maintenance:alerts", 0, 99)  # Keep last 100
+                await self._safe_redis_ltrim(
+                    "maintenance:alerts", 0, 99
+                )  # Keep last 100
 
         except Exception as e:
             logger.error(f"Failed to check maintenance alerts: {e}")
 
-    async def get_maintenance_metrics(self, task_name: Optional[str] = None) -> Dict[str, Any]:
+    async def get_maintenance_metrics(
+        self, task_name: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Get maintenance metrics for tasks."""
         try:
             if task_name:
@@ -244,10 +259,12 @@ class MaintenanceMonitor:
             else:
                 # Get metrics for all tasks
                 all_metrics = {}
-                task_patterns = await self._safe_redis_keys("maintenance:metrics:*:duration")
+                task_patterns = await self._safe_redis_keys(
+                    "maintenance:metrics:*:duration"
+                )
 
                 for pattern in task_patterns:
-                    task = pattern.decode().split(':')[2]
+                    task = pattern.decode().split(":")[2]
                     if task not in all_metrics:
                         all_metrics[task] = await self._get_task_metrics(task)
 
@@ -264,12 +281,11 @@ class MaintenanceMonitor:
 
             # Get average duration
             durations = await self.redis.zrange(
-                f"maintenance:metrics:{task_name}:duration",
-                -10, -1, withscores=True
+                f"maintenance:metrics:{task_name}:duration", -10, -1, withscores=True
             )
             if durations:
                 avg_duration = sum(score for _, score in durations) / len(durations)
-                metrics['avg_duration'] = avg_duration
+                metrics["avg_duration"] = avg_duration
 
             # Get success rate
             total_key = f"maintenance:metrics:{task_name}:success:total"
@@ -280,24 +296,21 @@ class MaintenanceMonitor:
 
             if total and passed:
                 success_rate = (int(passed) / int(total)) * 100
-                metrics['success_rate'] = success_rate
+                metrics["success_rate"] = success_rate
 
             # Get average bytes freed
             bytes_freed = await self.redis.zrange(
-                f"maintenance:metrics:{task_name}:bytes_freed",
-                -10, -1, withscores=True
+                f"maintenance:metrics:{task_name}:bytes_freed", -10, -1, withscores=True
             )
             if bytes_freed:
                 avg_bytes = sum(score for _, score in bytes_freed) / len(bytes_freed)
-                metrics['avg_bytes_freed'] = avg_bytes
+                metrics["avg_bytes_freed"] = avg_bytes
 
             return metrics
 
         except Exception as e:
             logger.error(f"Failed to get metrics for {task_name}: {e}")
             return {}
-
-
 
 
 class MaintenanceManager:
@@ -311,7 +324,9 @@ class MaintenanceManager:
         self.current_task = None
         self.maintenance_config = MaintenanceConfig()
         self.monitor = MaintenanceMonitor(redis_client)
-        self._is_async_redis = hasattr(redis_client, '__aenter__') or str(type(redis_client).__name__).startswith('AsyncRedis')
+        self._is_async_redis = hasattr(redis_client, "__aenter__") or str(
+            type(redis_client).__name__
+        ).startswith("AsyncRedis")
 
     async def _safe_redis_lpush(self, key: str, value: str) -> int:
         """Safely handle Redis lpush operation for both sync and async clients."""
@@ -368,22 +383,32 @@ class MaintenanceManager:
     async def register_tasks(self):
         """Register all maintenance tasks."""
         self.maintenance_tasks = {
-            'data_cleanup': DataCleanupTask(self.config, self.redis),
-            'log_rotation': LogRotationTask(self.config, self.redis),
-            'database_maintenance': DatabaseMaintenanceTask(self.config, self.redis),
-            'cache_cleanup': CacheCleanupTask(self.config, self.redis),
-            'backup_critical_data': BackupTask(self.config, self.redis),
-            'performance_optimization': PerformanceOptimizationTask(self.config, self.redis),
-            'security_audit': SecurityAuditTask(self.config, self.redis),
-            'system_health_check': SystemHealthCheckTask(self.config, self.redis),
-            'trading_data_maintenance': TradingDataMaintenanceTask(self.config, self.redis),
-            'historical_data_update': HistoricalDataUpdateTask(self.config, self.redis),
-            'tradenote_export': TradeNoteExportTask(self.config, self.redis),
-            'portfolio_reconciliation': PortfolioReconciliationTask(self.config, self.redis),
-            'api_rate_limit_reset': ApiRateLimitResetTask(self.config, self.redis),
-            'database_connection_pool': DatabaseConnectionPoolTask(self.config, self.redis),
-            'resource_optimization': ResourceOptimizationTask(self.config, self.redis),
-            'intelligent_maintenance': IntelligentMaintenanceTask(self.config, self.redis)
+            "data_cleanup": DataCleanupTask(self.config, self.redis),
+            "log_rotation": LogRotationTask(self.config, self.redis),
+            "database_maintenance": DatabaseMaintenanceTask(self.config, self.redis),
+            "cache_cleanup": CacheCleanupTask(self.config, self.redis),
+            "backup_critical_data": BackupTask(self.config, self.redis),
+            "performance_optimization": PerformanceOptimizationTask(
+                self.config, self.redis
+            ),
+            "security_audit": SecurityAuditTask(self.config, self.redis),
+            "system_health_check": SystemHealthCheckTask(self.config, self.redis),
+            "trading_data_maintenance": TradingDataMaintenanceTask(
+                self.config, self.redis
+            ),
+            "historical_data_update": HistoricalDataUpdateTask(self.config, self.redis),
+            "tradenote_export": TradeNoteExportTask(self.config, self.redis),
+            "portfolio_reconciliation": PortfolioReconciliationTask(
+                self.config, self.redis
+            ),
+            "api_rate_limit_reset": ApiRateLimitResetTask(self.config, self.redis),
+            "database_connection_pool": DatabaseConnectionPoolTask(
+                self.config, self.redis
+            ),
+            "resource_optimization": ResourceOptimizationTask(self.config, self.redis),
+            "intelligent_maintenance": IntelligentMaintenanceTask(
+                self.config, self.redis
+            ),
         }
 
         logger.info(f"Registered {len(self.maintenance_tasks)} maintenance tasks")
@@ -395,7 +420,7 @@ class MaintenanceManager:
                 task_name=task_name,
                 success=False,
                 duration=0.0,
-                message=f"Task {task_name} not found"
+                message=f"Task {task_name} not found",
             )
 
         task = self.maintenance_tasks[task_name]
@@ -415,7 +440,9 @@ class MaintenanceManager:
             duration = (datetime.now() - start_time).total_seconds()
             result.duration = duration
 
-            logger.info(f"Maintenance task {task_name} completed in {duration:.2f}s: {result.message}")
+            logger.info(
+                f"Maintenance task {task_name} completed in {duration:.2f}s: {result.message}"
+            )
 
             # Store result in Redis
             await self._store_task_result(result)
@@ -431,10 +458,12 @@ class MaintenanceManager:
                 task_name=task_name,
                 success=False,
                 duration=duration,
-                message=f"Task failed: {str(e)}"
+                message=f"Task failed: {str(e)}",
             )
 
-            logger.error(f"Maintenance task {task_name} failed after {duration:.2f}s: {e}")
+            logger.error(
+                f"Maintenance task {task_name} failed after {duration:.2f}s: {e}"
+            )
             await self._store_task_result(error_result)
 
             return error_result
@@ -459,7 +488,9 @@ class MaintenanceManager:
         total_tasks = len(results)
         total_bytes_freed = sum(r.bytes_freed for r in results.values())
 
-        logger.info(f"Maintenance cycle completed: {successful_tasks}/{total_tasks} tasks successful")
+        logger.info(
+            f"Maintenance cycle completed: {successful_tasks}/{total_tasks} tasks successful"
+        )
         logger.info(f"Total space freed: {self._format_bytes(total_bytes_freed)}")
 
         return results
@@ -468,28 +499,25 @@ class MaintenanceManager:
         """Store maintenance task result in Redis."""
         try:
             result_data = {
-                'task_name': result.task_name,
-                'success': result.success,
-                'duration': result.duration,
-                'message': result.message,
-                'details': result.details or {},
-                'files_processed': result.files_processed,
-                'bytes_freed': result.bytes_freed,
-                'timestamp': datetime.now().isoformat()
+                "task_name": result.task_name,
+                "success": result.success,
+                "duration": result.duration,
+                "message": result.message,
+                "details": result.details or {},
+                "files_processed": result.files_processed,
+                "bytes_freed": result.bytes_freed,
+                "timestamp": datetime.now().isoformat(),
             }
 
             # Store in task-specific key
             await self.redis.setex(
                 f"maintenance:result:{result.task_name}",
                 86400,  # 24 hours
-                json.dumps(result_data)
+                json.dumps(result_data),
             )
 
             # Store in history
-            await self._safe_redis_lpush(
-                "maintenance:history",
-                json.dumps(result_data)
-            )
+            await self._safe_redis_lpush("maintenance:history", json.dumps(result_data))
 
             # Keep only last 100 results
             await self._safe_redis_ltrim("maintenance:history", 0, 99)
@@ -500,7 +528,7 @@ class MaintenanceManager:
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -509,12 +537,16 @@ class MaintenanceManager:
     async def get_maintenance_history(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Get maintenance task history."""
         try:
-            history_data = await self._safe_redis_lrange("maintenance:history", 0, limit - 1)
+            history_data = await self._safe_redis_lrange(
+                "maintenance:history", 0, limit - 1
+            )
             history = []
 
             for item in history_data:
                 try:
-                    parsed_item = json.loads(item.decode() if isinstance(item, bytes) else item)
+                    parsed_item = json.loads(
+                        item.decode() if isinstance(item, bytes) else item
+                    )
                     history.append(parsed_item)
                 except json.JSONDecodeError:
                     continue
@@ -611,10 +643,12 @@ class DataCleanupTask(BaseMaintenanceTask):
             # Clean up old parquet files
             parquet_path = Path(self.config.data.parquet_path)
             if parquet_path.exists():
-                cutoff_date = datetime.now() - timedelta(days=self.config.data.retention_days)
+                cutoff_date = datetime.now() - timedelta(
+                    days=self.config.data.retention_days
+                )
 
                 parquet_files = list(parquet_path.rglob("*.parquet"))
-                details['parquet_files_found'] = len(parquet_files)
+                details["parquet_files_found"] = len(parquet_files)
 
                 for file_path in parquet_files:
                     try:
@@ -631,7 +665,7 @@ class DataCleanupTask(BaseMaintenanceTask):
             temp_path = Path("data/temp")
             if temp_path.exists():
                 temp_files = list(temp_path.rglob("*"))
-                details['temp_files_found'] = len(temp_files)
+                details["temp_files_found"] = len(temp_files)
 
                 for file_path in temp_files:
                     if file_path.is_file():
@@ -647,10 +681,12 @@ class DataCleanupTask(BaseMaintenanceTask):
             export_path = Path("data/exports")
             if export_path.exists():
                 old_exports = [
-                    f for f in export_path.glob("*.csv")
-                    if datetime.fromtimestamp(f.stat().st_mtime) < datetime.now() - timedelta(days=7)
+                    f
+                    for f in export_path.glob("*.csv")
+                    if datetime.fromtimestamp(f.stat().st_mtime)
+                    < datetime.now() - timedelta(days=7)
                 ]
-                details['export_files_cleaned'] = len(old_exports)
+                details["export_files_cleaned"] = len(old_exports)
 
                 for file_path in old_exports:
                     try:
@@ -663,7 +699,7 @@ class DataCleanupTask(BaseMaintenanceTask):
 
             # Compress old log files
             log_files_compressed = await self._compress_old_logs()
-            details['log_files_compressed'] = log_files_compressed
+            details["log_files_compressed"] = log_files_compressed
 
             return MaintenanceResult(
                 task_name="data_cleanup",
@@ -672,7 +708,7 @@ class DataCleanupTask(BaseMaintenanceTask):
                 message=f"Cleaned up {files_deleted} files, freed {self._format_bytes(bytes_freed)}",
                 details=details,
                 files_processed=files_deleted,
-                bytes_freed=bytes_freed
+                bytes_freed=bytes_freed,
             )
 
         except Exception as e:
@@ -681,7 +717,7 @@ class DataCleanupTask(BaseMaintenanceTask):
                 success=False,
                 duration=0.0,
                 message=f"Data cleanup failed: {str(e)}",
-                details=details
+                details=details,
             )
 
     async def _compress_old_logs(self) -> int:
@@ -696,10 +732,10 @@ class DataCleanupTask(BaseMaintenanceTask):
         for log_file in log_path.glob("*.log"):
             if datetime.fromtimestamp(log_file.stat().st_mtime) < cutoff_date:
                 try:
-                    compressed_path = log_file.with_suffix('.log.gz')
+                    compressed_path = log_file.with_suffix(".log.gz")
                     if not compressed_path.exists():
-                        with open(log_file, 'rb') as f_in:
-                            with gzip.open(compressed_path, 'wb') as f_out:
+                        with open(log_file, "rb") as f_in:
+                            with gzip.open(compressed_path, "wb") as f_out:
                                 shutil.copyfileobj(f_in, f_out)
                         log_file.unlink()
                         compressed_count += 1
@@ -711,7 +747,7 @@ class DataCleanupTask(BaseMaintenanceTask):
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -744,8 +780,8 @@ class LogRotationTask(BaseMaintenanceTask):
                     shutil.move(str(log_file), str(rotated_path))
 
                     # Compress the rotated file
-                    with open(rotated_path, 'rb') as f_in:
-                        with gzip.open(f"{rotated_path}.gz", 'wb') as f_out:
+                    with open(rotated_path, "rb") as f_in:
+                        with gzip.open(f"{rotated_path}.gz", "wb") as f_out:
                             shutil.copyfileobj(f_in, f_out)
 
                     original_size = rotated_path.stat().st_size
@@ -757,7 +793,9 @@ class LogRotationTask(BaseMaintenanceTask):
             # Clean up old rotated logs
             backup_count = self.config.logging.backup_count
             for log_pattern in ["*.log.gz"]:
-                rotated_files = sorted(log_path.glob(log_pattern), key=os.path.getmtime, reverse=True)
+                rotated_files = sorted(
+                    log_path.glob(log_pattern), key=os.path.getmtime, reverse=True
+                )
 
                 # Keep only the specified number of backup files
                 for old_file in rotated_files[backup_count:]:
@@ -774,7 +812,7 @@ class LogRotationTask(BaseMaintenanceTask):
                 duration=0.0,
                 message=f"Rotated {files_rotated} log files, freed {self._format_bytes(bytes_freed)}",
                 files_processed=files_rotated,
-                bytes_freed=bytes_freed
+                bytes_freed=bytes_freed,
             )
 
         except Exception as e:
@@ -782,13 +820,13 @@ class LogRotationTask(BaseMaintenanceTask):
                 task_name="log_rotation",
                 success=False,
                 duration=0.0,
-                message=f"Log rotation failed: {str(e)}"
+                message=f"Log rotation failed: {str(e)}",
             )
 
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -824,7 +862,7 @@ class DatabaseMaintenanceTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Database maintenance completed: {', '.join(operations_completed)}",
-                details={'operations': operations_completed}
+                details={"operations": operations_completed},
             )
 
         except Exception as e:
@@ -833,7 +871,7 @@ class DatabaseMaintenanceTask(BaseMaintenanceTask):
                 success=False,
                 duration=0.0,
                 message=f"Database maintenance failed: {str(e)}",
-                details={'completed_operations': operations_completed}
+                details={"completed_operations": operations_completed},
             )
 
     async def _vacuum_database(self) -> str:
@@ -892,7 +930,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
         try:
             # Get Redis memory usage before cleanup
             redis_info_before = await self.redis.info()
-            memory_before = redis_info_before.get('used_memory', 0)
+            memory_before = redis_info_before.get("used_memory", 0)
 
             # Clean up expired keys
             expired_keys = await self._find_expired_keys()
@@ -914,7 +952,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
 
             # Get memory usage after cleanup
             redis_info_after = await self.redis.info()
-            memory_after = redis_info_after.get('used_memory', 0)
+            memory_after = redis_info_after.get("used_memory", 0)
             bytes_freed = max(0, memory_before - memory_after)
 
             return MaintenanceResult(
@@ -923,7 +961,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
                 duration=0.0,
                 message=f"Cleaned up {keys_deleted} cache keys, freed {self._format_bytes(bytes_freed)}",
                 files_processed=keys_deleted,
-                bytes_freed=bytes_freed
+                bytes_freed=bytes_freed,
             )
 
         except Exception as e:
@@ -931,7 +969,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
                 task_name="cache_cleanup",
                 success=False,
                 duration=0.0,
-                message=f"Cache cleanup failed: {str(e)}"
+                message=f"Cache cleanup failed: {str(e)}",
             )
 
     async def _find_expired_keys(self) -> List[str]:
@@ -949,7 +987,10 @@ class CacheCleanupTask(BaseMaintenanceTask):
                     if ttl == -1:  # No expiration set
                         # Check if it's a temporary key that should expire
                         key_str = key.decode() if isinstance(key, bytes) else key
-                        if any(pattern in key_str for pattern in ['temp:', 'cache:', 'session:']):
+                        if any(
+                            pattern in key_str
+                            for pattern in ["temp:", "cache:", "session:"]
+                        ):
                             expired_keys.append(key_str)
 
                 if cursor == 0:
@@ -995,7 +1036,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -1056,9 +1097,16 @@ class BackupTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Created {backups_created} backups, total: {self._format_bytes(total_size)}, compressed: {self._format_bytes(compressed_size)}",
-                details={'remote_upload': remote_result, 'compression_ratio': (1 - compressed_size/total_size) * 100 if total_size > 0 else 0},
+                details={
+                    "remote_upload": remote_result,
+                    "compression_ratio": (
+                        (1 - compressed_size / total_size) * 100
+                        if total_size > 0
+                        else 0
+                    ),
+                },
                 files_processed=backups_created,
-                bytes_freed=total_size
+                bytes_freed=total_size,
             )
 
         except Exception as e:
@@ -1066,7 +1114,7 @@ class BackupTask(BaseMaintenanceTask):
                 task_name="backup_critical_data",
                 success=False,
                 duration=0.0,
-                message=f"Backup failed: {str(e)}"
+                message=f"Backup failed: {str(e)}",
             )
 
     async def _backup_configuration(self, backup_dir: Path, timestamp: str) -> int:
@@ -1075,12 +1123,9 @@ class BackupTask(BaseMaintenanceTask):
             config_file = backup_dir / f"config_{timestamp}.json"
 
             # Export current configuration
-            config_data = {
-                'timestamp': timestamp,
-                'config': self.config.dict()
-            }
+            config_data = {"timestamp": timestamp, "config": self.config.dict()}
 
-            with open(config_file, 'w') as f:
+            with open(config_file, "w") as f:
                 json.dump(config_data, f, indent=2, default=str)
 
             return config_file.stat().st_size
@@ -1098,7 +1143,7 @@ class BackupTask(BaseMaintenanceTask):
                 "config:*",
                 "risk:limits:*",
                 "portfolio:*",
-                "positions:*"
+                "positions:*",
             ]
 
             backup_data = {}
@@ -1108,9 +1153,11 @@ class BackupTask(BaseMaintenanceTask):
                     key_str = key.decode() if isinstance(key, bytes) else key
                     value = await self.redis.get(key)
                     if value:
-                        backup_data[key_str] = value.decode() if isinstance(value, bytes) else value
+                        backup_data[key_str] = (
+                            value.decode() if isinstance(value, bytes) else value
+                        )
 
-            with open(redis_file, 'w') as f:
+            with open(redis_file, "w") as f:
                 json.dump(backup_data, f, indent=2)
 
             return redis_file.stat().st_size
@@ -1125,12 +1172,12 @@ class BackupTask(BaseMaintenanceTask):
 
             # Backup recent trades, positions, and portfolio state
             trading_data = {
-                'timestamp': timestamp,
-                'backup_type': 'trading_data',
-                'positions': {},
-                'orders': {},
-                'portfolio_metrics': {},
-                'recent_trades': []
+                "timestamp": timestamp,
+                "backup_type": "trading_data",
+                "positions": {},
+                "orders": {},
+                "portfolio_metrics": {},
+                "recent_trades": [],
             }
 
             # Get current positions
@@ -1138,27 +1185,31 @@ class BackupTask(BaseMaintenanceTask):
             for key in position_keys:
                 position_data = await self.redis.get(key)
                 if position_data:
-                    symbol = key.decode().split(':')[-1]
-                    trading_data['positions'][symbol] = json.loads(position_data)
+                    symbol = key.decode().split(":")[-1]
+                    trading_data["positions"][symbol] = json.loads(position_data)
 
             # Get pending orders
             order_keys = await self.redis.keys("orders:pending:*")
             for key in order_keys:
                 order_data = await self.redis.get(key)
                 if order_data:
-                    order_id = key.decode().split(':')[-1]
-                    trading_data['orders'][order_id] = json.loads(order_data)
+                    order_id = key.decode().split(":")[-1]
+                    trading_data["orders"][order_id] = json.loads(order_data)
 
             # Get portfolio metrics
             portfolio_keys = await self.redis.keys("portfolio:*")
             for key in portfolio_keys:
                 metric_data = await self.redis.get(key)
                 if metric_data:
-                    metric_name = key.decode().split(':')[-1]
+                    metric_name = key.decode().split(":")[-1]
                     try:
-                        trading_data['portfolio_metrics'][metric_name] = json.loads(metric_data)
+                        trading_data["portfolio_metrics"][metric_name] = json.loads(
+                            metric_data
+                        )
                     except json.JSONDecodeError:
-                        trading_data['portfolio_metrics'][metric_name] = metric_data.decode()
+                        trading_data["portfolio_metrics"][
+                            metric_name
+                        ] = metric_data.decode()
 
             # Get recent trades (last 24 hours)
             trade_keys = await self.redis.keys("trades:completed:*")
@@ -1169,14 +1220,14 @@ class BackupTask(BaseMaintenanceTask):
                 trade_data = await self.redis.get(key)
                 if trade_data:
                     trade = json.loads(trade_data)
-                    trade_time = datetime.fromisoformat(trade.get('timestamp', ''))
+                    trade_time = datetime.fromisoformat(trade.get("timestamp", ""))
                     if trade_time > cutoff_time:
                         recent_trades.append(trade)
 
-            trading_data['recent_trades'] = recent_trades
+            trading_data["recent_trades"] = recent_trades
 
             # Write backup file
-            with open(trading_file, 'w') as f:
+            with open(trading_file, "w") as f:
                 json.dump(trading_data, f, indent=2, default=str)
 
             return trading_file.stat().st_size
@@ -1192,16 +1243,16 @@ class BackupTask(BaseMaintenanceTask):
             # This would typically use pg_dump for PostgreSQL
             # For now, export critical table schemas and recent data
             db_data = {
-                'timestamp': timestamp,
-                'tables': {
-                    'trades': 'SELECT * FROM trades WHERE created_at > NOW() - INTERVAL \'7 days\'',
-                    'positions': 'SELECT * FROM positions WHERE updated_at > NOW() - INTERVAL \'1 day\'',
-                    'portfolio_snapshots': 'SELECT * FROM portfolio_snapshots WHERE created_at > NOW() - INTERVAL \'30 days\''
+                "timestamp": timestamp,
+                "tables": {
+                    "trades": "SELECT * FROM trades WHERE created_at > NOW() - INTERVAL '7 days'",
+                    "positions": "SELECT * FROM positions WHERE updated_at > NOW() - INTERVAL '1 day'",
+                    "portfolio_snapshots": "SELECT * FROM portfolio_snapshots WHERE created_at > NOW() - INTERVAL '30 days'",
                 },
-                'schema_version': '1.0'
+                "schema_version": "1.0",
             }
 
-            with open(db_backup_file, 'w') as f:
+            with open(db_backup_file, "w") as f:
                 json.dump(db_data, f, indent=2, default=str)
 
             return db_backup_file.stat().st_size
@@ -1214,14 +1265,17 @@ class BackupTask(BaseMaintenanceTask):
         try:
             archive_path = backup_dir / f"backup_archive_{timestamp}.tar.gz"
 
-            with tarfile.open(archive_path, 'w:gz') as tar:
+            with tarfile.open(archive_path, "w:gz") as tar:
                 for backup_file in backup_dir.glob(f"*_{timestamp}.*"):
-                    if backup_file.suffix not in ['.tar', '.gz']:
+                    if backup_file.suffix not in [".tar", ".gz"]:
                         tar.add(backup_file, arcname=backup_file.name)
 
             # Remove individual backup files after archiving
             for backup_file in backup_dir.glob(f"*_{timestamp}.*"):
-                if backup_file.suffix not in ['.tar', '.gz'] and backup_file != archive_path:
+                if (
+                    backup_file.suffix not in [".tar", ".gz"]
+                    and backup_file != archive_path
+                ):
                     backup_file.unlink()
 
             return archive_path.stat().st_size
@@ -1233,7 +1287,9 @@ class BackupTask(BaseMaintenanceTask):
         """Upload backups to remote storage."""
         try:
             # Check if remote storage is configured
-            if not hasattr(self.config, 'backup') or not hasattr(self.config.backup, 'remote_enabled'):
+            if not hasattr(self.config, "backup") or not hasattr(
+                self.config.backup, "remote_enabled"
+            ):
                 return "Remote storage not configured"
 
             if not self.config.backup.remote_enabled:
@@ -1280,7 +1336,7 @@ class BackupTask(BaseMaintenanceTask):
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -1312,7 +1368,7 @@ class PerformanceOptimizationTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Performance optimizations completed: {', '.join(optimizations)}",
-                details={'optimizations': optimizations}
+                details={"optimizations": optimizations},
             )
 
         except Exception as e:
@@ -1320,7 +1376,7 @@ class PerformanceOptimizationTask(BaseMaintenanceTask):
                 task_name="performance_optimization",
                 success=False,
                 duration=0.0,
-                message=f"Performance optimization failed: {str(e)}"
+                message=f"Performance optimization failed: {str(e)}",
             )
 
     async def _optimize_redis_memory(self) -> str:
@@ -1328,17 +1384,17 @@ class PerformanceOptimizationTask(BaseMaintenanceTask):
         try:
             # Get Redis info
             info = await self.redis.info()
-            memory_before = info.get('used_memory', 0)
+            memory_before = info.get("used_memory", 0)
 
             # Run Redis memory optimization commands
             # await self.redis.execute_command('MEMORY', 'PURGE')  # Redis 4.0+
 
             # For older Redis versions, just clean up expired keys
-            await self.redis.execute_command('EXPIRE', 'dummy_key', '1')
+            await self.redis.execute_command("EXPIRE", "dummy_key", "1")
 
             # Get memory after
             info_after = await self.redis.info()
-            memory_after = info_after.get('used_memory', 0)
+            memory_after = info_after.get("used_memory", 0)
 
             saved = max(0, memory_before - memory_after)
             return f"Freed {self._format_bytes(saved)}"
@@ -1350,7 +1406,7 @@ class PerformanceOptimizationTask(BaseMaintenanceTask):
         """Optimize application caches."""
         try:
             # Clear expired cache entries
-            cache_patterns = ['cache:*', 'temp:*', 'session:*']
+            cache_patterns = ["cache:*", "temp:*", "session:*"]
             keys_cleared = 0
 
             for pattern in cache_patterns:
@@ -1380,7 +1436,7 @@ class PerformanceOptimizationTask(BaseMaintenanceTask):
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -1416,7 +1472,7 @@ class SecurityAuditTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Security audit completed: {', '.join(security_checks)}",
-                details={'security_checks': security_checks}
+                details={"security_checks": security_checks},
             )
 
         except Exception as e:
@@ -1424,7 +1480,7 @@ class SecurityAuditTask(BaseMaintenanceTask):
                 task_name="security_audit",
                 success=False,
                 duration=0.0,
-                message=f"Security audit failed: {str(e)}"
+                message=f"Security audit failed: {str(e)}",
             )
 
     async def _check_exposed_secrets(self) -> str:
@@ -1433,13 +1489,15 @@ class SecurityAuditTask(BaseMaintenanceTask):
             # Check log files for potential secrets
             log_path = Path("data/logs")
             if log_path.exists():
-                secret_patterns = ['password', 'api_key', 'secret', 'token']
+                secret_patterns = ["password", "api_key", "secret", "token"]
                 for log_file in log_path.glob("*.log"):
-                    with open(log_file, 'r') as f:
+                    with open(log_file, "r") as f:
                         content = f.read().lower()
                         for pattern in secret_patterns:
                             if pattern in content:
-                                logger.warning(f"Potential secret exposure in {log_file}")
+                                logger.warning(
+                                    f"Potential secret exposure in {log_file}"
+                                )
 
             return "No exposed secrets found"
         except Exception as e:
@@ -1448,11 +1506,7 @@ class SecurityAuditTask(BaseMaintenanceTask):
     async def _check_file_permissions(self) -> str:
         """Check file permissions for security."""
         try:
-            critical_files = [
-                "data/logs",
-                "data/backups",
-                ".env"
-            ]
+            critical_files = ["data/logs", "data/backups", ".env"]
 
             for file_path in critical_files:
                 if os.path.exists(file_path):
@@ -1460,8 +1514,10 @@ class SecurityAuditTask(BaseMaintenanceTask):
                     permissions = oct(stat_info.st_mode)[-3:]
 
                     # Check for overly permissive permissions
-                    if permissions in ['777', '666']:
-                        logger.warning(f"Overly permissive permissions on {file_path}: {permissions}")
+                    if permissions in ["777", "666"]:
+                        logger.warning(
+                            f"Overly permissive permissions on {file_path}: {permissions}"
+                        )
 
             return "File permissions acceptable"
         except Exception as e:
@@ -1522,7 +1578,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                 success=issues_found == 0,
                 duration=0.0,
                 message=f"Health check completed - {issues_found} issues found",
-                details={'health_checks': health_checks, 'issues_count': issues_found}
+                details={"health_checks": health_checks, "issues_count": issues_found},
             )
 
         except Exception as e:
@@ -1530,14 +1586,15 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                 task_name="system_health_check",
                 success=False,
                 duration=0.0,
-                message=f"Health check failed: {str(e)}"
+                message=f"Health check failed: {str(e)}",
             )
 
     async def _check_disk_space(self) -> str:
         """Check available disk space."""
         try:
             import psutil
-            disk = psutil.disk_usage('/')
+
+            disk = psutil.disk_usage("/")
             percent_used = (disk.used / disk.total) * 100
 
             if percent_used > 95:
@@ -1553,6 +1610,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
         """Check memory usage."""
         try:
             import psutil
+
             memory = psutil.virtual_memory()
 
             if memory.percent > 90:
@@ -1571,7 +1629,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                 "http://data-collector:9101/health",
                 "http://strategy-engine:9102/health",
                 "http://risk-manager:9103/health",
-                "http://trade-executor:9104/health"
+                "http://trade-executor:9104/health",
             ]
 
             failed_services = 0
@@ -1605,7 +1663,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                     total_files += 1
                     try:
                         # Quick read test
-                        df = pd.read_parquet(parquet_file, engine='pyarrow')
+                        df = pd.read_parquet(parquet_file, engine="pyarrow")
                         if df.empty:
                             corrupted_files += 1
                     except Exception:
@@ -1657,9 +1715,9 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Trading data maintenance completed: {', '.join(operations)}",
-                details={'operations': operations},
+                details={"operations": operations},
                 files_processed=files_processed,
-                bytes_freed=bytes_freed
+                bytes_freed=bytes_freed,
             )
 
         except Exception as e:
@@ -1667,7 +1725,7 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
                 task_name="trading_data_maintenance",
                 success=False,
                 duration=0.0,
-                message=f"Trading data maintenance failed: {str(e)}"
+                message=f"Trading data maintenance failed: {str(e)}",
             )
 
     async def _consolidate_price_data(self) -> str:
@@ -1714,7 +1772,7 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
 
                     # Combine and save
                     combined_df = pd.concat(dfs, ignore_index=True)
-                    combined_df = combined_df.drop_duplicates().sort_values('timestamp')
+                    combined_df = combined_df.drop_duplicates().sort_values("timestamp")
 
                     monthly_file = symbol_dir / f"{month}_consolidated.parquet"
                     combined_df.to_parquet(monthly_file, index=False)
@@ -1739,7 +1797,13 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
                         original_count = len(df)
 
                         # Remove duplicates based on timestamp and symbol
-                        df_dedup = df.drop_duplicates(subset=['timestamp', 'symbol'] if 'symbol' in df.columns else ['timestamp'])
+                        df_dedup = df.drop_duplicates(
+                            subset=(
+                                ["timestamp", "symbol"]
+                                if "symbol" in df.columns
+                                else ["timestamp"]
+                            )
+                        )
 
                         if len(df_dedup) < original_count:
                             df_dedup.to_parquet(parquet_file, index=False)
@@ -1758,16 +1822,18 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
             strategy_path = Path("data/strategy_results")
             if strategy_path.exists():
                 old_files = [
-                    f for f in strategy_path.glob("*.json")
-                    if datetime.fromtimestamp(f.stat().st_mtime) < datetime.now() - timedelta(days=30)
+                    f
+                    for f in strategy_path.glob("*.json")
+                    if datetime.fromtimestamp(f.stat().st_mtime)
+                    < datetime.now() - timedelta(days=30)
                 ]
 
                 compressed_count = 0
                 for file_path in old_files:
-                    compressed_path = file_path.with_suffix('.json.gz')
+                    compressed_path = file_path.with_suffix(".json.gz")
                     if not compressed_path.exists():
-                        with open(file_path, 'rb') as f_in:
-                            with gzip.open(compressed_path, 'wb') as f_out:
+                        with open(file_path, "rb") as f_in:
+                            with gzip.open(compressed_path, "wb") as f_out:
                                 shutil.copyfileobj(f_in, f_out)
                         file_path.unlink()
                         compressed_count += 1
@@ -1790,7 +1856,12 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
                     try:
                         position = json.loads(position_data)
                         # Validate position data structure
-                        required_fields = ['symbol', 'quantity', 'avg_price', 'timestamp']
+                        required_fields = [
+                            "symbol",
+                            "quantity",
+                            "avg_price",
+                            "timestamp",
+                        ]
                         if not all(field in position for field in required_fields):
                             logger.warning(f"Invalid position data for {key}")
                             inconsistencies += 1
@@ -1845,7 +1916,7 @@ class HistoricalDataUpdateTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Historical data update completed: {', '.join(operations)}",
-                details={'operations': operations}
+                details={"operations": operations},
             )
 
         except Exception as e:
@@ -1853,7 +1924,7 @@ class HistoricalDataUpdateTask(BaseMaintenanceTask):
                 task_name="historical_data_update",
                 success=False,
                 duration=0.0,
-                message=f"Historical data update failed: {str(e)}"
+                message=f"Historical data update failed: {str(e)}",
             )
 
     async def _fill_data_gaps(self) -> str:
@@ -1898,16 +1969,16 @@ class HistoricalDataUpdateTask(BaseMaintenanceTask):
                         df = pd.read_parquet(parquet_file)
 
                         # Check for data anomalies
-                        if 'close' in df.columns:
+                        if "close" in df.columns:
                             # Check for extreme price movements (>50% in one bar)
-                            price_changes = df['close'].pct_change().abs()
+                            price_changes = df["close"].pct_change().abs()
                             anomalies = (price_changes > 0.5).sum()
                             if anomalies > 0:
                                 issues_found += anomalies
 
                         # Check for missing timestamps
-                        if 'timestamp' in df.columns:
-                            null_count = df['timestamp'].isnull().sum()
+                        if "timestamp" in df.columns:
+                            null_count = df["timestamp"].isnull().sum()
                             if null_count > 0:
                                 issues_found += null_count
 
@@ -1960,7 +2031,7 @@ class TradeNoteExportTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"TradeNote export completed: {', '.join(exports_created)}",
-                details={'exports': exports_created}
+                details={"exports": exports_created},
             )
 
         except Exception as e:
@@ -1968,7 +2039,7 @@ class TradeNoteExportTask(BaseMaintenanceTask):
                 task_name="tradenote_export",
                 success=False,
                 duration=0.0,
-                message=f"TradeNote export failed: {str(e)}"
+                message=f"TradeNote export failed: {str(e)}",
             )
 
     async def _export_trades_for_tradenote(self, export_path: Path) -> str:
@@ -1981,22 +2052,24 @@ class TradeNoteExportTask(BaseMaintenanceTask):
             # This would typically query your trades database
             # For now, create a sample structure
             sample_trade = {
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'symbol': 'AAPL',
-                'side': 'long',
-                'quantity': 100,
-                'entry_price': 150.00,
-                'exit_price': 155.00,
-                'pnl': 500.00,
-                'strategy': 'momentum',
-                'tags': ['AI-generated', 'high-confidence']
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "symbol": "AAPL",
+                "side": "long",
+                "quantity": 100,
+                "entry_price": 150.00,
+                "exit_price": 155.00,
+                "pnl": 500.00,
+                "strategy": "momentum",
+                "tags": ["AI-generated", "high-confidence"],
             }
             trades_data.append(sample_trade)
 
             # Export to CSV in TradeNote format
             if trades_data:
                 df = pd.DataFrame(trades_data)
-                export_file = export_path / f"trades_{datetime.now().strftime('%Y%m%d')}.csv"
+                export_file = (
+                    export_path / f"trades_{datetime.now().strftime('%Y%m%d')}.csv"
+                )
                 df.to_csv(export_file, index=False)
                 return f"Exported {len(trades_data)} trades"
             else:
@@ -2011,12 +2084,12 @@ class TradeNoteExportTask(BaseMaintenanceTask):
         try:
             # Export daily performance metrics
             performance_data = {
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'total_pnl': 0.0,
-                'win_rate': 0.0,
-                'sharpe_ratio': 0.0,
-                'max_drawdown': 0.0,
-                'total_trades': 0
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "total_pnl": 0.0,
+                "win_rate": 0.0,
+                "sharpe_ratio": 0.0,
+                "max_drawdown": 0.0,
+                "total_trades": 0,
             }
 
             # Get actual performance data from Redis
@@ -2027,8 +2100,10 @@ class TradeNoteExportTask(BaseMaintenanceTask):
                 performance_data.update(stored_performance)
 
             # Export to JSON
-            export_file = export_path / f"performance_{datetime.now().strftime('%Y%m%d')}.json"
-            with open(export_file, 'w') as f:
+            export_file = (
+                export_path / f"performance_{datetime.now().strftime('%Y%m%d')}.json"
+            )
+            with open(export_file, "w") as f:
                 json.dump(performance_data, f, indent=2)
 
             return "Performance data exported"
@@ -2040,12 +2115,12 @@ class TradeNoteExportTask(BaseMaintenanceTask):
         try:
             # Export current risk metrics
             risk_data = {
-                'timestamp': datetime.now().isoformat(),
-                'portfolio_value': 0.0,
-                'daily_var': 0.0,
-                'position_concentration': {},
-                'sector_exposure': {},
-                'max_position_size': 0.0
+                "timestamp": datetime.now().isoformat(),
+                "portfolio_value": 0.0,
+                "daily_var": 0.0,
+                "position_concentration": {},
+                "sector_exposure": {},
+                "max_position_size": 0.0,
             }
 
             # Get risk data from Redis
@@ -2053,11 +2128,13 @@ class TradeNoteExportTask(BaseMaintenanceTask):
             for key in risk_keys:
                 value = await self.redis.get(key)
                 if value:
-                    metric_name = key.decode().split(':')[-1]
+                    metric_name = key.decode().split(":")[-1]
                     risk_data[metric_name] = json.loads(value)
 
-            export_file = export_path / f"risk_metrics_{datetime.now().strftime('%Y%m%d')}.json"
-            with open(export_file, 'w') as f:
+            export_file = (
+                export_path / f"risk_metrics_{datetime.now().strftime('%Y%m%d')}.json"
+            )
+            with open(export_file, "w") as f:
                 json.dump(risk_data, f, indent=2)
 
             return "Risk metrics exported"
@@ -2067,11 +2144,11 @@ class TradeNoteExportTask(BaseMaintenanceTask):
     async def _create_tradenote_package(self, export_path: Path) -> str:
         """Create a compressed package for TradeNote import."""
         try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             package_name = f"tradenote_export_{timestamp}.zip"
             package_path = export_path.parent / package_name
 
-            with zipfile.ZipFile(package_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            with zipfile.ZipFile(package_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for file_path in export_path.glob("*"):
                     if file_path.is_file():
                         zipf.write(file_path, file_path.name)
@@ -2110,7 +2187,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Portfolio reconciliation completed: {', '.join(discrepancies)}",
-                details={'checks': discrepancies}
+                details={"checks": discrepancies},
             )
 
         except Exception as e:
@@ -2118,7 +2195,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
                 task_name="portfolio_reconciliation",
                 success=False,
                 duration=0.0,
-                message=f"Portfolio reconciliation failed: {str(e)}"
+                message=f"Portfolio reconciliation failed: {str(e)}",
             )
 
     async def _compare_redis_positions(self) -> str:
@@ -2132,7 +2209,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
                 position_data = await self.redis.get(key)
                 if position_data:
                     position = json.loads(position_data)
-                    symbol = position.get('symbol')
+                    symbol = position.get("symbol")
                     if symbol:
                         redis_positions[symbol] = position
 
@@ -2169,7 +2246,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
                 order_data = await self.redis.get(key)
                 if order_data:
                     order = json.loads(order_data)
-                    created_time = datetime.fromisoformat(order.get('created_at', ''))
+                    created_time = datetime.fromisoformat(order.get("created_at", ""))
 
                     # Consider orders orphaned if pending for more than 1 hour
                     if datetime.now() - created_time > timedelta(hours=1):
@@ -2218,7 +2295,7 @@ class ApiRateLimitResetTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"API rate limit management completed: {', '.join(resets)}",
-                details={'operations': resets}
+                details={"operations": resets},
             )
 
         except Exception as e:
@@ -2226,7 +2303,7 @@ class ApiRateLimitResetTask(BaseMaintenanceTask):
                 task_name="api_rate_limit_reset",
                 success=False,
                 duration=0.0,
-                message=f"API rate limit management failed: {str(e)}"
+                message=f"API rate limit management failed: {str(e)}",
             )
 
     async def _reset_daily_counters(self) -> str:
@@ -2250,7 +2327,7 @@ class ApiRateLimitResetTask(BaseMaintenanceTask):
             utilization_data = {}
 
             # Check utilization for different APIs
-            apis = ['finviz', 'alpaca', 'polygon', 'alpha_vantage']
+            apis = ["finviz", "alpaca", "polygon", "alpha_vantage"]
             for api in apis:
                 current_key = f"rate_limit:{api}:current"
                 limit_key = f"rate_limit:{api}:limit"
@@ -2314,7 +2391,7 @@ class DatabaseConnectionPoolTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Database connection pool maintenance completed: {', '.join(operations)}",
-                details={'operations': operations}
+                details={"operations": operations},
             )
 
         except Exception as e:
@@ -2322,7 +2399,7 @@ class DatabaseConnectionPoolTask(BaseMaintenanceTask):
                 task_name="database_connection_pool",
                 success=False,
                 duration=0.0,
-                message=f"Database connection pool maintenance failed: {str(e)}"
+                message=f"Database connection pool maintenance failed: {str(e)}",
             )
 
     async def _check_connection_pool_health(self) -> str:
@@ -2399,8 +2476,8 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
                 success=True,
                 duration=0.0,
                 message=f"Resource optimization completed: {', '.join(optimizations)}",
-                details={'optimizations': optimizations},
-                bytes_freed=bytes_freed
+                details={"optimizations": optimizations},
+                bytes_freed=bytes_freed,
             )
 
         except Exception as e:
@@ -2408,7 +2485,7 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
                 task_name="resource_optimization",
                 success=False,
                 duration=0.0,
-                message=f"Resource optimization failed: {str(e)}"
+                message=f"Resource optimization failed: {str(e)}",
             )
 
     async def _optimize_memory_usage(self) -> str:
@@ -2416,6 +2493,7 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
         try:
             # Force garbage collection
             import gc
+
             gc.collect()
 
             # Clear Python object caches
@@ -2425,7 +2503,8 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
             try:
                 # Clear pandas caches if available
                 import pandas as pd
-                if hasattr(pd, '_libs'):
+
+                if hasattr(pd, "_libs"):
                     # Clear pandas internal caches
                     pass
             except Exception:
@@ -2481,7 +2560,7 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
 
             # Clear system caches if running as root
             try:
-                subprocess.run(['sync'], check=False, capture_output=True)
+                subprocess.run(["sync"], check=False, capture_output=True)
                 # Note: echo 3 > /proc/sys/vm/drop_caches requires root
             except Exception:
                 pass
@@ -2504,7 +2583,7 @@ class ResourceOptimizationTask(BaseMaintenanceTask):
     def _format_bytes(self, bytes_count: int) -> str:
         """Format bytes in human readable format."""
         size = float(bytes_count)
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
@@ -2527,83 +2606,92 @@ class MaintenanceScheduler:
         await self.schedule_monthly_maintenance()
         await self.schedule_emergency_maintenance()
 
-        logger.info(f"Initialized maintenance scheduler with {len(self.scheduled_tasks)} scheduled tasks")
+        logger.info(
+            f"Initialized maintenance scheduler with {len(self.scheduled_tasks)} scheduled tasks"
+        )
 
     async def schedule_daily_maintenance(self):
         """Schedule daily maintenance tasks."""
         daily_tasks = [
-            ('data_cleanup', '02:00'),
-            ('log_rotation', '02:30'),
-            ('cache_cleanup', '03:00'),
-            ('system_health_check', '03:30'),
-            ('tradenote_export', '18:00'),  # After market close
-            ('api_rate_limit_reset', '00:01'),  # Just after midnight
-            ('intelligent_maintenance', '04:00')  # Early morning analysis
+            ("data_cleanup", "02:00"),
+            ("log_rotation", "02:30"),
+            ("cache_cleanup", "03:00"),
+            ("system_health_check", "03:30"),
+            ("tradenote_export", "18:00"),  # After market close
+            ("api_rate_limit_reset", "00:01"),  # Just after midnight
+            ("intelligent_maintenance", "04:00"),  # Early morning analysis
         ]
 
         for task_name, time_str in daily_tasks:
             self.scheduled_tasks[f"daily_{task_name}"] = {
-                'task_name': task_name,
-                'schedule': f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} * * *",  # Cron format
-                'description': f"Daily {task_name} at {time_str}"
+                "task_name": task_name,
+                "schedule": f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} * * *",  # Cron format
+                "description": f"Daily {task_name} at {time_str}",
             }
 
     async def schedule_weekly_maintenance(self):
         """Schedule weekly maintenance tasks."""
         weekly_tasks = [
-            ('database_maintenance', 'sunday', '01:00'),
-            ('backup_critical_data', 'sunday', '01:30'),
-            ('performance_optimization', 'sunday', '02:00'),
-            ('security_audit', 'sunday', '04:00'),
-            ('trading_data_maintenance', 'saturday', '23:00'),
-            ('historical_data_update', 'saturday', '22:00'),
-            ('portfolio_reconciliation', 'friday', '18:00'),
-            ('database_connection_pool', 'sunday', '00:30'),
-            ('resource_optimization', 'sunday', '05:00'),
-            ('intelligent_maintenance', 'sunday', '06:00')  # Weekly deep analysis
+            ("database_maintenance", "sunday", "01:00"),
+            ("backup_critical_data", "sunday", "01:30"),
+            ("performance_optimization", "sunday", "02:00"),
+            ("security_audit", "sunday", "04:00"),
+            ("trading_data_maintenance", "saturday", "23:00"),
+            ("historical_data_update", "saturday", "22:00"),
+            ("portfolio_reconciliation", "friday", "18:00"),
+            ("database_connection_pool", "sunday", "00:30"),
+            ("resource_optimization", "sunday", "05:00"),
+            ("intelligent_maintenance", "sunday", "06:00"),  # Weekly deep analysis
         ]
 
         for task_name, day, time_str in weekly_tasks:
-            day_num = {'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-                      'thursday': 4, 'friday': 5, 'saturday': 6}[day]
+            day_num = {
+                "sunday": 0,
+                "monday": 1,
+                "tuesday": 2,
+                "wednesday": 3,
+                "thursday": 4,
+                "friday": 5,
+                "saturday": 6,
+            }[day]
 
             self.scheduled_tasks[f"weekly_{task_name}"] = {
-                'task_name': task_name,
-                'schedule': f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} * * {day_num}",
-                'description': f"Weekly {task_name} on {day} at {time_str}"
+                "task_name": task_name,
+                "schedule": f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} * * {day_num}",
+                "description": f"Weekly {task_name} on {day} at {time_str}",
             }
 
     async def schedule_monthly_maintenance(self):
         """Schedule monthly maintenance tasks."""
         monthly_tasks = [
-            ('historical_data_update', '1', '02:00'),  # First of month
-            ('portfolio_reconciliation', '15', '01:00'),  # Mid-month
-            ('security_audit', '1', '03:00'),  # First of month
-            ('resource_optimization', '1', '04:00')  # First of month
+            ("historical_data_update", "1", "02:00"),  # First of month
+            ("portfolio_reconciliation", "15", "01:00"),  # Mid-month
+            ("security_audit", "1", "03:00"),  # First of month
+            ("resource_optimization", "1", "04:00"),  # First of month
         ]
 
         for task_name, day, time_str in monthly_tasks:
             self.scheduled_tasks[f"monthly_{task_name}"] = {
-                'task_name': task_name,
-                'schedule': f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} {day} * *",
-                'description': f"Monthly {task_name} on day {day} at {time_str}"
+                "task_name": task_name,
+                "schedule": f"0 {time_str.split(':')[1]} {time_str.split(':')[0]} {day} * *",
+                "description": f"Monthly {task_name} on day {day} at {time_str}",
             }
 
     async def schedule_emergency_maintenance(self):
         """Schedule emergency maintenance tasks."""
         # These tasks can be triggered immediately when issues are detected
         emergency_tasks = [
-            'system_health_check',
-            'cache_cleanup',
-            'database_connection_pool',
-            'portfolio_reconciliation'
+            "system_health_check",
+            "cache_cleanup",
+            "database_connection_pool",
+            "portfolio_reconciliation",
         ]
 
         for task_name in emergency_tasks:
             self.scheduled_tasks[f"emergency_{task_name}"] = {
-                'task_name': task_name,
-                'schedule': 'on_demand',
-                'description': f"Emergency {task_name} (triggered on demand)"
+                "task_name": task_name,
+                "schedule": "on_demand",
+                "description": f"Emergency {task_name} (triggered on demand)",
             }
 
     async def run_scheduled_maintenance(self, schedule_id: str):
@@ -2613,13 +2701,15 @@ class MaintenanceScheduler:
             return
 
         scheduled_task = self.scheduled_tasks[schedule_id]
-        task_name = scheduled_task['task_name']
+        task_name = scheduled_task["task_name"]
 
         logger.info(f"Running scheduled maintenance: {scheduled_task['description']}")
         result = await self.maintenance_manager.run_task(task_name)
 
         if not result.success:
-            logger.error(f"Scheduled maintenance task {task_name} failed: {result.message}")
+            logger.error(
+                f"Scheduled maintenance task {task_name} failed: {result.message}"
+            )
 
         return result
 
@@ -2634,15 +2724,17 @@ class MaintenanceScheduler:
             upcoming = []
 
             for schedule_id, task_info in self.scheduled_tasks.items():
-                if task_info['schedule'] != 'on_demand':
+                if task_info["schedule"] != "on_demand":
                     # Parse cron and determine next execution
                     # For now, return a simplified view
-                    upcoming.append({
-                        'schedule_id': schedule_id,
-                        'task_name': task_info['task_name'],
-                        'description': task_info['description'],
-                        'estimated_next_run': 'TBD'  # Would calculate based on cron
-                    })
+                    upcoming.append(
+                        {
+                            "schedule_id": schedule_id,
+                            "task_name": task_info["task_name"],
+                            "description": task_info["description"],
+                            "estimated_next_run": "TBD",  # Would calculate based on cron
+                        }
+                    )
 
             return upcoming[:10]  # Return next 10 tasks
 
@@ -2653,37 +2745,45 @@ class MaintenanceScheduler:
     async def pause_scheduled_task(self, schedule_id: str):
         """Pause a scheduled maintenance task."""
         if schedule_id in self.scheduled_tasks:
-            self.scheduled_tasks[schedule_id]['paused'] = True
+            self.scheduled_tasks[schedule_id]["paused"] = True
             logger.info(f"Paused scheduled task: {schedule_id}")
 
     async def resume_scheduled_task(self, schedule_id: str):
         """Resume a paused scheduled maintenance task."""
         if schedule_id in self.scheduled_tasks:
-            self.scheduled_tasks[schedule_id]['paused'] = False
+            self.scheduled_tasks[schedule_id]["paused"] = False
             logger.info(f"Resumed scheduled task: {schedule_id}")
 
     async def update_task_schedule(self, schedule_id: str, new_schedule: str):
         """Update the schedule for a maintenance task."""
         if schedule_id in self.scheduled_tasks:
-            self.scheduled_tasks[schedule_id]['schedule'] = new_schedule
+            self.scheduled_tasks[schedule_id]["schedule"] = new_schedule
             logger.info(f"Updated schedule for {schedule_id}: {new_schedule}")
 
     async def get_maintenance_statistics(self) -> Dict[str, Any]:
         """Get comprehensive maintenance statistics."""
         try:
             stats = {
-                'total_scheduled_tasks': len(self.scheduled_tasks),
-                'active_tasks': len([t for t in self.scheduled_tasks.values() if not t.get('paused', False)]),
-                'last_maintenance_cycle': None,
-                'average_cycle_duration': 0.0,
-                'total_bytes_freed_today': 0,
-                'failed_tasks_today': 0
+                "total_scheduled_tasks": len(self.scheduled_tasks),
+                "active_tasks": len(
+                    [
+                        t
+                        for t in self.scheduled_tasks.values()
+                        if not t.get("paused", False)
+                    ]
+                ),
+                "last_maintenance_cycle": None,
+                "average_cycle_duration": 0.0,
+                "total_bytes_freed_today": 0,
+                "failed_tasks_today": 0,
             }
 
             # Get metrics from monitor
-            if hasattr(self.maintenance_manager, 'monitor'):
-                metrics = await self.maintenance_manager.monitor.get_maintenance_metrics()
-                stats['task_metrics'] = metrics
+            if hasattr(self.maintenance_manager, "monitor"):
+                metrics = (
+                    await self.maintenance_manager.monitor.get_maintenance_metrics()
+                )
+                stats["task_metrics"] = metrics
 
             return stats
 
@@ -2697,32 +2797,43 @@ class MaintenanceScheduler:
             results = {}
 
             # First run intelligent analysis
-            analysis_result = await self.maintenance_manager.run_task("intelligent_maintenance")
-            results['analysis'] = analysis_result
+            analysis_result = await self.maintenance_manager.run_task(
+                "intelligent_maintenance"
+            )
+            results["analysis"] = analysis_result
 
             if analysis_result.success and analysis_result.details:
-                optimization_plan = analysis_result.details.get('optimization_plan', {})
+                optimization_plan = analysis_result.details.get("optimization_plan", {})
 
                 # Execute immediate actions
-                for action in optimization_plan.get('immediate_actions', []):
-                    if 'memory' in action.lower():
-                        result = await self.maintenance_manager.run_task("cache_cleanup")
-                        results['emergency_cache_cleanup'] = result
-                    elif 'cpu' in action.lower():
-                        result = await self.maintenance_manager.run_task("resource_optimization")
-                        results['emergency_resource_optimization'] = result
-                    elif 'disk' in action.lower():
+                for action in optimization_plan.get("immediate_actions", []):
+                    if "memory" in action.lower():
+                        result = await self.maintenance_manager.run_task(
+                            "cache_cleanup"
+                        )
+                        results["emergency_cache_cleanup"] = result
+                    elif "cpu" in action.lower():
+                        result = await self.maintenance_manager.run_task(
+                            "resource_optimization"
+                        )
+                        results["emergency_resource_optimization"] = result
+                    elif "disk" in action.lower():
                         result = await self.maintenance_manager.run_task("data_cleanup")
-                        results['emergency_data_cleanup'] = result
+                        results["emergency_data_cleanup"] = result
 
                 # Schedule additional tasks based on recommendations
-                performance_score = analysis_result.details.get('performance_score', 100)
+                performance_score = analysis_result.details.get(
+                    "performance_score", 100
+                )
                 if performance_score < 70:
                     # System performance is poor, run additional maintenance
-                    additional_tasks = ['database_maintenance', 'performance_optimization']
+                    additional_tasks = [
+                        "database_maintenance",
+                        "performance_optimization",
+                    ]
                     for task in additional_tasks:
                         result = await self.maintenance_manager.run_task(task)
-                        results[f'additional_{task}'] = result
+                        results[f"additional_{task}"] = result
 
             return results
 
@@ -2732,9 +2843,9 @@ class MaintenanceScheduler:
                 task_name="smart_maintenance",
                 success=False,
                 duration=0.0,
-                message=f"Smart maintenance failed: {str(e)}"
+                message=f"Smart maintenance failed: {str(e)}",
             )
-            return {'error': error_result}
+            return {"error": error_result}
 
 
 class MaintenanceReportGenerator:
@@ -2750,140 +2861,154 @@ class MaintenanceReportGenerator:
         try:
             today = datetime.now().date()
             report = {
-                'date': today.isoformat(),
-                'report_type': 'daily',
-                'generated_at': datetime.now().isoformat(),
-                'summary': {},
-                'task_results': {},
-                'performance_metrics': {},
-                'recommendations': [],
-                'alerts': []
+                "date": today.isoformat(),
+                "report_type": "daily",
+                "generated_at": datetime.now().isoformat(),
+                "summary": {},
+                "task_results": {},
+                "performance_metrics": {},
+                "recommendations": [],
+                "alerts": [],
             }
 
             # Get today's maintenance results
             history = await self.maintenance_manager.get_maintenance_history(100)
             today_results = [
-                r for r in history
-                if datetime.fromisoformat(r['timestamp']).date() == today
+                r
+                for r in history
+                if datetime.fromisoformat(r["timestamp"]).date() == today
             ]
 
             # Calculate summary statistics
             total_tasks = len(today_results)
-            successful_tasks = sum(1 for r in today_results if r['success'])
-            total_duration = sum(r['duration'] for r in today_results)
-            total_bytes_freed = sum(r['bytes_freed'] for r in today_results)
+            successful_tasks = sum(1 for r in today_results if r["success"])
+            total_duration = sum(r["duration"] for r in today_results)
+            total_bytes_freed = sum(r["bytes_freed"] for r in today_results)
 
-            report['summary'] = {
-                'total_tasks_run': total_tasks,
-                'successful_tasks': successful_tasks,
-                'success_rate': (successful_tasks / total_tasks * 100) if total_tasks > 0 else 0,
-                'total_duration': total_duration,
-                'total_bytes_freed': total_bytes_freed,
-                'average_task_duration': total_duration / total_tasks if total_tasks > 0 else 0
+            report["summary"] = {
+                "total_tasks_run": total_tasks,
+                "successful_tasks": successful_tasks,
+                "success_rate": (
+                    (successful_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                ),
+                "total_duration": total_duration,
+                "total_bytes_freed": total_bytes_freed,
+                "average_task_duration": (
+                    total_duration / total_tasks if total_tasks > 0 else 0
+                ),
             }
 
             # Group results by task type
             task_summary = {}
             for result in today_results:
-                task_name = result['task_name']
+                task_name = result["task_name"]
                 if task_name not in task_summary:
                     task_summary[task_name] = {
-                        'runs': 0,
-                        'successes': 0,
-                        'total_duration': 0,
-                        'total_bytes_freed': 0,
-                        'last_run': None
+                        "runs": 0,
+                        "successes": 0,
+                        "total_duration": 0,
+                        "total_bytes_freed": 0,
+                        "last_run": None,
                     }
 
-                task_summary[task_name]['runs'] += 1
-                if result['success']:
-                    task_summary[task_name]['successes'] += 1
-                task_summary[task_name]['total_duration'] += result['duration']
-                task_summary[task_name]['total_bytes_freed'] += result['bytes_freed']
-                task_summary[task_name]['last_run'] = result['timestamp']
+                task_summary[task_name]["runs"] += 1
+                if result["success"]:
+                    task_summary[task_name]["successes"] += 1
+                task_summary[task_name]["total_duration"] += result["duration"]
+                task_summary[task_name]["total_bytes_freed"] += result["bytes_freed"]
+                task_summary[task_name]["last_run"] = result["timestamp"]
 
-            report['task_results'] = task_summary
+            report["task_results"] = task_summary
 
             # Get performance metrics
-            report['performance_metrics'] = await self._get_performance_metrics()
+            report["performance_metrics"] = await self._get_performance_metrics()
 
             # Get alerts
-            report['alerts'] = await self._get_recent_alerts()
+            report["alerts"] = await self._get_recent_alerts()
 
             # Generate recommendations
-            report['recommendations'] = await self._generate_daily_recommendations(report)
+            report["recommendations"] = await self._generate_daily_recommendations(
+                report
+            )
 
             return report
 
         except Exception as e:
             logger.error(f"Daily report generation failed: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     async def generate_weekly_report(self) -> Dict[str, Any]:
         """Generate weekly maintenance report."""
         try:
             week_start = datetime.now().date() - timedelta(days=7)
             report = {
-                'week_start': week_start.isoformat(),
-                'week_end': datetime.now().date().isoformat(),
-                'report_type': 'weekly',
-                'generated_at': datetime.now().isoformat(),
-                'summary': {},
-                'trends': {},
-                'efficiency_metrics': {},
-                'system_health_trend': {},
-                'recommendations': []
+                "week_start": week_start.isoformat(),
+                "week_end": datetime.now().date().isoformat(),
+                "report_type": "weekly",
+                "generated_at": datetime.now().isoformat(),
+                "summary": {},
+                "trends": {},
+                "efficiency_metrics": {},
+                "system_health_trend": {},
+                "recommendations": [],
             }
 
             # Get week's maintenance history
             history = await self.maintenance_manager.get_maintenance_history(500)
             week_results = [
-                r for r in history
-                if datetime.fromisoformat(r['timestamp']).date() >= week_start
+                r
+                for r in history
+                if datetime.fromisoformat(r["timestamp"]).date() >= week_start
             ]
 
             # Calculate weekly trends
-            report['trends'] = await self._calculate_weekly_trends(week_results)
+            report["trends"] = await self._calculate_weekly_trends(week_results)
 
             # Calculate efficiency metrics
-            report['efficiency_metrics'] = await self._calculate_efficiency_metrics(week_results)
+            report["efficiency_metrics"] = await self._calculate_efficiency_metrics(
+                week_results
+            )
 
             # System health trend
-            report['system_health_trend'] = await self._analyze_health_trends()
+            report["system_health_trend"] = await self._analyze_health_trends()
 
             # Generate strategic recommendations
-            report['recommendations'] = await self._generate_weekly_recommendations(report)
+            report["recommendations"] = await self._generate_weekly_recommendations(
+                report
+            )
 
             return report
 
         except Exception as e:
             logger.error(f"Weekly report generation failed: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
-    async def export_report_to_file(self, report: Dict[str, Any], format_type: str = 'json') -> str:
+    async def export_report_to_file(
+        self, report: Dict[str, Any], format_type: str = "json"
+    ) -> str:
         """Export maintenance report to file."""
         try:
             export_dir = Path("data/exports/maintenance")
             export_dir.mkdir(parents=True, exist_ok=True)
 
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            report_type = report.get('report_type', 'maintenance')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_type = report.get("report_type", "maintenance")
 
-            if format_type == 'json':
+            if format_type == "json":
                 filename = f"{report_type}_report_{timestamp}.json"
                 filepath = export_dir / filename
 
-                with open(filepath, 'w') as f:
+                with open(filepath, "w") as f:
                     json.dump(report, f, indent=2, default=str)
 
-            elif format_type == 'csv':
+            elif format_type == "csv":
                 filename = f"{report_type}_report_{timestamp}.csv"
                 filepath = export_dir / filename
 
                 # Convert report to CSV format
                 await self._export_report_as_csv(report, filepath)
 
-            elif format_type == 'html':
+            elif format_type == "html":
                 filename = f"{report_type}_report_{timestamp}.html"
                 filepath = export_dir / filename
 
@@ -2893,7 +3018,7 @@ class MaintenanceReportGenerator:
                 # Default to JSON if unknown format
                 filename = f"{report_type}_report_{timestamp}.json"
                 filepath = export_dir / filename
-                with open(filepath, 'w') as f:
+                with open(filepath, "w") as f:
                     json.dump(report, f, indent=2, default=str)
 
             return str(filepath)
@@ -2908,18 +3033,20 @@ class MaintenanceReportGenerator:
             metrics = {}
 
             # System metrics
-            metrics['cpu_percent'] = psutil.cpu_percent()
-            metrics['memory_percent'] = psutil.virtual_memory().percent
-            metrics['disk_usage'] = psutil.disk_usage('/').percent
+            metrics["cpu_percent"] = psutil.cpu_percent()
+            metrics["memory_percent"] = psutil.virtual_memory().percent
+            metrics["disk_usage"] = psutil.disk_usage("/").percent
 
             # Redis metrics
             redis_info = await self.redis.info()
-            metrics['redis_memory_mb'] = redis_info.get('used_memory', 0) / (1024 * 1024)
-            metrics['redis_connections'] = redis_info.get('connected_clients', 0)
+            metrics["redis_memory_mb"] = redis_info.get("used_memory", 0) / (
+                1024 * 1024
+            )
+            metrics["redis_connections"] = redis_info.get("connected_clients", 0)
 
             # Application metrics
-            active_tasks = await self.redis.get('scheduler:active_tasks')
-            metrics['active_scheduled_tasks'] = int(active_tasks) if active_tasks else 0
+            active_tasks = await self.redis.get("scheduler:active_tasks")
+            metrics["active_scheduled_tasks"] = int(active_tasks) if active_tasks else 0
 
             return metrics
 
@@ -2931,14 +3058,18 @@ class MaintenanceReportGenerator:
         """Get recent maintenance alerts."""
         try:
             try:
-                alert_data = await self.maintenance_manager._safe_redis_lrange("maintenance:alerts", 0, 49)
+                alert_data = await self.maintenance_manager._safe_redis_lrange(
+                    "maintenance:alerts", 0, 49
+                )
             except Exception:
                 alert_data = []
             alerts = []
 
             for item in alert_data:
                 try:
-                    alert = json.loads(item.decode() if isinstance(item, bytes) else item)
+                    alert = json.loads(
+                        item.decode() if isinstance(item, bytes) else item
+                    )
                     alerts.append(alert)
                 except json.JSONDecodeError:
                     continue
@@ -2949,32 +3080,42 @@ class MaintenanceReportGenerator:
             logger.error(f"Alert retrieval failed: {e}")
             return []
 
-    async def _generate_daily_recommendations(self, report: Dict[str, Any]) -> List[str]:
+    async def _generate_daily_recommendations(
+        self, report: Dict[str, Any]
+    ) -> List[str]:
         """Generate recommendations based on daily report."""
         recommendations = []
 
         try:
-            summary = report.get('summary', {})
+            summary = report.get("summary", {})
 
             # Check success rate
-            success_rate = summary.get('success_rate', 100)
+            success_rate = summary.get("success_rate", 100)
             if success_rate < 90:
-                recommendations.append("Low maintenance success rate - investigate failing tasks")
+                recommendations.append(
+                    "Low maintenance success rate - investigate failing tasks"
+                )
 
             # Check bytes freed
-            bytes_freed = summary.get('total_bytes_freed', 0)
+            bytes_freed = summary.get("total_bytes_freed", 0)
             if bytes_freed < 10 * 1024 * 1024:  # Less than 10MB
-                recommendations.append("Low disk space recovery - consider more aggressive cleanup")
+                recommendations.append(
+                    "Low disk space recovery - consider more aggressive cleanup"
+                )
 
             # Check task duration
-            avg_duration = summary.get('average_task_duration', 0)
+            avg_duration = summary.get("average_task_duration", 0)
             if avg_duration > 300:  # More than 5 minutes
-                recommendations.append("High average task duration - optimize maintenance tasks")
+                recommendations.append(
+                    "High average task duration - optimize maintenance tasks"
+                )
 
             # Check alerts
-            alerts = report.get('alerts', [])
+            alerts = report.get("alerts", [])
             if len(alerts) > 5:
-                recommendations.append("High number of alerts - investigate system issues")
+                recommendations.append(
+                    "High number of alerts - investigate system issues"
+                )
 
             return recommendations
 
@@ -2982,47 +3123,58 @@ class MaintenanceReportGenerator:
             logger.error(f"Daily recommendation generation failed: {e}")
             return ["Recommendation generation failed"]
 
-    async def _calculate_weekly_trends(self, week_results: List[Dict]) -> Dict[str, Any]:
+    async def _calculate_weekly_trends(
+        self, week_results: List[Dict]
+    ) -> Dict[str, Any]:
         """Calculate weekly maintenance trends."""
         try:
             trends = {
-                'task_frequency': {},
-                'success_rate_trend': [],
-                'performance_trend': [],
-                'resource_usage_trend': []
+                "task_frequency": {},
+                "success_rate_trend": [],
+                "performance_trend": [],
+                "resource_usage_trend": [],
             }
 
             # Calculate daily aggregates
             daily_stats = {}
             for result in week_results:
-                date = datetime.fromisoformat(result['timestamp']).date()
+                date = datetime.fromisoformat(result["timestamp"]).date()
                 if date not in daily_stats:
                     daily_stats[date] = {
-                        'total_tasks': 0,
-                        'successful_tasks': 0,
-                        'total_duration': 0,
-                        'total_bytes_freed': 0
+                        "total_tasks": 0,
+                        "successful_tasks": 0,
+                        "total_duration": 0,
+                        "total_bytes_freed": 0,
                     }
 
-                daily_stats[date]['total_tasks'] += 1
-                if result['success']:
-                    daily_stats[date]['successful_tasks'] += 1
-                daily_stats[date]['total_duration'] += result['duration']
-                daily_stats[date]['total_bytes_freed'] += result['bytes_freed']
+                daily_stats[date]["total_tasks"] += 1
+                if result["success"]:
+                    daily_stats[date]["successful_tasks"] += 1
+                daily_stats[date]["total_duration"] += result["duration"]
+                daily_stats[date]["total_bytes_freed"] += result["bytes_freed"]
 
             # Generate trends
             for date, stats in sorted(daily_stats.items()):
-                success_rate = (stats['successful_tasks'] / stats['total_tasks'] * 100) if stats['total_tasks'] > 0 else 0
-                trends['success_rate_trend'].append({
-                    'date': date.isoformat(),
-                    'success_rate': success_rate
-                })
+                success_rate = (
+                    (stats["successful_tasks"] / stats["total_tasks"] * 100)
+                    if stats["total_tasks"] > 0
+                    else 0
+                )
+                trends["success_rate_trend"].append(
+                    {"date": date.isoformat(), "success_rate": success_rate}
+                )
 
-                trends['performance_trend'].append({
-                    'date': date.isoformat(),
-                    'avg_duration': stats['total_duration'] / stats['total_tasks'] if stats['total_tasks'] > 0 else 0,
-                    'bytes_freed': stats['total_bytes_freed']
-                })
+                trends["performance_trend"].append(
+                    {
+                        "date": date.isoformat(),
+                        "avg_duration": (
+                            stats["total_duration"] / stats["total_tasks"]
+                            if stats["total_tasks"] > 0
+                            else 0
+                        ),
+                        "bytes_freed": stats["total_bytes_freed"],
+                    }
+                )
 
             return trends
 
@@ -3030,47 +3182,51 @@ class MaintenanceReportGenerator:
             logger.error(f"Weekly trend calculation failed: {e}")
             return {}
 
-    async def _calculate_efficiency_metrics(self, week_results: List[Dict]) -> Dict[str, Any]:
+    async def _calculate_efficiency_metrics(
+        self, week_results: List[Dict]
+    ) -> Dict[str, Any]:
         """Calculate maintenance efficiency metrics."""
         try:
             metrics = {
-                'total_execution_time': sum(r['duration'] for r in week_results),
-                'total_bytes_freed': sum(r['bytes_freed'] for r in week_results),
-                'avg_bytes_per_minute': 0,
-                'most_effective_tasks': [],
-                'least_effective_tasks': []
+                "total_execution_time": sum(r["duration"] for r in week_results),
+                "total_bytes_freed": sum(r["bytes_freed"] for r in week_results),
+                "avg_bytes_per_minute": 0,
+                "most_effective_tasks": [],
+                "least_effective_tasks": [],
             }
 
             # Calculate bytes per minute
-            if metrics['total_execution_time'] > 0:
-                metrics['avg_bytes_per_minute'] = metrics['total_bytes_freed'] / (metrics['total_execution_time'] / 60)
+            if metrics["total_execution_time"] > 0:
+                metrics["avg_bytes_per_minute"] = metrics["total_bytes_freed"] / (
+                    metrics["total_execution_time"] / 60
+                )
 
             # Find most/least effective tasks
             task_effectiveness = {}
             for result in week_results:
-                task_name = result['task_name']
+                task_name = result["task_name"]
                 if task_name not in task_effectiveness:
                     task_effectiveness[task_name] = {
-                        'total_bytes': 0,
-                        'total_time': 0,
-                        'runs': 0
+                        "total_bytes": 0,
+                        "total_time": 0,
+                        "runs": 0,
                     }
 
-                task_effectiveness[task_name]['total_bytes'] += result['bytes_freed']
-                task_effectiveness[task_name]['total_time'] += result['duration']
-                task_effectiveness[task_name]['runs'] += 1
+                task_effectiveness[task_name]["total_bytes"] += result["bytes_freed"]
+                task_effectiveness[task_name]["total_time"] += result["duration"]
+                task_effectiveness[task_name]["runs"] += 1
 
             # Calculate efficiency scores
             efficiency_scores = []
             for task_name, stats in task_effectiveness.items():
-                if stats['total_time'] > 0:
-                    efficiency = stats['total_bytes'] / stats['total_time']
+                if stats["total_time"] > 0:
+                    efficiency = stats["total_bytes"] / stats["total_time"]
                     efficiency_scores.append((task_name, efficiency))
 
             efficiency_scores.sort(key=lambda x: x[1], reverse=True)
 
-            metrics['most_effective_tasks'] = efficiency_scores[:3]
-            metrics['least_effective_tasks'] = efficiency_scores[-3:]
+            metrics["most_effective_tasks"] = efficiency_scores[:3]
+            metrics["least_effective_tasks"] = efficiency_scores[-3:]
 
             return metrics
 
@@ -3087,18 +3243,18 @@ class MaintenanceReportGenerator:
             # This would typically query stored health metrics
             # For now, return current system state
             current_health = {
-                'cpu_usage': psutil.cpu_percent(),
-                'memory_usage': psutil.virtual_memory().percent,
-                'disk_usage': psutil.disk_usage('/').percent,
-                'timestamp': datetime.now().isoformat()
+                "cpu_usage": psutil.cpu_percent(),
+                "memory_usage": psutil.virtual_memory().percent,
+                "disk_usage": psutil.disk_usage("/").percent,
+                "timestamp": datetime.now().isoformat(),
             }
 
             health_results.append(current_health)
 
             return {
-                'current_health': current_health,
-                'health_history': health_results,
-                'health_score': self._calculate_health_score(current_health)
+                "current_health": current_health,
+                "health_history": health_results,
+                "health_score": self._calculate_health_score(current_health),
             }
 
         except Exception as e:
@@ -3110,21 +3266,21 @@ class MaintenanceReportGenerator:
         score = 100.0
 
         # CPU penalty
-        cpu_usage = health_data.get('cpu_usage', 0)
+        cpu_usage = health_data.get("cpu_usage", 0)
         if cpu_usage > 80:
             score -= 30
         elif cpu_usage > 60:
             score -= 15
 
         # Memory penalty
-        memory_usage = health_data.get('memory_usage', 0)
+        memory_usage = health_data.get("memory_usage", 0)
         if memory_usage > 85:
             score -= 25
         elif memory_usage > 70:
             score -= 10
 
         # Disk penalty
-        disk_usage = health_data.get('disk_usage', 0)
+        disk_usage = health_data.get("disk_usage", 0)
         if disk_usage > 90:
             score -= 20
         elif disk_usage > 80:
@@ -3132,38 +3288,50 @@ class MaintenanceReportGenerator:
 
         return max(0, score)
 
-    async def _generate_weekly_recommendations(self, report: Dict[str, Any]) -> List[str]:
+    async def _generate_weekly_recommendations(
+        self, report: Dict[str, Any]
+    ) -> List[str]:
         """Generate strategic recommendations based on weekly analysis."""
         recommendations = []
 
         try:
-            trends = report.get('trends', {})
-            efficiency = report.get('efficiency_metrics', {})
+            trends = report.get("trends", {})
+            efficiency = report.get("efficiency_metrics", {})
 
             # Analyze success rate trends
-            success_trends = trends.get('success_rate_trend', [])
+            success_trends = trends.get("success_rate_trend", [])
             if len(success_trends) >= 2:
-                recent_success = success_trends[-1]['success_rate']
-                older_success = success_trends[0]['success_rate']
+                recent_success = success_trends[-1]["success_rate"]
+                older_success = success_trends[0]["success_rate"]
 
                 if recent_success < older_success - 10:
-                    recommendations.append("Declining maintenance success rate - investigate task reliability")
+                    recommendations.append(
+                        "Declining maintenance success rate - investigate task reliability"
+                    )
 
             # Analyze efficiency
-            if efficiency.get('avg_bytes_per_minute', 0) < 1024 * 1024:  # Less than 1MB/minute
-                recommendations.append("Low maintenance efficiency - optimize task performance")
+            if (
+                efficiency.get("avg_bytes_per_minute", 0) < 1024 * 1024
+            ):  # Less than 1MB/minute
+                recommendations.append(
+                    "Low maintenance efficiency - optimize task performance"
+                )
 
             # Check least effective tasks
-            least_effective = efficiency.get('least_effective_tasks', [])
+            least_effective = efficiency.get("least_effective_tasks", [])
             if least_effective:
                 task_name = least_effective[0][0]
-                recommendations.append(f"Task '{task_name}' showing low efficiency - consider optimization")
+                recommendations.append(
+                    f"Task '{task_name}' showing low efficiency - consider optimization"
+                )
 
             # System health recommendations
-            health_trend = report.get('system_health_trend', {})
-            health_score = health_trend.get('health_score', 100)
+            health_trend = report.get("system_health_trend", {})
+            health_score = health_trend.get("health_score", 100)
             if health_score < 80:
-                recommendations.append("System health declining - consider hardware upgrade or optimization")
+                recommendations.append(
+                    "System health declining - consider hardware upgrade or optimization"
+                )
 
             return recommendations
 
@@ -3175,20 +3343,30 @@ class MaintenanceReportGenerator:
         """Export report as CSV."""
         try:
             # Create CSV with task results
-            task_results = report.get('task_results', {})
+            task_results = report.get("task_results", {})
             if task_results:
                 df_data = []
                 for task_name, stats in task_results.items():
-                    df_data.append({
-                        'task_name': task_name,
-                        'runs': stats['runs'],
-                        'successes': stats['successes'],
-                        'success_rate': (stats['successes'] / stats['runs'] * 100) if stats['runs'] > 0 else 0,
-                        'total_duration': stats['total_duration'],
-                        'avg_duration': stats['total_duration'] / stats['runs'] if stats['runs'] > 0 else 0,
-                        'total_bytes_freed': stats['total_bytes_freed'],
-                        'last_run': stats['last_run']
-                    })
+                    df_data.append(
+                        {
+                            "task_name": task_name,
+                            "runs": stats["runs"],
+                            "successes": stats["successes"],
+                            "success_rate": (
+                                (stats["successes"] / stats["runs"] * 100)
+                                if stats["runs"] > 0
+                                else 0
+                            ),
+                            "total_duration": stats["total_duration"],
+                            "avg_duration": (
+                                stats["total_duration"] / stats["runs"]
+                                if stats["runs"] > 0
+                                else 0
+                            ),
+                            "total_bytes_freed": stats["total_bytes_freed"],
+                            "last_run": stats["last_run"],
+                        }
+                    )
 
                 df = pd.DataFrame(df_data)
                 df.to_csv(filepath, index=False)
@@ -3231,10 +3409,16 @@ class MaintenanceReportGenerator:
                     <tr><th>Task</th><th>Runs</th><th>Success Rate</th><th>Avg Duration</th><th>Bytes Freed</th></tr>
             """
 
-            task_results = report.get('task_results', {})
+            task_results = report.get("task_results", {})
             for task_name, stats in task_results.items():
-                success_rate = (stats['successes'] / stats['runs'] * 100) if stats['runs'] > 0 else 0
-                avg_duration = stats['total_duration'] / stats['runs'] if stats['runs'] > 0 else 0
+                success_rate = (
+                    (stats["successes"] / stats["runs"] * 100)
+                    if stats["runs"] > 0
+                    else 0
+                )
+                avg_duration = (
+                    stats["total_duration"] / stats["runs"] if stats["runs"] > 0 else 0
+                )
 
                 html_content += f"""
                     <tr>
@@ -3253,7 +3437,7 @@ class MaintenanceReportGenerator:
                 <ul>
             """
 
-            for rec in report.get('recommendations', []):
+            for rec in report.get("recommendations", []):
                 html_content += f"<li>{rec}</li>"
 
             html_content += """
@@ -3262,7 +3446,7 @@ class MaintenanceReportGenerator:
             </html>
             """
 
-            with open(filepath, 'w') as f:
+            with open(filepath, "w") as f:
                 f.write(html_content)
 
         except Exception as e:
@@ -3284,8 +3468,9 @@ def format_duration(seconds: float) -> str:
 
 async def run_maintenance_check():
     """Standalone function to run maintenance check."""
-    from shared.config import get_config
     import redis.asyncio as redis
+
+    from shared.config import get_config
 
     config = get_config()
     redis_client = redis.from_url(config.redis.url)
@@ -3315,20 +3500,20 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
         try:
             # Analyze system performance
             perf_analysis = await self._analyze_system_performance()
-            recommendations.extend(perf_analysis['recommendations'])
-            performance_score = perf_analysis['score']
+            recommendations.extend(perf_analysis["recommendations"])
+            performance_score = perf_analysis["score"]
 
             # Analyze resource usage patterns
             resource_analysis = await self._analyze_resource_patterns()
-            recommendations.extend(resource_analysis['recommendations'])
+            recommendations.extend(resource_analysis["recommendations"])
 
             # Analyze data access patterns
             data_analysis = await self._analyze_data_patterns()
-            recommendations.extend(data_analysis['recommendations'])
+            recommendations.extend(data_analysis["recommendations"])
 
             # Analyze trading performance correlation
             trading_analysis = await self._analyze_trading_correlation()
-            recommendations.extend(trading_analysis['recommendations'])
+            recommendations.extend(trading_analysis["recommendations"])
 
             # Generate optimization plan
             optimization_plan = await self._generate_optimization_plan(recommendations)
@@ -3339,10 +3524,10 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
                 duration=0.0,
                 message=f"System analysis completed - Performance score: {performance_score:.1f}/100",
                 details={
-                    'performance_score': performance_score,
-                    'recommendations': recommendations,
-                    'optimization_plan': optimization_plan
-                }
+                    "performance_score": performance_score,
+                    "recommendations": recommendations,
+                    "optimization_plan": optimization_plan,
+                },
             )
 
         except Exception as e:
@@ -3350,7 +3535,7 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
                 task_name="intelligent_maintenance",
                 success=False,
                 duration=0.0,
-                message=f"Intelligent maintenance failed: {str(e)}"
+                message=f"Intelligent maintenance failed: {str(e)}",
             )
 
     async def _analyze_system_performance(self) -> Dict[str, Any]:
@@ -3362,13 +3547,17 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
             # CPU usage analysis
             cpu_percent = psutil.cpu_percent(interval=1)
             if cpu_percent > 80:
-                recommendations.append("High CPU usage detected - consider scaling or optimization")
+                recommendations.append(
+                    "High CPU usage detected - consider scaling or optimization"
+                )
                 score -= 20
 
             # Memory usage analysis
             memory = psutil.virtual_memory()
             if memory.percent > 85:
-                recommendations.append("High memory usage - consider memory optimization")
+                recommendations.append(
+                    "High memory usage - consider memory optimization"
+                )
                 score -= 15
 
             # Disk I/O analysis
@@ -3383,15 +3572,15 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
                 recommendations.append("High network activity detected")
 
             return {
-                'score': max(0, score),
-                'recommendations': recommendations,
-                'cpu_usage': cpu_percent,
-                'memory_usage': memory.percent
+                "score": max(0, score),
+                "recommendations": recommendations,
+                "cpu_usage": cpu_percent,
+                "memory_usage": memory.percent,
             }
 
         except Exception as e:
             logger.error(f"Performance analysis failed: {e}")
-            return {'score': 50.0, 'recommendations': ["Performance analysis failed"]}
+            return {"score": 50.0, "recommendations": ["Performance analysis failed"]}
 
     async def _analyze_resource_patterns(self) -> Dict[str, Any]:
         """Analyze resource usage patterns over time."""
@@ -3400,11 +3589,13 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
 
             # Analyze Redis memory usage patterns
             redis_info = await self.redis.info()
-            redis_memory = redis_info.get('used_memory', 0)
-            max_memory = redis_info.get('maxmemory', 0)
+            redis_memory = redis_info.get("used_memory", 0)
+            max_memory = redis_info.get("maxmemory", 0)
 
             if max_memory > 0 and redis_memory / max_memory > 0.8:
-                recommendations.append("Redis memory usage high - consider cleanup or scaling")
+                recommendations.append(
+                    "Redis memory usage high - consider cleanup or scaling"
+                )
 
             # Analyze database connection patterns
             # This would check connection pool utilization
@@ -3414,11 +3605,11 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
             api_usage = await self._check_api_usage_efficiency()
             recommendations.extend(api_usage)
 
-            return {'recommendations': recommendations}
+            return {"recommendations": recommendations}
 
         except Exception as e:
             logger.error(f"Resource pattern analysis failed: {e}")
-            return {'recommendations': ["Resource analysis failed"]}
+            return {"recommendations": ["Resource analysis failed"]}
 
     async def _analyze_data_patterns(self) -> Dict[str, Any]:
         """Analyze data access and storage patterns."""
@@ -3435,17 +3626,19 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
                 if file_sizes:
                     avg_size = sum(file_sizes) / len(file_sizes)
                     if avg_size < 1024 * 1024:  # Less than 1MB average
-                        recommendations.append("Small parquet files detected - consider consolidation")
+                        recommendations.append(
+                            "Small parquet files detected - consider consolidation"
+                        )
 
             # Analyze data access frequency
             access_patterns = await self._analyze_data_access_frequency()
             recommendations.extend(access_patterns)
 
-            return {'recommendations': recommendations}
+            return {"recommendations": recommendations}
 
         except Exception as e:
             logger.error(f"Data pattern analysis failed: {e}")
-            return {'recommendations': ["Data analysis failed"]}
+            return {"recommendations": ["Data analysis failed"]}
 
     async def _analyze_trading_correlation(self) -> Dict[str, Any]:
         """Analyze correlation between system performance and trading performance."""
@@ -3464,18 +3657,20 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
 
             if performance_data:
                 perf = json.loads(performance_data)
-                win_rate = perf.get('win_rate', 0)
+                win_rate = perf.get("win_rate", 0)
 
                 if win_rate < 0.5:
-                    recommendations.append("Low win rate detected - consider strategy review")
+                    recommendations.append(
+                        "Low win rate detected - consider strategy review"
+                    )
 
             recommendations.append("Trading correlation analysis completed")
 
-            return {'recommendations': recommendations}
+            return {"recommendations": recommendations}
 
         except Exception as e:
             logger.error(f"Trading correlation analysis failed: {e}")
-            return {'recommendations': ["Trading analysis failed"]}
+            return {"recommendations": ["Trading analysis failed"]}
 
     async def _check_api_usage_efficiency(self) -> List[str]:
         """Check API usage efficiency."""
@@ -3483,7 +3678,7 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
             recommendations = []
 
             # Check rate limit utilization
-            apis = ['finviz', 'alpaca', 'polygon']
+            apis = ["finviz", "alpaca", "polygon"]
             for api in apis:
                 current_key = f"rate_limit:{api}:current"
                 limit_key = f"rate_limit:{api}:limit"
@@ -3494,9 +3689,13 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
                 if current and limit:
                     utilization = int(current) / int(limit)
                     if utilization > 0.9:
-                        recommendations.append(f"{api} API usage very high - consider optimization")
+                        recommendations.append(
+                            f"{api} API usage very high - consider optimization"
+                        )
                     elif utilization < 0.1:
-                        recommendations.append(f"{api} API underutilized - could increase frequency")
+                        recommendations.append(
+                            f"{api} API underutilized - could increase frequency"
+                        )
 
             return recommendations
 
@@ -3511,54 +3710,61 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
 
             # Check cache hit rates
             cache_stats = await self.redis.info()
-            keyspace_hits = cache_stats.get('keyspace_hits', 0)
-            keyspace_misses = cache_stats.get('keyspace_misses', 0)
+            keyspace_hits = cache_stats.get("keyspace_hits", 0)
+            keyspace_misses = cache_stats.get("keyspace_misses", 0)
 
             if keyspace_hits + keyspace_misses > 0:
                 hit_rate = keyspace_hits / (keyspace_hits + keyspace_misses)
                 if hit_rate < 0.8:
-                    recommendations.append("Low cache hit rate - consider cache optimization")
+                    recommendations.append(
+                        "Low cache hit rate - consider cache optimization"
+                    )
 
             return recommendations
 
         except Exception:
             return ["Data access analysis failed"]
 
-    async def _generate_optimization_plan(self, recommendations: List[str]) -> Dict[str, Any]:
+    async def _generate_optimization_plan(
+        self, recommendations: List[str]
+    ) -> Dict[str, Any]:
         """Generate an optimization plan based on analysis."""
         try:
             plan = {
-                'immediate_actions': [],
-                'scheduled_actions': [],
-                'monitoring_adjustments': [],
-                'configuration_changes': []
+                "immediate_actions": [],
+                "scheduled_actions": [],
+                "monitoring_adjustments": [],
+                "configuration_changes": [],
             }
 
             for rec in recommendations:
                 if "high" in rec.lower() or "critical" in rec.lower():
-                    plan['immediate_actions'].append(rec)
+                    plan["immediate_actions"].append(rec)
                 elif "consider" in rec.lower():
-                    plan['scheduled_actions'].append(rec)
+                    plan["scheduled_actions"].append(rec)
                 elif "monitor" in rec.lower():
-                    plan['monitoring_adjustments'].append(rec)
+                    plan["monitoring_adjustments"].append(rec)
                 else:
-                    plan['configuration_changes'].append(rec)
+                    plan["configuration_changes"].append(rec)
 
             # Generate priority scores (ensure it's stored as list for consistency)
-            priority_score = len(plan['immediate_actions']) * 10 + len(plan['scheduled_actions']) * 5
-            plan['priority_scores'] = [priority_score]
+            priority_score = (
+                len(plan["immediate_actions"]) * 10 + len(plan["scheduled_actions"]) * 5
+            )
+            plan["priority_scores"] = [priority_score]
 
             return plan
 
         except Exception as e:
             logger.error(f"Optimization plan generation failed: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
 
 async def run_emergency_maintenance(task_name: str = "") -> bool:
     """Run emergency maintenance tasks."""
-    from shared.config import get_config
     import redis.asyncio as redis
+
+    from shared.config import get_config
 
     config = get_config()
     redis_client = redis.from_url(config.redis.url)
@@ -3575,9 +3781,9 @@ async def run_emergency_maintenance(task_name: str = "") -> bool:
         else:
             # Run all emergency tasks
             emergency_tasks = [
-                'system_health_check',
-                'cache_cleanup',
-                'portfolio_reconciliation'
+                "system_health_check",
+                "cache_cleanup",
+                "portfolio_reconciliation",
             ]
 
             results = {}
@@ -3594,8 +3800,9 @@ async def run_emergency_maintenance(task_name: str = "") -> bool:
 
 async def run_full_maintenance_cycle():
     """Run a complete maintenance cycle for testing."""
-    from shared.config import get_config
     import redis.asyncio as redis
+
+    from shared.config import get_config
 
     config = get_config()
     redis_client = redis.from_url(config.redis.url)
@@ -3614,7 +3821,9 @@ async def run_full_maintenance_cycle():
 
         print("\nMaintenance Cycle Summary:")
         print(f"Tasks completed: {successful}/{total}")
-        print(f"Total space freed: {maintenance_manager._format_bytes(total_bytes_freed)}")
+        print(
+            f"Total space freed: {maintenance_manager._format_bytes(total_bytes_freed)}"
+        )
 
         for task_name, result in results.items():
             status = "✅" if result.success else "❌"

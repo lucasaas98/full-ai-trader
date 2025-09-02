@@ -4,26 +4,29 @@ Tests system performance under various load conditions.
 """
 
 import asyncio
-import time
-import statistics
-import random
-from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
+import random
+import statistics
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from unittest.mock import MagicMock, patch
+
+import psycopg2
 import pytest
-import requests
+
 # websocket import removed as unused
 import redis
-import psycopg2
-from unittest.mock import patch, MagicMock
+import requests
 
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 # Removed unused imports MarketData, Position, and settings
+
 
 # Mock missing model classes
 class TradingSignal:
@@ -34,6 +37,7 @@ class TradingSignal:
         self.timestamp = timestamp
         for key, value in kwargs.items():
             setattr(self, key, value)
+
 
 class Order:
     def __init__(self, symbol, quantity, order_type, price=None, **kwargs):
@@ -48,6 +52,7 @@ class Order:
 @dataclass
 class LoadTestResult:
     """Results from a load test run."""
+
     test_name: str
     total_requests: int
     successful_requests: int
@@ -67,6 +72,7 @@ class LoadTestResult:
 @dataclass
 class LoadTestConfig:
     """Configuration for load tests."""
+
     concurrent_users: int = 10
     duration_seconds: int = 60
     ramp_up_seconds: int = 10
@@ -81,11 +87,11 @@ class LoadTestRunner:
     def __init__(self, base_url: str = "http://localhost"):
         self.base_url = base_url
         self.services = {
-            'data_collector': f"{base_url}:9101",
-            'strategy_engine': f"{base_url}:9102",
-            'risk_manager': f"{base_url}:9103",
-            'trade_executor': f"{base_url}:9104",
-            'scheduler': f"{base_url}:9105"
+            "data_collector": f"{base_url}:9101",
+            "strategy_engine": f"{base_url}:9102",
+            "risk_manager": f"{base_url}:9103",
+            "trade_executor": f"{base_url}:9104",
+            "scheduler": f"{base_url}:9105",
         }
         self.session = requests.Session()
         self.redis_client = None
@@ -95,18 +101,18 @@ class LoadTestRunner:
         """Setup database and Redis connections for testing."""
         try:
             self.redis_client = redis.Redis(
-                host='localhost',
+                host="localhost",
                 port=6379,
                 db=1,  # Test database
-                decode_responses=True
+                decode_responses=True,
             )
 
             self.db_connection = psycopg2.connect(
-                host='localhost',
+                host="localhost",
                 port=5432,
-                database=os.getenv('DB_NAME', 'test_trading_system'),
-                user=os.getenv('DB_USER', 'trader'),
-                password=os.getenv('DB_PASSWORD', 'password')
+                database=os.getenv("DB_NAME", "test_trading_system"),
+                user=os.getenv("DB_USER", "trader"),
+                password=os.getenv("DB_PASSWORD", "password"),
             )
         except Exception as e:
             print(f"Warning: Could not setup connections: {e}")
@@ -126,49 +132,49 @@ class LoadTestRunner:
             duration_ms = (time.time() - start_time) * 1000
 
             return {
-                'success': True,
-                'status_code': response.status_code,
-                'duration_ms': duration_ms,
-                'response_size': len(response.content),
-                'error': None
+                "success": True,
+                "status_code": response.status_code,
+                "duration_ms": duration_ms,
+                "response_size": len(response.content),
+                "error": None,
             }
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             return {
-                'success': False,
-                'status_code': None,
-                'duration_ms': duration_ms,
-                'response_size': 0,
-                'error': str(e)
+                "success": False,
+                "status_code": None,
+                "duration_ms": duration_ms,
+                "response_size": 0,
+                "error": str(e),
             }
 
     def generate_market_data(self) -> Dict[str, Any]:
         """Generate realistic market data for testing."""
-        symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'NVDA', 'META']
+        symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "NVDA", "META"]
         symbol = random.choice(symbols)
         base_price = random.uniform(100, 500)
 
         return {
-            'symbol': symbol,
-            'price': round(base_price + random.uniform(-5, 5), 2),
-            'bid': round(base_price - 0.01, 2),
-            'ask': round(base_price + 0.01, 2),
-            'volume': random.randint(1000, 100000),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'source': 'test_data'
+            "symbol": symbol,
+            "price": round(base_price + random.uniform(-5, 5), 2),
+            "bid": round(base_price - 0.01, 2),
+            "ask": round(base_price + 0.01, 2),
+            "volume": random.randint(1000, 100000),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "source": "test_data",
         }
 
     def generate_trading_signal(self) -> Dict[str, Any]:
         """Generate trading signal for testing."""
-        symbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA']
+        symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
         return {
-            'symbol': random.choice(symbols),
-            'action': random.choice(['BUY', 'SELL']),
-            'quantity': random.randint(1, 100),
-            'confidence': random.uniform(0.6, 0.95),
-            'strategy': random.choice(['momentum', 'mean_reversion', 'ml_prediction']),
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'reasoning': 'Load test generated signal'
+            "symbol": random.choice(symbols),
+            "action": random.choice(["BUY", "SELL"]),
+            "quantity": random.randint(1, 100),
+            "confidence": random.uniform(0.6, 0.95),
+            "strategy": random.choice(["momentum", "mean_reversion", "ml_prediction"]),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "reasoning": "Load test generated signal",
         }
 
     async def data_collector_load_test(self, config: LoadTestConfig) -> LoadTestResult:
@@ -184,15 +190,15 @@ class LoadTestRunner:
                 market_data = self.generate_market_data()
 
                 result = await self.make_request(
-                    'POST',
+                    "POST",
                     f"{self.services['data_collector']}/api/v1/market-data",
-                    json=market_data
+                    json=market_data,
                 )
 
                 user_results.append(result)
 
-                if not result['success']:
-                    errors.append(result['error'])
+                if not result["success"]:
+                    errors.append(result["error"])
 
                 # Think time
                 if config.think_time_ms > 0:
@@ -217,7 +223,7 @@ class LoadTestRunner:
         try:
             user_results = await asyncio.wait_for(
                 asyncio.gather(*tasks),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 30
+                timeout=config.duration_seconds + config.ramp_up_seconds + 30,
             )
 
             # Flatten results
@@ -242,34 +248,37 @@ class LoadTestRunner:
 
             for _ in range(config.requests_per_user or 50):
                 # Test different endpoints
-                endpoint_choice = random.choice([
-                    '/api/v1/analyze',
-                    '/api/v1/signals',
-                    '/api/v1/strategies',
-                    '/health'
-                ])
+                endpoint_choice = random.choice(
+                    [
+                        "/api/v1/analyze",
+                        "/api/v1/signals",
+                        "/api/v1/strategies",
+                        "/health",
+                    ]
+                )
 
-                if endpoint_choice == '/api/v1/analyze':
+                if endpoint_choice == "/api/v1/analyze":
                     payload = {
-                        'symbols': random.sample(['AAPL', 'GOOGL', 'MSFT', 'AMZN'], 2),
-                        'timeframe': random.choice(['1m', '5m', '15m', '1h']),
-                        'strategy': random.choice(['momentum', 'mean_reversion', 'ml_prediction'])
+                        "symbols": random.sample(["AAPL", "GOOGL", "MSFT", "AMZN"], 2),
+                        "timeframe": random.choice(["1m", "5m", "15m", "1h"]),
+                        "strategy": random.choice(
+                            ["momentum", "mean_reversion", "ml_prediction"]
+                        ),
                     }
                     result = await self.make_request(
-                        'POST',
+                        "POST",
                         f"{self.services['strategy_engine']}{endpoint_choice}",
-                        json=payload
+                        json=payload,
                     )
                 else:
                     result = await self.make_request(
-                        'GET',
-                        f"{self.services['strategy_engine']}{endpoint_choice}"
+                        "GET", f"{self.services['strategy_engine']}{endpoint_choice}"
                     )
 
                 user_results.append(result)
 
-                if not result['success']:
-                    errors.append(result['error'])
+                if not result["success"]:
+                    errors.append(result["error"])
 
                 await asyncio.sleep(config.think_time_ms / 1000)
 
@@ -280,7 +289,7 @@ class LoadTestRunner:
             asyncio.create_task(
                 self._delayed_execution(
                     user_simulation(),
-                    (config.ramp_up_seconds / config.concurrent_users) * i
+                    (config.ramp_up_seconds / config.concurrent_users) * i,
                 )
             )
             for i in range(config.concurrent_users)
@@ -289,7 +298,7 @@ class LoadTestRunner:
         try:
             user_results = await asyncio.wait_for(
                 asyncio.gather(*tasks),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 30
+                timeout=config.duration_seconds + config.ramp_up_seconds + 30,
             )
 
             for user_result in user_results:
@@ -299,7 +308,9 @@ class LoadTestRunner:
             errors.append("Strategy engine load test timed out")
 
         duration = time.time() - start_time
-        return self._calculate_results("strategy_engine_load", results, duration, errors)
+        return self._calculate_results(
+            "strategy_engine_load", results, duration, errors
+        )
 
     async def trade_executor_load_test(self, config: LoadTestConfig) -> LoadTestResult:
         """Load test the trade executor service."""
@@ -313,32 +324,31 @@ class LoadTestRunner:
             for _ in range(config.requests_per_user or 30):
                 # Generate realistic trade orders
                 order_data = {
-                    'symbol': random.choice(['AAPL', 'GOOGL', 'MSFT']),
-                    'action': random.choice(['BUY', 'SELL']),
-                    'quantity': random.randint(1, 100),
-                    'order_type': random.choice(['MARKET', 'LIMIT']),
-                    'price': round(random.uniform(100, 500), 2),
-                    'strategy_id': f"test_strategy_{random.randint(1, 5)}",
-                    'timestamp': datetime.now(timezone.utc).isoformat()
+                    "symbol": random.choice(["AAPL", "GOOGL", "MSFT"]),
+                    "action": random.choice(["BUY", "SELL"]),
+                    "quantity": random.randint(1, 100),
+                    "order_type": random.choice(["MARKET", "LIMIT"]),
+                    "price": round(random.uniform(100, 500), 2),
+                    "strategy_id": f"test_strategy_{random.randint(1, 5)}",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
                 # Simulate order placement
                 result = await self.make_request(
-                    'POST',
+                    "POST",
                     f"{self.services['trade_executor']}/api/v1/orders",
-                    json=order_data
+                    json=order_data,
                 )
 
                 user_results.append(result)
 
-                if not result['success']:
-                    errors.append(result['error'])
+                if not result["success"]:
+                    errors.append(result["error"])
 
                 # Check order status (additional load)
-                if result['success'] and random.random() < 0.3:
+                if result["success"] and random.random() < 0.3:
                     status_result = await self.make_request(
-                        'GET',
-                        f"{self.services['trade_executor']}/api/v1/orders/status"
+                        "GET", f"{self.services['trade_executor']}/api/v1/orders/status"
                     )
                     user_results.append(status_result)
 
@@ -351,7 +361,7 @@ class LoadTestRunner:
             asyncio.create_task(
                 self._delayed_execution(
                     user_simulation(),
-                    (config.ramp_up_seconds / config.concurrent_users) * i
+                    (config.ramp_up_seconds / config.concurrent_users) * i,
                 )
             )
             for i in range(config.concurrent_users)
@@ -360,7 +370,7 @@ class LoadTestRunner:
         try:
             user_results = await asyncio.wait_for(
                 asyncio.gather(*tasks),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 30
+                timeout=config.duration_seconds + config.ramp_up_seconds + 30,
             )
 
             for user_result in user_results:
@@ -387,7 +397,7 @@ class LoadTestRunner:
                 p95_response_time_ms=0,
                 p99_response_time_ms=0,
                 requests_per_second=0,
-                errors=["Redis connection not available"]
+                errors=["Redis connection not available"],
             )
 
         results = []
@@ -402,22 +412,20 @@ class LoadTestRunner:
                 try:
                     market_data = self.generate_market_data()
                     if self.redis_client:
-                        self.redis_client.publish('market_data', json.dumps(market_data))
+                        self.redis_client.publish(
+                            "market_data", json.dumps(market_data)
+                        )
 
                     duration_ms = (time.time() - start_time) * 1000
-                    pub_results.append({
-                        'success': True,
-                        'duration_ms': duration_ms,
-                        'error': None
-                    })
+                    pub_results.append(
+                        {"success": True, "duration_ms": duration_ms, "error": None}
+                    )
 
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
-                    pub_results.append({
-                        'success': False,
-                        'duration_ms': duration_ms,
-                        'error': str(e)
-                    })
+                    pub_results.append(
+                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                    )
                     errors.append(str(e))
 
                 await asyncio.sleep(config.think_time_ms / 1000)
@@ -434,8 +442,7 @@ class LoadTestRunner:
 
         try:
             user_results = await asyncio.wait_for(
-                asyncio.gather(*tasks),
-                timeout=config.duration_seconds + 30
+                asyncio.gather(*tasks), timeout=config.duration_seconds + 30
             )
 
             for user_result in user_results:
@@ -462,7 +469,7 @@ class LoadTestRunner:
                 p95_response_time_ms=0,
                 p99_response_time_ms=0,
                 requests_per_second=0,
-                errors=["Database connection not available"]
+                errors=["Database connection not available"],
             )
 
         results = []
@@ -479,30 +486,28 @@ class LoadTestRunner:
                 start_time = time.time()
                 try:
                     # Random database operation
-                    operation = random.choice([
-                        'SELECT COUNT(*) FROM market_data',
-                        'SELECT * FROM positions LIMIT 10',
-                        'SELECT * FROM trades ORDER BY created_at DESC LIMIT 5',
-                        'SELECT symbol, AVG(price) FROM market_data GROUP BY symbol LIMIT 10'
-                    ])
+                    operation = random.choice(
+                        [
+                            "SELECT COUNT(*) FROM market_data",
+                            "SELECT * FROM positions LIMIT 10",
+                            "SELECT * FROM trades ORDER BY created_at DESC LIMIT 5",
+                            "SELECT symbol, AVG(price) FROM market_data GROUP BY symbol LIMIT 10",
+                        ]
+                    )
 
                     cursor.execute(operation)
                     cursor.fetchall()
 
                     duration_ms = (time.time() - start_time) * 1000
-                    db_results.append({
-                        'success': True,
-                        'duration_ms': duration_ms,
-                        'error': None
-                    })
+                    db_results.append(
+                        {"success": True, "duration_ms": duration_ms, "error": None}
+                    )
 
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
-                    db_results.append({
-                        'success': False,
-                        'duration_ms': duration_ms,
-                        'error': str(e)
-                    })
+                    db_results.append(
+                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                    )
                     errors.append(str(e))
 
                 time.sleep(config.think_time_ms / 1000)
@@ -529,7 +534,9 @@ class LoadTestRunner:
         duration = time.time() - start_time
         return self._calculate_results("database_load", results, duration, errors)
 
-    async def end_to_end_trading_flow_test(self, config: LoadTestConfig) -> LoadTestResult:
+    async def end_to_end_trading_flow_test(
+        self, config: LoadTestConfig
+    ) -> LoadTestResult:
         """Test complete trading flow end-to-end."""
         results = []
         errors = []
@@ -547,12 +554,12 @@ class LoadTestRunner:
                     # Step 1: Send market data
                     market_data = self.generate_market_data()
                     result1 = await self.make_request(
-                        'POST',
+                        "POST",
                         f"{self.services['data_collector']}/api/v1/market-data",
-                        json=market_data
+                        json=market_data,
                     )
 
-                    if not result1['success']:
+                    if not result1["success"]:
                         flow_success = False
                         flow_errors.append(f"Market data failed: {result1['error']}")
 
@@ -561,72 +568,76 @@ class LoadTestRunner:
 
                     # Step 2: Request strategy analysis
                     analysis_payload = {
-                        'symbol': market_data['symbol'],
-                        'timeframe': '5m'
+                        "symbol": market_data["symbol"],
+                        "timeframe": "5m",
                     }
                     result2 = await self.make_request(
-                        'POST',
+                        "POST",
                         f"{self.services['strategy_engine']}/api/v1/analyze",
-                        json=analysis_payload
+                        json=analysis_payload,
                     )
 
-                    if not result2['success']:
+                    if not result2["success"]:
                         flow_success = False
-                        flow_errors.append(f"Strategy analysis failed: {result2['error']}")
+                        flow_errors.append(
+                            f"Strategy analysis failed: {result2['error']}"
+                        )
 
                     # Step 3: Risk check
                     risk_payload = {
-                        'symbol': market_data['symbol'],
-                        'action': 'BUY',
-                        'quantity': 10,
-                        'price': market_data['price']
+                        "symbol": market_data["symbol"],
+                        "action": "BUY",
+                        "quantity": 10,
+                        "price": market_data["price"],
                     }
                     result3 = await self.make_request(
-                        'POST',
+                        "POST",
                         f"{self.services['risk_manager']}/api/v1/check",
-                        json=risk_payload
+                        json=risk_payload,
                     )
 
-                    if not result3['success']:
+                    if not result3["success"]:
                         flow_success = False
                         flow_errors.append(f"Risk check failed: {result3['error']}")
 
                     # Step 4: Execute trade (if risk allows)
                     if flow_success:
                         trade_payload = {
-                            'symbol': market_data['symbol'],
-                            'action': 'BUY',
-                            'quantity': 10,
-                            'order_type': 'MARKET'
+                            "symbol": market_data["symbol"],
+                            "action": "BUY",
+                            "quantity": 10,
+                            "order_type": "MARKET",
                         }
                         result4 = await self.make_request(
-                            'POST',
+                            "POST",
                             f"{self.services['trade_executor']}/api/v1/orders",
-                            json=trade_payload
+                            json=trade_payload,
                         )
 
-                        if not result4['success']:
+                        if not result4["success"]:
                             flow_success = False
-                            flow_errors.append(f"Trade execution failed: {result4['error']}")
+                            flow_errors.append(
+                                f"Trade execution failed: {result4['error']}"
+                            )
 
                     duration_ms = (time.time() - flow_start) * 1000
 
-                    flow_results.append({
-                        'success': flow_success,
-                        'duration_ms': duration_ms,
-                        'error': '; '.join(flow_errors) if flow_errors else None
-                    })
+                    flow_results.append(
+                        {
+                            "success": flow_success,
+                            "duration_ms": duration_ms,
+                            "error": "; ".join(flow_errors) if flow_errors else None,
+                        }
+                    )
 
                     if flow_errors:
                         errors.extend(flow_errors)
 
                 except Exception as e:
                     duration_ms = (time.time() - flow_start) * 1000
-                    flow_results.append({
-                        'success': False,
-                        'duration_ms': duration_ms,
-                        'error': str(e)
-                    })
+                    flow_results.append(
+                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                    )
                     errors.append(str(e))
 
                 await asyncio.sleep(config.think_time_ms / 1000)
@@ -639,7 +650,7 @@ class LoadTestRunner:
             asyncio.create_task(
                 self._delayed_execution(
                     trading_flow_simulation(),
-                    (config.ramp_up_seconds / config.concurrent_users) * i
+                    (config.ramp_up_seconds / config.concurrent_users) * i,
                 )
             )
             for i in range(config.concurrent_users)
@@ -648,7 +659,7 @@ class LoadTestRunner:
         try:
             user_results = await asyncio.wait_for(
                 asyncio.gather(*tasks),
-                timeout=config.duration_seconds + config.ramp_up_seconds + 60
+                timeout=config.duration_seconds + config.ramp_up_seconds + 60,
             )
 
             for user_result in user_results:
@@ -658,14 +669,18 @@ class LoadTestRunner:
             errors.append("End-to-end trading flow test timed out")
 
         duration = time.time() - start_time
-        return self._calculate_results("end_to_end_trading_flow", results, duration, errors)
+        return self._calculate_results(
+            "end_to_end_trading_flow", results, duration, errors
+        )
 
     async def _delayed_execution(self, coro, delay_seconds: float):
         """Execute coroutine after a delay."""
         await asyncio.sleep(delay_seconds)
         return await coro
 
-    def _calculate_results(self, test_name: str, results: List[Dict], duration: float, errors: List[str]) -> LoadTestResult:
+    def _calculate_results(
+        self, test_name: str, results: List[Dict], duration: float, errors: List[str]
+    ) -> LoadTestResult:
         """Calculate load test statistics."""
         if not results:
             return LoadTestResult(
@@ -680,13 +695,13 @@ class LoadTestRunner:
                 p95_response_time_ms=0,
                 p99_response_time_ms=0,
                 requests_per_second=0,
-                errors=errors
+                errors=errors,
             )
 
-        successful_results = [r for r in results if r['success']]
-        failed_results = [r for r in results if not r['success']]
+        successful_results = [r for r in results if r["success"]]
+        failed_results = [r for r in results if not r["success"]]
 
-        durations = [r['duration_ms'] for r in results]
+        durations = [r["duration_ms"] for r in results]
 
         return LoadTestResult(
             test_name=test_name,
@@ -697,10 +712,14 @@ class LoadTestRunner:
             avg_response_time_ms=statistics.mean(durations) if durations else 0,
             min_response_time_ms=min(durations) if durations else 0,
             max_response_time_ms=max(durations) if durations else 0,
-            p95_response_time_ms=statistics.quantiles(durations, n=20)[18] if len(durations) > 1 else 0,
-            p99_response_time_ms=statistics.quantiles(durations, n=100)[98] if len(durations) > 1 else 0,
+            p95_response_time_ms=(
+                statistics.quantiles(durations, n=20)[18] if len(durations) > 1 else 0
+            ),
+            p99_response_time_ms=(
+                statistics.quantiles(durations, n=100)[98] if len(durations) > 1 else 0
+            ),
             requests_per_second=len(results) / duration if duration > 0 else 0,
-            errors=list(set(errors))  # Remove duplicates
+            errors=list(set(errors)),  # Remove duplicates
         )
 
 
@@ -722,7 +741,7 @@ def light_load_config():
         duration_seconds=30,
         ramp_up_seconds=5,
         requests_per_user=20,
-        think_time_ms=50
+        think_time_ms=50,
     )
 
 
@@ -734,7 +753,7 @@ def medium_load_config():
         duration_seconds=120,
         ramp_up_seconds=20,
         requests_per_user=50,
-        think_time_ms=100
+        think_time_ms=100,
     )
 
 
@@ -746,7 +765,7 @@ def heavy_load_config():
         duration_seconds=300,
         ramp_up_seconds=60,
         requests_per_user=100,
-        think_time_ms=200
+        think_time_ms=200,
     )
 
 
@@ -760,8 +779,12 @@ async def test_data_collector_light_load(load_test_runner, light_load_config):
     # Assertions
     assert result.successful_requests > 0, "No successful requests"
     assert result.requests_per_second > 10, f"RPS too low: {result.requests_per_second}"
-    assert result.avg_response_time_ms < 500, f"Average response time too high: {result.avg_response_time_ms}ms"
-    assert result.p95_response_time_ms < 1000, f"P95 response time too high: {result.p95_response_time_ms}ms"
+    assert (
+        result.avg_response_time_ms < 500
+    ), f"Average response time too high: {result.avg_response_time_ms}ms"
+    assert (
+        result.p95_response_time_ms < 1000
+    ), f"P95 response time too high: {result.p95_response_time_ms}ms"
     assert len(result.errors) == 0, f"Unexpected errors: {result.errors}"
 
     print(f"Data Collector Light Load Results: {asdict(result)}")
@@ -776,8 +799,12 @@ async def test_strategy_engine_medium_load(load_test_runner, medium_load_config)
     # Assertions
     assert result.successful_requests > 0, "No successful requests"
     assert result.requests_per_second > 5, f"RPS too low: {result.requests_per_second}"
-    assert result.avg_response_time_ms < 2000, f"Average response time too high: {result.avg_response_time_ms}ms"
-    assert result.p95_response_time_ms < 5000, f"P95 response time too high: {result.p95_response_time_ms}ms"
+    assert (
+        result.avg_response_time_ms < 2000
+    ), f"Average response time too high: {result.avg_response_time_ms}ms"
+    assert (
+        result.p95_response_time_ms < 5000
+    ), f"P95 response time too high: {result.p95_response_time_ms}ms"
 
     print(f"Strategy Engine Medium Load Results: {asdict(result)}")
 
@@ -787,14 +814,18 @@ async def test_strategy_engine_medium_load(load_test_runner, medium_load_config)
 async def test_trade_executor_light_load(load_test_runner, light_load_config):
     """Test trade executor under light load."""
     # Mock external API calls for testing
-    with patch('alpaca.trading.client.TradingClient') as mock_alpaca:
-        mock_alpaca.return_value.submit_order.return_value = MagicMock(id='test_order_123')
+    with patch("alpaca.trading.client.TradingClient") as mock_alpaca:
+        mock_alpaca.return_value.submit_order.return_value = MagicMock(
+            id="test_order_123"
+        )
 
         result = await load_test_runner.trade_executor_load_test(light_load_config)
 
         # Assertions
         assert result.successful_requests > 0, "No successful requests"
-        assert result.avg_response_time_ms < 1000, f"Average response time too high: {result.avg_response_time_ms}ms"
+        assert (
+            result.avg_response_time_ms < 1000
+        ), f"Average response time too high: {result.avg_response_time_ms}ms"
 
         print(f"Trade Executor Light Load Results: {asdict(result)}")
 
@@ -807,8 +838,12 @@ async def test_redis_pubsub_performance(load_test_runner, medium_load_config):
 
     # Assertions
     assert result.successful_requests > 0, "No successful Redis operations"
-    assert result.requests_per_second > 100, f"Redis RPS too low: {result.requests_per_second}"
-    assert result.avg_response_time_ms < 10, f"Redis latency too high: {result.avg_response_time_ms}ms"
+    assert (
+        result.requests_per_second > 100
+    ), f"Redis RPS too low: {result.requests_per_second}"
+    assert (
+        result.avg_response_time_ms < 10
+    ), f"Redis latency too high: {result.avg_response_time_ms}ms"
 
     print(f"Redis Pub/Sub Performance Results: {asdict(result)}")
 
@@ -821,8 +856,12 @@ async def test_database_performance(load_test_runner, medium_load_config):
 
     # Assertions
     assert result.successful_requests > 0, "No successful database queries"
-    assert result.requests_per_second > 50, f"Database RPS too low: {result.requests_per_second}"
-    assert result.avg_response_time_ms < 100, f"Database latency too high: {result.avg_response_time_ms}ms"
+    assert (
+        result.requests_per_second > 50
+    ), f"Database RPS too low: {result.requests_per_second}"
+    assert (
+        result.avg_response_time_ms < 100
+    ), f"Database latency too high: {result.avg_response_time_ms}ms"
 
     print(f"Database Performance Results: {asdict(result)}")
 
@@ -832,15 +871,21 @@ async def test_database_performance(load_test_runner, medium_load_config):
 @pytest.mark.slow
 async def test_end_to_end_trading_flow(load_test_runner, light_load_config):
     """Test complete trading flow performance."""
-    with patch('alpaca.trading.client.TradingClient') as mock_alpaca:
-        mock_alpaca.return_value.submit_order.return_value = MagicMock(id='test_order_123')
+    with patch("alpaca.trading.client.TradingClient") as mock_alpaca:
+        mock_alpaca.return_value.submit_order.return_value = MagicMock(
+            id="test_order_123"
+        )
 
         result = await load_test_runner.end_to_end_trading_flow_test(light_load_config)
 
         # Assertions
         assert result.successful_requests > 0, "No successful end-to-end flows"
-        assert result.avg_response_time_ms < 3000, f"E2E latency too high: {result.avg_response_time_ms}ms"
-        assert result.p95_response_time_ms < 5000, f"E2E P95 latency too high: {result.p95_response_time_ms}ms"
+        assert (
+            result.avg_response_time_ms < 3000
+        ), f"E2E latency too high: {result.avg_response_time_ms}ms"
+        assert (
+            result.p95_response_time_ms < 5000
+        ), f"E2E P95 latency too high: {result.p95_response_time_ms}ms"
 
         print(f"End-to-End Trading Flow Results: {asdict(result)}")
 
@@ -850,15 +895,17 @@ async def test_end_to_end_trading_flow(load_test_runner, light_load_config):
 @pytest.mark.slow
 async def test_system_under_heavy_load(load_test_runner, heavy_load_config):
     """Test entire system under heavy load."""
-    with patch('alpaca.trading.client.TradingClient') as mock_alpaca:
-        mock_alpaca.return_value.submit_order.return_value = MagicMock(id='test_order_123')
+    with patch("alpaca.trading.client.TradingClient") as mock_alpaca:
+        mock_alpaca.return_value.submit_order.return_value = MagicMock(
+            id="test_order_123"
+        )
 
         # Run multiple load tests concurrently
         tasks = [
             load_test_runner.data_collector_load_test(heavy_load_config),
             load_test_runner.strategy_engine_load_test(heavy_load_config),
             load_test_runner.redis_pubsub_load_test(heavy_load_config),
-            load_test_runner.database_load_test(heavy_load_config)
+            load_test_runner.database_load_test(heavy_load_config),
         ]
 
         results = await asyncio.gather(*tasks)
@@ -871,12 +918,16 @@ async def test_system_under_heavy_load(load_test_runner, heavy_load_config):
 
         # Assertions for system-wide performance
         assert total_successful > 0, "No successful requests across all services"
-        assert total_failed / total_requests < 0.05, f"Error rate too high: {total_failed/total_requests*100:.2f}%"
+        assert (
+            total_failed / total_requests < 0.05
+        ), f"Error rate too high: {total_failed/total_requests*100:.2f}%"
         assert avg_rps > 50, f"Combined RPS too low: {avg_rps}"
 
         print("Heavy Load Test Results:")
         for result in results:
-            print(f"  {result.test_name}: {result.requests_per_second:.2f} RPS, {result.avg_response_time_ms:.2f}ms avg")
+            print(
+                f"  {result.test_name}: {result.requests_per_second:.2f} RPS, {result.avg_response_time_ms:.2f}ms avg"
+            )
 
 
 @pytest.mark.performance
@@ -892,13 +943,15 @@ class TestStressTesting:
                 concurrent_users=concurrent_users,
                 duration_seconds=60,
                 requests_per_user=100,
-                think_time_ms=10  # Minimal think time for stress
+                think_time_ms=10,  # Minimal think time for stress
             )
 
             result = await load_test_runner.data_collector_load_test(config)
 
-            print(f"Memory Stress - {concurrent_users} users: {result.requests_per_second:.2f} RPS, "
-                  f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures")
+            print(
+                f"Memory Stress - {concurrent_users} users: {result.requests_per_second:.2f} RPS, "
+                f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures"
+            )
 
             # Stop if error rate exceeds 25%
             if result.failed_requests / result.total_requests > 0.25:
@@ -912,14 +965,16 @@ class TestStressTesting:
             concurrent_users=50,
             duration_seconds=120,
             requests_per_user=200,
-            think_time_ms=0
+            think_time_ms=0,
         )
 
         result = await load_test_runner.end_to_end_trading_flow_test(config)
 
         # Verify system can handle sustained load
         assert result.successful_requests > 0, "System failed under stress"
-        assert result.avg_response_time_ms < 10000, f"Latency degraded too much: {result.avg_response_time_ms}ms"
+        assert (
+            result.avg_response_time_ms < 10000
+        ), f"Latency degraded too much: {result.avg_response_time_ms}ms"
 
         print(f"Latency Stress Results: {asdict(result)}")
 
@@ -930,9 +985,7 @@ class TestStressTesting:
 
         # Phase 1: Normal load
         normal_config = LoadTestConfig(
-            concurrent_users=10,
-            duration_seconds=30,
-            requests_per_user=30
+            concurrent_users=10, duration_seconds=30, requests_per_user=30
         )
         normal_result = await load_test_runner.data_collector_load_test(normal_config)
         burst_results.append(("normal", normal_result))
@@ -943,7 +996,7 @@ class TestStressTesting:
             duration_seconds=30,
             ramp_up_seconds=5,  # Quick ramp-up for burst
             requests_per_user=50,
-            think_time_ms=10
+            think_time_ms=10,
         )
         burst_result = await load_test_runner.data_collector_load_test(burst_config)
         burst_results.append(("burst", burst_result))
@@ -954,13 +1007,17 @@ class TestStressTesting:
 
         # Analyze burst impact
         for phase, result in burst_results:
-            print(f"Burst Test - {phase}: {result.requests_per_second:.2f} RPS, "
-                  f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures")
+            print(
+                f"Burst Test - {phase}: {result.requests_per_second:.2f} RPS, "
+                f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures"
+            )
 
         # System should recover after burst
         recovery_rps = burst_results[2][1].requests_per_second
         normal_rps = burst_results[0][1].requests_per_second
-        assert recovery_rps >= normal_rps * 0.9, "System did not recover properly after burst"
+        assert (
+            recovery_rps >= normal_rps * 0.9
+        ), "System did not recover properly after burst"
 
 
 @pytest.mark.performance
@@ -972,11 +1029,11 @@ class TestPerformanceRegression:
         """Load baseline performance metrics."""
         # In a real system, this would load from a file or database
         return {
-            'data_collector_rps': 100.0,
-            'strategy_engine_rps': 20.0,
-            'trade_executor_rps': 10.0,
-            'avg_latency_ms': 200.0,
-            'p95_latency_ms': 500.0
+            "data_collector_rps": 100.0,
+            "strategy_engine_rps": 20.0,
+            "trade_executor_rps": 10.0,
+            "avg_latency_ms": 200.0,
+            "p95_latency_ms": 500.0,
         }
 
     def save_performance_metrics(self, metrics: Dict[str, float]):
@@ -990,14 +1047,23 @@ class TestPerformanceRegression:
         baseline = self.load_baseline_metrics()
 
         # Run current performance tests
-        data_result = await load_test_runner.data_collector_load_test(medium_load_config)
-        strategy_result = await load_test_runner.strategy_engine_load_test(medium_load_config)
+        data_result = await load_test_runner.data_collector_load_test(
+            medium_load_config
+        )
+        strategy_result = await load_test_runner.strategy_engine_load_test(
+            medium_load_config
+        )
 
         current_metrics = {
-            'data_collector_rps': data_result.requests_per_second,
-            'strategy_engine_rps': strategy_result.requests_per_second,
-            'avg_latency_ms': (data_result.avg_response_time_ms + strategy_result.avg_response_time_ms) / 2,
-            'p95_latency_ms': max(data_result.p95_response_time_ms, strategy_result.p95_response_time_ms)
+            "data_collector_rps": data_result.requests_per_second,
+            "strategy_engine_rps": strategy_result.requests_per_second,
+            "avg_latency_ms": (
+                data_result.avg_response_time_ms + strategy_result.avg_response_time_ms
+            )
+            / 2,
+            "p95_latency_ms": max(
+                data_result.p95_response_time_ms, strategy_result.p95_response_time_ms
+            ),
         }
 
         # Check for regressions (allow 10% degradation)
@@ -1006,12 +1072,14 @@ class TestPerformanceRegression:
         for metric, current_value in current_metrics.items():
             if metric in baseline:
                 baseline_value = baseline[metric]
-                if metric.endswith('_ms'):  # Lower is better for latency
-                    assert current_value <= baseline_value * 1.1, \
-                        f"Latency regression in {metric}: {current_value:.2f}ms vs baseline {baseline_value:.2f}ms"
+                if metric.endswith("_ms"):  # Lower is better for latency
+                    assert (
+                        current_value <= baseline_value * 1.1
+                    ), f"Latency regression in {metric}: {current_value:.2f}ms vs baseline {baseline_value:.2f}ms"
                 else:  # Higher is better for throughput
-                    assert current_value >= baseline_value * degradation_threshold, \
-                        f"Performance regression in {metric}: {current_value:.2f} vs baseline {baseline_value:.2f}"
+                    assert (
+                        current_value >= baseline_value * degradation_threshold
+                    ), f"Performance regression in {metric}: {current_value:.2f} vs baseline {baseline_value:.2f}"
 
         self.save_performance_metrics(current_metrics)
 
@@ -1022,8 +1090,9 @@ class TestMemoryLeakDetection:
 
     async def test_memory_leak_detection(self, load_test_runner):
         """Run extended test to detect memory leaks."""
-        import psutil
         import os
+
+        import psutil
 
         # Get initial memory usage
         process = psutil.Process(os.getpid())
@@ -1034,9 +1103,7 @@ class TestMemoryLeakDetection:
 
         for round_num in range(5):
             config = LoadTestConfig(
-                concurrent_users=20,
-                duration_seconds=60,
-                requests_per_user=100
+                concurrent_users=20, duration_seconds=60, requests_per_user=100
             )
 
             # Run test round
@@ -1055,16 +1122,22 @@ class TestMemoryLeakDetection:
         memory_growth = memory_samples[-1] - memory_samples[0]
         max_acceptable_growth = 100  # MB
 
-        assert memory_growth < max_acceptable_growth, \
-            f"Potential memory leak detected: {memory_growth:.2f} MB growth over 5 rounds"
+        assert (
+            memory_growth < max_acceptable_growth
+        ), f"Potential memory leak detected: {memory_growth:.2f} MB growth over 5 rounds"
 
         # Check for consistent growth pattern (sign of leak)
-        growth_rates = [memory_samples[i] - memory_samples[i-1] for i in range(1, len(memory_samples))]
+        growth_rates = [
+            memory_samples[i] - memory_samples[i - 1]
+            for i in range(1, len(memory_samples))
+        ]
         avg_growth_rate = statistics.mean(growth_rates)
 
         # If memory consistently grows, it might be a leak
         if avg_growth_rate > 10:  # 10 MB per round
-            print(f"Warning: Consistent memory growth detected: {avg_growth_rate:.2f} MB/round")
+            print(
+                f"Warning: Consistent memory growth detected: {avg_growth_rate:.2f} MB/round"
+            )
 
 
 @pytest.mark.performance
@@ -1084,7 +1157,7 @@ class TestConcurrencyLimits:
                 concurrent_users=concurrent_users,
                 duration_seconds=30,
                 requests_per_user=10,
-                think_time_ms=100
+                think_time_ms=100,
             )
 
             try:
@@ -1093,16 +1166,22 @@ class TestConcurrencyLimits:
                 success_rate = result.successful_requests / result.total_requests
                 if success_rate >= 0.95:  # 95% success rate
                     max_successful_users = concurrent_users
-                    print(f"✓ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate")
+                    print(
+                        f"✓ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate"
+                    )
                 else:
-                    print(f"✗ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate")
+                    print(
+                        f"✗ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate"
+                    )
                     break
 
             except Exception as e:
                 print(f"✗ {concurrent_users} concurrent users: Failed with {str(e)}")
                 break
 
-        assert max_successful_users >= 50, f"System can only handle {max_successful_users} concurrent users"
+        assert (
+            max_successful_users >= 50
+        ), f"System can only handle {max_successful_users} concurrent users"
         print(f"Maximum concurrent users supported: {max_successful_users}")
 
     async def test_connection_pool_exhaustion(self, load_test_runner):
@@ -1112,16 +1191,22 @@ class TestConcurrencyLimits:
             concurrent_users=200,
             duration_seconds=60,
             requests_per_user=50,
-            think_time_ms=5000  # Long think time to hold connections
+            think_time_ms=5000,  # Long think time to hold connections
         )
 
         result = await load_test_runner.data_collector_load_test(config)
 
         # System should handle connection pool pressure gracefully
-        error_rate = result.failed_requests / result.total_requests if result.total_requests > 0 else 1
+        error_rate = (
+            result.failed_requests / result.total_requests
+            if result.total_requests > 0
+            else 1
+        )
         assert error_rate < 0.20, f"Too many connection failures: {error_rate*100:.1f}%"
 
-        print(f"Connection Pool Test: {error_rate*100:.1f}% error rate under pool pressure")
+        print(
+            f"Connection Pool Test: {error_rate*100:.1f}% error rate under pool pressure"
+        )
 
 
 @pytest.mark.performance
@@ -1131,45 +1216,45 @@ def test_generate_performance_report(load_test_runner):
     from datetime import datetime, timezone
 
     report = {
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'test_environment': {
-            'python_version': sys.version,
-            'test_configuration': 'Docker containers',
-            'hardware_info': 'Test environment'
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "test_environment": {
+            "python_version": sys.version,
+            "test_configuration": "Docker containers",
+            "hardware_info": "Test environment",
         },
-        'performance_summary': {
-            'data_collector': {
-                'max_rps': 150,
-                'avg_latency_ms': 45,
-                'p95_latency_ms': 120
+        "performance_summary": {
+            "data_collector": {
+                "max_rps": 150,
+                "avg_latency_ms": 45,
+                "p95_latency_ms": 120,
             },
-            'strategy_engine': {
-                'max_rps': 30,
-                'avg_latency_ms': 800,
-                'p95_latency_ms': 2000
+            "strategy_engine": {
+                "max_rps": 30,
+                "avg_latency_ms": 800,
+                "p95_latency_ms": 2000,
             },
-            'trade_executor': {
-                'max_rps': 15,
-                'avg_latency_ms': 400,
-                'p95_latency_ms': 1000
+            "trade_executor": {
+                "max_rps": 15,
+                "avg_latency_ms": 400,
+                "p95_latency_ms": 1000,
             },
-            'end_to_end_flow': {
-                'max_rps': 5,
-                'avg_latency_ms': 2500,
-                'p95_latency_ms': 5000
-            }
+            "end_to_end_flow": {
+                "max_rps": 5,
+                "avg_latency_ms": 2500,
+                "p95_latency_ms": 5000,
+            },
         },
-        'recommendations': [
+        "recommendations": [
             "Data collector performs well under load",
             "Strategy engine may need optimization for complex analysis",
             "Trade executor latency acceptable for current volume",
-            "End-to-end flow meets requirements but monitor under production load"
-        ]
+            "End-to-end flow meets requirements but monitor under production load",
+        ],
     }
 
     # Save report
     report_path = "/tmp/performance_report.json"
-    with open(report_path, 'w') as f:
+    with open(report_path, "w") as f:
         json.dump(report, f, indent=2)
 
     print(f"Performance report saved to: {report_path}")
@@ -1192,11 +1277,13 @@ class PerformanceProfiler:
             cpu_percent = psutil.cpu_percent(interval=1)
             memory_mb = psutil.virtual_memory().used / 1024 / 1024
 
-            self.metrics.append({
-                'timestamp': time.time(),
-                'cpu_percent': cpu_percent,
-                'memory_mb': memory_mb
-            })
+            self.metrics.append(
+                {
+                    "timestamp": time.time(),
+                    "cpu_percent": cpu_percent,
+                    "memory_mb": memory_mb,
+                }
+            )
 
             await asyncio.sleep(1)
 
@@ -1205,15 +1292,17 @@ class PerformanceProfiler:
         if not self.metrics:
             return {}
 
-        cpu_values = [m['cpu_percent'] for m in self.metrics]
-        memory_values = [m['memory_mb'] for m in self.metrics]
+        cpu_values = [m["cpu_percent"] for m in self.metrics]
+        memory_values = [m["memory_mb"] for m in self.metrics]
 
         return {
-            'avg_cpu_percent': statistics.mean(cpu_values),
-            'max_cpu_percent': max(cpu_values),
-            'avg_memory_mb': statistics.mean(memory_values),
-            'max_memory_mb': max(memory_values),
-            'memory_growth_mb': memory_values[-1] - memory_values[0] if len(memory_values) > 1 else 0
+            "avg_cpu_percent": statistics.mean(cpu_values),
+            "max_cpu_percent": max(cpu_values),
+            "avg_memory_mb": statistics.mean(memory_values),
+            "max_memory_mb": max(memory_values),
+            "memory_growth_mb": (
+                memory_values[-1] - memory_values[0] if len(memory_values) > 1 else 0
+            ),
         }
 
 
@@ -1230,9 +1319,7 @@ async def test_system_profiling():
 
         # Run load test while profiling
         config = LoadTestConfig(
-            concurrent_users=30,
-            duration_seconds=60,
-            requests_per_user=100
+            concurrent_users=30, duration_seconds=60, requests_per_user=100
         )
 
         load_result = await runner.data_collector_load_test(config)
@@ -1247,8 +1334,10 @@ async def test_system_profiling():
         print(f"Resource Usage Summary: {resource_summary}")
 
         # Assertions
-        assert resource_summary.get('max_cpu_percent', 0) < 90, "CPU usage too high"
-        assert resource_summary.get('memory_growth_mb', 0) < 200, "Excessive memory growth"
+        assert resource_summary.get("max_cpu_percent", 0) < 90, "CPU usage too high"
+        assert (
+            resource_summary.get("memory_growth_mb", 0) < 200
+        ), "Excessive memory growth"
 
     finally:
         runner.teardown_connections()
@@ -1266,7 +1355,7 @@ class TestChaosEngineering:
         config = LoadTestConfig(
             concurrent_users=20,
             duration_seconds=180,  # 3 minutes
-            requests_per_user=100
+            requests_per_user=100,
         )
 
         # Run load test with simulated failures
@@ -1274,11 +1363,13 @@ class TestChaosEngineering:
             await asyncio.sleep(30)  # Let system stabilize
 
             # Simulate service failures by blocking requests
-            with patch('requests.Session.request') as mock_request:
+            with patch("requests.Session.request") as mock_request:
                 # 50% of requests fail for 30 seconds
                 def failing_request(*args, **kwargs):
                     if random.random() < 0.5:
-                        raise requests.exceptions.ConnectionError("Simulated service failure")
+                        raise requests.exceptions.ConnectionError(
+                            "Simulated service failure"
+                        )
                     return MagicMock(status_code=200, content=b'{"status": "ok"}')
 
                 mock_request.side_effect = failing_request
@@ -1303,9 +1394,7 @@ class TestChaosEngineering:
         # For testing purposes, we'll simulate with timeouts
 
         config = LoadTestConfig(
-            concurrent_users=10,
-            duration_seconds=120,
-            requests_per_user=50
+            concurrent_users=10, duration_seconds=120, requests_per_user=50
         )
 
         # Test with artificially high timeouts to simulate network issues
@@ -1316,7 +1405,11 @@ class TestChaosEngineering:
             result = await load_test_runner.data_collector_load_test(config)
 
             # System should handle network issues gracefully
-            error_rate = result.failed_requests / result.total_requests if result.total_requests > 0 else 1
+            error_rate = (
+                result.failed_requests / result.total_requests
+                if result.total_requests > 0
+                else 1
+            )
             print(f"Network partition simulation: {error_rate*100:.1f}% error rate")
 
             # Some failures are expected, but system shouldn't crash
@@ -1340,16 +1433,16 @@ class TestOperationBenchmarks:
         for i in range(data_points):
             market_data = load_test_runner.generate_market_data()
             task = load_test_runner.make_request(
-                'POST',
+                "POST",
                 f"{load_test_runner.services['data_collector']}/api/v1/market-data",
-                json=market_data
+                json=market_data,
             )
             tasks.append(task)
 
             # Batch requests to avoid overwhelming the system
             if len(tasks) >= 100:
                 batch_results = await asyncio.gather(*tasks)
-                successful = sum(1 for r in batch_results if r['success'])
+                successful = sum(1 for r in batch_results if r["success"])
                 print(f"Processed batch: {successful}/{len(batch_results)} successful")
                 tasks = []
 
@@ -1360,7 +1453,9 @@ class TestOperationBenchmarks:
         duration = time.time() - start_time
         ingestion_rate = data_points / duration
 
-        print(f"Market data ingestion benchmark: {ingestion_rate:.2f} data points/second")
+        print(
+            f"Market data ingestion benchmark: {ingestion_rate:.2f} data points/second"
+        )
         assert ingestion_rate > 50, f"Ingestion rate too low: {ingestion_rate:.2f}/sec"
 
     async def test_strategy_computation_benchmark(self, load_test_runner):
@@ -1371,15 +1466,15 @@ class TestOperationBenchmarks:
         tasks = []
         for _ in range(computation_count):
             payload = {
-                'symbol': random.choice(['AAPL', 'GOOGL', 'MSFT']),
-                'timeframe': '5m',
-                'strategy': 'ml_prediction'
+                "symbol": random.choice(["AAPL", "GOOGL", "MSFT"]),
+                "timeframe": "5m",
+                "strategy": "ml_prediction",
             }
 
             task = load_test_runner.make_request(
-                'POST',
+                "POST",
                 f"{load_test_runner.services['strategy_engine']}/api/v1/analyze",
-                json=payload
+                json=payload,
             )
             tasks.append(task)
 
@@ -1395,7 +1490,9 @@ class TestOperationBenchmarks:
         computation_rate = computation_count / duration
 
         print(f"Strategy computation benchmark: {computation_rate:.2f} analyses/second")
-        assert computation_rate > 5, f"Computation rate too low: {computation_rate:.2f}/sec"
+        assert (
+            computation_rate > 5
+        ), f"Computation rate too low: {computation_rate:.2f}/sec"
 
 
 # Test configuration generators
@@ -1423,14 +1520,22 @@ async def test_load_scenarios(load_test_runner, scenario_name, config):
 
     # Scenario-specific assertions
     if scenario_name == "light_load":
-        assert result.avg_response_time_ms < 200, f"Light load latency too high: {result.avg_response_time_ms}ms"
+        assert (
+            result.avg_response_time_ms < 200
+        ), f"Light load latency too high: {result.avg_response_time_ms}ms"
     elif scenario_name == "heavy_load":
-        assert result.requests_per_second > 50, f"Heavy load RPS too low: {result.requests_per_second}"
+        assert (
+            result.requests_per_second > 50
+        ), f"Heavy load RPS too low: {result.requests_per_second}"
     elif scenario_name == "burst_load":
-        assert result.p95_response_time_ms < 2000, f"Burst load P95 too high: {result.p95_response_time_ms}ms"
+        assert (
+            result.p95_response_time_ms < 2000
+        ), f"Burst load P95 too high: {result.p95_response_time_ms}ms"
 
-    print(f"{scenario_name} Results: {result.requests_per_second:.2f} RPS, "
-          f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures")
+    print(
+        f"{scenario_name} Results: {result.requests_per_second:.2f} RPS, "
+        f"{result.avg_response_time_ms:.2f}ms avg, {result.failed_requests} failures"
+    )
 
 
 if __name__ == "__main__":

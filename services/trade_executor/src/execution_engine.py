@@ -7,26 +7,25 @@ performance monitoring, and Redis integration.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, Optional, Any, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-import json
 
 import asyncpg
 import redis.asyncio as redis
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-
-from shared.models import TradeSignal, OrderRequest, OrderSide, SignalType
 from shared.config import get_config
-from .alpaca_client import AlpacaClient, AlpacaAPIError
-from .order_manager import OrderManager
-from .position_tracker import PositionTracker
-from .performance_tracker import PerformanceTracker
+from shared.models import OrderRequest, OrderSide, SignalType, TradeSignal
 
+from .alpaca_client import AlpacaAPIError, AlpacaClient
+from .order_manager import OrderManager
+from .performance_tracker import PerformanceTracker
+from .position_tracker import PositionTracker
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ class ExecutionEngine:
         self.app = FastAPI(
             title="Trade Execution Service",
             description="Automated trade execution with Alpaca API",
-            version="1.0.0"
+            version="1.0.0",
         )
 
         # Initialize components
@@ -85,14 +84,12 @@ class ExecutionEngine:
                 password=self.config.database.password,
                 min_size=10,
                 max_size=30,
-                command_timeout=60
+                command_timeout=60,
             )
 
             # Initialize Redis
             self._redis = redis.from_url(
-                self.config.redis.url,
-                max_connections=20,
-                retry_on_timeout=True
+                self.config.redis.url, max_connections=20, retry_on_timeout=True
             )
 
             # Initialize components
@@ -147,18 +144,20 @@ class ExecutionEngine:
                     "components": {
                         "order_manager": True,
                         "position_tracker": True,
-                        "performance_tracker": True
-                    }
+                        "performance_tracker": True,
+                    },
                 }
             except Exception as e:
                 return {
                     "status": "unhealthy",
                     "error": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
         @self.app.post("/execute/signal")
-        async def execute_signal(signal: TradeSignal, background_tasks: BackgroundTasks):
+        async def execute_signal(
+            signal: TradeSignal, background_tasks: BackgroundTasks
+        ):
             """Execute a trade signal."""
             try:
                 logger.info(f"Received signal for execution: {signal.id}")
@@ -170,7 +169,7 @@ class ExecutionEngine:
                     "success": True,
                     "signal_id": signal.id,
                     "message": "Signal queued for execution",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             except Exception as e:
@@ -183,8 +182,8 @@ class ExecutionEngine:
             try:
                 # Validate order
                 validation = await self.alpaca_client.validate_order(order_request)
-                if not validation['valid']:
-                    raise HTTPException(status_code=400, detail=validation['issues'])
+                if not validation["valid"]:
+                    raise HTTPException(status_code=400, detail=validation["issues"])
 
                 # Place order
                 order_response = await self.alpaca_client.place_order(order_request)
@@ -192,7 +191,7 @@ class ExecutionEngine:
                 return {
                     "success": True,
                     "order": order_response.dict(),
-                    "warnings": validation.get('warnings', [])
+                    "warnings": validation.get("warnings", []),
                 }
 
             except AlpacaAPIError as e:
@@ -209,7 +208,7 @@ class ExecutionEngine:
                 return {
                     "success": success,
                     "order_id": order_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 logger.error(f"Failed to cancel order {order_id}: {e}")
@@ -220,12 +219,14 @@ class ExecutionEngine:
             """Get all current positions."""
             try:
                 positions = await self.position_tracker.get_all_positions()
-                portfolio_metrics = await self.position_tracker.calculate_portfolio_metrics()
+                portfolio_metrics = (
+                    await self.position_tracker.calculate_portfolio_metrics()
+                )
 
                 return {
                     "positions": positions,
                     "portfolio_metrics": portfolio_metrics,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 logger.error(f"Failed to get positions: {e}")
@@ -256,14 +257,17 @@ class ExecutionEngine:
 
                 # Close position
                 close_order = await self.alpaca_client.close_position(
-                    symbol=symbol,
-                    percentage=percentage or 100.0
+                    symbol=symbol, percentage=percentage or 100.0
                 )
 
                 return {
                     "success": True,
-                    "close_order": close_order.dict() if close_order and hasattr(close_order, 'dict') else {},
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "close_order": (
+                        close_order.dict()
+                        if close_order and hasattr(close_order, "dict")
+                        else {}
+                    ),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             except Exception as e:
@@ -278,7 +282,7 @@ class ExecutionEngine:
                 return {
                     "orders": [order.dict() for order in orders],
                     "count": len(orders),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 logger.error(f"Failed to get active orders: {e}")
@@ -298,7 +302,9 @@ class ExecutionEngine:
         async def get_daily_performance():
             """Get today's performance."""
             try:
-                performance = await self.performance_tracker.calculate_daily_performance()
+                performance = (
+                    await self.performance_tracker.calculate_daily_performance()
+                )
                 return performance
             except Exception as e:
                 logger.error(f"Failed to get daily performance: {e}")
@@ -308,7 +314,11 @@ class ExecutionEngine:
         async def get_strategy_performance(strategy_name: str, days: int = 30):
             """Get performance for specific strategy."""
             try:
-                performance = await self.performance_tracker.calculate_strategy_performance(strategy_name, days)
+                performance = (
+                    await self.performance_tracker.calculate_strategy_performance(
+                        strategy_name, days
+                    )
+                )
                 return performance
             except Exception as e:
                 logger.error(f"Failed to get strategy performance: {e}")
@@ -318,7 +328,7 @@ class ExecutionEngine:
         async def export_tradenote(
             start_date: Optional[str] = None,
             end_date: Optional[str] = None,
-            strategy: Optional[str] = None
+            strategy: Optional[str] = None,
         ):
             """Export data for TradeNote."""
             try:
@@ -328,15 +338,13 @@ class ExecutionEngine:
                 end_dt = date.fromisoformat(end_date) if end_date else None
 
                 trades = await self.performance_tracker.export_for_tradenote(
-                    start_date=start_dt,
-                    end_date=end_dt,
-                    strategy_name=strategy
+                    start_date=start_dt, end_date=end_dt, strategy_name=strategy
                 )
 
                 return {
                     "trades": trades,
                     "count": len(trades),
-                    "export_timestamp": datetime.now(timezone.utc).isoformat()
+                    "export_timestamp": datetime.now(timezone.utc).isoformat(),
                 }
 
             except Exception as e:
@@ -367,17 +375,19 @@ class ExecutionEngine:
                         "portfolio_value": 0.0,
                         "day_trades_count": 0,
                         "pattern_day_trader": False,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 return {
-                    "account_id": getattr(account, 'id', 'unknown'),
-                    "equity": float(getattr(account, 'equity', 0)),
-                    "cash": float(getattr(account, 'cash', 0)),
-                    "buying_power": float(getattr(account, 'buying_power', 0)),
-                    "portfolio_value": float(getattr(account, 'portfolio_value', 0)),
-                    "day_trades_count": int(getattr(account, 'daytrade_count', 0) or 0),
-                    "pattern_day_trader": bool(getattr(account, 'pattern_day_trader', False)),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "account_id": getattr(account, "id", "unknown"),
+                    "equity": float(getattr(account, "equity", 0)),
+                    "cash": float(getattr(account, "cash", 0)),
+                    "buying_power": float(getattr(account, "buying_power", 0)),
+                    "portfolio_value": float(getattr(account, "portfolio_value", 0)),
+                    "day_trades_count": int(getattr(account, "daytrade_count", 0) or 0),
+                    "pattern_day_trader": bool(
+                        getattr(account, "pattern_day_trader", False)
+                    ),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             except Exception as e:
                 logger.error(f"Failed to get account info: {e}")
@@ -400,7 +410,9 @@ class ExecutionEngine:
             logger.error(f"Failed to execute signal {signal.id}: {e}")
             await self._publish_execution_error(signal, str(e))
 
-    async def _publish_execution_result(self, signal: TradeSignal, result: Dict[str, Any]):
+    async def _publish_execution_result(
+        self, signal: TradeSignal, result: Dict[str, Any]
+    ):
         """Publish execution result to Redis."""
         try:
             message = {
@@ -409,13 +421,17 @@ class ExecutionEngine:
                 "strategy": signal.strategy_name,
                 "success": result["success"],
                 "result": result,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Publish to multiple channels
             if self._redis:
-                await self._redis.publish(f"executions:{signal.symbol}", json.dumps(message, default=str))
-                await self._redis.publish("executions:all", json.dumps(message, default=str))
+                await self._redis.publish(
+                    f"executions:{signal.symbol}", json.dumps(message, default=str)
+                )
+                await self._redis.publish(
+                    "executions:all", json.dumps(message, default=str)
+                )
 
         except Exception as e:
             logger.error(f"Failed to publish execution result: {e}")
@@ -429,12 +445,17 @@ class ExecutionEngine:
                 "strategy": signal.strategy_name,
                 "success": False,
                 "error": error,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             if self._redis:
-                await self._redis.publish(f"execution_errors:{signal.symbol}", json.dumps(message, default=str))
-                await self._redis.publish("execution_errors:all", json.dumps(message, default=str))
+                await self._redis.publish(
+                    f"execution_errors:{signal.symbol}",
+                    json.dumps(message, default=str),
+                )
+                await self._redis.publish(
+                    "execution_errors:all", json.dumps(message, default=str)
+                )
 
         except Exception as e:
             logger.error(f"Failed to publish execution error: {e}")
@@ -527,18 +548,25 @@ class ExecutionEngine:
 
             if self._db_pool:
                 async with self._db_pool.acquire() as conn:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                     INSERT INTO trading.account_snapshots (
                         account_id, timestamp, cash, buying_power, total_equity,
                         total_market_value, total_unrealized_pnl, day_trades_count,
                         pattern_day_trader
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 """,
-                    str(getattr(account, 'id', 'unknown')), datetime.now(timezone.utc), Decimal(str(getattr(account, 'cash', 0))),
-                    Decimal(str(getattr(account, 'buying_power', 0))), Decimal(str(getattr(account, 'equity', 0))),
-                    Decimal(str(getattr(account, 'portfolio_value', 0))), Decimal(str(getattr(account, 'portfolio_value', 0))) - Decimal(str(getattr(account, 'cash', 0))),
-                    int(getattr(account, 'daytrade_count', 0) or 0), bool(getattr(account, 'pattern_day_trader', False))
-                )
+                        str(getattr(account, "id", "unknown")),
+                        datetime.now(timezone.utc),
+                        Decimal(str(getattr(account, "cash", 0))),
+                        Decimal(str(getattr(account, "buying_power", 0))),
+                        Decimal(str(getattr(account, "equity", 0))),
+                        Decimal(str(getattr(account, "portfolio_value", 0))),
+                        Decimal(str(getattr(account, "portfolio_value", 0)))
+                        - Decimal(str(getattr(account, "cash", 0))),
+                        int(getattr(account, "daytrade_count", 0) or 0),
+                        bool(getattr(account, "pattern_day_trader", False)),
+                    )
 
         except Exception as e:
             logger.error(f"Failed to update account snapshot: {e}")
@@ -571,7 +599,9 @@ class ExecutionEngine:
                     await self.position_tracker.cleanup_old_snapshots(days_to_keep=7)
 
                     # Clean up old performance data
-                    await self.performance_tracker._cleanup_old_performance_data(days_to_keep=365)
+                    await self.performance_tracker._cleanup_old_performance_data(
+                        days_to_keep=365
+                    )
 
                     # Update yesterday's performance
                     yesterday = now.date() - timedelta(days=1)
@@ -617,16 +647,18 @@ class ExecutionEngine:
                 return
 
             # Add symbols to internal tracking
-            if not hasattr(self, '_watchlist'):
+            if not hasattr(self, "_watchlist"):
                 self._watchlist = set()
 
             new_symbols = set(symbols) - self._watchlist
             if new_symbols:
                 self._watchlist.update(new_symbols)
-                logger.info(f"Added {len(new_symbols)} new symbols to watchlist: {new_symbols}")
+                logger.info(
+                    f"Added {len(new_symbols)} new symbols to watchlist: {new_symbols}"
+                )
 
                 # Optionally trigger position tracking initialization for new symbols
-                if hasattr(self, 'position_tracker') and self.position_tracker:
+                if hasattr(self, "position_tracker") and self.position_tracker:
                     for symbol in new_symbols:
                         await self.position_tracker.initialize_symbol_tracking(symbol)
 
@@ -641,7 +673,7 @@ class ExecutionEngine:
         entry_price: Optional[Decimal] = None,
         stop_loss: Optional[Decimal] = None,
         take_profit: Optional[Decimal] = None,
-        strategy_name: str = "manual"
+        strategy_name: str = "manual",
     ) -> Dict[str, Any]:
         """
         Place a bracket order.
@@ -662,13 +694,15 @@ class ExecutionEngine:
             # Create trade signal for bracket order
             signal = TradeSignal(
                 symbol=symbol,
-                signal_type=SignalType.BUY if side == OrderSide.BUY else SignalType.SELL,
+                signal_type=(
+                    SignalType.BUY if side == OrderSide.BUY else SignalType.SELL
+                ),
                 confidence=1.0,
                 price=entry_price,
                 quantity=quantity,
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                strategy_name=strategy_name
+                strategy_name=strategy_name,
             )
 
             # Execute through order manager
@@ -693,29 +727,37 @@ class ExecutionEngine:
             active_orders = await self.order_manager.get_active_orders()
 
             # Get performance metrics
-            performance = await self.performance_tracker.get_performance_summary(days=30)
+            performance = await self.performance_tracker.get_performance_summary(
+                days=30
+            )
 
             # Calculate portfolio metrics
-            portfolio_metrics = await self.position_tracker.calculate_portfolio_metrics()
+            portfolio_metrics = (
+                await self.position_tracker.calculate_portfolio_metrics()
+            )
 
             return {
                 "account": {
-                    "equity": float(getattr(account, 'equity', 0)),
-                    "cash": float(getattr(account, 'cash', 0)),
-                    "buying_power": float(getattr(account, 'buying_power', 0)),
-                    "day_trades_count": int(getattr(account, 'daytrade_count', 0) or 0),
-                    "pattern_day_trader": bool(getattr(account, 'pattern_day_trader', False))
+                    "equity": float(getattr(account, "equity", 0)),
+                    "cash": float(getattr(account, "cash", 0)),
+                    "buying_power": float(getattr(account, "buying_power", 0)),
+                    "day_trades_count": int(getattr(account, "daytrade_count", 0) or 0),
+                    "pattern_day_trader": bool(
+                        getattr(account, "pattern_day_trader", False)
+                    ),
                 },
                 "positions": {
                     "count": len(positions),
-                    "total_market_value": portfolio_metrics.get('total_market_value', 0),
-                    "total_unrealized_pnl": portfolio_metrics.get('total_unrealized_pnl', 0)
+                    "total_market_value": portfolio_metrics.get(
+                        "total_market_value", 0
+                    ),
+                    "total_unrealized_pnl": portfolio_metrics.get(
+                        "total_unrealized_pnl", 0
+                    ),
                 },
-                "orders": {
-                    "active_count": len(active_orders)
-                },
+                "orders": {"active_count": len(active_orders)},
                 "performance_30d": performance,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -741,35 +783,45 @@ class ExecutionEngine:
             # Log emergency stop
             if self._db_pool:
                 async with self._db_pool.acquire() as conn:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                     INSERT INTO trading.execution_errors (
                         error_type, error_message, context
                     ) VALUES ($1, $2, $3)
                 """,
-                    "EMERGENCY_STOP", "Emergency stop executed",
-                    {"timestamp": datetime.now(timezone.utc).isoformat()}
-                )
+                        "EMERGENCY_STOP",
+                        "Emergency stop executed",
+                        {"timestamp": datetime.now(timezone.utc).isoformat()},
+                    )
 
             # Publish emergency stop notification
             if self._redis:
-                await self._redis.publish("emergency_stop", json.dumps({
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "orders_cancelled": cancel_success,
-                "positions_closed": 1 if close_orders else 0
-                }, default=str))
+                await self._redis.publish(
+                    "emergency_stop",
+                    json.dumps(
+                        {
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "orders_cancelled": cancel_success,
+                            "positions_closed": 1 if close_orders else 0,
+                        },
+                        default=str,
+                    ),
+                )
 
             return {
                 "success": True,
                 "orders_cancelled": cancel_success,
                 "positions_closed": 1 if close_orders else 0,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Emergency stop failed: {e}")
             raise
 
-    async def get_execution_metrics(self, symbol: Optional[str] = None, days: int = 30) -> Dict[str, Any]:
+    async def get_execution_metrics(
+        self, symbol: Optional[str] = None, days: int = 30
+    ) -> Dict[str, Any]:
         """
         Get execution quality metrics.
 
@@ -787,7 +839,8 @@ class ExecutionEngine:
             execution_data = None
             if self._db_pool:
                 async with self._db_pool.acquire() as conn:
-                    execution_data = await conn.fetchrow("""
+                    execution_data = await conn.fetchrow(
+                        """
                     SELECT
                         AVG(slippage) as avg_slippage,
                         AVG(price_improvement) as avg_price_improvement,
@@ -796,15 +849,24 @@ class ExecutionEngine:
                     FROM trading.execution_metrics
                     WHERE created_at >= NOW() - INTERVAL '1 day' * $2
                     AND ($1 IS NULL OR symbol = $1)
-                """, days, symbol)
+                """,
+                        days,
+                        symbol,
+                    )
 
             if execution_data:
-                order_metrics.update({
-                    "avg_slippage": float(execution_data['avg_slippage'] or 0),
-                    "avg_price_improvement": float(execution_data['avg_price_improvement'] or 0),
-                    "avg_execution_time": float(execution_data['avg_execution_time'] or 0),
-                    "total_executions": execution_data['total_executions']
-                })
+                order_metrics.update(
+                    {
+                        "avg_slippage": float(execution_data["avg_slippage"] or 0),
+                        "avg_price_improvement": float(
+                            execution_data["avg_price_improvement"] or 0
+                        ),
+                        "avg_execution_time": float(
+                            execution_data["avg_execution_time"] or 0
+                        ),
+                        "total_executions": execution_data["total_executions"],
+                    }
+                )
 
             return order_metrics
 
@@ -812,7 +874,9 @@ class ExecutionEngine:
             logger.error(f"Failed to get execution metrics: {e}")
             return {}
 
-    async def force_position_close(self, symbol: str, reason: str = "forced") -> Dict[str, Any]:
+    async def force_position_close(
+        self, symbol: str, reason: str = "forced"
+    ) -> Dict[str, Any]:
         """
         Force close a position (emergency).
 
@@ -833,42 +897,51 @@ class ExecutionEngine:
 
             # Get current price
             quote = await self.alpaca_client.get_latest_quote(symbol)
-            if not quote or 'bid' not in quote or 'ask' not in quote:
-                logger.warning(f"No quote data available for {symbol}, using fallback price")
+            if not quote or "bid" not in quote or "ask" not in quote:
+                logger.warning(
+                    f"No quote data available for {symbol}, using fallback price"
+                )
                 current_price = Decimal("0")
             else:
-                current_price = Decimal(str((quote['bid'] + quote['ask']) / 2))
+                current_price = Decimal(str((quote["bid"] + quote["ask"]) / 2))
 
             # Close position via Alpaca
             close_order = await self.alpaca_client.close_position(symbol)
 
             # Update position status
             await self.position_tracker.close_position(
-                position['id'],
-                current_price,
-                datetime.now(timezone.utc),
-                reason
+                position["id"], current_price, datetime.now(timezone.utc), reason
             )
 
             # Log forced close
             if self._db_pool:
                 async with self._db_pool.acquire() as conn:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                     INSERT INTO trading.execution_errors (
                         error_type, error_message, context
                     ) VALUES ($1, $2, $3)
                 """,
-                    "FORCED_CLOSE", f"Position {symbol} force closed: {reason}",
-                    {"symbol": symbol, "reason": reason, "price": str(current_price)}
-                )
+                        "FORCED_CLOSE",
+                        f"Position {symbol} force closed: {reason}",
+                        {
+                            "symbol": symbol,
+                            "reason": reason,
+                            "price": str(current_price),
+                        },
+                    )
 
             return {
                 "success": True,
                 "symbol": symbol,
-                "close_order": close_order.dict() if close_order and hasattr(close_order, 'dict') else {},
+                "close_order": (
+                    close_order.dict()
+                    if close_order and hasattr(close_order, "dict")
+                    else {}
+                ),
                 "close_price": float(current_price),
                 "reason": reason,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -879,7 +952,7 @@ class ExecutionEngine:
         self,
         symbol: str,
         new_stop_loss: Optional[Decimal] = None,
-        new_take_profit: Optional[Decimal] = None
+        new_take_profit: Optional[Decimal] = None,
     ) -> Dict[str, Any]:
         """
         Adjust stop loss and take profit for a position.
@@ -901,28 +974,42 @@ class ExecutionEngine:
 
             # Update stop loss
             if new_stop_loss is not None:
-                success = await self.position_tracker.update_stop_loss(position['id'], new_stop_loss)
-                results['stop_loss_updated'] = success
+                success = await self.position_tracker.update_stop_loss(
+                    position["id"], new_stop_loss
+                )
+                results["stop_loss_updated"] = success
 
             # Update take profit
             if new_take_profit is not None:
-                success = await self.position_tracker.update_take_profit(position['id'], new_take_profit)
-                results['take_profit_updated'] = success
+                success = await self.position_tracker.update_take_profit(
+                    position["id"], new_take_profit
+                )
+                results["take_profit_updated"] = success
 
             # Publish adjustment
             if self._redis:
-                await self._redis.publish(f"position_adjustments:{symbol}", json.dumps({
-                    "position_id": str(position['id']),
-                    "new_stop_loss": str(new_stop_loss) if new_stop_loss else None,
-                    "new_take_profit": str(new_take_profit) if new_take_profit else None,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                }, default=str))
+                await self._redis.publish(
+                    f"position_adjustments:{symbol}",
+                    json.dumps(
+                        {
+                            "position_id": str(position["id"]),
+                            "new_stop_loss": (
+                                str(new_stop_loss) if new_stop_loss else None
+                            ),
+                            "new_take_profit": (
+                                str(new_take_profit) if new_take_profit else None
+                            ),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        },
+                        default=str,
+                    ),
+                )
 
             return {
                 "success": True,
                 "symbol": symbol,
                 "adjustments": results,
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -941,18 +1028,24 @@ class ExecutionEngine:
             at_risk_positions = await self.position_tracker.get_positions_at_risk()
 
             # Get portfolio metrics
-            portfolio_metrics = await self.position_tracker.calculate_portfolio_metrics()
+            portfolio_metrics = (
+                await self.position_tracker.calculate_portfolio_metrics()
+            )
 
             # Get risk metrics
-            risk_metrics = await self.performance_tracker.calculate_risk_metrics(days=30)
+            risk_metrics = await self.performance_tracker.calculate_risk_metrics(
+                days=30
+            )
 
             # Get account info
             account = await self.alpaca_client.get_account()
 
             # Calculate risk utilization
-            total_equity = Decimal(str(getattr(account, 'equity', 0)))
-            position_value = portfolio_metrics.get('total_market_value', Decimal("0"))
-            risk_utilization = (position_value / total_equity) if total_equity > 0 else Decimal("0")
+            total_equity = Decimal(str(getattr(account, "equity", 0)))
+            position_value = portfolio_metrics.get("total_market_value", Decimal("0"))
+            risk_utilization = (
+                (position_value / total_equity) if total_equity > 0 else Decimal("0")
+            )
 
             # Get day trading info
             day_trades_count = await self.alpaca_client.get_day_trades_count()
@@ -967,7 +1060,7 @@ class ExecutionEngine:
                 "is_pattern_day_trader": is_pdt,
                 "max_day_trades": 3 if not is_pdt else None,
                 "account_equity": float(total_equity),
-                "timestamp": datetime.now(timezone.utc).isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
@@ -988,8 +1081,11 @@ class ExecutionEngine:
 
             # Configure logging for uvicorn
             import uvicorn.config
+
             log_config = uvicorn.config.LOGGING_CONFIG.copy()
-            log_config["formatters"]["default"]["fmt"] = "%(asctime)s - %(name)s - %(levelprefix)s %(message)s"
+            log_config["formatters"]["default"][
+                "fmt"
+            ] = "%(asctime)s - %(name)s - %(levelprefix)s %(message)s"
 
             # Start server
             config = uvicorn.Config(
@@ -997,7 +1093,7 @@ class ExecutionEngine:
                 host=host,
                 port=port,
                 log_config=log_config,
-                access_log=True
+                access_log=True,
             )
 
             server = uvicorn.Server(config)
@@ -1037,8 +1133,7 @@ async def main():
     """Main entry point for the execution engine."""
     try:
         await execution_engine.run_server(
-            host="0.0.0.0",
-            port=int(os.getenv("PORT", 8000))
+            host="0.0.0.0", port=int(os.getenv("PORT", 8000))
         )
     except KeyboardInterrupt:
         logger.info("Execution engine stopped by user")
@@ -1049,4 +1144,5 @@ async def main():
 
 if __name__ == "__main__":
     import os
+
     asyncio.run(main())

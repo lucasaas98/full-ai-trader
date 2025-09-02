@@ -9,10 +9,11 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
-import aiohttp
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
+
+import aiohttp
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class OllamaResponse:
     """Response from Ollama API."""
+
     content: str
     model: str
     tokens_used: int
@@ -30,7 +32,9 @@ class OllamaResponse:
 class OllamaClient:
     """Client for interacting with local Ollama instance."""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.1:latest"):
+    def __init__(
+        self, base_url: str = "http://localhost:11434", model: str = "llama3.1:latest"
+    ):
         """
         Initialize Ollama client.
 
@@ -38,7 +42,7 @@ class OllamaClient:
             base_url: Ollama server URL
             model: Model name to use
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.model = model
         self.session = None
 
@@ -47,7 +51,9 @@ class OllamaClient:
         if self.session is None:
             self.session = aiohttp.ClientSession()
 
-    async def query(self, prompt: str, max_tokens: int = 2000, temperature: float = 0.7) -> OllamaResponse:
+    async def query(
+        self, prompt: str, max_tokens: int = 2000, temperature: float = 0.7
+    ) -> OllamaResponse:
         """
         Query Ollama with a prompt.
 
@@ -70,14 +76,14 @@ class OllamaClient:
             "options": {
                 "num_predict": max_tokens,
                 "temperature": temperature,
-            }
+            },
         }
 
         try:
             async with self.session.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=120)
+                timeout=aiohttp.ClientTimeout(total=120),
             ) as response:
                 response.raise_for_status()
                 result = await response.json()
@@ -89,7 +95,7 @@ class OllamaClient:
                     model=self.model,
                     tokens_used=result.get("eval_count", 0),
                     response_time=response_time,
-                    cost=0.0  # Local models are free
+                    cost=0.0,  # Local models are free
                 )
 
         except asyncio.TimeoutError:
@@ -114,16 +120,19 @@ class OllamaClient:
         try:
             # Check server health
             async with self.session.get(
-                f"{self.base_url}/api/tags",
-                timeout=aiohttp.ClientTimeout(total=10)
+                f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 response.raise_for_status()
                 models_data = await response.json()
 
                 # Check if our model is available
-                available_models = [model["name"] for model in models_data.get("models", [])]
+                available_models = [
+                    model["name"] for model in models_data.get("models", [])
+                ]
                 if self.model not in available_models:
-                    logger.warning(f"Model {self.model} not found. Available models: {available_models}")
+                    logger.warning(
+                        f"Model {self.model} not found. Available models: {available_models}"
+                    )
                     return False
 
                 return True
@@ -143,8 +152,7 @@ class OllamaClient:
 
         try:
             async with self.session.get(
-                f"{self.base_url}/api/tags",
-                timeout=aiohttp.ClientTimeout(total=10)
+                f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 response.raise_for_status()
                 models_data = await response.json()
@@ -172,7 +180,9 @@ class OllamaClient:
             async with self.session.post(
                 f"{self.base_url}/api/pull",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=600)  # 10 minutes for model download
+                timeout=aiohttp.ClientTimeout(
+                    total=600
+                ),  # 10 minutes for model download
             ) as response:
                 response.raise_for_status()
 
@@ -211,7 +221,11 @@ class OllamaClient:
 class OllamaAIStrategy:
     """AI Strategy implementation using Ollama for local testing."""
 
-    def __init__(self, ollama_url: str = "http://192.168.1.133:11434", model: str = "llama3.1:latest"):
+    def __init__(
+        self,
+        ollama_url: str = "http://192.168.1.133:11434",
+        model: str = "llama3.1:latest",
+    ):
         """
         Initialize Ollama AI Strategy.
 
@@ -222,7 +236,9 @@ class OllamaAIStrategy:
         self.client = OllamaClient(ollama_url, model)
         self.model = model
 
-    async def analyze_market_data(self, market_context: Dict[str, Any]) -> Dict[str, Any]:
+    async def analyze_market_data(
+        self, market_context: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         Analyze market data using Ollama.
 
@@ -300,8 +316,8 @@ Respond only with the JSON, no additional text."""
             response_text = response_text.strip()
 
             # Find JSON in the response
-            json_start = response_text.find('{')
-            json_end = response_text.rfind('}') + 1
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
 
             if json_start >= 0 and json_end > json_start:
                 json_str = response_text[json_start:json_end]
@@ -318,7 +334,11 @@ Respond only with the JSON, no additional text."""
                     decision["decision"] = "HOLD"
 
                 # Ensure confidence is valid
-                if not isinstance(decision["confidence"], (int, float)) or decision["confidence"] < 0 or decision["confidence"] > 100:
+                if (
+                    not isinstance(decision["confidence"], (int, float))
+                    or decision["confidence"] < 0
+                    or decision["confidence"] > 100
+                ):
                     decision["confidence"] = 50
 
                 return decision
@@ -336,7 +356,7 @@ Respond only with the JSON, no additional text."""
                 "decision": "HOLD",
                 "confidence": 0,
                 "reasoning": "Failed to parse AI response",
-                "error": str(e)
+                "error": str(e),
             }
 
     def _parse_text_response(self, response_text: str) -> Dict[str, Any]:
@@ -358,6 +378,7 @@ Respond only with the JSON, no additional text."""
             if indicator in response_lower:
                 # Try to find numbers near confidence indicators
                 import re
+
                 pattern = rf"{indicator}[^\d]*(\d+)"
                 match = re.search(pattern, response_lower)
                 if match:
@@ -367,8 +388,12 @@ Respond only with the JSON, no additional text."""
         return {
             "decision": decision,
             "confidence": confidence,
-            "reasoning": response_text[:200] + "..." if len(response_text) > 200 else response_text,
-            "parsed_from_text": True
+            "reasoning": (
+                response_text[:200] + "..."
+                if len(response_text) > 200
+                else response_text
+            ),
+            "parsed_from_text": True,
         }
 
     async def close(self):

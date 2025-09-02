@@ -25,14 +25,14 @@ sys.path.append(str(project_root / "services" / "strategy_engine" / "src"))
 sys.path.append(str(project_root / "shared"))
 
 try:
+    from backtest_models import MarketData, SignalType, TimeFrame
     from real_backtest_engine import (
-        RealBacktestEngine,
-        RealBacktestConfig,
         BacktestMode,
+        RealBacktestConfig,
+        RealBacktestEngine,
         run_monthly_backtest,
-        run_previous_month_backtest
+        run_previous_month_backtest,
     )
-    from backtest_models import TimeFrame, SignalType, MarketData
     from simple_data_store import SimpleDataStore
 except ImportError as e:
     print(f"Import error: {e}")
@@ -44,7 +44,7 @@ def setup_logging():
     """Set up basic logging."""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
 
@@ -60,13 +60,15 @@ def format_percentage(value):
 
 def display_simple_results(results, config):
     """Display backtest results in a simple format."""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("BACKTEST RESULTS SUMMARY")
-    print("="*60)
+    print("=" * 60)
 
     print(f"\nPeriod: {config.start_date.date()} to {config.end_date.date()}")
     print(f"Initial Capital: {format_currency(float(config.initial_capital))}")
-    print(f"Final Portfolio Value: {format_currency(float(results.final_portfolio_value))}")
+    print(
+        f"Final Portfolio Value: {format_currency(float(results.final_portfolio_value))}"
+    )
     print(f"Total Return: {format_percentage(results.total_return)}")
 
     if results.total_trades > 0:
@@ -80,7 +82,7 @@ def display_simple_results(results, config):
         print(f"\nNo trades were executed during this period.")
 
     print(f"\nExecution Time: {results.execution_time_seconds:.2f} seconds")
-    print("="*60)
+    print("=" * 60)
 
 
 async def run_simple_example():
@@ -100,12 +102,12 @@ async def run_simple_example():
             config = RealBacktestConfig(
                 start_date=start_date,
                 end_date=end_date,
-                initial_capital=Decimal('10000'),
+                initial_capital=Decimal("10000"),
                 max_positions=2,
                 mode=BacktestMode.FAST,
                 timeframe=TimeFrame.ONE_DAY,
                 symbols_to_trade=["AAPL"],
-                enable_screener_data=False
+                enable_screener_data=False,
             )
 
             engine = RealBacktestEngine(config)
@@ -125,12 +127,12 @@ async def run_simple_example():
             config = RealBacktestConfig(
                 start_date=datetime(2025, 8, 18, tzinfo=timezone.utc),
                 end_date=datetime(2025, 8, 21, tzinfo=timezone.utc),
-                initial_capital=Decimal('20000'),
+                initial_capital=Decimal("20000"),
                 max_positions=3,
                 mode=BacktestMode.FAST,
                 timeframe=TimeFrame.ONE_DAY,
                 symbols_to_trade=["AAPL", "MSFT"],  # Try multiple symbols
-                enable_screener_data=False
+                enable_screener_data=False,
             )
 
             engine = RealBacktestEngine(config)
@@ -150,13 +152,13 @@ async def run_simple_example():
             config = RealBacktestConfig(
                 start_date=datetime(2025, 8, 22, tzinfo=timezone.utc),
                 end_date=datetime(2025, 8, 23, tzinfo=timezone.utc),
-                initial_capital=Decimal('15000'),
+                initial_capital=Decimal("15000"),
                 max_positions=5,
                 mode=BacktestMode.FAST,
                 timeframe=TimeFrame.ONE_DAY,
                 symbols_to_trade=None,  # Use screener
                 enable_screener_data=True,
-                screener_types=["momentum", "breakouts"]
+                screener_types=["momentum", "breakouts"],
             )
 
             engine = RealBacktestEngine(config)
@@ -172,6 +174,7 @@ async def run_simple_example():
     except Exception as e:
         print(f"Example execution failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -203,13 +206,15 @@ async def run_data_availability_check():
                         ticker=symbol,
                         timeframe=TimeFrame.ONE_DAY,
                         start_date=test_date,
-                        end_date=test_date
+                        end_date=test_date,
                     )
 
                     if not df.is_empty():
                         available_test_symbols.append(symbol)
                         row = df.row(0, named=True)
-                        print(f"  ✓ {symbol}: Close=${row['close']:.2f}, Volume={row['volume']:,}")
+                        print(
+                            f"  ✓ {symbol}: Close=${row['close']:.2f}, Volume={row['volume']:,}"
+                        )
                     else:
                         print(f"  ✗ {symbol}: No data for {test_date}")
 
@@ -219,7 +224,9 @@ async def run_data_availability_check():
                 print(f"  ✗ {symbol}: Not in data store")
 
         if available_test_symbols:
-            print(f"\nRecommended symbols for backtesting: {', '.join(available_test_symbols)}")
+            print(
+                f"\nRecommended symbols for backtesting: {', '.join(available_test_symbols)}"
+            )
         else:
             print(f"\n⚠️  None of the test symbols have data for {test_date}")
             print("You can try other symbols or dates")
@@ -230,7 +237,9 @@ async def run_data_availability_check():
             timeframes = data_store.get_available_timeframes(symbol)
             if timeframes:
                 date_range = data_store.get_date_range_for_symbol(symbol, timeframes[0])
-                print(f"  {symbol} ({timeframes[0].value}): {date_range[0]} to {date_range[1]}")
+                print(
+                    f"  {symbol} ({timeframes[0].value}): {date_range[0]} to {date_range[1]}"
+                )
 
         # Check screener data availability
         print(f"\nChecking screener data for {test_date}:")
@@ -241,7 +250,7 @@ async def run_data_availability_check():
                 df = await data_store.load_screener_data(
                     screener_type=screener_type,
                     start_date=test_date,
-                    end_date=test_date
+                    end_date=test_date,
                 )
 
                 if not df.is_empty():
@@ -273,12 +282,14 @@ async def main():
     # Run the backtest examples
     await run_simple_example()
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Example completed!")
-    print("="*60)
+    print("=" * 60)
     print("Next Steps:")
     print("1. Check the 'scripts/run_monthly_backtest.py' for more advanced options")
-    print("2. Review the 'tests/integration/test_real_backtesting.py' for comprehensive tests")
+    print(
+        "2. Review the 'tests/integration/test_real_backtesting.py' for comprehensive tests"
+    )
     print("3. Modify the configuration parameters to test different scenarios")
     print("4. Ensure your data collection service is running to get fresh data")
     print("5. Try different date ranges and symbols based on data availability")
@@ -296,4 +307,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nExample failed: {e}")
         import traceback
+
         traceback.print_exc()

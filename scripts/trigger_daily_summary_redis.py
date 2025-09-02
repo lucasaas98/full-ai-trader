@@ -28,8 +28,7 @@ sys.path.insert(0, str(project_root))
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -39,15 +38,17 @@ async def publish_daily_summary_trigger():
     redis_client = None
     try:
         # Get Redis connection info
-        redis_url = os.getenv('REDIS_URL')
+        redis_url = os.getenv("REDIS_URL")
         if not redis_url:
-            redis_host = os.getenv('REDIS_HOST', 'localhost')
-            redis_port = int(os.getenv('REDIS_PORT', 6380))
-            redis_password = os.getenv('REDIS_PASSWORD', '')
-            redis_db = int(os.getenv('REDIS_DB', 0))
+            redis_host = os.getenv("REDIS_HOST", "localhost")
+            redis_port = int(os.getenv("REDIS_PORT", 6380))
+            redis_password = os.getenv("REDIS_PASSWORD", "")
+            redis_db = int(os.getenv("REDIS_DB", 0))
 
             if redis_password:
-                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+                redis_url = (
+                    f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+                )
             else:
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
@@ -64,7 +65,7 @@ async def publish_daily_summary_trigger():
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "source": "manual_script",
             "message": "Manual daily summary trigger requested",
-            "force": True
+            "force": True,
         }
 
         # Publish to a system control channel
@@ -75,16 +76,24 @@ async def publish_daily_summary_trigger():
         result = await redis_client.publish(channel, message_json)
 
         if result > 0:
-            logger.info(f"✅ Message published successfully! {result} subscribers received it.")
+            logger.info(
+                f"✅ Message published successfully! {result} subscribers received it."
+            )
             print(f"\n🎉 Daily summary trigger sent successfully!")
             print(f"📡 Published to Redis channel: {channel}")
             print(f"👂 {result} subscribers received the message")
-            print("\nThe notification service should process this and send a daily summary.")
+            print(
+                "\nThe notification service should process this and send a daily summary."
+            )
             return True
         else:
             logger.warning("⚠️ Message published but no subscribers received it")
-            print(f"\n⚠️ Message was published but no subscribers are listening to {channel}")
-            print("This might mean the notification service is not running or not subscribed to this channel.")
+            print(
+                f"\n⚠️ Message was published but no subscribers are listening to {channel}"
+            )
+            print(
+                "This might mean the notification service is not running or not subscribed to this channel."
+            )
             return False
 
     except redis.ConnectionError as e:
@@ -109,15 +118,17 @@ async def send_direct_notification_trigger():
     redis_client = None
     try:
         # Get Redis connection info
-        redis_url = os.getenv('REDIS_URL')
+        redis_url = os.getenv("REDIS_URL")
         if not redis_url:
-            redis_host = os.getenv('REDIS_HOST', 'localhost')
-            redis_port = int(os.getenv('REDIS_PORT', 6380))
-            redis_password = os.getenv('REDIS_PASSWORD', '')
-            redis_db = int(os.getenv('REDIS_DB', 0))
+            redis_host = os.getenv("REDIS_HOST", "localhost")
+            redis_port = int(os.getenv("REDIS_PORT", 6380))
+            redis_password = os.getenv("REDIS_PASSWORD", "")
+            redis_db = int(os.getenv("REDIS_DB", 0))
 
             if redis_password:
-                redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+                redis_url = (
+                    f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+                )
             else:
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
@@ -137,7 +148,7 @@ async def send_direct_notification_trigger():
             "message": "Manual daily summary requested via Redis trigger",
             "severity": "info",
             "component": "system",
-            "force_summary": True
+            "force_summary": True,
         }
 
         # Publish to system status channel (which the notification service listens to)
@@ -148,15 +159,21 @@ async def send_direct_notification_trigger():
         result = await redis_client.publish(channel, message_json)
 
         if result > 0:
-            logger.info(f"✅ Status message published successfully! {result} subscribers received it.")
+            logger.info(
+                f"✅ Status message published successfully! {result} subscribers received it."
+            )
             print(f"\n🎉 Daily summary request sent successfully!")
             print(f"📡 Published to Redis channel: {channel}")
             print(f"👂 {result} subscribers received the message")
-            print("\nThe notification service should detect this system status and send a daily summary.")
+            print(
+                "\nThe notification service should detect this system status and send a daily summary."
+            )
             return True
         else:
             logger.warning("⚠️ Message published but no subscribers received it")
-            print(f"\n⚠️ Message was published but no subscribers are listening to {channel}")
+            print(
+                f"\n⚠️ Message was published but no subscribers are listening to {channel}"
+            )
             print("The notification service might not be running.")
             return False
 
@@ -174,8 +191,8 @@ async def send_direct_notification_trigger():
 
 def check_environment():
     """Check if required Redis environment variables are set."""
-    redis_url = os.getenv('REDIS_URL')
-    redis_host = os.getenv('REDIS_HOST')
+    redis_url = os.getenv("REDIS_URL")
+    redis_host = os.getenv("REDIS_HOST")
 
     if not redis_url and not redis_host:
         print("❌ Missing Redis configuration:")
@@ -202,6 +219,7 @@ def main():
         print(f"📁 Loading environment from: {env_file}")
         try:
             from dotenv import load_dotenv
+
             load_dotenv(env_file)
         except ImportError:
             print("⚠️ python-dotenv not installed, using system environment variables")

@@ -23,34 +23,37 @@ Features demonstrated:
 """
 
 import asyncio
+import concurrent.futures
 import logging
-import sys
 import os
+import sys
+import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
-from pathlib import Path
-import time
-import concurrent.futures
 from functools import partial
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add project paths
 script_dir = Path(__file__).parent
 project_root = script_dir.parent
 sys.path.append(str(project_root / "backtesting"))
 
+from backtest_models import MarketData, SignalType, TimeFrame
 from simple_data_store import SimpleDataStore
-from backtest_models import TimeFrame, SignalType, MarketData
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class TradingSignal:
     """Trading signal with detailed information."""
+
     symbol: str
     action: SignalType
     price: Decimal
@@ -64,11 +67,12 @@ class TradingSignal:
 @dataclass
 class Position:
     """Open trading position."""
+
     symbol: str
     quantity: int
     entry_price: Decimal
     entry_date: datetime
-    current_price: Decimal = Decimal('0')
+    current_price: Decimal = Decimal("0")
     stop_loss: Optional[Decimal] = None
     take_profit: Optional[Decimal] = None
     strategy_name: str = "unknown"
@@ -77,6 +81,7 @@ class Position:
 @dataclass
 class Trade:
     """Completed trade record."""
+
     symbol: str
     entry_date: datetime
     exit_date: datetime
@@ -94,20 +99,26 @@ class Trade:
 class ScreenerSimulator:
     """Simulates FinViz screener alerts based on historical data."""
 
-    def __init__(self, data_store: SimpleDataStore, timeframe: TimeFrame = TimeFrame.ONE_DAY):
+    def __init__(
+        self, data_store: SimpleDataStore, timeframe: TimeFrame = TimeFrame.ONE_DAY
+    ):
         self.data_store = data_store
         self.timeframe = timeframe
         self.logger = logging.getLogger(f"{__name__}.ScreenerSimulator")
 
-    async def get_breakout_candidates(self, date: datetime, symbols: List[str]) -> List[str]:
+    async def get_breakout_candidates(
+        self, date: datetime, symbols: List[str]
+    ) -> List[str]:
         """Find breakout candidates based on volume and price action."""
         # Process symbols in parallel batches
         batch_size = 10
         all_candidates = []
 
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
-            batch_tasks = [self._analyze_breakout_candidate(date, symbol) for symbol in batch]
+            batch = symbols[i : i + batch_size]
+            batch_tasks = [
+                self._analyze_breakout_candidate(date, symbol) for symbol in batch
+            ]
             results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
             for symbol, result in zip(batch, results):
@@ -134,69 +145,89 @@ class ScreenerSimulator:
             end_date = date.date()
             start_date = (date - timedelta(days=lookback_days)).date()
 
-            df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+            df = await self.data_store.load_market_data(
+                symbol, self.timeframe, start_date, end_date
+            )
             if df.is_empty() or len(df) < 20:
-                self.logger.debug(f"❌ {symbol}: insufficient data ({len(df) if not df.is_empty() else 0} rows)")
+                self.logger.debug(
+                    f"❌ {symbol}: insufficient data ({len(df) if not df.is_empty() else 0} rows)"
+                )
                 return False
 
             # Convert to list of market data
             data_rows = df.sort("timestamp").to_dicts()
             if len(data_rows) < 20:
-                self.logger.debug(f"❌ {symbol}: insufficient rows after sort ({len(data_rows)})")
+                self.logger.debug(
+                    f"❌ {symbol}: insufficient rows after sort ({len(data_rows)})"
+                )
                 return False
 
             current = data_rows[-1]  # Most recent day
             recent_20 = data_rows[-20:]  # Last 20 days
 
             # Breakout criteria
-            current_price = current['close']
-            current_volume = current['volume']
+            current_price = current["close"]
+            current_volume = current["volume"]
 
             # Price filter: $0.10-$1000 (very relaxed for testing)
             if current_price < 3 or current_price > 1000.0:
-                self.logger.debug(f"❌ {symbol}: price filter failed (${current_price:.2f})")
+                self.logger.debug(
+                    f"❌ {symbol}: price filter failed (${current_price:.2f})"
+                )
                 return False
 
             # Volume breakout: 1.1x average volume (very relaxed)
-            avg_volume = sum(d['volume'] for d in recent_20[:-1]) / len(recent_20[:-1])
+            avg_volume = sum(d["volume"] for d in recent_20[:-1]) / len(recent_20[:-1])
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
             if volume_ratio < 2 or avg_volume < 10_000:  # Very relaxed criteria
-                self.logger.debug(f"❌ {symbol}: volume filter failed (ratio: {volume_ratio:.1f}x, avg: {avg_volume:,.0f})")
+                self.logger.debug(
+                    f"❌ {symbol}: volume filter failed (ratio: {volume_ratio:.1f}x, avg: {avg_volume:,.0f})"
+                )
                 return False
 
             # Price breakout: Above 20-day SMA (very relaxed)
-            sma_20 = sum(d['close'] for d in recent_20) / len(recent_20)
+            sma_20 = sum(d["close"] for d in recent_20) / len(recent_20)
             if current_price < sma_20 * 0.95:  # Allow 5% below SMA
-                self.logger.debug(f"❌ {symbol}: SMA filter failed (price: ${current_price:.2f}, SMA: ${sma_20:.2f})")
+                self.logger.debug(
+                    f"❌ {symbol}: SMA filter failed (price: ${current_price:.2f}, SMA: ${sma_20:.2f})"
+                )
                 return False
 
             # Volatility check: Recent high/low spread > 2% (very relaxed)
             recent_10 = data_rows[-10:]  # Last 10 days
-            high_10 = max(d['high'] for d in recent_10)
-            low_10 = min(d['low'] for d in recent_10)
+            high_10 = max(d["high"] for d in recent_10)
+            low_10 = min(d["low"] for d in recent_10)
             volatility = (high_10 - low_10) / low_10 if low_10 > 0 else 0
 
             if volatility < 0.02:  # 2% volatility minimum (very relaxed)
-                self.logger.debug(f"❌ {symbol}: volatility filter failed ({volatility:.1%})")
+                self.logger.debug(
+                    f"❌ {symbol}: volatility filter failed ({volatility:.1%})"
+                )
                 return False
 
-            self.logger.debug(f"✅ {symbol}: BREAKOUT candidate (price: ${current_price:.2f}, volume: {volume_ratio:.1f}x, volatility: {volatility:.1%})")
+            self.logger.debug(
+                f"✅ {symbol}: BREAKOUT candidate (price: ${current_price:.2f}, volume: {volume_ratio:.1f}x, volatility: {volatility:.1%})"
+            )
             return True
 
         except Exception as e:
             self.logger.debug(f"❌ Error analyzing {symbol} for breakouts: {e}")
             return False
 
-    async def get_momentum_candidates(self, date: datetime, symbols: List[str]) -> List[str]:
+    async def get_momentum_candidates(
+        self, date: datetime, symbols: List[str]
+    ) -> List[str]:
         """Find momentum candidates based on price movement."""
         # Process symbols in parallel batches
         batch_size = 10
         all_candidates = []
 
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
-            batch_tasks = [self._analyze_momentum_candidate(date, symbol) for symbol in batch]
+            batch = symbols[i : i + batch_size]
+            batch_tasks = [
+                self._analyze_momentum_candidate(date, symbol) for symbol in batch
+            ]
             results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
             for symbol, result in zip(batch, results):
@@ -223,7 +254,9 @@ class ScreenerSimulator:
             end_date = date.date()
             start_date = (date - timedelta(days=lookback_days)).date()
 
-            df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+            df = await self.data_store.load_market_data(
+                symbol, self.timeframe, start_date, end_date
+            )
             if df.is_empty() or len(df) < 5:
                 return False
 
@@ -232,8 +265,8 @@ class ScreenerSimulator:
                 return False
 
             current = data_rows[-1]
-            old_price = data_rows[0]['close']  # Price N days ago
-            current_price = current['close']
+            old_price = data_rows[0]["close"]  # Price N days ago
+            current_price = current["close"]
 
             # Price filter (very relaxed)
             if current_price < 0.10:
@@ -245,8 +278,8 @@ class ScreenerSimulator:
                 return False
 
             # Volume confirmation (very relaxed)
-            current_volume = current['volume']
-            avg_volume = sum(d['volume'] for d in data_rows[:-1]) / len(data_rows[:-1])
+            current_volume = current["volume"]
+            avg_volume = sum(d["volume"] for d in data_rows[:-1]) / len(data_rows[:-1])
             volume_ratio = current_volume / avg_volume if avg_volume > 0 else 0
 
             if volume_ratio < 1.05:  # 1.05x average volume
@@ -258,10 +291,16 @@ class ScreenerSimulator:
             self.logger.debug(f"Error analyzing {symbol} for momentum: {e}")
             return False
 
-    async def simulate_screener_for_date(self, date: datetime, available_symbols: List[str]) -> Dict[str, List[str]]:
+    async def simulate_screener_for_date(
+        self, date: datetime, available_symbols: List[str]
+    ) -> Dict[str, List[str]]:
         """Simulate all screener types for a given date."""
         # Limit symbols to prevent excessive processing
-        analysis_symbols = available_symbols[:100] if len(available_symbols) > 100 else available_symbols
+        analysis_symbols = (
+            available_symbols[:100]
+            if len(available_symbols) > 100
+            else available_symbols
+        )
 
         breakouts = await self.get_breakout_candidates(date, analysis_symbols)
         momentum = await self.get_momentum_candidates(date, analysis_symbols)
@@ -285,7 +324,9 @@ class ScreenerSimulator:
                 end_date = date.date()
                 start_date = (date - timedelta(days=lookback_days)).date()
 
-                df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+                df = await self.data_store.load_market_data(
+                    symbol, self.timeframe, start_date, end_date
+                )
                 if df.is_empty():
                     continue
 
@@ -293,8 +334,8 @@ class ScreenerSimulator:
                 if len(data_rows) < 30:
                     continue
 
-                current_price = data_rows[-1]['close']
-                high_60 = max(d['high'] for d in data_rows)
+                current_price = data_rows[-1]["close"]
+                high_60 = max(d["high"] for d in data_rows)
 
                 # Value: trading 20%+ below 60-day high, price > $10
                 discount = (high_60 - current_price) / high_60
@@ -307,7 +348,7 @@ class ScreenerSimulator:
         return {
             "breakouts": breakouts[:15],  # Limit results
             "momentum": momentum[:15],
-            "value_stocks": value_stocks[:15]
+            "value_stocks": value_stocks[:15],
         }
 
 
@@ -336,8 +377,13 @@ class TradingStrategy:
             self.take_profit_pct = 0.10  # 10%
             self.max_hold_days = 30
 
-    async def analyze_symbol(self, symbol: str, current_data: MarketData,
-                           historical_data: List[MarketData], screener_type: str) -> Optional[TradingSignal]:
+    async def analyze_symbol(
+        self,
+        symbol: str,
+        current_data: MarketData,
+        historical_data: List[MarketData],
+        screener_type: str,
+    ) -> Optional[TradingSignal]:
         """Analyze symbol and generate trading signal."""
         try:
             if len(historical_data) < 20:
@@ -355,7 +401,7 @@ class TradingStrategy:
             # RSI calculation (simplified)
             price_changes = []
             for i in range(1, len(recent_closes)):
-                price_changes.append(recent_closes[i] - recent_closes[i-1])
+                price_changes.append(recent_closes[i] - recent_closes[i - 1])
 
             gains = [change for change in price_changes if change > 0]
             losses = [abs(change) for change in price_changes if change < 0]
@@ -378,11 +424,18 @@ class TradingStrategy:
 
             if screener_type == "breakouts":
                 # Breakout strategy (very relaxed)
-                if (float(current_price) > sma_20 * 0.98 and  # Allow slight below SMA
-                    volume_ratio > 1.05 and  # Low volume requirement
-                    rsi < 80):  # Less strict overbought
+                if (
+                    float(current_price) > sma_20 * 0.98  # Allow slight below SMA
+                    and volume_ratio > 1.05  # Low volume requirement
+                    and rsi < 80
+                ):  # Less strict overbought
 
-                    confidence = min(90.0, 50.0 + (volume_ratio * 8) + ((float(current_price) / sma_20 - 1) * 80))
+                    confidence = min(
+                        90.0,
+                        50.0
+                        + (volume_ratio * 8)
+                        + ((float(current_price) / sma_20 - 1) * 80),
+                    )
 
                     signal = TradingSignal(
                         symbol=symbol,
@@ -391,16 +444,20 @@ class TradingStrategy:
                         confidence=confidence,
                         reasoning=f"Breakout: {volume_ratio:.1f}x volume, {float(current_price)/sma_20:.1%} above SMA20",
                         stop_loss=current_price * Decimal(str(1 - self.stop_loss_pct)),
-                        take_profit=current_price * Decimal(str(1 + self.take_profit_pct))
+                        take_profit=current_price
+                        * Decimal(str(1 + self.take_profit_pct)),
                     )
 
             elif screener_type == "momentum":
                 # Momentum strategy (relaxed)
-                if (rsi > 45 and rsi < 85 and  # Broader momentum range
-                    float(current_price) > sma_20 * 0.95 and  # Allow slight below SMA
-                    volume_ratio > 1.05):  # Lower volume requirement
+                if (
+                    rsi > 45
+                    and rsi < 85  # Broader momentum range
+                    and float(current_price) > sma_20 * 0.95  # Allow slight below SMA
+                    and volume_ratio > 1.05
+                ):  # Lower volume requirement
 
-                    confidence = min(85.0, 45.0 + rsi/3 + volume_ratio * 4)
+                    confidence = min(85.0, 45.0 + rsi / 3 + volume_ratio * 4)
 
                     signal = TradingSignal(
                         symbol=symbol,
@@ -409,14 +466,18 @@ class TradingStrategy:
                         confidence=confidence,
                         reasoning=f"Momentum: RSI {rsi:.1f}, volume {volume_ratio:.1f}x",
                         stop_loss=current_price * Decimal(str(1 - self.stop_loss_pct)),
-                        take_profit=current_price * Decimal(str(1 + self.take_profit_pct))
+                        take_profit=current_price
+                        * Decimal(str(1 + self.take_profit_pct)),
                     )
 
             elif screener_type == "value_stocks":
                 # Value strategy - look for reversal signals (relaxed)
-                if (rsi < 55 and  # Broader oversold range
-                    float(current_price) < sma_20 * 0.98 and  # Less strict below average
-                    volume_ratio > 0.8):  # Even lower volume requirement
+                if (
+                    rsi < 55  # Broader oversold range
+                    and float(current_price)
+                    < sma_20 * 0.98  # Less strict below average
+                    and volume_ratio > 0.8
+                ):  # Even lower volume requirement
 
                     confidence = min(75.0, 35.0 + (55 - rsi) + volume_ratio * 4)
 
@@ -426,16 +487,24 @@ class TradingStrategy:
                         price=current_price,
                         confidence=confidence,
                         reasoning=f"Value reversal: RSI {rsi:.1f}, {(sma_20-float(current_price))/sma_20:.1%} discount",
-                        stop_loss=current_price * Decimal(str(1 - self.stop_loss_pct * 1.5)),  # Wider stop for value
-                        take_profit=current_price * Decimal(str(1 + self.take_profit_pct * 1.2))
+                        stop_loss=current_price
+                        * Decimal(
+                            str(1 - self.stop_loss_pct * 1.5)
+                        ),  # Wider stop for value
+                        take_profit=current_price
+                        * Decimal(str(1 + self.take_profit_pct * 1.2)),
                     )
 
             # Check confidence threshold
             if signal and signal.confidence >= self.min_confidence:
-                self.logger.debug(f"✅ Signal generated for {symbol}: {signal.confidence:.1f}% confidence, {signal.reasoning}")
+                self.logger.debug(
+                    f"✅ Signal generated for {symbol}: {signal.confidence:.1f}% confidence, {signal.reasoning}"
+                )
                 return signal
             elif signal:
-                self.logger.debug(f"❌ Signal below threshold for {symbol}: {signal.confidence:.1f}% < {self.min_confidence}%")
+                self.logger.debug(
+                    f"❌ Signal below threshold for {symbol}: {signal.confidence:.1f}% < {self.min_confidence}%"
+                )
 
             return None
 
@@ -447,8 +516,13 @@ class TradingStrategy:
 class ComprehensiveBacktestEngine:
     """Comprehensive backtesting engine using real historical data."""
 
-    def __init__(self, start_date: datetime, end_date: datetime, initial_capital: Decimal = Decimal('100000'),
-                 timeframe: TimeFrame = TimeFrame.ONE_DAY):
+    def __init__(
+        self,
+        start_date: datetime,
+        end_date: datetime,
+        initial_capital: Decimal = Decimal("100000"),
+        timeframe: TimeFrame = TimeFrame.ONE_DAY,
+    ):
         self.start_date = start_date
         self.end_date = end_date
         self.initial_capital = initial_capital
@@ -476,21 +550,46 @@ class ComprehensiveBacktestEngine:
 
         self.logger = logging.getLogger(__name__)
 
-    async def run_backtest(self, strategy: TradingStrategy, max_positions: int = 8) -> Dict[str, Any]:
+    async def run_backtest(
+        self, strategy: TradingStrategy, max_positions: int = 8
+    ) -> Dict[str, Any]:
         """Run comprehensive backtesting."""
-        self.logger.info(f"Starting {strategy.name} backtest ({self.timeframe.value}): {self.start_date.date()} to {self.end_date.date()}")
+        self.logger.info(
+            f"Starting {strategy.name} backtest ({self.timeframe.value}): {self.start_date.date()} to {self.end_date.date()}"
+        )
 
         start_time = time.time()
 
         # Get available symbols
         all_symbols = self.data_store.get_available_symbols()
-        major_symbols = [s for s in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA',
-                                   'AMD', 'NFLX', 'CRM', 'INTC', 'ORCL', 'ADBE', 'PYPL'] if s in all_symbols]
+        major_symbols = [
+            s
+            for s in [
+                "AAPL",
+                "MSFT",
+                "GOOGL",
+                "AMZN",
+                "TSLA",
+                "META",
+                "NVDA",
+                "AMD",
+                "NFLX",
+                "CRM",
+                "INTC",
+                "ORCL",
+                "ADBE",
+                "PYPL",
+            ]
+            if s in all_symbols
+        ]
 
         # Use major symbols + random selection from others
         import random
+
         other_symbols = [s for s in all_symbols if s not in major_symbols]
-        selected_symbols = major_symbols + random.sample(other_symbols, min(50, len(other_symbols)))
+        selected_symbols = major_symbols + random.sample(
+            other_symbols, min(50, len(other_symbols))
+        )
 
         self.logger.info(f"Using {len(selected_symbols)} symbols for backtesting")
 
@@ -502,32 +601,44 @@ class ComprehensiveBacktestEngine:
 
         # Generate trading periods based on timeframe
         trading_periods = self._generate_trading_periods()
-        self.logger.info(f"Processing {len(trading_periods)} trading periods ({self.timeframe.value})")
+        self.logger.info(
+            f"Processing {len(trading_periods)} trading periods ({self.timeframe.value})"
+        )
 
         # Process each trading period
         for i, period_datetime in enumerate(trading_periods):
-            await self._process_trading_period(period_datetime, selected_symbols, strategy, max_positions)
+            await self._process_trading_period(
+                period_datetime, selected_symbols, strategy, max_positions
+            )
 
             # Record portfolio value (sample less frequently for intraday to reduce overhead)
             sample_frequency = self._get_portfolio_sample_frequency()
             if i % sample_frequency == 0 or i == len(trading_periods) - 1:
                 portfolio_value = self._calculate_portfolio_value()
                 self.portfolio_history.append((period_datetime, portfolio_value))
-                self.max_portfolio_value = max(self.max_portfolio_value, portfolio_value)
+                self.max_portfolio_value = max(
+                    self.max_portfolio_value, portfolio_value
+                )
 
             # Progress reporting with performance metrics
-            progress_frequency = max(1, len(trading_periods) // 10)  # Report 10 times total
+            progress_frequency = max(
+                1, len(trading_periods) // 10
+            )  # Report 10 times total
             if (i + 1) % progress_frequency == 0 or i == len(trading_periods) - 1:
                 portfolio_value = self._calculate_portfolio_value()
                 elapsed = time.time() - start_time
                 periods_per_sec = (i + 1) / elapsed if elapsed > 0 else 0
-                estimated_total = len(trading_periods) / periods_per_sec if periods_per_sec > 0 else 0
+                estimated_total = (
+                    len(trading_periods) / periods_per_sec if periods_per_sec > 0 else 0
+                )
                 remaining = max(0, estimated_total - elapsed)
 
-                self.logger.info(f"Progress: {i+1}/{len(trading_periods)} ({(i+1)/len(trading_periods)*100:.1f}%), "
-                              f"Portfolio: ${portfolio_value:,.2f}, "
-                              f"Speed: {periods_per_sec:.1f} periods/sec, "
-                              f"ETA: {remaining/60:.1f}min")
+                self.logger.info(
+                    f"Progress: {i+1}/{len(trading_periods)} ({(i+1)/len(trading_periods)*100:.1f}%), "
+                    f"Portfolio: ${portfolio_value:,.2f}, "
+                    f"Speed: {periods_per_sec:.1f} periods/sec, "
+                    f"ETA: {remaining/60:.1f}min"
+                )
 
         # Close remaining positions
         for symbol in list(self.positions.keys()):
@@ -550,12 +661,14 @@ class ComprehensiveBacktestEngine:
 
         # Define market hours (9:30 AM to 4:00 PM ET)
         market_start = 9.5 * 60  # 9:30 AM in minutes
-        market_end = 16 * 60     # 4:00 PM in minutes
+        market_end = 16 * 60  # 4:00 PM in minutes
 
         # Get timeframe interval in minutes
         if self.timeframe == TimeFrame.ONE_MINUTE:
             interval_minutes = 1
-            max_periods_per_day = min(390, 100)  # Limit to 100 periods per day for performance
+            max_periods_per_day = min(
+                390, 100
+            )  # Limit to 100 periods per day for performance
         elif self.timeframe == TimeFrame.FIVE_MIN:
             interval_minutes = 5
             max_periods_per_day = 78  # 6.5 hours * 60 minutes / 5
@@ -564,25 +677,29 @@ class ComprehensiveBacktestEngine:
             max_periods_per_day = 26  # 6.5 hours * 60 minutes / 15
         elif self.timeframe == TimeFrame.ONE_HOUR:
             interval_minutes = 60
-            max_periods_per_day = 7   # 6.5 hours
+            max_periods_per_day = 7  # 6.5 hours
         else:  # ONE_DAY
             interval_minutes = 24 * 60  # Full day
             max_periods_per_day = 1
 
-        current_date = self.start_date.replace(hour=9, minute=30, second=0, microsecond=0)
+        current_date = self.start_date.replace(
+            hour=9, minute=30, second=0, microsecond=0
+        )
 
         while current_date.date() <= self.end_date.date():
             if current_date.weekday() < 5:  # Weekdays only
 
                 if self.timeframe == TimeFrame.ONE_DAY:
-                    periods.append(current_date.replace(hour=16, minute=0))  # End of day
+                    periods.append(
+                        current_date.replace(hour=16, minute=0)
+                    )  # End of day
                 else:
                     # Generate intraday periods
                     day_start = current_date.replace(hour=9, minute=30)
                     periods_added = 0
 
                     period_time = day_start
-                    while (period_time.hour < 16 and periods_added < max_periods_per_day):
+                    while period_time.hour < 16 and periods_added < max_periods_per_day:
                         periods.append(period_time)
                         period_time += timedelta(minutes=interval_minutes)
                         periods_added += 1
@@ -593,7 +710,9 @@ class ComprehensiveBacktestEngine:
 
             # Move to next day
             current_date += timedelta(days=1)
-            current_date = current_date.replace(hour=9, minute=30, second=0, microsecond=0)
+            current_date = current_date.replace(
+                hour=9, minute=30, second=0, microsecond=0
+            )
 
         return periods
 
@@ -604,14 +723,19 @@ class ComprehensiveBacktestEngine:
         elif self.timeframe == TimeFrame.FIVE_MIN:
             return 12  # Every hour
         elif self.timeframe == TimeFrame.FIFTEEN_MIN:
-            return 4   # Every hour
+            return 4  # Every hour
         elif self.timeframe == TimeFrame.ONE_HOUR:
-            return 1   # Every period
+            return 1  # Every period
         else:
-            return 1   # Every day
+            return 1  # Every day
 
-    async def _process_trading_period(self, period_datetime: datetime, symbols: List[str],
-                                    strategy: TradingStrategy, max_positions: int) -> None:
+    async def _process_trading_period(
+        self,
+        period_datetime: datetime,
+        symbols: List[str],
+        strategy: TradingStrategy,
+        max_positions: int,
+    ) -> None:
         """Process a single trading period."""
         try:
             # 1. Update existing positions
@@ -625,9 +749,13 @@ class ComprehensiveBacktestEngine:
 
             if len(self.positions) < max_positions and should_run_screener:
                 # Run screener analysis in parallel
-                screener_results = await self._run_parallel_screener(period_datetime, symbols)
+                screener_results = await self._run_parallel_screener(
+                    period_datetime, symbols
+                )
 
-                total_candidates = sum(len(candidates) for candidates in screener_results.values())
+                total_candidates = sum(
+                    len(candidates) for candidates in screener_results.values()
+                )
                 # if total_candidates > 0:
                 #     self.logger.info(f"📊 Screener found {total_candidates} candidates: {dict((k, len(v)) for k, v in screener_results.items())}")
 
@@ -637,7 +765,9 @@ class ComprehensiveBacktestEngine:
                         break
 
                     if candidates:
-                        self.logger.debug(f"🔍 Analyzing {len(candidates)} {screener_type} candidates")
+                        self.logger.debug(
+                            f"🔍 Analyzing {len(candidates)} {screener_type} candidates"
+                        )
 
                     # Process candidates in parallel batches
                     signals = await self._analyze_candidates_parallel(
@@ -648,7 +778,9 @@ class ComprehensiveBacktestEngine:
                     for signal in signals:
                         if signal and len(self.positions) < max_positions:
                             self.signals_generated += 1
-                            await self._execute_signal(signal, period_datetime, strategy.name)
+                            await self._execute_signal(
+                                signal, period_datetime, strategy.name
+                            )
 
                         if len(self.positions) >= max_positions:
                             break
@@ -681,7 +813,7 @@ class ComprehensiveBacktestEngine:
                     ticker=symbol,
                     timeframe=self.timeframe,
                     start_date=start_date,
-                    end_date=end_date
+                    end_date=end_date,
                 )
 
                 if not df.is_empty():
@@ -702,12 +834,14 @@ class ComprehensiveBacktestEngine:
                             # Fallback to latest available data for the day
                             row = df_sorted.tail(1).row(0, named=True)
 
-                    position.current_price = Decimal(str(row['close']))
+                    position.current_price = Decimal(str(row["close"]))
 
             except Exception as e:
                 self.logger.debug(f"Could not update price for {symbol}: {e}")
 
-    async def _check_exit_conditions(self, period_datetime: datetime, strategy: TradingStrategy) -> None:
+    async def _check_exit_conditions(
+        self, period_datetime: datetime, strategy: TradingStrategy
+    ) -> None:
         """Check if any positions should be closed."""
         positions_to_close = []
 
@@ -728,7 +862,9 @@ class ComprehensiveBacktestEngine:
                 max_hold = strategy.max_hold_days
             else:
                 # For intraday, convert to hours/periods
-                hold_hours = (period_datetime - position.entry_date).total_seconds() / 3600
+                hold_hours = (
+                    period_datetime - position.entry_date
+                ).total_seconds() / 3600
                 if self.timeframe == TimeFrame.ONE_HOUR:
                     max_hold = strategy.max_hold_days * 6.5  # Trading hours per day
                 elif self.timeframe == TimeFrame.FIFTEEN_MIN:
@@ -738,9 +874,15 @@ class ComprehensiveBacktestEngine:
                 else:  # ONE_MINUTE
                     max_hold = strategy.max_hold_days * 390  # 1-min periods per day
 
-                hold_days = hold_hours / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)
+                hold_days = hold_hours / (
+                    6.5 if self.timeframe != TimeFrame.ONE_DAY else 24
+                )
 
-            if hold_days >= (max_hold if self.timeframe == TimeFrame.ONE_DAY else max_hold / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)):
+            if hold_days >= (
+                max_hold
+                if self.timeframe == TimeFrame.ONE_DAY
+                else max_hold / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)
+            ):
                 positions_to_close.append((symbol, "time_exit"))
                 continue
 
@@ -748,7 +890,9 @@ class ComprehensiveBacktestEngine:
         for symbol, reason in positions_to_close:
             await self._close_position(symbol, period_datetime, reason)
 
-    async def _execute_signal(self, signal: TradingSignal, period_datetime: datetime, strategy_name: str) -> None:
+    async def _execute_signal(
+        self, signal: TradingSignal, period_datetime: datetime, strategy_name: str
+    ) -> None:
         """Execute a trading signal."""
         try:
             # Calculate position size
@@ -760,7 +904,9 @@ class ComprehensiveBacktestEngine:
                 return
 
             # Check if we have enough cash (including commission)
-            total_cost = signal.price * Decimal(str(quantity)) + Decimal('2.00')  # $2 commission
+            total_cost = signal.price * Decimal(str(quantity)) + Decimal(
+                "2.00"
+            )  # $2 commission
             if total_cost > self.cash:
                 return
 
@@ -773,7 +919,7 @@ class ComprehensiveBacktestEngine:
                 current_price=signal.price,
                 stop_loss=signal.stop_loss,
                 take_profit=signal.take_profit,
-                strategy_name=strategy_name
+                strategy_name=strategy_name,
             )
 
             # Update portfolio
@@ -786,7 +932,9 @@ class ComprehensiveBacktestEngine:
         except Exception as e:
             self.logger.error(f"Error executing signal for {signal.symbol}: {e}")
 
-    async def _close_position(self, symbol: str, period_datetime: datetime, reason: str) -> None:
+    async def _close_position(
+        self, symbol: str, period_datetime: datetime, reason: str
+    ) -> None:
         """Close a position."""
         if symbol not in self.positions:
             return
@@ -796,17 +944,23 @@ class ComprehensiveBacktestEngine:
             exit_price = position.current_price
 
             # Calculate P&L
-            gross_pnl = (exit_price - position.entry_price) * Decimal(str(position.quantity))
-            commission = Decimal('2.00')  # $2 total commission
+            gross_pnl = (exit_price - position.entry_price) * Decimal(
+                str(position.quantity)
+            )
+            commission = Decimal("2.00")  # $2 total commission
             net_pnl = gross_pnl - commission
 
             # Calculate hold time based on timeframe
             if self.timeframe == TimeFrame.ONE_DAY:
                 hold_days = (period_datetime - position.entry_date).days
             else:
-                hold_hours = (period_datetime - position.entry_date).total_seconds() / 3600
+                hold_hours = (
+                    period_datetime - position.entry_date
+                ).total_seconds() / 3600
                 hold_days = hold_hours / 6.5  # Convert to trading days
-            pnl_percentage = float(net_pnl / (position.entry_price * Decimal(str(position.quantity))))
+            pnl_percentage = float(
+                net_pnl / (position.entry_price * Decimal(str(position.quantity)))
+            )
 
             # Create trade record
             trade = Trade(
@@ -821,7 +975,7 @@ class ComprehensiveBacktestEngine:
                 hold_days=hold_days,
                 strategy=position.strategy_name,
                 entry_reason="signal",
-                exit_reason=reason
+                exit_reason=reason,
             )
 
             # Update portfolio
@@ -836,7 +990,9 @@ class ComprehensiveBacktestEngine:
         except Exception as e:
             self.logger.error(f"Error closing position {symbol}: {e}")
 
-    async def _get_historical_data(self, symbol: str, current_datetime: datetime) -> Optional[List[MarketData]]:
+    async def _get_historical_data(
+        self, symbol: str, current_datetime: datetime
+    ) -> Optional[List[MarketData]]:
         """Get historical data for symbol analysis."""
         try:
             # Adjust lookback period based on timeframe
@@ -854,7 +1010,9 @@ class ComprehensiveBacktestEngine:
             start_date = (current_datetime - timedelta(days=lookback_days)).date()
             end_date = current_datetime.date()
 
-            df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+            df = await self.data_store.load_market_data(
+                symbol, self.timeframe, start_date, end_date
+            )
             if df.is_empty():
                 return None
 
@@ -867,19 +1025,21 @@ class ComprehensiveBacktestEngine:
                 df_sorted = df_sorted.filter(df_sorted["timestamp"] <= current_naive)
 
             for row in df_sorted.iter_rows(named=True):
-                adjusted_close = row.get('adjusted_close', row['close'])
+                adjusted_close = row.get("adjusted_close", row["close"])
 
-                historical_data.append(MarketData(
-                    symbol=symbol,
-                    timestamp=row['timestamp'],
-                    open=Decimal(str(row['open'])),
-                    high=Decimal(str(row['high'])),
-                    low=Decimal(str(row['low'])),
-                    close=Decimal(str(row['close'])),
-                    adjusted_close=Decimal(str(adjusted_close)),
-                    volume=int(row['volume']),
-                    timeframe=self.timeframe
-                ))
+                historical_data.append(
+                    MarketData(
+                        symbol=symbol,
+                        timestamp=row["timestamp"],
+                        open=Decimal(str(row["open"])),
+                        high=Decimal(str(row["high"])),
+                        low=Decimal(str(row["low"])),
+                        close=Decimal(str(row["close"])),
+                        adjusted_close=Decimal(str(adjusted_close)),
+                        volume=int(row["volume"]),
+                        timeframe=self.timeframe,
+                    )
+                )
 
             return historical_data
 
@@ -889,7 +1049,9 @@ class ComprehensiveBacktestEngine:
 
     async def _preload_data(self, symbols: List[str]) -> None:
         """Pre-load historical data for all symbols in parallel."""
-        self.logger.info(f"Pre-loading historical data for {len(symbols)} symbols in parallel...")
+        self.logger.info(
+            f"Pre-loading historical data for {len(symbols)} symbols in parallel..."
+        )
 
         # Calculate date range for data loading
         if self.timeframe == TimeFrame.ONE_MINUTE:
@@ -916,47 +1078,65 @@ class ComprehensiveBacktestEngine:
         batch_size = self.max_workers
         completed = 0
         for i in range(0, len(load_tasks), batch_size):
-            batch = load_tasks[i:i + batch_size]
+            batch = load_tasks[i : i + batch_size]
             await asyncio.gather(*batch, return_exceptions=True)
             completed += len(batch)
 
             # Progress reporting
             if i % (batch_size * 3) == 0 or completed >= len(load_tasks):
-                self.logger.info(f"Data loading progress: {completed}/{len(load_tasks)} symbols")
+                self.logger.info(
+                    f"Data loading progress: {completed}/{len(load_tasks)} symbols"
+                )
 
         successful_loads = len(self.data_cache)
-        self.logger.info(f"Pre-loaded data for {successful_loads}/{len(symbols)} symbols ({successful_loads/len(symbols)*100:.1f}%)")
+        self.logger.info(
+            f"Pre-loaded data for {successful_loads}/{len(symbols)} symbols ({successful_loads/len(symbols)*100:.1f}%)"
+        )
 
     async def _load_symbol_data(self, symbol: str, start_date, end_date) -> None:
         """Load and cache data for a single symbol."""
         try:
-            df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+            df = await self.data_store.load_market_data(
+                symbol, self.timeframe, start_date, end_date
+            )
             if not df.is_empty():
                 row_count = len(df)
                 self.data_cache[symbol] = {
-                    'dataframe': df.sort("timestamp"),
-                    'loaded_start': start_date,
-                    'loaded_end': end_date
+                    "dataframe": df.sort("timestamp"),
+                    "loaded_start": start_date,
+                    "loaded_end": end_date,
                 }
-                self.logger.debug(f"✅ Loaded {row_count} rows for {symbol} ({self.timeframe.value})")
+                self.logger.debug(
+                    f"✅ Loaded {row_count} rows for {symbol} ({self.timeframe.value})"
+                )
             else:
-                self.logger.debug(f"❌ No data found for {symbol} ({self.timeframe.value})")
+                self.logger.debug(
+                    f"❌ No data found for {symbol} ({self.timeframe.value})"
+                )
         except Exception as e:
             self.logger.debug(f"Failed to preload data for {symbol}: {e}")
 
-    async def _run_parallel_screener(self, period_datetime: datetime, symbols: List[str]) -> Dict[str, List[str]]:
+    async def _run_parallel_screener(
+        self, period_datetime: datetime, symbols: List[str]
+    ) -> Dict[str, List[str]]:
         """Run screener analysis in parallel for different screener types."""
-        self.logger.debug(f"🔍 Running screener for {len(symbols)} symbols at {period_datetime}")
+        self.logger.debug(
+            f"🔍 Running screener for {len(symbols)} symbols at {period_datetime}"
+        )
 
         # Create parallel tasks for different screener types
         tasks = [
-            self.screener.get_breakout_candidates(period_datetime, symbols[:30]),  # Limit symbols for performance
+            self.screener.get_breakout_candidates(
+                period_datetime, symbols[:30]
+            ),  # Limit symbols for performance
             self.screener.get_momentum_candidates(period_datetime, symbols[:30]),
-            self._get_value_candidates_async(period_datetime, symbols[:20])
+            self._get_value_candidates_async(period_datetime, symbols[:20]),
         ]
 
         try:
-            breakouts, momentum, value_stocks = await asyncio.gather(*tasks, return_exceptions=True)
+            breakouts, momentum, value_stocks = await asyncio.gather(
+                *tasks, return_exceptions=True
+            )
 
             # Handle exceptions
             if isinstance(breakouts, Exception):
@@ -972,27 +1152,34 @@ class ComprehensiveBacktestEngine:
             result = {
                 "breakouts": breakouts[:15],
                 "momentum": momentum[:15],
-                "value_stocks": value_stocks[:15]
+                "value_stocks": value_stocks[:15],
             }
 
             # Log screener results (always log, not just when > 0)
             total_found = sum(len(candidates) for candidates in result.values())
-            self.logger.debug(f"📊 {period_datetime.strftime('%Y-%m-%d %H:%M')}: Found {len(result['breakouts'])} breakouts, {len(result['momentum'])} momentum, {len(result['value_stocks'])} value (total: {total_found})")
+            self.logger.debug(
+                f"📊 {period_datetime.strftime('%Y-%m-%d %H:%M')}: Found {len(result['breakouts'])} breakouts, {len(result['momentum'])} momentum, {len(result['value_stocks'])} value (total: {total_found})"
+            )
 
             return result
         except Exception as e:
             self.logger.debug(f"❌ Error in parallel screener: {e}")
             return {"breakouts": [], "momentum": [], "value_stocks": []}
 
-    async def _get_value_candidates_async(self, period_datetime: datetime, symbols: List[str]) -> List[str]:
+    async def _get_value_candidates_async(
+        self, period_datetime: datetime, symbols: List[str]
+    ) -> List[str]:
         """Async version of value candidate screening."""
         value_stocks = []
 
         # Process symbols in parallel batches
         batch_size = 10
         for i in range(0, len(symbols), batch_size):
-            batch = symbols[i:i + batch_size]
-            batch_tasks = [self._analyze_value_candidate(period_datetime, symbol) for symbol in batch]
+            batch = symbols[i : i + batch_size]
+            batch_tasks = [
+                self._analyze_value_candidate(period_datetime, symbol)
+                for symbol in batch
+            ]
             results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
             for symbol, result in zip(batch, results):
@@ -1001,12 +1188,14 @@ class ComprehensiveBacktestEngine:
 
         return value_stocks
 
-    async def _analyze_value_candidate(self, period_datetime: datetime, symbol: str) -> bool:
+    async def _analyze_value_candidate(
+        self, period_datetime: datetime, symbol: str
+    ) -> bool:
         """Analyze if a symbol is a value candidate."""
         try:
             # Use cached data if available
             if symbol in self.data_cache:
-                df = self.data_cache[symbol]['dataframe']
+                df = self.data_cache[symbol]["dataframe"]
                 # Filter to date range
                 df = df.filter(df["timestamp"] <= period_datetime)
                 if df.is_empty():
@@ -1016,7 +1205,9 @@ class ComprehensiveBacktestEngine:
                 lookback_days = 60 if self.timeframe == TimeFrame.ONE_DAY else 30
                 start_date = (period_datetime - timedelta(days=lookback_days)).date()
                 end_date = period_datetime.date()
-                df = await self.data_store.load_market_data(symbol, self.timeframe, start_date, end_date)
+                df = await self.data_store.load_market_data(
+                    symbol, self.timeframe, start_date, end_date
+                )
                 if df.is_empty():
                     return False
 
@@ -1024,8 +1215,8 @@ class ComprehensiveBacktestEngine:
             if len(data_rows) < 30:
                 return False
 
-            current_price = data_rows[-1]['close']
-            high_60 = max(d['high'] for d in data_rows)
+            current_price = data_rows[-1]["close"]
+            high_60 = max(d["high"] for d in data_rows)
 
             # Value: trading 20%+ below 60-day high, price > $10
             discount = (high_60 - current_price) / high_60
@@ -1034,8 +1225,13 @@ class ComprehensiveBacktestEngine:
         except Exception:
             return False
 
-    async def _analyze_candidates_parallel(self, candidates: List[str], period_datetime: datetime,
-                                         strategy: TradingStrategy, screener_type: str) -> List[Optional[TradingSignal]]:
+    async def _analyze_candidates_parallel(
+        self,
+        candidates: List[str],
+        period_datetime: datetime,
+        strategy: TradingStrategy,
+        screener_type: str,
+    ) -> List[Optional[TradingSignal]]:
         """Analyze multiple candidates in parallel for signal generation."""
         if not candidates:
             return []
@@ -1044,18 +1240,22 @@ class ComprehensiveBacktestEngine:
         analysis_tasks = []
         for symbol in candidates:
             if symbol not in self.positions:  # Skip if already have position
-                task = self._analyze_single_candidate(symbol, period_datetime, strategy, screener_type)
+                task = self._analyze_single_candidate(
+                    symbol, period_datetime, strategy, screener_type
+                )
                 analysis_tasks.append(task)
 
         if not analysis_tasks:
             return []
 
         # Execute in parallel with limited concurrency
-        batch_size = min(6, len(analysis_tasks))  # Reduced batch size for memory management
+        batch_size = min(
+            6, len(analysis_tasks)
+        )  # Reduced batch size for memory management
         signals = []
 
         for i in range(0, len(analysis_tasks), batch_size):
-            batch = analysis_tasks[i:i + batch_size]
+            batch = analysis_tasks[i : i + batch_size]
             batch_results = await asyncio.gather(*batch, return_exceptions=True)
 
             for result in batch_results:
@@ -1064,32 +1264,47 @@ class ComprehensiveBacktestEngine:
 
         return signals
 
-    async def _analyze_single_candidate(self, symbol: str, period_datetime: datetime,
-                                      strategy: TradingStrategy, screener_type: str) -> Optional[TradingSignal]:
+    async def _analyze_single_candidate(
+        self,
+        symbol: str,
+        period_datetime: datetime,
+        strategy: TradingStrategy,
+        screener_type: str,
+    ) -> Optional[TradingSignal]:
         """Analyze a single candidate for signal generation."""
         try:
             # Get historical data (use cache if available)
-            historical_data = await self._get_historical_data_cached(symbol, period_datetime)
+            historical_data = await self._get_historical_data_cached(
+                symbol, period_datetime
+            )
             if not historical_data or len(historical_data) < 20:
-                self.logger.debug(f"❌ Insufficient data for {symbol}: {len(historical_data) if historical_data else 0} rows")
+                self.logger.debug(
+                    f"❌ Insufficient data for {symbol}: {len(historical_data) if historical_data else 0} rows"
+                )
                 return None
 
             current_data = historical_data[-1]
-            self.logger.debug(f"🔍 Analyzing {symbol}: price=${float(current_data.close):.2f}, volume={current_data.volume:,}")
+            self.logger.debug(
+                f"🔍 Analyzing {symbol}: price=${float(current_data.close):.2f}, volume={current_data.volume:,}"
+            )
 
             # Generate signal
-            return await strategy.analyze_symbol(symbol, current_data, historical_data, screener_type)
+            return await strategy.analyze_symbol(
+                symbol, current_data, historical_data, screener_type
+            )
 
         except Exception as e:
             self.logger.debug(f"Error analyzing candidate {symbol}: {e}")
             return None
 
-    async def _get_historical_data_cached(self, symbol: str, current_datetime: datetime) -> Optional[List[MarketData]]:
+    async def _get_historical_data_cached(
+        self, symbol: str, current_datetime: datetime
+    ) -> Optional[List[MarketData]]:
         """Get historical data using cache when possible."""
         try:
             # Try to use cached data first
             if symbol in self.data_cache:
-                df = self.data_cache[symbol]['dataframe']
+                df = self.data_cache[symbol]["dataframe"]
 
                 # Filter to current time for intraday (convert to naive datetime)
                 if self.timeframe != TimeFrame.ONE_DAY:
@@ -1113,18 +1328,20 @@ class ComprehensiveBacktestEngine:
         df_limited = df.tail(100) if len(df) > 100 else df
 
         for row in df_limited.iter_rows(named=True):
-            adjusted_close = row.get('adjusted_close', row['close'])
-            historical_data.append(MarketData(
-                symbol=symbol,
-                timestamp=row['timestamp'],
-                open=Decimal(str(row['open'])),
-                high=Decimal(str(row['high'])),
-                low=Decimal(str(row['low'])),
-                close=Decimal(str(row['close'])),
-                adjusted_close=Decimal(str(adjusted_close)),
-                volume=int(row['volume']),
-                timeframe=self.timeframe
-            ))
+            adjusted_close = row.get("adjusted_close", row["close"])
+            historical_data.append(
+                MarketData(
+                    symbol=symbol,
+                    timestamp=row["timestamp"],
+                    open=Decimal(str(row["open"])),
+                    high=Decimal(str(row["high"])),
+                    low=Decimal(str(row["low"])),
+                    close=Decimal(str(row["close"])),
+                    adjusted_close=Decimal(str(adjusted_close)),
+                    volume=int(row["volume"]),
+                    timeframe=self.timeframe,
+                )
+            )
         return historical_data
 
     def _calculate_portfolio_value(self) -> Decimal:
@@ -1134,18 +1351,30 @@ class ComprehensiveBacktestEngine:
             total += position.current_price * Decimal(str(position.quantity))
         return total
 
-    def _generate_results(self, strategy: TradingStrategy, execution_time: float) -> Dict[str, Any]:
+    def _generate_results(
+        self, strategy: TradingStrategy, execution_time: float
+    ) -> Dict[str, Any]:
         """Generate comprehensive results."""
         final_value = self._calculate_portfolio_value()
-        total_return = float((final_value - self.initial_capital) / self.initial_capital)
+        total_return = float(
+            (final_value - self.initial_capital) / self.initial_capital
+        )
 
         # Trading statistics
         winning_trades = [t for t in self.trades if t.pnl > 0]
         losing_trades = [t for t in self.trades if t.pnl <= 0]
 
         win_rate = len(winning_trades) / len(self.trades) if self.trades else 0
-        avg_win = sum(float(t.pnl) for t in winning_trades) / len(winning_trades) if winning_trades else 0
-        avg_loss = sum(float(t.pnl) for t in losing_trades) / len(losing_trades) if losing_trades else 0
+        avg_win = (
+            sum(float(t.pnl) for t in winning_trades) / len(winning_trades)
+            if winning_trades
+            else 0
+        )
+        avg_loss = (
+            sum(float(t.pnl) for t in losing_trades) / len(losing_trades)
+            if losing_trades
+            else 0
+        )
 
         # Calculate drawdown
         max_dd = 0.0
@@ -1161,75 +1390,92 @@ class ComprehensiveBacktestEngine:
         # Risk metrics
         daily_returns = []
         for i in range(1, len(self.portfolio_history)):
-            prev_val = float(self.portfolio_history[i-1][1])
+            prev_val = float(self.portfolio_history[i - 1][1])
             curr_val = float(self.portfolio_history[i][1])
             if prev_val > 0:
                 daily_returns.append((curr_val - prev_val) / prev_val)
 
         import math
+
         if daily_returns:
             avg_daily_return = sum(daily_returns) / len(daily_returns)
-            daily_volatility = math.sqrt(sum((r - avg_daily_return)**2 for r in daily_returns) / len(daily_returns))
+            daily_volatility = math.sqrt(
+                sum((r - avg_daily_return) ** 2 for r in daily_returns)
+                / len(daily_returns)
+            )
             annualized_return = (1 + avg_daily_return) ** 252 - 1
             annualized_volatility = daily_volatility * math.sqrt(252)
-            sharpe_ratio = (annualized_return - 0.02) / annualized_volatility if annualized_volatility > 0 else 0
+            sharpe_ratio = (
+                (annualized_return - 0.02) / annualized_volatility
+                if annualized_volatility > 0
+                else 0
+            )
         else:
             annualized_return = total_return
             sharpe_ratio = 0
 
         return {
-            'strategy': {
-                'name': strategy.name,
-                'mode': strategy.mode,
-                'parameters': {
-                    'min_confidence': strategy.min_confidence,
-                    'stop_loss_pct': strategy.stop_loss_pct,
-                    'take_profit_pct': strategy.take_profit_pct,
-                    'max_hold_days': strategy.max_hold_days
-                }
+            "strategy": {
+                "name": strategy.name,
+                "mode": strategy.mode,
+                "parameters": {
+                    "min_confidence": strategy.min_confidence,
+                    "stop_loss_pct": strategy.stop_loss_pct,
+                    "take_profit_pct": strategy.take_profit_pct,
+                    "max_hold_days": strategy.max_hold_days,
+                },
             },
-            'performance': {
-                'total_return': total_return,
-                'annualized_return': annualized_return,
-                'final_value': float(final_value),
-                'max_drawdown': max_dd,
-                'sharpe_ratio': sharpe_ratio
+            "performance": {
+                "total_return": total_return,
+                "annualized_return": annualized_return,
+                "final_value": float(final_value),
+                "max_drawdown": max_dd,
+                "sharpe_ratio": sharpe_ratio,
             },
-            'trading': {
-                'total_trades': len(self.trades),
-                'winning_trades': len(winning_trades),
-                'losing_trades': len(losing_trades),
-                'win_rate': win_rate,
-                'avg_win': avg_win,
-                'avg_loss': avg_loss,
-                'avg_hold_days': sum(t.hold_days for t in self.trades) / len(self.trades) if self.trades else 0,
-                'profit_factor': abs(avg_win * len(winning_trades) / (avg_loss * len(losing_trades))) if avg_loss != 0 else float('inf')
+            "trading": {
+                "total_trades": len(self.trades),
+                "winning_trades": len(winning_trades),
+                "losing_trades": len(losing_trades),
+                "win_rate": win_rate,
+                "avg_win": avg_win,
+                "avg_loss": avg_loss,
+                "avg_hold_days": (
+                    sum(t.hold_days for t in self.trades) / len(self.trades)
+                    if self.trades
+                    else 0
+                ),
+                "profit_factor": (
+                    abs(avg_win * len(winning_trades) / (avg_loss * len(losing_trades)))
+                    if avg_loss != 0
+                    else float("inf")
+                ),
             },
-            'signals': {
-                'generated': self.signals_generated,
-                'executed': self.signals_executed,
-                'execution_rate': self.signals_executed / max(self.signals_generated, 1)
+            "signals": {
+                "generated": self.signals_generated,
+                "executed": self.signals_executed,
+                "execution_rate": self.signals_executed
+                / max(self.signals_generated, 1),
             },
-            'execution': {
-                'time_seconds': execution_time,
-                'days_processed': len(self.portfolio_history),
-                'start_date': self.start_date.isoformat(),
-                'end_date': self.end_date.isoformat(),
-                'timeframe': self.timeframe.value
+            "execution": {
+                "time_seconds": execution_time,
+                "days_processed": len(self.portfolio_history),
+                "start_date": self.start_date.isoformat(),
+                "end_date": self.end_date.isoformat(),
+                "timeframe": self.timeframe.value,
             },
-            'trades': [
+            "trades": [
                 {
-                    'symbol': t.symbol,
-                    'entry_date': t.entry_date.isoformat(),
-                    'exit_date': t.exit_date.isoformat(),
-                    'pnl': float(t.pnl),
-                    'pnl_percentage': t.pnl_percentage,
-                    'hold_days': t.hold_days,
-                    'strategy': t.strategy,
-                    'exit_reason': t.exit_reason
+                    "symbol": t.symbol,
+                    "entry_date": t.entry_date.isoformat(),
+                    "exit_date": t.exit_date.isoformat(),
+                    "pnl": float(t.pnl),
+                    "pnl_percentage": t.pnl_percentage,
+                    "hold_days": t.hold_days,
+                    "strategy": t.strategy,
+                    "exit_reason": t.exit_reason,
                 }
                 for t in self.trades
-            ]
+            ],
         }
 
 
@@ -1245,21 +1491,21 @@ def format_percentage(value: float) -> str:
 
 def display_results(results: Dict[str, Any]) -> None:
     """Display comprehensive backtest results."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("COMPREHENSIVE BACKTESTING RESULTS")
-    print("="*80)
+    print("=" * 80)
 
     # Strategy info
-    strategy = results['strategy']
-    execution = results['execution']
-    timeframe = execution.get('timeframe', 'daily')
+    strategy = results["strategy"]
+    execution = results["execution"]
+    timeframe = execution.get("timeframe", "daily")
     print(f"\nStrategy: {strategy['name']} ({strategy['mode']}) - {timeframe}")
     print(f"Parameters:")
-    for key, value in strategy['parameters'].items():
+    for key, value in strategy["parameters"].items():
         print(f"  {key}: {value}")
 
     # Performance summary
-    perf = results['performance']
+    perf = results["performance"]
     print(f"\nPerformance Summary:")
     print(f"  Total Return: {format_percentage(perf['total_return'])}")
     print(f"  Annualized Return: {format_percentage(perf['annualized_return'])}")
@@ -1268,7 +1514,7 @@ def display_results(results: Dict[str, Any]) -> None:
     print(f"  Sharpe Ratio: {perf['sharpe_ratio']:.3f}")
 
     # Trading statistics
-    trading = results['trading']
+    trading = results["trading"]
     print(f"\nTrading Statistics:")
     print(f"  Total Trades: {trading['total_trades']}")
     print(f"  Winning Trades: {trading['winning_trades']}")
@@ -1280,31 +1526,31 @@ def display_results(results: Dict[str, Any]) -> None:
     print(f"  Average Hold Days: {trading['avg_hold_days']:.1f}")
 
     # Signal analysis
-    signals = results['signals']
+    signals = results["signals"]
     print(f"\nSignal Analysis:")
     print(f"  Signals Generated: {signals['generated']}")
     print(f"  Signals Executed: {signals['executed']}")
     print(f"  Execution Rate: {format_percentage(signals['execution_rate'])}")
 
     # Execution info
-    execution = results['execution']
+    execution = results["execution"]
     print(f"\nExecution Info:")
     print(f"  Execution Time: {execution['time_seconds']:.2f} seconds")
     print(f"  Days Processed: {execution['days_processed']}")
     print(f"  Period: {execution['start_date'][:10]} to {execution['end_date'][:10]}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
 
 
 async def run_strategy_comparison():
     """Run and compare different trading strategies."""
     print("COMPREHENSIVE STRATEGY COMPARISON")
-    print("="*50)
+    print("=" * 50)
 
     # Define test period (last 3 months with good data coverage)
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 5, 20, tzinfo=timezone.utc)  # ~3 months
-    initial_capital = Decimal('100000')
+    initial_capital = Decimal("100000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Duration: {(end_date - start_date).days} days")
@@ -1314,7 +1560,7 @@ async def run_strategy_comparison():
     strategies = [
         TradingStrategy("Day Trading Strategy", "day_trading"),
         TradingStrategy("Swing Trading Strategy", "swing_trading"),
-        TradingStrategy("Position Trading Strategy", "position_trading")
+        TradingStrategy("Position Trading Strategy", "position_trading"),
     ]
 
     results = {}
@@ -1330,7 +1576,9 @@ async def run_strategy_comparison():
             results[strategy.name] = result
 
             print(f"✅ {strategy.name} completed:")
-            print(f"   Return: {format_percentage(result['performance']['total_return'])}")
+            print(
+                f"   Return: {format_percentage(result['performance']['total_return'])}"
+            )
             print(f"   Trades: {result['trading']['total_trades']}")
             print(f"   Win Rate: {format_percentage(result['trading']['win_rate'])}")
 
@@ -1340,30 +1588,42 @@ async def run_strategy_comparison():
 
     # Display comparison
     if results:
-        print("\n" + "="*100)
+        print("\n" + "=" * 100)
         print("STRATEGY COMPARISON SUMMARY")
-        print("="*100)
+        print("=" * 100)
 
-        print(f"\n{'Strategy':<25} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10}")
+        print(
+            f"\n{'Strategy':<25} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10}"
+        )
         print("-" * 85)
 
         for strategy_name, result in results.items():
-            perf = result['performance']
-            trading = result['trading']
+            perf = result["performance"]
+            trading = result["trading"]
 
-            print(f"{strategy_name:<25} "
-                  f"{format_percentage(perf['total_return']):<12} "
-                  f"{format_percentage(perf['max_drawdown']):<10} "
-                  f"{perf['sharpe_ratio']:<8.3f} "
-                  f"{trading['total_trades']:<8} "
-                  f"{format_percentage(trading['win_rate']):<10}")
+            print(
+                f"{strategy_name:<25} "
+                f"{format_percentage(perf['total_return']):<12} "
+                f"{format_percentage(perf['max_drawdown']):<10} "
+                f"{perf['sharpe_ratio']:<8.3f} "
+                f"{trading['total_trades']:<8} "
+                f"{format_percentage(trading['win_rate']):<10}"
+            )
 
         # Find best performers
-        best_return = max(results.items(), key=lambda x: x[1]['performance']['total_return'])
-        best_sharpe = max(results.items(), key=lambda x: x[1]['performance']['sharpe_ratio'])
+        best_return = max(
+            results.items(), key=lambda x: x[1]["performance"]["total_return"]
+        )
+        best_sharpe = max(
+            results.items(), key=lambda x: x[1]["performance"]["sharpe_ratio"]
+        )
 
-        print(f"\n🏆 Best Total Return: {best_return[0]} ({format_percentage(best_return[1]['performance']['total_return'])})")
-        print(f"🏆 Best Risk-Adjusted: {best_sharpe[0]} (Sharpe: {best_sharpe[1]['performance']['sharpe_ratio']:.3f})")
+        print(
+            f"\n🏆 Best Total Return: {best_return[0]} ({format_percentage(best_return[1]['performance']['total_return'])})"
+        )
+        print(
+            f"🏆 Best Risk-Adjusted: {best_sharpe[0]} (Sharpe: {best_sharpe[1]['performance']['sharpe_ratio']:.3f})"
+        )
 
     return results
 
@@ -1371,7 +1631,7 @@ async def run_strategy_comparison():
 async def run_multi_timeframe_comparison():
     """Run and compare strategies across multiple timeframes."""
     print("MULTI-TIMEFRAME STRATEGY COMPARISON")
-    print("="*60)
+    print("=" * 60)
 
     # Define timeframes to test
     timeframes = [
@@ -1385,7 +1645,7 @@ async def run_multi_timeframe_comparison():
     # Define test period
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 1, 1, tzinfo=timezone.utc)  # ~7 months
-    initial_capital = Decimal('10000')
+    initial_capital = Decimal("10000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Duration: {(end_date - start_date).days} days")
@@ -1401,14 +1661,18 @@ async def run_multi_timeframe_comparison():
     for timeframe in timeframes:
         print(f"\n🔄 Running backtest on {timeframe.value}...")
 
-        engine = ComprehensiveBacktestEngine(start_date, end_date, initial_capital, timeframe)
+        engine = ComprehensiveBacktestEngine(
+            start_date, end_date, initial_capital, timeframe
+        )
 
         try:
             result = await engine.run_backtest(strategy, max_positions=6)
             results[timeframe.value] = result
 
             print(f"✅ {timeframe.value} completed:")
-            print(f"   Return: {format_percentage(result['performance']['total_return'])}")
+            print(
+                f"   Return: {format_percentage(result['performance']['total_return'])}"
+            )
             print(f"   Trades: {result['trading']['total_trades']}")
             print(f"   Win Rate: {format_percentage(result['trading']['win_rate'])}")
 
@@ -1418,33 +1682,49 @@ async def run_multi_timeframe_comparison():
 
     # Display comparison
     if results:
-        print("\n" + "="*100)
+        print("\n" + "=" * 100)
         print("TIMEFRAME COMPARISON SUMMARY")
-        print("="*100)
+        print("=" * 100)
 
-        print(f"\n{'Timeframe':<15} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10} {'Avg Hold':<10}")
+        print(
+            f"\n{'Timeframe':<15} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10} {'Avg Hold':<10}"
+        )
         print("-" * 95)
 
         for timeframe_name, result in results.items():
-            perf = result['performance']
-            trading = result['trading']
+            perf = result["performance"]
+            trading = result["trading"]
 
-            print(f"{timeframe_name:<15} "
-                  f"{format_percentage(perf['total_return']):<12} "
-                  f"{format_percentage(perf['max_drawdown']):<10} "
-                  f"{perf['sharpe_ratio']:<8.3f} "
-                  f"{trading['total_trades']:<8} "
-                  f"{format_percentage(trading['win_rate']):<10} "
-                  f"{trading['avg_hold_days']:<10.1f}")
+            print(
+                f"{timeframe_name:<15} "
+                f"{format_percentage(perf['total_return']):<12} "
+                f"{format_percentage(perf['max_drawdown']):<10} "
+                f"{perf['sharpe_ratio']:<8.3f} "
+                f"{trading['total_trades']:<8} "
+                f"{format_percentage(trading['win_rate']):<10} "
+                f"{trading['avg_hold_days']:<10.1f}"
+            )
 
         # Find best performers
-        best_return = max(results.items(), key=lambda x: x[1]['performance']['total_return'])
-        best_sharpe = max(results.items(), key=lambda x: x[1]['performance']['sharpe_ratio'])
-        most_trades = max(results.items(), key=lambda x: x[1]['trading']['total_trades'])
+        best_return = max(
+            results.items(), key=lambda x: x[1]["performance"]["total_return"]
+        )
+        best_sharpe = max(
+            results.items(), key=lambda x: x[1]["performance"]["sharpe_ratio"]
+        )
+        most_trades = max(
+            results.items(), key=lambda x: x[1]["trading"]["total_trades"]
+        )
 
-        print(f"\n🏆 Best Total Return: {best_return[0]} ({format_percentage(best_return[1]['performance']['total_return'])})")
-        print(f"🏆 Best Risk-Adjusted: {best_sharpe[0]} (Sharpe: {best_sharpe[1]['performance']['sharpe_ratio']:.3f})")
-        print(f"📊 Most Active: {most_trades[0]} ({most_trades[1]['trading']['total_trades']} trades)")
+        print(
+            f"\n🏆 Best Total Return: {best_return[0]} ({format_percentage(best_return[1]['performance']['total_return'])})"
+        )
+        print(
+            f"🏆 Best Risk-Adjusted: {best_sharpe[0]} (Sharpe: {best_sharpe[1]['performance']['sharpe_ratio']:.3f})"
+        )
+        print(
+            f"📊 Most Active: {most_trades[0]} ({most_trades[1]['trading']['total_trades']} trades)"
+        )
 
         # Analysis insights
         print(f"\nInsights:")
@@ -1458,18 +1738,18 @@ async def run_multi_timeframe_comparison():
 async def run_comprehensive_timeframe_analysis():
     """Run comprehensive analysis across strategies and timeframes."""
     print("COMPREHENSIVE STRATEGY & TIMEFRAME ANALYSIS")
-    print("="*70)
+    print("=" * 70)
 
     # Define test parameters
     timeframes = [TimeFrame.ONE_DAY, TimeFrame.ONE_HOUR]
     strategies = [
         TradingStrategy("Day Trading", "day_trading"),
-        TradingStrategy("Swing Trading", "swing_trading")
+        TradingStrategy("Swing Trading", "swing_trading"),
     ]
 
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 6, 1, tzinfo=timezone.utc)  # ~2.5 months
-    initial_capital = Decimal('100000')
+    initial_capital = Decimal("100000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Strategies: {len(strategies)}, Timeframes: {len(timeframes)}")
@@ -1485,14 +1765,18 @@ async def run_comprehensive_timeframe_analysis():
             combination_name = f"{strategy.name} - {timeframe.value}"
             print(f"\n🔄 Running {combination_name}...")
 
-            engine = ComprehensiveBacktestEngine(start_date, end_date, initial_capital, timeframe)
+            engine = ComprehensiveBacktestEngine(
+                start_date, end_date, initial_capital, timeframe
+            )
 
             try:
                 result = await engine.run_backtest(strategy, max_positions=5)
                 strategy_results[timeframe.value] = result
 
                 print(f"✅ {combination_name} completed:")
-                print(f"   Return: {format_percentage(result['performance']['total_return'])}")
+                print(
+                    f"   Return: {format_percentage(result['performance']['total_return'])}"
+                )
                 print(f"   Trades: {result['trading']['total_trades']}")
 
             except Exception as e:
@@ -1503,42 +1787,52 @@ async def run_comprehensive_timeframe_analysis():
 
     # Display comprehensive comparison
     if all_results:
-        print("\n" + "="*120)
+        print("\n" + "=" * 120)
         print("COMPREHENSIVE COMPARISON MATRIX")
-        print("="*120)
+        print("=" * 120)
 
-        print(f"\n{'Strategy':<20} {'Timeframe':<15} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10}")
+        print(
+            f"\n{'Strategy':<20} {'Timeframe':<15} {'Return':<12} {'Max DD':<10} {'Sharpe':<8} {'Trades':<8} {'Win Rate':<10}"
+        )
         print("-" * 105)
 
         best_overall = None
-        best_return = -float('inf')
+        best_return = -float("inf")
 
         for strategy_name, timeframe_results in all_results.items():
             for timeframe_name, result in timeframe_results.items():
-                perf = result['performance']
-                trading = result['trading']
+                perf = result["performance"]
+                trading = result["trading"]
 
-                print(f"{strategy_name:<20} "
-                      f"{timeframe_name:<15} "
-                      f"{format_percentage(perf['total_return']):<12} "
-                      f"{format_percentage(perf['max_drawdown']):<10} "
-                      f"{perf['sharpe_ratio']:<8.3f} "
-                      f"{trading['total_trades']:<8} "
-                      f"{format_percentage(trading['win_rate']):<10}")
+                print(
+                    f"{strategy_name:<20} "
+                    f"{timeframe_name:<15} "
+                    f"{format_percentage(perf['total_return']):<12} "
+                    f"{format_percentage(perf['max_drawdown']):<10} "
+                    f"{perf['sharpe_ratio']:<8.3f} "
+                    f"{trading['total_trades']:<8} "
+                    f"{format_percentage(trading['win_rate']):<10}"
+                )
 
                 # Track best overall
-                if perf['total_return'] > best_return:
-                    best_return = perf['total_return']
+                if perf["total_return"] > best_return:
+                    best_return = perf["total_return"]
                     best_overall = f"{strategy_name} - {timeframe_name}"
 
-        print(f"\n🏆 Best Overall Combination: {best_overall} ({format_percentage(best_return)})")
+        print(
+            f"\n🏆 Best Overall Combination: {best_overall} ({format_percentage(best_return)})"
+        )
 
         # Strategy analysis
         print(f"\nStrategy Analysis:")
         for strategy_name, timeframe_results in all_results.items():
             if timeframe_results:
-                avg_return = sum(r['performance']['total_return'] for r in timeframe_results.values()) / len(timeframe_results)
-                print(f"• {strategy_name}: Average return across timeframes: {format_percentage(avg_return)}")
+                avg_return = sum(
+                    r["performance"]["total_return"] for r in timeframe_results.values()
+                ) / len(timeframe_results)
+                print(
+                    f"• {strategy_name}: Average return across timeframes: {format_percentage(avg_return)}"
+                )
 
     return all_results
 
@@ -1546,7 +1840,7 @@ async def run_comprehensive_timeframe_analysis():
 async def run_debug_signal_test():
     """Debug function to test signal generation with detailed logging."""
     print("🔧 DEBUG SIGNAL GENERATION TEST")
-    print("="*50)
+    print("=" * 50)
 
     # Enable debug logging
     logging.getLogger().setLevel(logging.DEBUG)
@@ -1554,14 +1848,16 @@ async def run_debug_signal_test():
     # Very short test period
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 8, 18, tzinfo=timezone.utc)  # Just 1 day
-    initial_capital = Decimal('10000')
+    initial_capital = Decimal("10000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Testing with debug logging enabled...")
 
     # Test with relaxed day trading strategy
     strategy = TradingStrategy("Debug Day Trading", "day_trading")
-    engine = ComprehensiveBacktestEngine(start_date, end_date, initial_capital, TimeFrame.ONE_HOUR)
+    engine = ComprehensiveBacktestEngine(
+        start_date, end_date, initial_capital, TimeFrame.ONE_HOUR
+    )
 
     print(f"\nStrategy settings:")
     print(f"  Min confidence: {strategy.min_confidence}%")
@@ -1571,9 +1867,9 @@ async def run_debug_signal_test():
     try:
         result = await engine.run_backtest(strategy, max_positions=3)
 
-        perf = result['performance']
-        trading = result['trading']
-        signals = result['signals']
+        perf = result["performance"]
+        trading = result["trading"]
+        signals = result["signals"]
 
         # print(f"\nDEBUG RESULTS:")
         # print(f"  Signals Generated: {signals['generated']}")
@@ -1586,22 +1882,25 @@ async def run_debug_signal_test():
     except Exception as e:
         print(f"Debug test failed: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
 
-async def run_quick_timeframe_test(timeframes: List[TimeFrame] = None, strategy_mode: str = "position_trading"):
+async def run_quick_timeframe_test(
+    timeframes: List[TimeFrame] = None, strategy_mode: str = "position_trading"
+):
     """Quick function to test specific timeframes with minimal setup."""
     if timeframes is None:
         timeframes = [TimeFrame.ONE_DAY, TimeFrame.ONE_HOUR, TimeFrame.FIFTEEN_MIN]
 
     print(f"QUICK TIMEFRAME TEST - {strategy_mode.upper()}")
-    print("="*60)
+    print("=" * 60)
 
     # Short test period for quick results
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 7, 1, tzinfo=timezone.utc)  # ~1.5 months
-    initial_capital = Decimal('10000')
+    initial_capital = Decimal("10000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Timeframes: {[tf.value for tf in timeframes]}")
@@ -1613,18 +1912,22 @@ async def run_quick_timeframe_test(timeframes: List[TimeFrame] = None, strategy_
     for timeframe in timeframes:
         print(f"\n⚡ Quick test: {timeframe.value}...")
 
-        engine = ComprehensiveBacktestEngine(start_date, end_date, initial_capital, timeframe)
+        engine = ComprehensiveBacktestEngine(
+            start_date, end_date, initial_capital, timeframe
+        )
 
         try:
             result = await engine.run_backtest(strategy, max_positions=4)
             results[timeframe.value] = result
 
-            perf = result['performance']
-            trading = result['trading']
+            perf = result["performance"]
+            trading = result["trading"]
 
-            print(f"   ✓ Return: {format_percentage(perf['total_return'])} | "
-                  f"Trades: {trading['total_trades']} | "
-                  f"Win Rate: {format_percentage(trading['win_rate'])}")
+            print(
+                f"   ✓ Return: {format_percentage(perf['total_return'])} | "
+                f"Trades: {trading['total_trades']} | "
+                f"Win Rate: {format_percentage(trading['win_rate'])}"
+            )
 
         except Exception as e:
             print(f"   ✗ Failed: {e}")
@@ -1633,9 +1936,11 @@ async def run_quick_timeframe_test(timeframes: List[TimeFrame] = None, strategy_
         print(f"\n📊 QUICK COMPARISON:")
         print("-" * 50)
         for tf, result in results.items():
-            perf = result['performance']
-            print(f"{tf:>15}: {format_percentage(perf['total_return']):>8} return, "
-                  f"Sharpe: {perf['sharpe_ratio']:>5.2f}")
+            perf = result["performance"]
+            print(
+                f"{tf:>15}: {format_percentage(perf['total_return']):>8} return, "
+                f"Sharpe: {perf['sharpe_ratio']:>5.2f}"
+            )
 
     return results
 
@@ -1643,12 +1948,12 @@ async def run_quick_timeframe_test(timeframes: List[TimeFrame] = None, strategy_
 async def run_single_strategy_demo():
     """Run a detailed demo of a single strategy."""
     print("SINGLE STRATEGY DETAILED ANALYSIS")
-    print("="*50)
+    print("=" * 50)
 
     # Use a shorter period for detailed analysis
     end_date = datetime(2025, 8, 19, tzinfo=timezone.utc)
     start_date = datetime(2025, 1, 1, tzinfo=timezone.utc)  # ~7 weeks
-    initial_capital = Decimal('10000')
+    initial_capital = Decimal("10000")
 
     print(f"Testing Day Trading Strategy")
     print(f"Period: {start_date.date()} to {end_date.date()}")
@@ -1663,18 +1968,20 @@ async def run_single_strategy_demo():
     display_results(result)
 
     # Show sample trades
-    trades = result['trades']
+    trades = result["trades"]
     if trades:
         print("\nSample Trades (Last 10):")
         print("-" * 80)
         for trade in trades[-10:]:
-            entry_date = trade['entry_date'][:10]
-            exit_date = trade['exit_date'][:10]
-            pnl = format_currency(trade['pnl'])
-            pnl_pct = format_percentage(trade['pnl_percentage'])
+            entry_date = trade["entry_date"][:10]
+            exit_date = trade["exit_date"][:10]
+            pnl = format_currency(trade["pnl"])
+            pnl_pct = format_percentage(trade["pnl_percentage"])
 
-            print(f"{trade['symbol']:<6} {entry_date} to {exit_date} "
-                  f"({trade['hold_days']}d) {pnl:<10} {pnl_pct:<8} {trade['exit_reason']}")
+            print(
+                f"{trade['symbol']:<6} {entry_date} to {exit_date} "
+                f"({trade['hold_days']}d) {pnl:<10} {pnl_pct:<8} {trade['exit_reason']}"
+            )
 
     return result
 
@@ -1682,7 +1989,7 @@ async def run_single_strategy_demo():
 async def main():
     """Main demonstration function."""
     print("🚀 COMPREHENSIVE BACKTESTING DEMONSTRATION")
-    print("="*60)
+    print("=" * 60)
     print("This demo uses your extensive historical data (12+ months available)")
     print("to test sophisticated trading strategies with screener simulation.")
     print()
@@ -1694,16 +2001,20 @@ async def main():
         symbols = store.get_available_symbols()
 
         print(f"✅ Found {len(symbols)} symbols in data store")
-        print(f"📈 Major symbols available: {[s for s in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'] if s in symbols]}")
+        print(
+            f"📈 Major symbols available: {[s for s in ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA'] if s in symbols]}"
+        )
 
         # Show date range for AAPL
-        if 'AAPL' in symbols:
-            date_range = store.get_date_range_for_symbol('AAPL', TimeFrame.ONE_DAY)
+        if "AAPL" in symbols:
+            date_range = store.get_date_range_for_symbol("AAPL", TimeFrame.ONE_DAY)
             if date_range[0]:
                 days = (date_range[1] - date_range[0]).days
-                print(f"📅 AAPL data range: {date_range[0]} to {date_range[1]} ({days} days)")
+                print(
+                    f"📅 AAPL data range: {date_range[0]} to {date_range[1]} ({days} days)"
+                )
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
 
         # Run demonstrations
         print("🎯 RUNNING DEMONSTRATIONS...")
@@ -1713,33 +2024,35 @@ async def main():
         print("1️⃣  SINGLE STRATEGY ANALYSIS")
         await run_single_strategy_demo()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
 
         # 2. Multi-strategy comparison
         print("2️⃣  MULTI-STRATEGY COMPARISON")
         comparison_results = await run_strategy_comparison()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
 
         # 3. Multi-timeframe comparison
         print("3️⃣  MULTI-TIMEFRAME COMPARISON")
         timeframe_results = await run_multi_timeframe_comparison()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
 
         # 4. Comprehensive analysis
         print("4️⃣  COMPREHENSIVE STRATEGY & TIMEFRAME ANALYSIS")
         comprehensive_results = await run_comprehensive_timeframe_analysis()
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("✅ DEMONSTRATION COMPLETED SUCCESSFULLY!")
-        print("="*60)
+        print("=" * 60)
 
         print("\nKey Findings:")
         print("✓ Historical data backtesting works with your 12+ months of data")
         print("✓ Screener simulation successfully identifies trading candidates")
         print("✓ Multiple strategy modes can be tested and compared")
-        print("✓ Multi-timeframe analysis shows performance across different time horizons")
+        print(
+            "✓ Multi-timeframe analysis shows performance across different time horizons"
+        )
         print("✓ Comprehensive performance metrics are calculated")
         print("✓ Risk management (stop losses, position sizing) is simulated")
 
@@ -1751,15 +2064,16 @@ async def main():
         print("⏰ Consider timeframe-specific optimizations based on results")
 
         return {
-            'single_strategy': results,
-            'strategy_comparison': comparison_results,
-            'timeframe_comparison': timeframe_results,
-            'comprehensive_analysis': comprehensive_results
+            "single_strategy": results,
+            "strategy_comparison": comparison_results,
+            "timeframe_comparison": timeframe_results,
+            "comprehensive_analysis": comprehensive_results,
         }
 
     except Exception as e:
         logger.error(f"Demo failed: {e}")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -1779,7 +2093,9 @@ if __name__ == "__main__":
         # Quick timeframe test
         timeframes_to_test = [TimeFrame.ONE_DAY, TimeFrame.ONE_HOUR]
         if len(sys.argv) > 2:
-            strategy_mode = sys.argv[2]  # day_trading, swing_trading, or position_trading
+            strategy_mode = sys.argv[
+                2
+            ]  # day_trading, swing_trading, or position_trading
         else:
             strategy_mode = "day_trading"
 
@@ -1788,7 +2104,9 @@ if __name__ == "__main__":
         print("Strategy modes: day_trading, swing_trading, position_trading")
         print()
 
-        results = asyncio.run(run_quick_timeframe_test(timeframes_to_test, strategy_mode))
+        results = asyncio.run(
+            run_quick_timeframe_test(timeframes_to_test, strategy_mode)
+        )
     else:
         # Run the comprehensive demonstration
         results = asyncio.run(run_multi_timeframe_comparison())

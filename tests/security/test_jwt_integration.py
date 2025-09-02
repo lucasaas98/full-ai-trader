@@ -5,18 +5,19 @@ This module tests the integration of JWT token decoding functionality
 that was implemented to replace placeholder code in audit.py and rate_limiting.py.
 """
 
-import pytest
 import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
+import os
+import sys
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from fastapi import Request
 from starlette.datastructures import Headers
 
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-from shared.security.jwt_utils import JWTManager, JWTConfig
-from shared.security.audit import AuditMiddleware, AuditLogger
+from shared.security.audit import AuditLogger, AuditMiddleware
+from shared.security.jwt_utils import JWTConfig, JWTManager
 from shared.security.rate_limiting import RateLimiter, RateLimitRule, RateLimitScope
 
 
@@ -27,7 +28,7 @@ def jwt_manager():
         secret_key="test-jwt-secret-key-for-integration-testing",
         algorithm="HS256",
         issuer="test-system",
-        audience="test-api"
+        audience="test-api",
     )
     return JWTManager(config)
 
@@ -67,16 +68,13 @@ class TestAuditJWTIntegration:
         """Test user ID extraction from valid JWT token in audit middleware."""
         # Create a valid JWT token
         token = jwt_manager.create_access_token(
-            user_id="test_trader_123",
-            username="trader_bob",
-            service="trade_executor"
+            user_id="test_trader_123", username="trader_bob", service="trade_executor"
         )
 
         # Mock request headers
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}",
-            "content-type": "application/json"
-        })
+        mock_request.headers = Headers(
+            {"authorization": f"Bearer {token}", "content-type": "application/json"}
+        )
 
         # Create audit middleware and mock the JWT manager
         audit_logger = MagicMock()
@@ -84,7 +82,10 @@ class TestAuditJWTIntegration:
         middleware = AuditMiddleware(app, audit_logger, "test_service")
 
         # Mock the extract_user_id_from_request_header function directly
-        with patch('shared.security.audit.extract_user_id_from_request_header', return_value="test_trader_123"):
+        with patch(
+            "shared.security.audit.extract_user_id_from_request_header",
+            return_value="test_trader_123",
+        ):
             # Extract user ID
             user_id = middleware._extract_user_id(mock_request)
 
@@ -94,10 +95,12 @@ class TestAuditJWTIntegration:
     def test_extract_user_id_with_invalid_jwt(self, mock_request):
         """Test user ID extraction from invalid JWT token in audit middleware."""
         # Mock request with invalid token
-        mock_request.headers = Headers({
-            "authorization": "Bearer invalid.jwt.token",
-            "content-type": "application/json"
-        })
+        mock_request.headers = Headers(
+            {
+                "authorization": "Bearer invalid.jwt.token",
+                "content-type": "application/json",
+            }
+        )
 
         # Create audit middleware
         audit_logger = MagicMock()
@@ -113,10 +116,9 @@ class TestAuditJWTIntegration:
     def test_extract_user_id_with_api_key(self, mock_request):
         """Test user ID extraction from API key in audit middleware."""
         # Mock request with API key
-        mock_request.headers = Headers({
-            "x-api-key": "test_api_key_12345678",
-            "content-type": "application/json"
-        })
+        mock_request.headers = Headers(
+            {"x-api-key": "test_api_key_12345678", "content-type": "application/json"}
+        )
 
         # Create audit middleware
         audit_logger = MagicMock()
@@ -132,9 +134,7 @@ class TestAuditJWTIntegration:
     def test_extract_user_id_no_auth(self, mock_request):
         """Test user ID extraction when no authentication is provided."""
         # Mock request without auth headers
-        mock_request.headers = Headers({
-            "content-type": "application/json"
-        })
+        mock_request.headers = Headers({"content-type": "application/json"})
 
         # Create audit middleware
         audit_logger = MagicMock()
@@ -151,16 +151,13 @@ class TestAuditJWTIntegration:
         """Test JWT user extraction in audit middleware (simplified test)."""
         # Create JWT token
         token = jwt_manager.create_access_token(
-            user_id="audit_test_user",
-            username="test_user",
-            roles=["trader"]
+            user_id="audit_test_user", username="test_user", roles=["trader"]
         )
 
         # Mock request with JWT
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}",
-            "user-agent": "TradingBot/1.0"
-        })
+        mock_request.headers = Headers(
+            {"authorization": f"Bearer {token}", "user-agent": "TradingBot/1.0"}
+        )
 
         # Create middleware
         audit_logger = MagicMock()
@@ -168,7 +165,10 @@ class TestAuditJWTIntegration:
         middleware = AuditMiddleware(app, audit_logger, "test_service")
 
         # Test JWT user extraction with mocked JWT extraction
-        with patch('shared.security.audit.extract_user_id_from_request_header', return_value="audit_test_user"):
+        with patch(
+            "shared.security.audit.extract_user_id_from_request_header",
+            return_value="audit_test_user",
+        ):
             user_id = middleware._extract_user_id(mock_request)
 
         # Verify user ID was extracted from JWT
@@ -178,24 +178,26 @@ class TestAuditJWTIntegration:
 class TestRateLimitingJWTIntegration:
     """Test JWT integration in rate limiting."""
 
-    def test_extract_user_id_with_valid_jwt(self, jwt_manager, mock_request, mock_redis):
+    def test_extract_user_id_with_valid_jwt(
+        self, jwt_manager, mock_request, mock_redis
+    ):
         """Test user ID extraction from valid JWT in rate limiter."""
         # Create JWT token
         token = jwt_manager.create_access_token(
-            user_id="rate_limit_user_456",
-            service="api_client"
+            user_id="rate_limit_user_456", service="api_client"
         )
 
         # Mock request
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}"
-        })
+        mock_request.headers = Headers({"authorization": f"Bearer {token}"})
 
         # Create rate limiter
         rate_limiter = RateLimiter(mock_redis)
 
         # Mock the extract_user_id_from_request_header function directly
-        with patch('shared.security.rate_limiting.extract_user_id_from_request_header', return_value="rate_limit_user_456"):
+        with patch(
+            "shared.security.rate_limiting.extract_user_id_from_request_header",
+            return_value="rate_limit_user_456",
+        ):
             # Extract user ID
             user_id = rate_limiter._extract_user_id(mock_request)
 
@@ -205,9 +207,7 @@ class TestRateLimitingJWTIntegration:
     def test_extract_user_id_with_invalid_jwt(self, mock_request, mock_redis):
         """Test user ID extraction from invalid JWT in rate limiter."""
         # Mock request with invalid token
-        mock_request.headers = Headers({
-            "authorization": "Bearer malformed.jwt.token"
-        })
+        mock_request.headers = Headers({"authorization": "Bearer malformed.jwt.token"})
 
         # Create rate limiter
         rate_limiter = RateLimiter(mock_redis)
@@ -218,30 +218,30 @@ class TestRateLimitingJWTIntegration:
         # Should fallback to generic "api_user"
         assert user_id == "api_user"
 
-    def test_rate_limit_key_generation_with_jwt_user(self, jwt_manager, mock_request, mock_redis):
+    def test_rate_limit_key_generation_with_jwt_user(
+        self, jwt_manager, mock_request, mock_redis
+    ):
         """Test rate limit key generation with JWT user ID."""
         # Create JWT token
         token = jwt_manager.create_access_token(user_id="key_test_user")
 
         # Mock request
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}"
-        })
+        mock_request.headers = Headers({"authorization": f"Bearer {token}"})
         mock_request.client.host = "192.168.1.1"
 
         # Create rate limit rule
         rule = RateLimitRule(
-            name="user_limit",
-            limit=100,
-            window_seconds=3600,
-            scope=RateLimitScope.USER
+            name="user_limit", limit=100, window_seconds=3600, scope=RateLimitScope.USER
         )
 
         # Create rate limiter
         rate_limiter = RateLimiter(mock_redis)
 
         # Mock the extract_user_id_from_request_header function directly
-        with patch('shared.security.rate_limiting.extract_user_id_from_request_header', return_value="key_test_user"):
+        with patch(
+            "shared.security.rate_limiting.extract_user_id_from_request_header",
+            return_value="key_test_user",
+        ):
             # Generate rate limit key
             key = rate_limiter._get_rate_limit_key(mock_request, rule)
 
@@ -254,10 +254,7 @@ class TestRateLimitingJWTIntegration:
         """Test rate limiting behavior with different JWT users."""
         # Create rate limit rule
         rule = RateLimitRule(
-            name="api_calls",
-            limit=5,
-            window_seconds=60,
-            scope=RateLimitScope.USER
+            name="api_calls", limit=5, window_seconds=60, scope=RateLimitScope.USER
         )
 
         # Create rate limiter
@@ -265,6 +262,7 @@ class TestRateLimitingJWTIntegration:
 
         # Mock Redis responses for tracking counts
         call_count = 0
+
         async def mock_incr(key):
             nonlocal call_count
             call_count += 1
@@ -308,22 +306,19 @@ class TestJWTSecurityScenarios:
         """Test handling of expired JWT tokens."""
         # Create expired token manually
         import jwt as jwt_lib
+
         expired_payload = {
             "user_id": "expired_user",
             "exp": int((datetime.now() - timedelta(hours=1)).timestamp()),
             "iss": "test-system",
-            "aud": "test-api"
+            "aud": "test-api",
         }
         expired_token = jwt_lib.encode(
-            expired_payload,
-            "test-secret-key-for-expiry-testing",
-            algorithm="HS256"
+            expired_payload, "test-secret-key-for-expiry-testing", algorithm="HS256"
         )
 
         # Mock request with expired token
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {expired_token}"
-        })
+        mock_request.headers = Headers({"authorization": f"Bearer {expired_token}"})
 
         # Create audit middleware
         middleware = AuditMiddleware(mock_audit_logger, "test_service")
@@ -341,9 +336,7 @@ class TestJWTSecurityScenarios:
         tampered_token = original_token[:-5] + "XXXXX"  # Tamper with signature
 
         # Mock request with tampered token
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {tampered_token}"
-        })
+        mock_request.headers = Headers({"authorization": f"Bearer {tampered_token}"})
 
         # Test with rate limiter
         rate_limiter = RateLimiter(mock_redis)
@@ -366,9 +359,7 @@ class TestJWTSecurityScenarios:
         middleware = AuditMiddleware(app, mock_audit_logger, "test_service")
 
         for header_value in malformed_headers:
-            mock_request.headers = Headers({
-                "authorization": header_value
-            })
+            mock_request.headers = Headers({"authorization": header_value})
 
             user_id = middleware._extract_user_id(mock_request)
 
@@ -382,13 +373,11 @@ class TestJWTSecurityScenarios:
             user_id="trade_executor_service",
             service="trade_executor",
             roles=["service"],
-            permissions=["execute_trades"]
+            permissions=["execute_trades"],
         )
 
         # Mock request with service token
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {service_token}"
-        })
+        mock_request.headers = Headers({"authorization": f"Bearer {service_token}"})
 
         # Test with rate limiter
         rate_limiter = RateLimiter(mock_redis)
@@ -410,12 +399,17 @@ class TestJWTSecurityScenarios:
 
         async def validate_token_async(i, token):
             mock_request = MagicMock(spec=Request)
-            mock_request.headers = Headers({
-                "authorization": f"Bearer {token}",
-                "user-id": str(i)  # Add user ID for identification
-            })
+            mock_request.headers = Headers(
+                {
+                    "authorization": f"Bearer {token}",
+                    "user-id": str(i),  # Add user ID for identification
+                }
+            )
             # Mock JWT extraction for this async function
-            with patch('shared.security.rate_limiting.extract_user_id_from_request_header', return_value=f"concurrent_user_{i}"):
+            with patch(
+                "shared.security.rate_limiting.extract_user_id_from_request_header",
+                return_value=f"concurrent_user_{i}",
+            ):
                 return rate_limiter._extract_user_id(mock_request)
 
         # Run concurrent validations
@@ -442,15 +436,13 @@ class TestIntegrationErrorScenarios:
 
     def test_jwt_library_import_error(self, mock_request):
         """Test graceful handling when JWT library is not available."""
-        with patch('shared.security.jwt_utils.jwt', None):
+        with patch("shared.security.jwt_utils.jwt", None):
             # Create new instances that would use the patched jwt
             mock_audit_logger = MagicMock()
             app = MagicMock()
             middleware = AuditMiddleware(app, mock_audit_logger, "test_service")
 
-            mock_request.headers = Headers({
-                "authorization": "Bearer some.jwt.token"
-            })
+            mock_request.headers = Headers({"authorization": "Bearer some.jwt.token"})
 
             # Should handle gracefully and fallback
             user_id = middleware._extract_user_id(mock_request)
@@ -459,14 +451,14 @@ class TestIntegrationErrorScenarios:
     def test_config_loading_error(self, mock_request, mock_redis):
         """Test handling of configuration loading errors."""
         # Mock request
-        mock_request.headers = Headers({
-            "authorization": "Bearer test.token.here"
-        })
+        mock_request.headers = Headers({"authorization": "Bearer test.token.here"})
 
         # Test rate limiter handles config errors gracefully
         rate_limiter = RateLimiter(mock_redis)
 
-        with patch('shared.security.rate_limiting.extract_user_id_from_request_header') as mock_extract:
+        with patch(
+            "shared.security.rate_limiting.extract_user_id_from_request_header"
+        ) as mock_extract:
             mock_extract.side_effect = Exception("Config loading failed")
 
             # Should handle exception and fallback
@@ -486,10 +478,7 @@ class TestIntegrationErrorScenarios:
 
         # Create rule
         rule = RateLimitRule(
-            name="test_rule",
-            limit=100,
-            window_seconds=60,
-            scope=RateLimitScope.USER
+            name="test_rule", limit=100, window_seconds=60, scope=RateLimitScope.USER
         )
 
         # Test should handle Redis error gracefully
@@ -517,7 +506,9 @@ class TestJWTAuditEventGeneration:
     """Test audit event generation with JWT user information."""
 
     @pytest.mark.asyncio
-    async def test_audit_event_includes_jwt_user_details(self, jwt_manager, mock_audit_logger):
+    async def test_audit_event_includes_jwt_user_details(
+        self, jwt_manager, mock_audit_logger
+    ):
         """Test that audit events include JWT user details."""
         # Create token with rich user information
         token = jwt_manager.create_access_token(
@@ -525,7 +516,7 @@ class TestJWTAuditEventGeneration:
             username="detailed_trader",
             service="portfolio_manager",
             roles=["senior_trader", "risk_manager"],
-            session_id="session_xyz789"
+            session_id="session_xyz789",
         )
 
         # Mock request
@@ -533,10 +524,9 @@ class TestJWTAuditEventGeneration:
         mock_request.method = "POST"
         mock_request.url.path = "/api/v1/execute_trade"
         mock_request.client.host = "10.0.1.100"
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}",
-            "user-agent": "TradingClient/2.0"
-        })
+        mock_request.headers = Headers(
+            {"authorization": f"Bearer {token}", "user-agent": "TradingClient/2.0"}
+        )
 
         # Mock response
         mock_response = MagicMock()
@@ -552,7 +542,10 @@ class TestJWTAuditEventGeneration:
             return mock_response
 
         # Execute middleware with mocked JWT extraction
-        with patch('shared.security.audit.extract_user_id_from_request_header', return_value="detailed_user_789"):
+        with patch(
+            "shared.security.audit.extract_user_id_from_request_header",
+            return_value="detailed_user_789",
+        ):
             await middleware.dispatch(mock_request, mock_call)
 
         # Verify audit logging was called
@@ -581,9 +574,7 @@ class TestPerformanceWithJWT:
         requests = []
         for i in range(100):
             mock_req = MagicMock(spec=Request)
-            mock_req.headers = Headers({
-                "authorization": f"Bearer {token}"
-            })
+            mock_req.headers = Headers({"authorization": f"Bearer {token}"})
             requests.append(mock_req)
 
         # Create rate limiter
@@ -593,7 +584,10 @@ class TestPerformanceWithJWT:
         start_time = time.time()
 
         user_ids = []
-        with patch('shared.security.rate_limiting.extract_user_id_from_request_header', return_value="perf_test_user"):
+        with patch(
+            "shared.security.rate_limiting.extract_user_id_from_request_header",
+            return_value="perf_test_user",
+        ):
             for req in requests:
                 user_id = rate_limiter._extract_user_id(req)
                 user_ids.append(user_id)
@@ -605,7 +599,9 @@ class TestPerformanceWithJWT:
         assert all(uid == "perf_test_user" for uid in user_ids)
 
         # Verify reasonable performance (should complete in less than 1 second)
-        assert total_time < 1.0, f"JWT extraction took too long: {total_time}s for 100 operations"
+        assert (
+            total_time < 1.0
+        ), f"JWT extraction took too long: {total_time}s for 100 operations"
 
     def test_memory_usage_with_jwt_caching(self, jwt_manager):
         """Test that JWT manager doesn't leak memory with repeated operations."""
@@ -633,11 +629,14 @@ class TestPerformanceWithJWT:
 class TestJWTConfigIntegration:
     """Test JWT configuration integration."""
 
-    @patch.dict(os.environ, {
-        'JWT_SECRET': 'integration-test-secret-key-long-enough',
-        'JWT_ALGORITHM': 'HS512',
-        'JWT_ISSUER': 'integration-test-system'
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "JWT_SECRET": "integration-test-secret-key-long-enough",
+            "JWT_ALGORITHM": "HS512",
+            "JWT_ISSUER": "integration-test-system",
+        },
+    )
     def test_environment_config_integration(self):
         """Test JWT manager uses environment configuration."""
         # Import after setting environment
@@ -646,14 +645,14 @@ class TestJWTConfigIntegration:
         manager = JWTManager()
 
         # Should use environment values
-        assert manager.config.secret_key == 'integration-test-secret-key-long-enough'
-        assert manager.config.algorithm == 'HS512'
-        assert manager.config.issuer == 'integration-test-system'
+        assert manager.config.secret_key == "integration-test-secret-key-long-enough"
+        assert manager.config.algorithm == "HS512"
+        assert manager.config.issuer == "integration-test-system"
 
     def test_shared_config_integration(self):
         """Test JWT manager integration with shared config."""
         # Mock the shared config
-        with patch('shared.security.jwt_utils.config') as mock_config:
+        with patch("shared.security.jwt_utils.config") as mock_config:
             mock_jwt_config = MagicMock()
             mock_jwt_config.secret_key = "shared-config-secret-key-long-enough"
             mock_jwt_config.algorithm = "HS256"
@@ -686,7 +685,7 @@ class TestEndToEndJWTFlow:
             user_id="e2e_test_user",
             username="e2e_trader",
             roles=["trader", "premium_user"],
-            session_id="e2e_session_123"
+            session_id="e2e_session_123",
         )
 
         # 2. Create request with JWT
@@ -694,11 +693,13 @@ class TestEndToEndJWTFlow:
         mock_request.method = "POST"
         mock_request.url.path = "/api/v1/place_order"
         mock_request.client.host = "203.0.113.1"
-        mock_request.headers = Headers({
-            "authorization": f"Bearer {token}",
-            "user-agent": "TradingApp/3.0",
-            "content-type": "application/json"
-        })
+        mock_request.headers = Headers(
+            {
+                "authorization": f"Bearer {token}",
+                "user-agent": "TradingApp/3.0",
+                "content-type": "application/json",
+            }
+        )
 
         # 3. Mock audit logger
         mock_audit_logger = AsyncMock()
@@ -715,7 +716,7 @@ class TestEndToEndJWTFlow:
             return mock_response
 
         # 6. Execute the middleware
-        with patch.object(audit_middleware, 'call', mock_api_call):
+        with patch.object(audit_middleware, "call", mock_api_call):
             response = await audit_middleware.dispatch(mock_request, mock_api_call)
 
         # 7. Verify audit event was logged with correct JWT user
@@ -740,24 +741,22 @@ class TestEndToEndJWTFlow:
         assert user_id is None
 
         # Test 2: Invalid JWT, no API key
-        mock_request.headers = Headers({
-            "authorization": "Bearer invalid.jwt.token"
-        })
+        mock_request.headers = Headers({"authorization": "Bearer invalid.jwt.token"})
         user_id = middleware._extract_user_id(mock_request)
         assert user_id == "api_user"
 
         # Test 3: Invalid JWT, but valid API key
-        mock_request.headers = Headers({
-            "authorization": "Bearer invalid.jwt.token",
-            "x-api-key": "valid_api_key_123456"
-        })
+        mock_request.headers = Headers(
+            {
+                "authorization": "Bearer invalid.jwt.token",
+                "x-api-key": "valid_api_key_123456",
+            }
+        )
         user_id = middleware._extract_user_id(mock_request)
         assert user_id == "api_user"  # JWT takes precedence, falls back to api_user
 
         # Test 4: No JWT, but valid API key
-        mock_request.headers = Headers({
-            "x-api-key": "api_key_fallback_12345678"
-        })
+        mock_request.headers = Headers({"x-api-key": "api_key_fallback_12345678"})
         user_id = middleware._extract_user_id(mock_request)
         assert user_id == "api_key_user_12345678"
 
@@ -784,7 +783,7 @@ class TestJWTSecurityValidation:
             roles=["admin", "trader", "analyst"],
             permissions=["read", "write", "delete", "admin"],
             session_id="full_session_id",
-            api_key_id="full_api_key_id"
+            api_key_id="full_api_key_id",
         )
 
         payload = jwt_manager.decode_token(token)

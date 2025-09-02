@@ -7,31 +7,31 @@ to ensure everything integrates properly and works as expected.
 
 import asyncio
 import logging
-import sys
 import os
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 
 # Add shared path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'shared'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-import polars as pl
 import numpy as np
-
+import polars as pl
 from base_strategy import StrategyConfig, StrategyMode
-from hybrid_strategy import HybridStrategy, HybridMode
+from hybrid_strategy import HybridMode, HybridStrategy
+from models import SignalType
 from multi_timeframe_analyzer import create_multi_timeframe_analyzer
 from multi_timeframe_data import create_multi_timeframe_fetcher
-from models import SignalType
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def create_sample_data(timeframe: str, periods: int = 100, symbol: str = "AAPL") -> pl.DataFrame:
+def create_sample_data(
+    timeframe: str, periods: int = 100, symbol: str = "AAPL"
+) -> pl.DataFrame:
     """Create sample market data for testing."""
 
     # Base price and parameters
@@ -41,8 +41,13 @@ def create_sample_data(timeframe: str, periods: int = 100, symbol: str = "AAPL")
 
     # Generate timestamps based on timeframe
     timeframe_minutes = {
-        '1m': 1, '5m': 5, '15m': 15, '30m': 30,
-        '1h': 60, '4h': 240, '1d': 1440
+        "1m": 1,
+        "5m": 5,
+        "15m": 15,
+        "30m": 30,
+        "1h": 60,
+        "4h": 240,
+        "1d": 1440,
     }
 
     interval_minutes = timeframe_minutes.get(timeframe, 60)
@@ -76,15 +81,17 @@ def create_sample_data(timeframe: str, periods: int = 100, symbol: str = "AAPL")
 
         volume = np.random.randint(100000, 1000000)
 
-        data.append({
-            'timestamp': timestamp.isoformat(),
-            'symbol': symbol,
-            'open': round(open_price, 2),
-            'high': round(high, 2),
-            'low': round(low, 2),
-            'close': round(close_price, 2),
-            'volume': volume
-        })
+        data.append(
+            {
+                "timestamp": timestamp.isoformat(),
+                "symbol": symbol,
+                "open": round(open_price, 2),
+                "high": round(high, 2),
+                "low": round(low, 2),
+                "close": round(close_price, 2),
+                "volume": volume,
+            }
+        )
 
     return pl.DataFrame(data)
 
@@ -101,9 +108,7 @@ def create_bullish_data(timeframe: str, periods: int = 100) -> pl.DataFrame:
     bullish_closes = closes * trend_factor
 
     # Update the DataFrame with bullish closes
-    return base_data.with_columns([
-        pl.lit(bullish_closes).alias("close")
-    ])
+    return base_data.with_columns([pl.lit(bullish_closes).alias("close")])
 
 
 def create_bearish_data(timeframe: str, periods: int = 100) -> pl.DataFrame:
@@ -115,9 +120,7 @@ def create_bearish_data(timeframe: str, periods: int = 100) -> pl.DataFrame:
     trend_factor = np.linspace(1.0, 0.90, len(closes))  # 10% decrease over period
     bearish_closes = closes * trend_factor
 
-    return base_data.with_columns([
-        pl.lit(bearish_closes).alias("close")
-    ])
+    return base_data.with_columns([pl.lit(bearish_closes).alias("close")])
 
 
 class MockDataFetcher:
@@ -126,18 +129,20 @@ class MockDataFetcher:
     def __init__(self, data_scenario: str = "bullish"):
         self.data_scenario = data_scenario
 
-    async def fetch_multi_timeframe_data(self, symbol: str, strategy_mode: StrategyMode, periods: int = 100):
+    async def fetch_multi_timeframe_data(
+        self, symbol: str, strategy_mode: StrategyMode, periods: int = 100
+    ):
         """Mock fetch multi-timeframe data."""
         from multi_timeframe_data import TimeFrameDataResult
 
         # Define timeframes based on strategy mode
         timeframe_configs = {
-            StrategyMode.DAY_TRADING: ['1m', '5m', '15m', '30m'],
-            StrategyMode.SWING_TRADING: ['15m', '30m', '1h', '4h'],
-            StrategyMode.POSITION_TRADING: ['1h', '4h', '1d']
+            StrategyMode.DAY_TRADING: ["1m", "5m", "15m", "30m"],
+            StrategyMode.SWING_TRADING: ["15m", "30m", "1h", "4h"],
+            StrategyMode.POSITION_TRADING: ["1h", "4h", "1d"],
         }
 
-        timeframes = timeframe_configs.get(strategy_mode, ['15m', '1h', '4h'])
+        timeframes = timeframe_configs.get(strategy_mode, ["15m", "1h", "4h"])
 
         # Generate data based on scenario
         data_dict = {}
@@ -156,7 +161,7 @@ class MockDataFetcher:
             available_timeframes=timeframes,
             missing_timeframes=[],
             data_quality_score=95.0,
-            metadata={"test_scenario": self.data_scenario}
+            metadata={"test_scenario": self.data_scenario},
         )
 
 
@@ -178,8 +183,8 @@ async def test_multi_timeframe_confirmation():
                 "enable_mtf_confirmation": True,
                 "mtf_min_timeframes": 3,
                 "mtf_confidence_boost": 10.0,
-                "mtf_confidence_penalty": 15.0
-            }
+                "mtf_confidence_penalty": 15.0,
+            },
         )
 
         # Create hybrid strategy
@@ -194,7 +199,7 @@ async def test_multi_timeframe_confirmation():
         logger.info("Testing with bullish multi-timeframe data...")
 
         # Create primary timeframe data (bullish)
-        primary_data = create_bullish_data('1h', 60)
+        primary_data = create_bullish_data("1h", 60)
 
         # Run analysis
         signal = await strategy.analyze(symbol="AAPL", data=primary_data)
@@ -209,8 +214,12 @@ async def test_multi_timeframe_confirmation():
         mtf_data = signal.metadata.get("multi_timeframe_confirmation", {})
         if mtf_data.get("applied"):
             logger.info("  Multi-timeframe confirmation: APPLIED")
-            logger.info(f"  Data quality score: {mtf_data.get('data_quality_score', 'N/A')}")
-            logger.info(f"  Available timeframes: {mtf_data.get('available_timeframes', [])}")
+            logger.info(
+                f"  Data quality score: {mtf_data.get('data_quality_score', 'N/A')}"
+            )
+            logger.info(
+                f"  Available timeframes: {mtf_data.get('available_timeframes', [])}"
+            )
         else:
             logger.info("  Multi-timeframe confirmation: NOT APPLIED")
 
@@ -218,7 +227,7 @@ async def test_multi_timeframe_confirmation():
         logger.info("\nTesting with bearish multi-timeframe data...")
 
         strategy.mtf_data_fetcher = MockDataFetcher("bearish")
-        bearish_data = create_bearish_data('1h', 60)
+        bearish_data = create_bearish_data("1h", 60)
 
         bearish_signal = await strategy.analyze(symbol="AAPL", data=bearish_data)
 
@@ -232,7 +241,7 @@ async def test_multi_timeframe_confirmation():
         logger.info("\nTesting with mixed multi-timeframe data...")
 
         strategy.mtf_data_fetcher = MockDataFetcher("mixed")
-        mixed_data = create_sample_data('1h', 60)
+        mixed_data = create_sample_data("1h", 60)
 
         mixed_signal = await strategy.analyze(symbol="AAPL", data=mixed_data)
 
@@ -247,6 +256,7 @@ async def test_multi_timeframe_confirmation():
     except Exception as e:
         logger.error(f"Test failed with error: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 
@@ -261,30 +271,33 @@ async def test_analyzer_directly():
 
         # Create mock multi-timeframe data
         multi_tf_data = {
-            '15m': create_bullish_data('15m', 50),
-            '1h': create_bullish_data('1h', 50),
-            '4h': create_bullish_data('4h', 50)
+            "15m": create_bullish_data("15m", 50),
+            "1h": create_bullish_data("1h", 50),
+            "4h": create_bullish_data("4h", 50),
         }
 
         # Create a dummy primary signal
         from base_strategy import Signal
+
         primary_signal = Signal(
             action=SignalType.BUY,
             confidence=70.0,
             position_size=0.15,
-            reasoning="Test primary signal"
+            reasoning="Test primary signal",
         )
 
         # Get multi-timeframe confirmation
         confirmation = await analyzer.confirm_signal(
             symbol="AAPL",
             primary_signal=primary_signal,
-            multi_timeframe_data=multi_tf_data
+            multi_timeframe_data=multi_tf_data,
         )
 
         logger.info(f"Direct analyzer test results:")
         logger.info(f"  Primary signal: {confirmation.primary_signal}")
-        logger.info(f"  Confirmation strength: {confirmation.confirmation_strength.value}")
+        logger.info(
+            f"  Confirmation strength: {confirmation.confirmation_strength.value}"
+        )
         logger.info(f"  Alignment type: {confirmation.alignment_type.value}")
         logger.info(f"  Overall confidence: {confirmation.overall_confidence:.1f}%")
         logger.info(f"  Supporting timeframes: {confirmation.supporting_timeframes}")
@@ -306,6 +319,7 @@ async def test_analyzer_directly():
     except Exception as e:
         logger.error(f"Direct analyzer test failed: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
 

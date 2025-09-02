@@ -6,26 +6,26 @@ for market analysis and trading decisions.
 """
 
 import asyncio
+import hashlib
 import json
 import logging
-import hashlib
 import os
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Tuple
-import yaml
-sys.path.append(os.path.join(os.path.dirname(__file__), '../../data_collector/src'))
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+import yaml
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../data_collector/src"))
+
+from anthropic import AsyncAnthropic
+from base_strategy import BaseStrategy, Signal, StrategyConfig
 from data_collector.src.redis_client import RedisClient
 from data_collector.src.twelvedata_client import TwelveDataClient
-from anthropic import AsyncAnthropic
-
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from base_strategy import BaseStrategy, Signal, StrategyConfig
 from shared.models import SignalType
-
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 class AIModel(Enum):
     """Available AI models with their characteristics."""
+
     OPUS = "claude-3-opus-20240229"
     SONNET = "claude-3-5-sonnet-20241022"
     HAIKU = "claude-3-haiku-20240307"
@@ -41,6 +42,7 @@ class AIModel(Enum):
 @dataclass
 class AIResponse:
     """Structure for AI model responses."""
+
     model: AIModel
     prompt_type: str
     response: Dict[str, Any]
@@ -54,6 +56,7 @@ class AIResponse:
 @dataclass
 class AIDecision:
     """Consolidated AI trading decision."""
+
     action: str  # BUY, SELL, HOLD
     confidence: float
     entry_price: Optional[float]
@@ -70,6 +73,7 @@ class AIDecision:
 @dataclass
 class MarketContext:
     """Market regime and context information."""
+
     regime: str
     strength: float
     risk_level: str
@@ -92,13 +96,14 @@ class AnthropicClient:
         """
         self.client = AsyncAnthropic(api_key=api_key)
         self.config = config
-        self.cost_tracker = CostTracker(config.get('cost_management', {}))
+        self.cost_tracker = CostTracker(config.get("cost_management", {}))
         self.rate_limiter = RateLimiter()
-        self.cache = ResponseCache(ttl=config.get('cost_management', {}).get('cache_ttl_seconds', 300))
+        self.cache = ResponseCache(
+            ttl=config.get("cost_management", {}).get("cache_ttl_seconds", 300)
+        )
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=60)
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=60)
     )
     async def query(
         self,
@@ -106,7 +111,7 @@ class AnthropicClient:
         model: AIModel,
         max_tokens: int = 2000,
         temperature: float = 0.3,
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> AIResponse:
         """
         Query the AI model with retry logic.
@@ -137,14 +142,14 @@ class AnthropicClient:
 
         try:
             # Make API call
-            messages_api = getattr(self.client, 'messages', None)
+            messages_api = getattr(self.client, "messages", None)
             if messages_api is None:
                 raise Exception("Anthropic client not properly initialized")
             response = await messages_api.create(
                 model=model.value,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
 
             # Parse response
@@ -153,9 +158,7 @@ class AnthropicClient:
 
             # Calculate cost
             cost = self._calculate_cost(
-                model,
-                response.usage.input_tokens,
-                response.usage.output_tokens
+                model, response.usage.input_tokens, response.usage.output_tokens
             )
 
             # Track cost
@@ -172,10 +175,10 @@ class AnthropicClient:
                 model=model,
                 prompt_type="custom",
                 response=parsed_response,
-                confidence=parsed_response.get('confidence', 50),
+                confidence=parsed_response.get("confidence", 50),
                 tokens_used=tokens_used,
                 cost=cost,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
 
             # Cache the response
@@ -188,11 +191,21 @@ class AnthropicClient:
             logger.error(f"Error querying {model.value}: {e}")
             raise
 
-    def _calculate_cost(self, model: AIModel, input_tokens: int, output_tokens: int) -> float:
+    def _calculate_cost(
+        self, model: AIModel, input_tokens: int, output_tokens: int
+    ) -> float:
         """Calculate API cost based on token usage."""
-        model_costs = self.config.get('models', {}).get(model.value, {})
-        input_cost = model_costs.get('cost_per_million_input_tokens', 0) * input_tokens / 1_000_000
-        output_cost = model_costs.get('cost_per_million_output_tokens', 0) * output_tokens / 1_000_000
+        model_costs = self.config.get("models", {}).get(model.value, {})
+        input_cost = (
+            model_costs.get("cost_per_million_input_tokens", 0)
+            * input_tokens
+            / 1_000_000
+        )
+        output_cost = (
+            model_costs.get("cost_per_million_output_tokens", 0)
+            * output_tokens
+            / 1_000_000
+        )
         return input_cost + output_cost
 
 
@@ -200,8 +213,8 @@ class CostTracker:
     """Tracks and manages API costs."""
 
     def __init__(self, config: Dict[str, Any]):
-        self.daily_limit = config.get('daily_limit_usd', 5.0)
-        self.monthly_limit = config.get('monthly_limit_usd', 100.0)
+        self.daily_limit = config.get("daily_limit_usd", 5.0)
+        self.monthly_limit = config.get("monthly_limit_usd", 100.0)
         self.daily_costs = 0.0
         self.monthly_costs = 0.0
         self.last_reset_day = datetime.now().date()
@@ -215,11 +228,15 @@ class CostTracker:
         estimated_cost = 0.10 if model == AIModel.OPUS else 0.02
 
         if self.daily_costs + estimated_cost > self.daily_limit:
-            logger.warning(f"Daily cost limit would be exceeded: ${self.daily_costs:.2f} + ${estimated_cost:.2f}")
+            logger.warning(
+                f"Daily cost limit would be exceeded: ${self.daily_costs:.2f} + ${estimated_cost:.2f}"
+            )
             return False
 
         if self.monthly_costs + estimated_cost > self.monthly_limit:
-            logger.warning(f"Monthly cost limit would be exceeded: ${self.monthly_costs:.2f} + ${estimated_cost:.2f}")
+            logger.warning(
+                f"Monthly cost limit would be exceeded: ${self.monthly_costs:.2f} + ${estimated_cost:.2f}"
+            )
             return False
 
         return True
@@ -229,7 +246,9 @@ class CostTracker:
         self._check_reset()
         self.daily_costs += cost
         self.monthly_costs += cost
-        logger.debug(f"Cost recorded: ${cost:.4f} (Daily: ${self.daily_costs:.2f}, Monthly: ${self.monthly_costs:.2f})")
+        logger.debug(
+            f"Cost recorded: ${cost:.4f} (Daily: ${self.daily_costs:.2f}, Monthly: ${self.monthly_costs:.2f})"
+        )
 
     def _check_reset(self):
         """Check if we need to reset daily or monthly counters."""
@@ -251,9 +270,9 @@ class RateLimiter:
     def __init__(self):
         self.last_request_time = {}
         self.min_delay = {
-            AIModel.OPUS: 1.0,      # 1 second between requests
-            AIModel.SONNET: 0.5,    # 0.5 seconds between requests
-            AIModel.HAIKU: 0.2      # 0.2 seconds between requests
+            AIModel.OPUS: 1.0,  # 1 second between requests
+            AIModel.SONNET: 0.5,  # 0.5 seconds between requests
+            AIModel.HAIKU: 0.2,  # 0.2 seconds between requests
         }
 
     async def acquire(self, model: AIModel):
@@ -319,7 +338,7 @@ class DataContextBuilder:
         ticker: str,
         data: pl.DataFrame,
         finviz_data: Optional[Dict],
-        market_data: Optional[Dict]
+        market_data: Optional[Dict],
     ) -> Dict[str, Any]:
         """
         Build context for master analyst prompt.
@@ -335,23 +354,29 @@ class DataContextBuilder:
         """
         # Get latest price data
         latest = data.tail(1)
-        current_price = float(latest['close'].item())
+        current_price = float(latest["close"].item())
 
         # Calculate price changes
-        prev_close = float(data['close'].item(-2)) if len(data) > 1 else current_price
-        daily_change = ((current_price - prev_close) / prev_close) * 100 if prev_close != 0 else 0
+        prev_close = float(data["close"].item(-2)) if len(data) > 1 else current_price
+        daily_change = (
+            ((current_price - prev_close) / prev_close) * 100 if prev_close != 0 else 0
+        )
 
         # Calculate technical indicators
         rsi = DataContextBuilder._calculate_rsi(data)
         macd_signal, macd_histogram = DataContextBuilder._calculate_macd(data)
-        sma20_val = data['close'].tail(20).mean()
-        sma50_val = data['close'].tail(50).mean() if len(data) >= 50 else sma20_val
+        sma20_val = data["close"].tail(20).mean()
+        sma50_val = data["close"].tail(50).mean() if len(data) >= 50 else sma20_val
         sma20 = float(sma20_val) if sma20_val is not None else current_price
         sma50 = float(sma50_val) if sma50_val is not None else sma20
 
         # Bollinger Bands position
         bb_upper, bb_lower = DataContextBuilder._calculate_bollinger_bands(data)
-        bb_position = ((current_price - bb_lower) / (bb_upper - bb_lower)) * 100 if bb_upper != bb_lower else 50
+        bb_position = (
+            ((current_price - bb_lower) / (bb_upper - bb_lower)) * 100
+            if bb_upper != bb_lower
+            else 50
+        )
 
         # ATR
         atr = DataContextBuilder._calculate_atr(data)
@@ -389,28 +414,32 @@ class DataContextBuilder:
             "resistance_level": f"{resistance:.2f}",
             "recent_candles": recent_candles,
             "identified_patterns": patterns,
-            "market_context": market_context
+            "market_context": market_context,
         }
 
         # Add fundamental data if available
         if finviz_data:
-            context.update({
-                "market_cap": finviz_data.get('Market Cap', 'N/A'),
-                "pe_ratio": finviz_data.get('P/E', 'N/A'),
-                "sector": finviz_data.get('Sector', 'N/A'),
-                "sector_performance": "0",  # Would need sector performance data
-                "float_shares": finviz_data.get('Shs Float', 'N/A'),
-                "short_interest": finviz_data.get('Short Float', 'N/A')
-            })
+            context.update(
+                {
+                    "market_cap": finviz_data.get("Market Cap", "N/A"),
+                    "pe_ratio": finviz_data.get("P/E", "N/A"),
+                    "sector": finviz_data.get("Sector", "N/A"),
+                    "sector_performance": "0",  # Would need sector performance data
+                    "float_shares": finviz_data.get("Shs Float", "N/A"),
+                    "short_interest": finviz_data.get("Short Float", "N/A"),
+                }
+            )
         else:
-            context.update({
-                "market_cap": "N/A",
-                "pe_ratio": "N/A",
-                "sector": "N/A",
-                "sector_performance": "0",
-                "float_shares": "N/A",
-                "short_interest": "N/A"
-            })
+            context.update(
+                {
+                    "market_cap": "N/A",
+                    "pe_ratio": "N/A",
+                    "sector": "N/A",
+                    "sector_performance": "0",
+                    "float_shares": "N/A",
+                    "short_interest": "N/A",
+                }
+            )
 
         return context
 
@@ -420,7 +449,7 @@ class DataContextBuilder:
         if len(data) < period + 1:
             return 50.0
 
-        prices = data['close'].to_numpy()
+        prices = data["close"].to_numpy()
         deltas = np.diff(prices)
         gains = np.where(deltas > 0, deltas, 0)
         losses = np.where(deltas < 0, -deltas, 0)
@@ -441,7 +470,7 @@ class DataContextBuilder:
         if len(data) < 26:
             return 0.0, 0.0
 
-        prices = data['close'].to_numpy()
+        prices = data["close"].to_numpy()
 
         # Calculate EMAs
         ema12 = DataContextBuilder._calculate_ema(prices, 12)
@@ -468,13 +497,15 @@ class DataContextBuilder:
         return ema
 
     @staticmethod
-    def _calculate_bollinger_bands(data: pl.DataFrame, period: int = 20) -> Tuple[float, float]:
+    def _calculate_bollinger_bands(
+        data: pl.DataFrame, period: int = 20
+    ) -> Tuple[float, float]:
         """Calculate Bollinger Bands."""
         if len(data) < period:
-            latest_price = float(data['close'][-1])
+            latest_price = float(data["close"][-1])
             return latest_price * 1.02, latest_price * 0.98
 
-        prices = data['close'].tail(period).to_numpy()
+        prices = data["close"].tail(period).to_numpy()
         sma = np.mean(prices)
         std = np.std(prices)
 
@@ -487,16 +518,16 @@ class DataContextBuilder:
     def _calculate_atr(data: pl.DataFrame, period: int = 14) -> float:
         """Calculate Average True Range."""
         if len(data) < period + 1:
-            return float(data['high'][-1] - data['low'][-1])
+            return float(data["high"][-1] - data["low"][-1])
 
-        high = data['high'].to_numpy()
-        low = data['low'].to_numpy()
-        close = data['close'].to_numpy()
+        high = data["high"].to_numpy()
+        low = data["low"].to_numpy()
+        close = data["close"].to_numpy()
 
         tr = np.maximum(
             high[1:] - low[1:],
             np.abs(high[1:] - close[:-1]),
-            np.abs(low[1:] - close[:-1])
+            np.abs(low[1:] - close[:-1]),
         )
 
         return float(np.mean(tr[-period:]))
@@ -505,14 +536,14 @@ class DataContextBuilder:
     def _calculate_support_resistance(data: pl.DataFrame) -> Tuple[float, float]:
         """Calculate support and resistance levels."""
         if len(data) < 20:
-            latest_price = float(data['close'][-1])
+            latest_price = float(data["close"][-1])
             return latest_price * 0.98, latest_price * 1.02
 
         # Simple approach: use recent lows and highs
         recent_data = data.tail(20)
-        latest_price = float(data['close'].item(-1))
-        low_min = recent_data['low'].min()
-        high_max = recent_data['high'].max()
+        latest_price = float(data["close"].item(-1))
+        low_min = recent_data["low"].min()
+        high_max = recent_data["high"].max()
         support = float(low_min) if low_min is not None else latest_price * 0.98
         resistance = float(high_max) if high_max is not None else latest_price * 1.02
 
@@ -525,10 +556,10 @@ class DataContextBuilder:
 
         for i in range(len(data)):
             row = data[i]
-            open_price = float(row['open'].item())
-            close_price = float(row['close'].item())
-            high = float(row['high'].item())
-            low = float(row['low'].item())
+            open_price = float(row["open"].item())
+            close_price = float(row["close"].item())
+            high = float(row["high"].item())
+            low = float(row["low"].item())
 
             # Determine candle type
             body_size = abs(close_price - open_price)
@@ -551,7 +582,9 @@ class DataContextBuilder:
             elif body_ratio > 0.7:
                 candle_type = f"strong {candle_type}"
 
-            descriptions.append(f"Candle {i+1}: {candle_type} (O:{open_price:.2f} H:{high:.2f} L:{low:.2f} C:{close_price:.2f})")
+            descriptions.append(
+                f"Candle {i+1}: {candle_type} (O:{open_price:.2f} H:{high:.2f} L:{low:.2f} C:{close_price:.2f})"
+            )
 
         return "; ".join(descriptions)
 
@@ -564,8 +597,8 @@ class DataContextBuilder:
             return "Insufficient data for pattern recognition"
 
         # Check for trending
-        sma20_val = data['close'].tail(20).mean()
-        sma50_val = data['close'].tail(50).mean() if len(data) >= 50 else sma20_val
+        sma20_val = data["close"].tail(20).mean()
+        sma50_val = data["close"].tail(50).mean() if len(data) >= 50 else sma20_val
         sma20 = float(sma20_val) if sma20_val is not None else 100.0
         sma50 = float(sma50_val) if sma50_val is not None else sma20
 
@@ -575,23 +608,23 @@ class DataContextBuilder:
             patterns.append("Downtrend (SMA20 < SMA50)")
 
         # Check for breakout
-        high_max = data['high'].tail(20).max()
+        high_max = data["high"].tail(20).max()
         recent_high = float(high_max) if high_max is not None else 100.0
-        close_val = data['close'].item(-1)
+        close_val = data["close"].item(-1)
         current_price = float(close_val) if close_val is not None else 100.0
 
         if current_price > recent_high * 0.98:
             patterns.append("Near resistance breakout")
 
         # Check for support bounce
-        low_min = data['low'].tail(20).min()
+        low_min = data["low"].tail(20).min()
         recent_low = float(low_min) if low_min is not None else current_price * 0.98
         if current_price < recent_low * 1.02:
             patterns.append("Near support level")
 
         # Volume spike
-        volume_mean = data['volume'].tail(20).mean()
-        volume_last = data['volume'].item(-1)
+        volume_mean = data["volume"].tail(20).mean()
+        volume_last = data["volume"].item(-1)
         avg_volume = float(volume_mean) if volume_mean is not None else 1000000.0
         latest_volume = float(volume_last) if volume_last is not None else avg_volume
 
@@ -608,16 +641,18 @@ class DataContextBuilder:
 
         context_parts = []
 
-        if 'spy_change' in market_data:
+        if "spy_change" in market_data:
             context_parts.append(f"SPY: {market_data['spy_change']:.2f}%")
 
-        if 'vix_level' in market_data:
+        if "vix_level" in market_data:
             context_parts.append(f"VIX: {market_data['vix_level']:.1f}")
 
-        if 'market_regime' in market_data:
+        if "market_regime" in market_data:
             context_parts.append(f"Regime: {market_data['market_regime']}")
 
-        return "; ".join(context_parts) if context_parts else "Market context unavailable"
+        return (
+            "; ".join(context_parts) if context_parts else "Market context unavailable"
+        )
 
 
 class ConsensusEngine:
@@ -625,9 +660,13 @@ class ConsensusEngine:
 
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.min_instances = config.get('consensus', {}).get('min_ai_instances', 3)
-        self.majority_threshold = config.get('consensus', {}).get('majority_threshold', 0.6)
-        self.confidence_weights = config.get('consensus', {}).get('confidence_weights', {})
+        self.min_instances = config.get("consensus", {}).get("min_ai_instances", 3)
+        self.majority_threshold = config.get("consensus", {}).get(
+            "majority_threshold", 0.6
+        )
+        self.confidence_weights = config.get("consensus", {}).get(
+            "confidence_weights", {}
+        )
 
     async def build_consensus(self, responses: List[AIResponse]) -> AIDecision:
         """
@@ -640,26 +679,30 @@ class ConsensusEngine:
             Consolidated AIDecision
         """
         if len(responses) < self.min_instances:
-            logger.warning(f"Only {len(responses)} responses, minimum is {self.min_instances}")
+            logger.warning(
+                f"Only {len(responses)} responses, minimum is {self.min_instances}"
+            )
 
         # Extract decisions and confidences
         decisions = []
         for response in responses:
             weight = self.confidence_weights.get(response.model.value, 1.0)
-            decisions.append({
-                'action': response.response.get('decision', 'HOLD'),
-                'confidence': response.confidence * weight,
-                'model': response.model,
-                'response': response.response
-            })
+            decisions.append(
+                {
+                    "action": response.response.get("decision", "HOLD"),
+                    "confidence": response.confidence * weight,
+                    "model": response.model,
+                    "response": response.response,
+                }
+            )
 
         # Count votes
         action_votes = {}
         total_weight = 0
 
         for decision in decisions:
-            action = decision['action']
-            confidence = decision['confidence']
+            action = decision["action"]
+            confidence = decision["confidence"]
 
             if action not in action_votes:
                 action_votes[action] = 0
@@ -669,7 +712,7 @@ class ConsensusEngine:
 
         # Determine majority action
         if total_weight == 0:
-            final_action = 'HOLD'
+            final_action = "HOLD"
             consensus_confidence = 0
         else:
             final_action = max(action_votes.items(), key=lambda x: x[1])[0]
@@ -685,23 +728,23 @@ class ConsensusEngine:
         all_risks = []
 
         for decision in decisions:
-            if decision['action'] == final_action:
-                resp = decision['response']
+            if decision["action"] == final_action:
+                resp = decision["response"]
 
-                if resp.get('entry_price'):
-                    entry_prices.append(float(resp['entry_price']))
-                if resp.get('stop_loss'):
-                    stop_losses.append(float(resp['stop_loss']))
-                if resp.get('take_profit'):
-                    take_profits.append(float(resp['take_profit']))
-                if resp.get('position_size_suggestion'):
-                    position_sizes.append(float(resp['position_size_suggestion']))
-                if resp.get('risk_reward_ratio'):
-                    risk_rewards.append(float(resp['risk_reward_ratio']))
-                if resp.get('reasoning'):
-                    reasonings.append(resp['reasoning'])
-                if resp.get('key_risks'):
-                    all_risks.extend(resp['key_risks'])
+                if resp.get("entry_price"):
+                    entry_prices.append(float(resp["entry_price"]))
+                if resp.get("stop_loss"):
+                    stop_losses.append(float(resp["stop_loss"]))
+                if resp.get("take_profit"):
+                    take_profits.append(float(resp["take_profit"]))
+                if resp.get("position_size_suggestion"):
+                    position_sizes.append(float(resp["position_size_suggestion"]))
+                if resp.get("risk_reward_ratio"):
+                    risk_rewards.append(float(resp["risk_reward_ratio"]))
+                if resp.get("reasoning"):
+                    reasonings.append(resp["reasoning"])
+                if resp.get("key_risks"):
+                    all_risks.extend(resp["key_risks"])
 
         # Create final decision
         return AIDecision(
@@ -712,15 +755,17 @@ class ConsensusEngine:
             take_profit=float(np.mean(take_profits)) if take_profits else None,
             position_size=float(np.mean(position_sizes)) if position_sizes else 0.01,
             risk_reward_ratio=float(np.mean(risk_rewards)) if risk_rewards else None,
-            reasoning="; ".join(reasonings[:3]) if reasonings else "No reasoning provided",
+            reasoning=(
+                "; ".join(reasonings[:3]) if reasonings else "No reasoning provided"
+            ),
             key_risks=list(set(all_risks))[:5],  # Unique risks, max 5
             timeframe="day_trade",  # Default, could be determined from responses
             consensus_details={
-                'total_responses': len(responses),
-                'action_votes': action_votes,
-                'models_used': [r.model.value for r in responses],
-                'agreement_rate': consensus_confidence
-            }
+                "total_responses": len(responses),
+                "action_votes": action_votes,
+                "models_used": [r.model.value for r in responses],
+                "agreement_rate": consensus_confidence,
+            },
         )
 
 
@@ -737,16 +782,23 @@ class AIStrategyEngine(BaseStrategy):
         super().__init__(config)
 
         # Load prompts configuration
-        config_path = Path(__file__).parent.parent.parent.parent / "config" / "ai_strategy" / "prompts.yaml"
+        config_path = (
+            Path(__file__).parent.parent.parent.parent
+            / "config"
+            / "ai_strategy"
+            / "prompts.yaml"
+        )
         try:
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 prompts_config = yaml.safe_load(f)
                 self.prompts_config = prompts_config if prompts_config else {}
         except FileNotFoundError:
             self.prompts_config = {}
 
         # Initialize components
-        api_key = config.parameters.get('anthropic_api_key') if config.parameters else None
+        api_key = (
+            config.parameters.get("anthropic_api_key") if config.parameters else None
+        )
         if not api_key:
             raise ValueError("Anthropic API key is required for AI Strategy")
 
@@ -761,10 +813,10 @@ class AIStrategyEngine(BaseStrategy):
 
         # Performance tracking
         self.ai_performance = {
-            'total_decisions': 0,
-            'correct_decisions': 0,
-            'total_cost': 0.0,
-            'decisions_by_model': {}
+            "total_decisions": 0,
+            "correct_decisions": 0,
+            "total_cost": 0.0,
+            "decisions_by_model": {},
         }
 
     def _setup_indicators(self) -> None:
@@ -787,7 +839,9 @@ class AIStrategyEngine(BaseStrategy):
         """
         try:
             # Update market context if needed
-            if (datetime.now() - self.last_market_update).total_seconds() > 1800:  # 30 minutes
+            if (
+                datetime.now() - self.last_market_update
+            ).total_seconds() > 1800:  # 30 minutes
                 await self._update_market_context()
 
             # Check cache first
@@ -819,29 +873,39 @@ class AIStrategyEngine(BaseStrategy):
             self.decision_history.append(decision)
 
             # Update performance tracking
-            self.ai_performance['total_decisions'] += 1
-            self.ai_performance['total_cost'] += sum(r.cost for r in responses)
+            self.ai_performance["total_decisions"] += 1
+            self.ai_performance["total_cost"] += sum(r.cost for r in responses)
 
             # Convert to Signal (placeholder method)
             from decimal import Decimal
 
             # Convert action string to SignalType
-            action_map = {'BUY': SignalType.BUY, 'SELL': SignalType.SELL, 'HOLD': SignalType.HOLD}
+            action_map = {
+                "BUY": SignalType.BUY,
+                "SELL": SignalType.SELL,
+                "HOLD": SignalType.HOLD,
+            }
             signal_action = action_map.get(decision.action, SignalType.HOLD)
 
             signal = Signal(
                 action=signal_action,
                 confidence=decision.confidence,
-                entry_price=Decimal(str(decision.entry_price)) if decision.entry_price else None,
-                stop_loss=Decimal(str(decision.stop_loss)) if decision.stop_loss else None,
-                take_profit=Decimal(str(decision.take_profit)) if decision.take_profit else None,
+                entry_price=(
+                    Decimal(str(decision.entry_price)) if decision.entry_price else None
+                ),
+                stop_loss=(
+                    Decimal(str(decision.stop_loss)) if decision.stop_loss else None
+                ),
+                take_profit=(
+                    Decimal(str(decision.take_profit)) if decision.take_profit else None
+                ),
                 position_size=decision.position_size,
                 metadata={
-                    'ai_decision': decision,
-                    'reasoning': decision.reasoning,
-                    'key_risks': decision.key_risks,
-                    'consensus_details': decision.consensus_details
-                }
+                    "ai_decision": decision,
+                    "reasoning": decision.reasoning,
+                    "key_risks": decision.key_risks,
+                    "consensus_details": decision.consensus_details,
+                },
             )
 
             # Cache the signal
@@ -853,6 +917,7 @@ class AIStrategyEngine(BaseStrategy):
             logger.error(f"Error in AI analysis for {symbol}: {e}")
             # Return neutral signal on error
             from decimal import Decimal
+
             return Signal(
                 action=SignalType.HOLD,
                 confidence=0,
@@ -860,7 +925,7 @@ class AIStrategyEngine(BaseStrategy):
                 stop_loss=None,
                 take_profit=None,
                 position_size=0.01,
-                metadata={'error': str(e)}
+                metadata={"error": str(e)},
             )
 
     async def _update_market_context(self):
@@ -870,36 +935,36 @@ class AIStrategyEngine(BaseStrategy):
             market_data = await self._get_broad_market_data()
 
             # Analyze market conditions
-            spy_change = market_data.get('SPY', {}).get('change_percent', 0)
-            vix_level = market_data.get('VIX', {}).get('price', 20)
+            spy_change = market_data.get("SPY", {}).get("change_percent", 0)
+            vix_level = market_data.get("VIX", {}).get("price", 20)
 
             # Determine market regime based on indicators
             if spy_change > 1.0 and vix_level < 20:
-                regime = 'bullish'
+                regime = "bullish"
                 strength = min(90.0, 50.0 + spy_change * 10)
-                risk_level = 'low'
+                risk_level = "low"
                 position_multiplier = 1.2
                 confidence_adjustment = 0.1
             elif spy_change < -1.0 or vix_level > 30:
-                regime = 'bearish'
+                regime = "bearish"
                 strength = max(10.0, 50.0 + spy_change * 10)
-                risk_level = 'high'
+                risk_level = "high"
                 position_multiplier = 0.7
                 confidence_adjustment = -0.1
             else:
-                regime = 'neutral'
+                regime = "neutral"
                 strength = 50.0 + spy_change * 5
-                risk_level = 'medium'
+                risk_level = "medium"
                 position_multiplier = 1.0
                 confidence_adjustment = 0.0
 
             # Determine sectors to focus on based on market conditions
-            if regime == 'bullish':
-                sectors = ['Technology', 'Consumer Discretionary', 'Growth']
-            elif regime == 'bearish':
-                sectors = ['Utilities', 'Consumer Staples', 'Healthcare']
+            if regime == "bullish":
+                sectors = ["Technology", "Consumer Discretionary", "Growth"]
+            elif regime == "bearish":
+                sectors = ["Utilities", "Consumer Staples", "Healthcare"]
             else:
-                sectors = ['Technology', 'Healthcare', 'Financial']
+                sectors = ["Technology", "Healthcare", "Financial"]
 
             self.market_context = MarketContext(
                 regime=regime,
@@ -908,7 +973,7 @@ class AIStrategyEngine(BaseStrategy):
                 position_size_multiplier=position_multiplier,
                 confidence_threshold_adjustment=confidence_adjustment,
                 sectors_to_focus=sectors,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
             self.last_market_update = datetime.now()
 
@@ -916,13 +981,13 @@ class AIStrategyEngine(BaseStrategy):
             logger.error(f"Error updating market context: {e}")
             # Fallback to neutral market context
             self.market_context = MarketContext(
-                regime='neutral',
+                regime="neutral",
                 strength=50.0,
-                risk_level='medium',
+                risk_level="medium",
                 position_size_multiplier=1.0,
                 confidence_threshold_adjustment=0.0,
-                sectors_to_focus=['Technology', 'Healthcare'],
-                timestamp=datetime.now()
+                sectors_to_focus=["Technology", "Healthcare"],
+                timestamp=datetime.now(),
             )
             self.last_market_update = datetime.now()
 
@@ -962,15 +1027,20 @@ class AIStrategyEngine(BaseStrategy):
                 client = TwelveDataClient()
 
                 # Get key market indicators
-                symbols = ['SPY', 'QQQ', 'VIX', 'DXY']  # S&P 500, NASDAQ, VIX, Dollar Index
+                symbols = [
+                    "SPY",
+                    "QQQ",
+                    "VIX",
+                    "DXY",
+                ]  # S&P 500, NASDAQ, VIX, Dollar Index
 
                 for symbol in symbols:
                     try:
                         quote_data = await client.get_real_time_price(symbol)
                         if quote_data:
                             market_data[symbol] = {
-                                'price': quote_data.get('price', 0),
-                                'change_percent': quote_data.get('percent_change', 0)
+                                "price": quote_data.get("price", 0),
+                                "change_percent": quote_data.get("percent_change", 0),
                             }
                     except Exception as e:
                         logger.warning(f"Could not fetch {symbol} data: {e}")
@@ -991,11 +1061,11 @@ class AIStrategyEngine(BaseStrategy):
 
                 # Get major indices and volatility measures
                 symbols = {
-                    'SPY': 'S&P 500 ETF',
-                    'QQQ': 'NASDAQ ETF',
-                    'VIX': 'Volatility Index',
-                    'TLT': 'Long-term Treasury',
-                    'GLD': 'Gold ETF'
+                    "SPY": "S&P 500 ETF",
+                    "QQQ": "NASDAQ ETF",
+                    "VIX": "Volatility Index",
+                    "TLT": "Long-term Treasury",
+                    "GLD": "Gold ETF",
                 }
 
                 for symbol, description in symbols.items():
@@ -1003,24 +1073,26 @@ class AIStrategyEngine(BaseStrategy):
                         quote_data = await client.get_real_time_price(symbol)
                         if quote_data:
                             market_data[symbol] = {
-                                'price': float(quote_data.get('price', 0)),
-                                'change_percent': float(quote_data.get('percent_change', 0)),
-                                'description': description
+                                "price": float(quote_data.get("price", 0)),
+                                "change_percent": float(
+                                    quote_data.get("percent_change", 0)
+                                ),
+                                "description": description,
                             }
                         else:
                             # Fallback data if real data not available
                             market_data[symbol] = {
-                                'price': 400.0 if symbol == 'SPY' else 300.0,
-                                'change_percent': 0.0,
-                                'description': description
+                                "price": 400.0 if symbol == "SPY" else 300.0,
+                                "change_percent": 0.0,
+                                "description": description,
                             }
                     except Exception as e:
                         logger.warning(f"Could not fetch {symbol} data: {e}")
                         # Set neutral fallback
                         market_data[symbol] = {
-                            'price': 400.0 if symbol == 'SPY' else 300.0,
-                            'change_percent': 0.0,
-                            'description': description
+                            "price": 400.0 if symbol == "SPY" else 300.0,
+                            "change_percent": 0.0,
+                            "description": description,
                         }
 
             return market_data
@@ -1028,11 +1100,21 @@ class AIStrategyEngine(BaseStrategy):
         except Exception as e:
             logger.error(f"Error fetching broad market data: {e}")
             return {
-                'SPY': {'price': 400.0, 'change_percent': 0.0, 'description': 'S&P 500 ETF'},
-                'VIX': {'price': 20.0, 'change_percent': 0.0, 'description': 'Volatility Index'}
+                "SPY": {
+                    "price": 400.0,
+                    "change_percent": 0.0,
+                    "description": "S&P 500 ETF",
+                },
+                "VIX": {
+                    "price": 20.0,
+                    "change_percent": 0.0,
+                    "description": "Volatility Index",
+                },
             }
 
-    async def _query_multiple_models(self, context: Dict[str, Any], symbol: str) -> List[AIResponse]:
+    async def _query_multiple_models(
+        self, context: Dict[str, Any], symbol: str
+    ) -> List[AIResponse]:
         """Query multiple AI models and return their responses."""
         try:
             responses = []
@@ -1040,12 +1122,12 @@ class AIStrategyEngine(BaseStrategy):
             # Define models to query based on configuration
             models_to_query = [
                 AIModel.SONNET,  # Primary model - good balance of speed and capability
-                AIModel.HAIKU,   # Fast model for quick analysis
+                AIModel.HAIKU,  # Fast model for quick analysis
             ]
 
             # Add OPUS for high-value trades or complex situations
-            current_price = float(context.get('current_price', 0))
-            if current_price > 100 or abs(float(context.get('daily_change', 0))) > 5:
+            current_price = float(context.get("current_price", 0))
+            if current_price > 100 or abs(float(context.get("daily_change", 0))) > 5:
                 models_to_query.append(AIModel.OPUS)
 
             # Query each model
@@ -1080,10 +1162,8 @@ Provide your analysis in the following JSON format:
 
                     # Query the model
                     response = await self.anthropic_client.query(
-                        prompt=prompt,
-                        model=model
+                        prompt=prompt, model=model
                     )
-
 
                     if response:
                         responses.append(response)
@@ -1100,17 +1180,17 @@ Provide your analysis in the following JSON format:
                     model=AIModel.HAIKU,
                     prompt_type="fallback",
                     response={
-                        'decision': 'HOLD',
-                        'confidence': 50,
-                        'reasoning': 'No AI response available, defaulting to HOLD',
-                        'entry_price': current_price,
-                        'position_size_suggestion': 0.01
+                        "decision": "HOLD",
+                        "confidence": 50,
+                        "reasoning": "No AI response available, defaulting to HOLD",
+                        "entry_price": current_price,
+                        "position_size_suggestion": 0.01,
                     },
                     confidence=50.0,
                     tokens_used=0,
                     cost=0.0,
                     timestamp=datetime.now(),
-                    cache_hit=False
+                    cache_hit=False,
                 )
                 responses.append(fallback_response)
 

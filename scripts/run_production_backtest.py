@@ -23,47 +23,47 @@ Examples:
     python scripts/run_production_backtest.py --strategy day_trading --symbols AAPL,MSFT,GOOGL --weeks 4
 """
 
-import asyncio
 import argparse
-import logging
-import json
+import asyncio
 import csv
+import json
+import logging
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import List, Optional, Dict, Any
-import sys
-import os
+from typing import Any, Dict, List, Optional
 
 # Add project paths
 script_dir = Path(__file__).parent
 project_root = script_dir.parent
 sys.path.append(str(project_root / "backtesting"))
 
-from production_backtest_engine import (
-    ProductionBacktestEngine,
-    ProductionBacktestConfig,
-    BacktestMode,
-    ScreenerCriteria,
-    run_production_backtest,
-    run_multi_strategy_comparison,
-    PRODUCTION_STRATEGIES_AVAILABLE
-)
 from backtest_models import TimeFrame
+from production_backtest_engine import (
+    PRODUCTION_STRATEGIES_AVAILABLE,
+    BacktestMode,
+    ProductionBacktestConfig,
+    ProductionBacktestEngine,
+    ScreenerCriteria,
+    run_multi_strategy_comparison,
+    run_production_backtest,
+)
 
 
 def setup_logging(debug: bool = False) -> None:
     """Set up logging configuration."""
     level = logging.DEBUG if debug else logging.INFO
-    format_str = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     logging.basicConfig(
         level=level,
         format=format_str,
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('production_backtest.log')
-        ]
+            logging.FileHandler("production_backtest.log"),
+        ],
     )
 
 
@@ -72,187 +72,165 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run production trading strategy backtests using historical data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split('Usage:')[1] if 'Usage:' in __doc__ else ""
+        epilog=__doc__.split("Usage:")[1] if "Usage:" in __doc__ else "",
     )
 
     # Strategy selection
-    strategy_group = parser.add_argument_group('Strategy Selection')
+    strategy_group = parser.add_argument_group("Strategy Selection")
     strategy_group.add_argument(
-        '--strategy',
-        choices=['day_trading', 'swing_trading', 'position_trading'],
-        default='day_trading',
-        help='Trading strategy to use (default: day_trading)'
+        "--strategy",
+        choices=["day_trading", "swing_trading", "position_trading"],
+        default="day_trading",
+        help="Trading strategy to use (default: day_trading)",
     )
     strategy_group.add_argument(
-        '--compare-strategies',
-        action='store_true',
-        help='Run all three strategies and compare results'
+        "--compare-strategies",
+        action="store_true",
+        help="Run all three strategies and compare results",
     )
 
     # Date range options
-    date_group = parser.add_argument_group('Date Range')
+    date_group = parser.add_argument_group("Date Range")
     date_group.add_argument(
-        '--start-date',
-        type=str,
-        help='Start date for backtest (YYYY-MM-DD)'
+        "--start-date", type=str, help="Start date for backtest (YYYY-MM-DD)"
     )
     date_group.add_argument(
-        '--end-date',
-        type=str,
-        help='End date for backtest (YYYY-MM-DD)'
+        "--end-date", type=str, help="End date for backtest (YYYY-MM-DD)"
     )
     date_group.add_argument(
-        '--months',
+        "--months",
         type=int,
-        help='Number of months to backtest from end date (e.g., 3 for last 3 months)'
+        help="Number of months to backtest from end date (e.g., 3 for last 3 months)",
     )
     date_group.add_argument(
-        '--weeks',
-        type=int,
-        help='Number of weeks to backtest from end date'
+        "--weeks", type=int, help="Number of weeks to backtest from end date"
     )
     date_group.add_argument(
-        '--days',
-        type=int,
-        help='Number of days to backtest from end date'
+        "--days", type=int, help="Number of days to backtest from end date"
     )
 
     # Portfolio settings
-    portfolio_group = parser.add_argument_group('Portfolio Settings')
+    portfolio_group = parser.add_argument_group("Portfolio Settings")
     portfolio_group.add_argument(
-        '--capital',
+        "--capital",
         type=float,
         default=100000,
-        help='Initial capital amount (default: 100000)'
+        help="Initial capital amount (default: 100000)",
     )
     portfolio_group.add_argument(
-        '--max-positions',
+        "--max-positions",
         type=int,
         default=10,
-        help='Maximum concurrent positions (default: 10)'
+        help="Maximum concurrent positions (default: 10)",
     )
     portfolio_group.add_argument(
-        '--max-position-size',
+        "--max-position-size",
         type=float,
         default=0.15,
-        help='Maximum position size as fraction of portfolio (default: 0.15)'
+        help="Maximum position size as fraction of portfolio (default: 0.15)",
     )
 
     # Symbol selection
-    symbol_group = parser.add_argument_group('Symbol Selection')
+    symbol_group = parser.add_argument_group("Symbol Selection")
     symbol_group.add_argument(
-        '--symbols',
+        "--symbols",
         type=str,
-        help='Comma-separated list of specific symbols to trade (disables screener simulation)'
+        help="Comma-separated list of specific symbols to trade (disables screener simulation)",
     )
     symbol_group.add_argument(
-        '--screener-types',
+        "--screener-types",
         type=str,
-        default='breakouts,momentum,value_stocks',
-        help='Comma-separated screener types (default: breakouts,momentum,value_stocks)'
+        default="breakouts,momentum,value_stocks",
+        help="Comma-separated screener types (default: breakouts,momentum,value_stocks)",
     )
     symbol_group.add_argument(
-        '--max-screener-symbols',
+        "--max-screener-symbols",
         type=int,
         default=50,
-        help='Maximum symbols per day from screener (default: 50)'
+        help="Maximum symbols per day from screener (default: 50)",
     )
 
     # Execution settings
-    exec_group = parser.add_argument_group('Execution Settings')
+    exec_group = parser.add_argument_group("Execution Settings")
     exec_group.add_argument(
-        '--timeframe',
-        choices=['1day', '1h', '15min', '5min'],
-        default='1day',
-        help='Timeframe for analysis (default: 1day)'
+        "--timeframe",
+        choices=["1day", "1h", "15min", "5min"],
+        default="1day",
+        help="Timeframe for analysis (default: 1day)",
     )
     exec_group.add_argument(
-        '--mode',
-        choices=['fast', 'detailed', 'debug'],
-        default='fast',
-        help='Execution mode (default: fast)'
+        "--mode",
+        choices=["fast", "detailed", "debug"],
+        default="fast",
+        help="Execution mode (default: fast)",
     )
     exec_group.add_argument(
-        '--commission',
+        "--commission",
         type=float,
         default=1.0,
-        help='Fixed commission per trade (default: 1.0)'
+        help="Fixed commission per trade (default: 1.0)",
     )
     exec_group.add_argument(
-        '--commission-pct',
+        "--commission-pct",
         type=float,
         default=0.0005,
-        help='Commission percentage (default: 0.0005 = 0.05%)'
+        help="Commission percentage (default: 0.0005 = 0.05%)",
     )
 
     # Screener criteria customization
-    screener_group = parser.add_argument_group('Screener Criteria')
+    screener_group = parser.add_argument_group("Screener Criteria")
     screener_group.add_argument(
-        '--breakout-volume-ratio',
+        "--breakout-volume-ratio",
         type=float,
         default=2.0,
-        help='Minimum volume ratio for breakouts (default: 2.0)'
+        help="Minimum volume ratio for breakouts (default: 2.0)",
     )
     screener_group.add_argument(
-        '--momentum-change-min',
+        "--momentum-change-min",
         type=float,
         default=5.0,
-        help='Minimum price change for momentum (default: 5.0%%)'
+        help="Minimum price change for momentum (default: 5.0%%)",
     )
     screener_group.add_argument(
-        '--disable-screener',
-        action='store_true',
-        help='Disable screener simulation (requires --symbols)'
+        "--disable-screener",
+        action="store_true",
+        help="Disable screener simulation (requires --symbols)",
     )
 
     # Output settings
-    output_group = parser.add_argument_group('Output Settings')
+    output_group = parser.add_argument_group("Output Settings")
     output_group.add_argument(
-        '--output-dir',
+        "--output-dir",
         type=str,
-        default='backtest_results',
-        help='Directory to save results (default: backtest_results)'
+        default="backtest_results",
+        help="Directory to save results (default: backtest_results)",
     )
     output_group.add_argument(
-        '--save-trades',
-        action='store_true',
-        help='Save detailed trade records to CSV'
+        "--save-trades", action="store_true", help="Save detailed trade records to CSV"
     )
     output_group.add_argument(
-        '--save-daily-values',
-        action='store_true',
-        help='Save daily portfolio values to CSV'
+        "--save-daily-values",
+        action="store_true",
+        help="Save daily portfolio values to CSV",
     )
     output_group.add_argument(
-        '--no-save',
-        action='store_true',
-        help='Do not save results to files'
+        "--no-save", action="store_true", help="Do not save results to files"
     )
 
     # Analysis options
-    analysis_group = parser.add_argument_group('Analysis Options')
+    analysis_group = parser.add_argument_group("Analysis Options")
     analysis_group.add_argument(
-        '--benchmark',
-        type=str,
-        help='Benchmark symbol for comparison (e.g., SPY)'
+        "--benchmark", type=str, help="Benchmark symbol for comparison (e.g., SPY)"
     )
     analysis_group.add_argument(
-        '--detailed-analysis',
-        action='store_true',
-        help='Generate detailed performance analysis'
+        "--detailed-analysis",
+        action="store_true",
+        help="Generate detailed performance analysis",
     )
 
     # Logging options
-    parser.add_argument(
-        '--debug',
-        action='store_true',
-        help='Enable debug logging'
-    )
-    parser.add_argument(
-        '--quiet',
-        action='store_true',
-        help='Suppress progress output'
-    )
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--quiet", action="store_true", help="Suppress progress output")
 
     return parser.parse_args()
 
@@ -260,14 +238,22 @@ def parse_arguments() -> argparse.Namespace:
 def determine_date_range(args: argparse.Namespace) -> tuple[datetime, datetime]:
     """Determine the date range for backtesting."""
     if args.start_date and args.end_date:
-        start_date = datetime.strptime(args.start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
-        end_date = datetime.strptime(args.end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d").replace(
+            tzinfo=timezone.utc
+        )
+        end_date = datetime.strptime(args.end_date, "%Y-%m-%d").replace(
+            tzinfo=timezone.utc
+        )
     else:
         # Calculate end date (today or specified end date)
         if args.end_date:
-            end_date = datetime.strptime(args.end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            end_date = datetime.strptime(args.end_date, "%Y-%m-%d").replace(
+                tzinfo=timezone.utc
+            )
         else:
-            end_date = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            end_date = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
 
         # Calculate start date based on period
         if args.months:
@@ -283,38 +269,40 @@ def determine_date_range(args: argparse.Namespace) -> tuple[datetime, datetime]:
     return start_date, end_date
 
 
-def create_backtest_config(args: argparse.Namespace, start_date: datetime, end_date: datetime) -> ProductionBacktestConfig:
+def create_backtest_config(
+    args: argparse.Namespace, start_date: datetime, end_date: datetime
+) -> ProductionBacktestConfig:
     """Create backtesting configuration from arguments."""
 
     # Parse symbols
     specific_symbols = None
     if args.symbols:
-        specific_symbols = [s.strip().upper() for s in args.symbols.split(',')]
+        specific_symbols = [s.strip().upper() for s in args.symbols.split(",")]
 
     # Parse screener types
-    screener_types = [s.strip() for s in args.screener_types.split(',')]
+    screener_types = [s.strip() for s in args.screener_types.split(",")]
 
     # Parse timeframe
     timeframe_map = {
-        '1day': TimeFrame.ONE_DAY,
-        '1h': TimeFrame.ONE_HOUR,
-        '15min': TimeFrame.FIFTEEN_MIN,
-        '5min': TimeFrame.FIVE_MIN
+        "1day": TimeFrame.ONE_DAY,
+        "1h": TimeFrame.ONE_HOUR,
+        "15min": TimeFrame.FIFTEEN_MIN,
+        "5min": TimeFrame.FIVE_MIN,
     }
     timeframe = timeframe_map[args.timeframe]
 
     # Parse mode
     mode_map = {
-        'fast': BacktestMode.FAST,
-        'detailed': BacktestMode.DETAILED,
-        'debug': BacktestMode.DEBUG
+        "fast": BacktestMode.FAST,
+        "detailed": BacktestMode.DETAILED,
+        "debug": BacktestMode.DEBUG,
     }
     mode = mode_map[args.mode]
 
     # Create screener criteria
     screener_criteria = ScreenerCriteria(
         breakout_volume_ratio=args.breakout_volume_ratio,
-        momentum_change_min=args.momentum_change_min
+        momentum_change_min=args.momentum_change_min,
     )
 
     return ProductionBacktestConfig(
@@ -329,10 +317,11 @@ def create_backtest_config(args: argparse.Namespace, start_date: datetime, end_d
         commission_per_trade=Decimal(str(args.commission)),
         commission_percentage=Decimal(str(args.commission_pct)),
         specific_symbols=specific_symbols,
-        enable_screener_simulation=not args.disable_screener and specific_symbols is None,
+        enable_screener_simulation=not args.disable_screener
+        and specific_symbols is None,
         screener_criteria=screener_criteria,
         screener_types=screener_types,
-        max_screener_symbols_per_day=args.max_screener_symbols
+        max_screener_symbols_per_day=args.max_screener_symbols,
     )
 
 
@@ -351,9 +340,9 @@ def display_results(results, quiet: bool = False) -> None:
     if quiet:
         return
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PRODUCTION STRATEGY BACKTEST RESULTS")
-    print("="*80)
+    print("=" * 80)
 
     # Configuration summary
     config = results.config
@@ -398,7 +387,9 @@ def display_results(results, quiet: bool = False) -> None:
     print(f"\nStrategy Performance:")
     print(f"  Signals Generated: {results.total_signals_generated}")
     print(f"  Signals Executed: {results.signals_executed}")
-    print(f"  Signal Execution Rate: {format_percentage(results.signal_execution_rate)}")
+    print(
+        f"  Signal Execution Rate: {format_percentage(results.signal_execution_rate)}"
+    )
     print(f"  Avg Signal Confidence: {results.avg_signal_confidence:.1f}%")
 
     # Screener Statistics
@@ -411,17 +402,19 @@ def display_results(results, quiet: bool = False) -> None:
     print(f"  Execution Time: {results.execution_time_seconds:.2f} seconds")
     print(f"  Strategy: {results.strategy_name}")
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
 
 
-def display_strategy_comparison(results_dict: Dict[str, Any], quiet: bool = False) -> None:
+def display_strategy_comparison(
+    results_dict: Dict[str, Any], quiet: bool = False
+) -> None:
     """Display comparison of multiple strategies."""
     if quiet:
         return
 
-    print("\n" + "="*100)
+    print("\n" + "=" * 100)
     print("STRATEGY COMPARISON")
-    print("="*100)
+    print("=" * 100)
 
     # Create comparison table
     strategies = list(results_dict.keys())
@@ -435,14 +428,14 @@ def display_strategy_comparison(results_dict: Dict[str, Any], quiet: bool = Fals
 
     # Performance metrics
     metrics = [
-        ('Total Return', 'total_return', format_percentage),
-        ('Annualized Return', 'annualized_return', format_percentage),
-        ('Max Drawdown', 'max_drawdown', format_percentage),
-        ('Sharpe Ratio', 'sharpe_ratio', lambda x: f"{x:.3f}"),
-        ('Win Rate', 'win_rate', format_percentage),
-        ('Total Trades', 'total_trades', str),
-        ('Profit Factor', 'profit_factor', lambda x: f"{x:.2f}"),
-        ('Avg Hold Time (hrs)', 'avg_hold_time_hours', lambda x: f"{x:.1f}")
+        ("Total Return", "total_return", format_percentage),
+        ("Annualized Return", "annualized_return", format_percentage),
+        ("Max Drawdown", "max_drawdown", format_percentage),
+        ("Sharpe Ratio", "sharpe_ratio", lambda x: f"{x:.3f}"),
+        ("Win Rate", "win_rate", format_percentage),
+        ("Total Trades", "total_trades", str),
+        ("Profit Factor", "profit_factor", lambda x: f"{x:.2f}"),
+        ("Avg Hold Time (hrs)", "avg_hold_time_hours", lambda x: f"{x:.1f}"),
     ]
 
     for metric_name, metric_key, formatter in metrics:
@@ -456,7 +449,7 @@ def display_strategy_comparison(results_dict: Dict[str, Any], quiet: bool = Fals
                 print(f"{'N/A':<20}", end="")
         print()
 
-    print("\n" + "="*100)
+    print("\n" + "=" * 100)
 
     # Winner analysis
     best_return = max(results_dict.items(), key=lambda x: x[1].total_return)
@@ -464,9 +457,15 @@ def display_strategy_comparison(results_dict: Dict[str, Any], quiet: bool = Fals
     best_win_rate = max(results_dict.items(), key=lambda x: x[1].win_rate)
 
     print("\nStrategy Winners:")
-    print(f"  Best Total Return: {best_return[0].replace('_', ' ').title()} ({format_percentage(best_return[1].total_return)})")
-    print(f"  Best Risk-Adjusted Return: {best_sharpe[0].replace('_', ' ').title()} (Sharpe: {best_sharpe[1].sharpe_ratio:.3f})")
-    print(f"  Best Win Rate: {best_win_rate[0].replace('_', ' ').title()} ({format_percentage(best_win_rate[1].win_rate)})")
+    print(
+        f"  Best Total Return: {best_return[0].replace('_', ' ').title()} ({format_percentage(best_return[1].total_return)})"
+    )
+    print(
+        f"  Best Risk-Adjusted Return: {best_sharpe[0].replace('_', ' ').title()} (Sharpe: {best_sharpe[1].sharpe_ratio:.3f})"
+    )
+    print(
+        f"  Best Win Rate: {best_win_rate[0].replace('_', ' ').title()} ({format_percentage(best_win_rate[1].win_rate)})"
+    )
 
 
 def save_results(results, args: argparse.Namespace) -> None:
@@ -483,51 +482,49 @@ def save_results(results, args: argparse.Namespace) -> None:
     # Save summary results
     summary_file = output_dir / f"{base_filename}_summary.json"
     summary_data = {
-        'config': {
-            'strategy_type': results.config.strategy_type,
-            'start_date': results.start_time.isoformat(),
-            'end_date': results.end_time.isoformat(),
-            'initial_capital': str(results.initial_capital),
-            'timeframe': results.config.timeframe.value,
-            'max_positions': results.config.max_positions,
-            'screener_enabled': results.config.enable_screener_simulation
+        "config": {
+            "strategy_type": results.config.strategy_type,
+            "start_date": results.start_time.isoformat(),
+            "end_date": results.end_time.isoformat(),
+            "initial_capital": str(results.initial_capital),
+            "timeframe": results.config.timeframe.value,
+            "max_positions": results.config.max_positions,
+            "screener_enabled": results.config.enable_screener_simulation,
         },
-        'performance': {
-            'total_return': results.total_return,
-            'annualized_return': results.annualized_return,
-            'max_drawdown': results.max_drawdown,
-            'sharpe_ratio': results.sharpe_ratio,
-            'sortino_ratio': results.sortino_ratio,
-            'calmar_ratio': results.calmar_ratio,
-            'profit_factor': results.profit_factor,
-            'win_rate': results.win_rate
+        "performance": {
+            "total_return": results.total_return,
+            "annualized_return": results.annualized_return,
+            "max_drawdown": results.max_drawdown,
+            "sharpe_ratio": results.sharpe_ratio,
+            "sortino_ratio": results.sortino_ratio,
+            "calmar_ratio": results.calmar_ratio,
+            "profit_factor": results.profit_factor,
+            "win_rate": results.win_rate,
         },
-        'trading': {
-            'total_trades': results.total_trades,
-            'winning_trades': results.winning_trades,
-            'losing_trades': results.losing_trades,
-            'avg_win_amount': str(results.avg_win_amount),
-            'avg_loss_amount': str(results.avg_loss_amount),
-            'largest_win': str(results.largest_win),
-            'largest_loss': str(results.largest_loss)
+        "trading": {
+            "total_trades": results.total_trades,
+            "winning_trades": results.winning_trades,
+            "losing_trades": results.losing_trades,
+            "avg_win_amount": str(results.avg_win_amount),
+            "avg_loss_amount": str(results.avg_loss_amount),
+            "largest_win": str(results.largest_win),
+            "largest_loss": str(results.largest_loss),
         },
-        'strategy': {
-            'signals_generated': results.total_signals_generated,
-            'signals_executed': results.signals_executed,
-            'signal_execution_rate': results.signal_execution_rate,
-            'avg_signal_confidence': results.avg_signal_confidence,
-            'strategy_name': results.strategy_name
+        "strategy": {
+            "signals_generated": results.total_signals_generated,
+            "signals_executed": results.signals_executed,
+            "signal_execution_rate": results.signal_execution_rate,
+            "avg_signal_confidence": results.avg_signal_confidence,
+            "strategy_name": results.strategy_name,
         },
-        'screener': {
-            'alerts_simulated': results.screener_alerts_simulated,
-            'unique_symbols_traded': results.unique_symbols_traded
+        "screener": {
+            "alerts_simulated": results.screener_alerts_simulated,
+            "unique_symbols_traded": results.unique_symbols_traded,
         },
-        'execution': {
-            'execution_time_seconds': results.execution_time_seconds
-        }
+        "execution": {"execution_time_seconds": results.execution_time_seconds},
     }
 
-    with open(summary_file, 'w') as f:
+    with open(summary_file, "w") as f:
         json.dump(summary_data, f, indent=2)
 
     print(f"\nResults saved to: {summary_file}")
@@ -535,40 +532,55 @@ def save_results(results, args: argparse.Namespace) -> None:
     # Save detailed trades if requested
     if args.save_trades and results.trades:
         trades_file = output_dir / f"{base_filename}_trades.csv"
-        with open(trades_file, 'w', newline='') as f:
+        with open(trades_file, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                'Symbol', 'Strategy', 'Entry Date', 'Exit Date', 'Entry Price', 'Exit Price',
-                'Quantity', 'Gross P&L', 'Net P&L', 'P&L %', 'Commission',
-                'Hold Hours', 'Entry Reason', 'Exit Reason'
-            ])
+            writer.writerow(
+                [
+                    "Symbol",
+                    "Strategy",
+                    "Entry Date",
+                    "Exit Date",
+                    "Entry Price",
+                    "Exit Price",
+                    "Quantity",
+                    "Gross P&L",
+                    "Net P&L",
+                    "P&L %",
+                    "Commission",
+                    "Hold Hours",
+                    "Entry Reason",
+                    "Exit Reason",
+                ]
+            )
 
             for trade in results.trades:
-                writer.writerow([
-                    trade.symbol,
-                    trade.strategy_name,
-                    trade.entry_date.isoformat(),
-                    trade.exit_date.isoformat(),
-                    str(trade.entry_price),
-                    str(trade.exit_price),
-                    trade.quantity,
-                    str(trade.gross_pnl),
-                    str(trade.net_pnl),
-                    f"{trade.pnl_percentage:.4f}",
-                    str(trade.commission_total),
-                    f"{trade.hold_duration_hours:.2f}",
-                    trade.entry_reason,
-                    trade.exit_reason
-                ])
+                writer.writerow(
+                    [
+                        trade.symbol,
+                        trade.strategy_name,
+                        trade.entry_date.isoformat(),
+                        trade.exit_date.isoformat(),
+                        str(trade.entry_price),
+                        str(trade.exit_price),
+                        trade.quantity,
+                        str(trade.gross_pnl),
+                        str(trade.net_pnl),
+                        f"{trade.pnl_percentage:.4f}",
+                        str(trade.commission_total),
+                        f"{trade.hold_duration_hours:.2f}",
+                        trade.entry_reason,
+                        trade.exit_reason,
+                    ]
+                )
 
         print(f"Trade details saved to: {trades_file}")
 
     # Save daily portfolio values if requested
     if args.save_daily_values and results.daily_portfolio_values:
         daily_file = output_dir / f"{base_filename}_daily_values.csv"
-        with open(daily_file, 'w', newline='') as f:
+        with open(daily_file, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(['Date', 'Portfolio Value'])
+            writer.writerow(["Date", "Portfolio Value"])
 
             for date, value in results.daily_portfolio_values:
                 writer.writerow([date.isoformat(), str(value)])
@@ -588,7 +600,9 @@ async def main():
     if not PRODUCTION_STRATEGIES_AVAILABLE:
         print("ERROR: Production strategies are not available.")
         print("This usually means there are import issues with the strategy modules.")
-        print("Please check that all required dependencies are installed and modules are accessible.")
+        print(
+            "Please check that all required dependencies are installed and modules are accessible."
+        )
         return 1
 
     try:
@@ -609,7 +623,7 @@ async def main():
             results_dict = await run_multi_strategy_comparison(
                 start_date=start_date,
                 end_date=end_date,
-                initial_capital=Decimal(str(args.capital))
+                initial_capital=Decimal(str(args.capital)),
             )
 
             if not results_dict:
@@ -630,17 +644,17 @@ async def main():
 
                 for strategy_name, results in results_dict.items():
                     comparison_data[strategy_name] = {
-                        'total_return': results.total_return,
-                        'annualized_return': results.annualized_return,
-                        'max_drawdown': results.max_drawdown,
-                        'sharpe_ratio': results.sharpe_ratio,
-                        'win_rate': results.win_rate,
-                        'total_trades': results.total_trades,
-                        'profit_factor': results.profit_factor,
-                        'execution_time_seconds': results.execution_time_seconds
+                        "total_return": results.total_return,
+                        "annualized_return": results.annualized_return,
+                        "max_drawdown": results.max_drawdown,
+                        "sharpe_ratio": results.sharpe_ratio,
+                        "win_rate": results.win_rate,
+                        "total_trades": results.total_trades,
+                        "profit_factor": results.profit_factor,
+                        "execution_time_seconds": results.execution_time_seconds,
                     }
 
-                with open(comparison_file, 'w') as f:
+                with open(comparison_file, "w") as f:
                     json.dump(comparison_data, f, indent=2)
 
                 print(f"\nComparison results saved to: {comparison_file}")
@@ -651,7 +665,9 @@ async def main():
 
             if not args.quiet:
                 print(f"Strategy: {config.strategy_type}")
-                print(f"Screener Simulation: {'Enabled' if config.enable_screener_simulation else 'Disabled'}")
+                print(
+                    f"Screener Simulation: {'Enabled' if config.enable_screener_simulation else 'Disabled'}"
+                )
                 if config.specific_symbols:
                     print(f"Trading Symbols: {', '.join(config.specific_symbols)}")
 
@@ -675,6 +691,7 @@ async def main():
         logger.error(f"Backtest failed: {e}")
         if args.debug:
             import traceback
+
             traceback.print_exc()
         return 1
 

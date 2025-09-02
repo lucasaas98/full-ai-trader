@@ -10,14 +10,13 @@ import logging
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import polars as pl
 from pydantic import BaseModel, Field
 
-from shared.models import MarketData, TimeFrame, AssetType
-
+from shared.models import AssetType, MarketData, TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -26,12 +25,18 @@ class TwelveDataConfig(BaseModel):
     """TwelveData API configuration."""
 
     api_key: str = Field(..., description="TwelveData API key")
-    base_url: str = Field(default="https://api.twelvedata.com", description="Base API URL")
+    base_url: str = Field(
+        default="https://api.twelvedata.com", description="Base API URL"
+    )
     rate_limit_requests: int = Field(default=800, description="Requests per minute")
-    rate_limit_period: int = Field(default=60, description="Rate limit period in seconds")
+    rate_limit_period: int = Field(
+        default=60, description="Rate limit period in seconds"
+    )
     timeout: float = Field(default=30.0, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
-    batch_size: int = Field(default=120, description="Maximum symbols per batch request")
+    batch_size: int = Field(
+        default=120, description="Maximum symbols per batch request"
+    )
 
 
 class TwelveDataRateLimiter:
@@ -49,8 +54,11 @@ class TwelveDataRateLimiter:
             current_time = time.time()
 
             # Remove requests older than the period
-            self.requests = [req_time for req_time in self.requests
-                           if current_time - req_time < self.period]
+            self.requests = [
+                req_time
+                for req_time in self.requests
+                if current_time - req_time < self.period
+            ]
 
             # Check if we need to wait
             if len(self.requests) >= self.requests_per_period:
@@ -83,12 +91,13 @@ class TwelveDataClient:
     and both historical and real-time data.
     """
 
-    def __init__(self, config: TwelveDataConfig, session: Optional[aiohttp.ClientSession] = None):
+    def __init__(
+        self, config: TwelveDataConfig, session: Optional[aiohttp.ClientSession] = None
+    ):
         self.config = config
         self._session = session
         self._rate_limiter = TwelveDataRateLimiter(
-            config.rate_limit_requests,
-            config.rate_limit_period
+            config.rate_limit_requests, config.rate_limit_period
         )
 
         # Supported timeframes mapping
@@ -98,7 +107,7 @@ class TwelveDataClient:
             TimeFrame.ONE_HOUR: "1h",
             TimeFrame.ONE_DAY: "1day",
             TimeFrame.ONE_WEEK: "1week",
-            TimeFrame.ONE_MONTH: "1month"
+            TimeFrame.ONE_MONTH: "1month",
         }
 
     async def __aenter__(self):
@@ -121,10 +130,7 @@ class TwelveDataClient:
         return self._session
 
     async def _make_request(
-        self,
-        endpoint: str,
-        params: Dict[str, Any],
-        retries: int = 0
+        self, endpoint: str, params: Dict[str, Any], retries: int = 0
     ) -> Dict[str, Any]:
         """
         Make HTTP request to TwelveData API with error handling.
@@ -164,8 +170,10 @@ class TwelveDataClient:
 
         except aiohttp.ClientError as e:
             if retries < self.config.max_retries:
-                wait_time = 2 ** retries
-                logger.warning(f"Request failed (attempt {retries + 1}), retrying in {wait_time}s: {e}")
+                wait_time = 2**retries
+                logger.warning(
+                    f"Request failed (attempt {retries + 1}), retrying in {wait_time}s: {e}"
+                )
                 await asyncio.sleep(wait_time)
                 return await self._make_request(endpoint, params, retries + 1)
 
@@ -178,7 +186,7 @@ class TwelveDataClient:
         timeframe: TimeFrame,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        outputsize: int = 5000
+        outputsize: int = 5000,
     ) -> List[MarketData]:
         """
         Get time series data for a single symbol.
@@ -199,7 +207,7 @@ class TwelveDataClient:
             "symbol": symbol.upper(),
             "interval": interval,
             "outputsize": min(outputsize, 5000),  # TwelveData limit
-            "format": "JSON"
+            "format": "JSON",
         }
 
         if start_date:
@@ -222,7 +230,7 @@ class TwelveDataClient:
         symbols: List[str],
         timeframe: TimeFrame,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> Dict[str, List[MarketData]]:
         """
         Get time series data for multiple symbols in batch.
@@ -237,13 +245,17 @@ class TwelveDataClient:
             Dictionary mapping symbols to MarketData lists
         """
         # Split symbols into batches to respect API limits
-        batches = [symbols[i:i + self.config.batch_size]
-                  for i in range(0, len(symbols), self.config.batch_size)]
+        batches = [
+            symbols[i : i + self.config.batch_size]
+            for i in range(0, len(symbols), self.config.batch_size)
+        ]
 
         all_results = {}
 
         for batch_num, batch_symbols in enumerate(batches, 1):
-            logger.info(f"Processing batch {batch_num}/{len(batches)} with {len(batch_symbols)} symbols")
+            logger.info(
+                f"Processing batch {batch_num}/{len(batches)} with {len(batch_symbols)} symbols"
+            )
 
             # Create concurrent tasks for this batch
             tasks = [
@@ -277,10 +289,7 @@ class TwelveDataClient:
         Returns:
             MarketData with current price information
         """
-        params = {
-            "symbol": symbol.upper(),
-            "format": "JSON"
-        }
+        params = {"symbol": symbol.upper(), "format": "JSON"}
 
         try:
             response = await self._make_request("price", params)
@@ -290,7 +299,9 @@ class TwelveDataClient:
             logger.error(f"Failed to fetch real-time price for {symbol}: {e}")
             return None
 
-    async def get_batch_real_time_prices(self, symbols: List[str]) -> Dict[str, Optional[MarketData]]:
+    async def get_batch_real_time_prices(
+        self, symbols: List[str]
+    ) -> Dict[str, Optional[MarketData]]:
         """
         Get real-time prices for multiple symbols.
 
@@ -303,10 +314,7 @@ class TwelveDataClient:
         # TwelveData supports batch real-time requests
         symbol_string = ",".join(symbol.upper() for symbol in symbols)
 
-        params = {
-            "symbol": symbol_string,
-            "format": "JSON"
-        }
+        params = {"symbol": symbol_string, "format": "JSON"}
 
         try:
             response = await self._make_request("price", params)
@@ -317,10 +325,7 @@ class TwelveDataClient:
             return {symbol: None for symbol in symbols}  # type: ignore
 
     async def get_historical_data(
-        self,
-        symbol: str,
-        timeframe: TimeFrame,
-        years: int = 2
+        self, symbol: str, timeframe: TimeFrame, years: int = 2
     ) -> List[MarketData]:
         """
         Get historical data for backtesting.
@@ -341,7 +346,7 @@ class TwelveDataClient:
             timeframe=timeframe,
             start_date=start_date,
             end_date=end_date,
-            outputsize=5000
+            outputsize=5000,
         )
 
     async def get_multi_timeframe_data(
@@ -349,7 +354,7 @@ class TwelveDataClient:
         symbol: str,
         timeframes: List[TimeFrame],
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> Dict[TimeFrame, List[MarketData]]:
         """
         Get data for multiple timeframes for a single symbol.
@@ -364,8 +369,7 @@ class TwelveDataClient:
             Dictionary mapping timeframes to MarketData lists
         """
         tasks = [
-            self.get_time_series(symbol, tf, start_date, end_date)
-            for tf in timeframes
+            self.get_time_series(symbol, tf, start_date, end_date) for tf in timeframes
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -381,10 +385,7 @@ class TwelveDataClient:
         return output
 
     def _parse_time_series_response(
-        self,
-        response: Dict[str, Any],
-        symbol: str,
-        timeframe: TimeFrame
+        self, response: Dict[str, Any], symbol: str, timeframe: TimeFrame
     ) -> List[MarketData]:
         """
         Parse time series response into MarketData objects.
@@ -419,7 +420,9 @@ class TwelveDataClient:
                     if not timestamp_str:
                         continue
 
-                    timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                    timestamp = datetime.fromisoformat(
+                        timestamp_str.replace("Z", "+00:00")
+                    )
 
                     # Parse OHLCV data
                     open_price = Decimal(str(point.get("open", 0)))
@@ -428,18 +431,20 @@ class TwelveDataClient:
                     close_price = Decimal(str(point.get("close", 0)))
                     volume = int(float(point.get("volume", 0)))
 
-                    market_data.append(MarketData(
-                        symbol=symbol.upper(),
-                        timestamp=timestamp,
-                        timeframe=timeframe,
-                        open=open_price,
-                        high=high_price,
-                        low=low_price,
-                        close=close_price,
-                        volume=volume,
-                        adjusted_close=close_price,
-                        asset_type=AssetType.STOCK
-                    ))
+                    market_data.append(
+                        MarketData(
+                            symbol=symbol.upper(),
+                            timestamp=timestamp,
+                            timeframe=timeframe,
+                            open=open_price,
+                            high=high_price,
+                            low=low_price,
+                            close=close_price,
+                            volume=volume,
+                            adjusted_close=close_price,
+                            asset_type=AssetType.STOCK,
+                        )
+                    )
 
                 except Exception as e:
                     logger.warning(f"Failed to parse data point for {symbol}: {e}")
@@ -454,9 +459,7 @@ class TwelveDataClient:
         return market_data
 
     def _parse_real_time_response(
-        self,
-        response: Dict[str, Any],
-        symbol: str
+        self, response: Dict[str, Any], symbol: str
     ) -> Optional[MarketData]:
         """
         Parse real-time price response into MarketData object.
@@ -485,7 +488,7 @@ class TwelveDataClient:
                 close=price,
                 volume=0,  # Volume not available in real-time price endpoint
                 adjusted_close=price,
-                asset_type=AssetType.STOCK
+                asset_type=AssetType.STOCK,
             )
 
         except Exception as e:
@@ -493,9 +496,7 @@ class TwelveDataClient:
             return None
 
     def _parse_batch_real_time_response(
-        self,
-        response: Dict[str, Any],
-        symbols: List[str]
+        self, response: Dict[str, Any], symbols: List[str]
     ) -> Dict[str, Optional[MarketData]]:
         """
         Parse batch real-time price response.
@@ -522,7 +523,9 @@ class TwelveDataClient:
                     if i < len(symbols):
                         symbol = symbols[i]
                         if isinstance(data, dict):
-                            results[symbol] = self._parse_real_time_response(data, symbol)
+                            results[symbol] = self._parse_real_time_response(
+                                data, symbol
+                            )
                         else:
                             results[symbol] = None
 
@@ -532,7 +535,9 @@ class TwelveDataClient:
                     if symbol.upper() in response:
                         symbol_data = response[symbol.upper()]
                         if isinstance(symbol_data, dict):
-                            results[symbol] = self._parse_real_time_response(symbol_data, symbol)
+                            results[symbol] = self._parse_real_time_response(
+                                symbol_data, symbol
+                            )
                         else:
                             results[symbol] = None
                     else:
@@ -541,7 +546,9 @@ class TwelveDataClient:
         except Exception as e:
             logger.error(f"Failed to parse batch real-time response: {e}")
             # Return None for all symbols on parsing error
-            results: Dict[str, Optional[MarketData]] = {symbol: None for symbol in symbols}
+            results: Dict[str, Optional[MarketData]] = {
+                symbol: None for symbol in symbols
+            }
 
         # Ensure all requested symbols are in results
         for symbol in symbols:
@@ -560,10 +567,7 @@ class TwelveDataClient:
         Returns:
             Quote data dictionary or None if failed
         """
-        params = {
-            "symbol": symbol.upper(),
-            "format": "JSON"
-        }
+        params = {"symbol": symbol.upper(), "format": "JSON"}
 
         try:
             response = await self._make_request("quote", params)
@@ -589,9 +593,7 @@ class TwelveDataClient:
             return {}
 
     async def search_instruments(
-        self,
-        query: str,
-        exchange: Optional[str] = None
+        self, query: str, exchange: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Search for trading instruments.
@@ -603,10 +605,7 @@ class TwelveDataClient:
         Returns:
             List of matching instruments
         """
-        params = {
-            "symbol": query,
-            "format": "JSON"
-        }
+        params = {"symbol": query, "format": "JSON"}
 
         if exchange:
             params["exchange"] = exchange
@@ -633,8 +632,9 @@ class TwelveDataClient:
 
         # Use batch quote requests for validation
         batch_size = 10  # Smaller batch for validation
-        batches = [symbols[i:i + batch_size]
-                  for i in range(0, len(symbols), batch_size)]
+        batches = [
+            symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)
+        ]
 
         for batch in batches:
             for symbol in batch:
@@ -651,11 +651,7 @@ class TwelveDataClient:
         return results
 
     async def get_technical_indicators(
-        self,
-        symbol: str,
-        indicator: str,
-        timeframe: TimeFrame,
-        **kwargs
+        self, symbol: str, indicator: str, timeframe: TimeFrame, **kwargs
     ) -> Optional[Dict[str, Any]]:
         """
         Get technical indicator data.
@@ -675,7 +671,7 @@ class TwelveDataClient:
             "symbol": symbol.upper(),
             "interval": interval,
             "format": "JSON",
-            **kwargs
+            **kwargs,
         }
 
         try:
@@ -686,10 +682,7 @@ class TwelveDataClient:
             logger.error(f"Failed to fetch {indicator} for {symbol}: {e}")
             return None
 
-    def to_polars_dataframe(
-        self,
-        market_data: List[MarketData]
-    ) -> pl.DataFrame:
+    def to_polars_dataframe(self, market_data: List[MarketData]) -> pl.DataFrame:
         """
         Convert MarketData list to Polars DataFrame.
 
@@ -705,24 +698,24 @@ class TwelveDataClient:
         # Convert to list of dictionaries
         data_dicts = []
         for md in market_data:
-            data_dicts.append({
-                "symbol": md.symbol,
-                "timestamp": md.timestamp,
-                "timeframe": md.timeframe.value,
-                "open": float(md.open),
-                "high": float(md.high),
-                "low": float(md.low),
-                "close": float(md.close),
-                "volume": md.volume,
-                "asset_type": md.asset_type.value
-            })
+            data_dicts.append(
+                {
+                    "symbol": md.symbol,
+                    "timestamp": md.timestamp,
+                    "timeframe": md.timeframe.value,
+                    "open": float(md.open),
+                    "high": float(md.high),
+                    "low": float(md.low),
+                    "close": float(md.close),
+                    "volume": md.volume,
+                    "asset_type": md.asset_type.value,
+                }
+            )
 
         return pl.DataFrame(data_dicts)
 
     async def get_earnings_calendar(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
         Get earnings calendar data.
@@ -750,9 +743,7 @@ class TwelveDataClient:
             return []
 
     async def get_economic_calendar(
-        self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """
         Get economic calendar data.
@@ -784,10 +775,7 @@ class TwelveDataClient:
         return list(self.timeframe_map.keys())
 
     def estimate_api_usage(
-        self,
-        symbols: List[str],
-        timeframes: List[TimeFrame],
-        historical_years: int = 2
+        self, symbols: List[str], timeframes: List[TimeFrame], historical_years: int = 2
     ) -> Dict[str, int]:
         """
         Estimate API usage for a data collection plan.
@@ -807,7 +795,9 @@ class TwelveDataClient:
         daily_requests_per_year = len(symbols) * len(timeframes) * 252
 
         # Real-time requests (assuming every 5 minutes during market hours)
-        realtime_requests_per_day = len(symbols) * 12 * 6.5  # 78 requests per symbol per day
+        realtime_requests_per_day = (
+            len(symbols) * 12 * 6.5
+        )  # 78 requests per symbol per day
         realtime_requests_per_year = realtime_requests_per_day * 252
 
         return {
@@ -816,7 +806,9 @@ class TwelveDataClient:
             "yearly_update_requests": daily_requests_per_year,
             "daily_realtime_requests": int(realtime_requests_per_day),
             "yearly_realtime_requests": int(realtime_requests_per_year),
-            "total_yearly_estimate": historical_requests + daily_requests_per_year + int(realtime_requests_per_year)
+            "total_yearly_estimate": historical_requests
+            + daily_requests_per_year
+            + int(realtime_requests_per_year),
         }
 
     async def test_connection(self) -> bool:
@@ -856,7 +848,7 @@ async def fetch_latest_data_for_symbols(
     client: TwelveDataClient,
     symbols: List[str],
     timeframe: TimeFrame = TimeFrame.FIVE_MINUTES,
-    days_back: int = 5
+    days_back: int = 5,
 ) -> pl.DataFrame:
     """
     Fetch latest data for multiple symbols and return as Polars DataFrame.
@@ -875,10 +867,7 @@ async def fetch_latest_data_for_symbols(
 
     # Fetch data for all symbols
     batch_data = await client.get_batch_time_series(
-        symbols=symbols,
-        timeframe=timeframe,
-        start_date=start_date,
-        end_date=end_date
+        symbols=symbols, timeframe=timeframe, start_date=start_date, end_date=end_date
     )
 
     # Combine all data into single list
@@ -894,7 +883,7 @@ async def update_symbol_data(
     client: TwelveDataClient,
     symbol: str,
     timeframes: List[TimeFrame],
-    last_update: Optional[datetime] = None
+    last_update: Optional[datetime] = None,
 ) -> Dict[TimeFrame, List[MarketData]]:
     """
     Update data for a single symbol across multiple timeframes.
@@ -916,17 +905,15 @@ async def update_symbol_data(
         symbol=symbol,
         timeframes=timeframes,
         start_date=last_update,
-        end_date=datetime.now(timezone.utc)
+        end_date=datetime.now(timezone.utc),
     )
 
 
 # Example usage
 if __name__ == "__main__":
+
     async def main():
-        config = TwelveDataConfig(
-            api_key="your_api_key_here",
-            rate_limit_requests=800
-        )
+        config = TwelveDataConfig(api_key="your_api_key_here", rate_limit_requests=800)
 
         async with TwelveDataClient(config) as client:
             # Test connection

@@ -10,20 +10,26 @@ Usage:
 """
 
 import argparse
-import sys
+import json
 import os
+import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import List, Dict, Optional
-import json
+from typing import Dict, List, Optional
 from uuid import uuid4
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.models import (
-    MarketData, TradeSignal, BacktestResult, Trade, Position,
-    SignalType, OrderSide, TimeFrame
+    BacktestResult,
+    MarketData,
+    OrderSide,
+    Position,
+    SignalType,
+    TimeFrame,
+    Trade,
+    TradeSignal,
 )
 from shared.utils import format_currency, format_percentage
 
@@ -74,7 +80,7 @@ class SimpleBacktester:
                 current_price=price,
                 unrealized_pnl=Decimal("0"),
                 market_value=cost,
-                cost_basis=cost
+                cost_basis=cost,
             )
 
         # Record trade
@@ -86,13 +92,15 @@ class SimpleBacktester:
             strategy_name="backtest",
             order_id=uuid4(),
             fees=Decimal("0"),
-            pnl=None
+            pnl=None,
         )
         self.trades.append(trade)
 
         return True
 
-    def _execute_sell(self, symbol: str, price: Decimal, quantity: Optional[int] = None) -> bool:
+    def _execute_sell(
+        self, symbol: str, price: Decimal, quantity: Optional[int] = None
+    ) -> bool:
         """Execute sell order."""
         if symbol not in self.positions:
             return False  # No position to sell
@@ -124,7 +132,7 @@ class SimpleBacktester:
             strategy_name="backtest",
             order_id=uuid4(),
             pnl=pnl,
-            fees=Decimal("0")
+            fees=Decimal("0"),
         )
         self.trades.append(trade)
 
@@ -147,13 +155,15 @@ class SimpleBacktester:
     def record_equity_point(self, timestamp: datetime):
         """Record equity curve point."""
         total_value = self.get_portfolio_value()
-        self.equity_curve.append({
-            "timestamp": timestamp,
-            "total_equity": total_value,
-            "cash": self.cash,
-            "positions_value": total_value - self.cash,
-            "positions_count": len(self.positions)
-        })
+        self.equity_curve.append(
+            {
+                "timestamp": timestamp,
+                "total_equity": total_value,
+                "cash": self.cash,
+                "positions_value": total_value - self.cash,
+                "positions_count": len(self.positions),
+            }
+        )
 
 
 class MovingAverageStrategy:
@@ -182,13 +192,13 @@ class MovingAverageStrategy:
             return None
 
         # Calculate moving averages
-        short_ma = sum(prices[-self.short_window:]) / self.short_window
-        long_ma = sum(prices[-self.long_window:]) / self.long_window
+        short_ma = sum(prices[-self.short_window :]) / self.short_window
+        long_ma = sum(prices[-self.long_window :]) / self.long_window
 
         # Previous moving averages for crossover detection
         if len(prices) >= self.long_window + 1:
-            prev_short_ma = sum(prices[-self.short_window-1:-1]) / self.short_window
-            prev_long_ma = sum(prices[-self.long_window-1:-1]) / self.long_window
+            prev_short_ma = sum(prices[-self.short_window - 1 : -1]) / self.short_window
+            prev_long_ma = sum(prices[-self.long_window - 1 : -1]) / self.long_window
 
             # Bullish crossover
             if short_ma > long_ma and prev_short_ma <= prev_long_ma:
@@ -200,7 +210,7 @@ class MovingAverageStrategy:
                     strategy_name="moving_average",
                     quantity=100,
                     stop_loss=None,
-                    take_profit=None
+                    take_profit=None,
                 )
 
             # Bearish crossover
@@ -213,13 +223,15 @@ class MovingAverageStrategy:
                     strategy_name="moving_average",
                     quantity=100,
                     stop_loss=None,
-                    take_profit=None
+                    take_profit=None,
                 )
 
         return None
 
 
-def load_sample_data(symbol: str, start_date: datetime, end_date: datetime) -> List[MarketData]:
+def load_sample_data(
+    symbol: str, start_date: datetime, end_date: datetime
+) -> List[MarketData]:
     """Load sample market data for backtesting."""
     # This is a placeholder - in reality, you'd load from your database or files
     # For now, generate some sample data
@@ -231,6 +243,7 @@ def load_sample_data(symbol: str, start_date: datetime, end_date: datetime) -> L
     while current_date <= end_date:
         # Simple random walk for demonstration
         import random
+
         price_change = Decimal(str(random.uniform(-0.05, 0.05)))  # ±5% daily change
         current_price = current_price * (1 + price_change)
 
@@ -239,7 +252,9 @@ def load_sample_data(symbol: str, start_date: datetime, end_date: datetime) -> L
 
         high = current_price + (daily_volatility * Decimal("0.5"))
         low = current_price - (daily_volatility * Decimal("0.5"))
-        open_price = current_price + (daily_volatility * Decimal(str(random.uniform(-0.3, 0.3))))
+        open_price = current_price + (
+            daily_volatility * Decimal(str(random.uniform(-0.3, 0.3)))
+        )
         volume = random.randint(1000000, 10000000)
 
         market_data = MarketData(
@@ -251,7 +266,7 @@ def load_sample_data(symbol: str, start_date: datetime, end_date: datetime) -> L
             low=low,
             close=current_price,
             volume=volume,
-            adjusted_close=current_price
+            adjusted_close=current_price,
         )
         data.append(market_data)
 
@@ -264,17 +279,25 @@ def load_sample_data(symbol: str, start_date: datetime, end_date: datetime) -> L
     return data
 
 
-def calculate_backtest_metrics(backtester: SimpleBacktester, start_date: datetime, end_date: datetime) -> BacktestResult:
+def calculate_backtest_metrics(
+    backtester: SimpleBacktester, start_date: datetime, end_date: datetime
+) -> BacktestResult:
     """Calculate backtest performance metrics."""
 
     # Basic calculations
     final_equity = backtester.get_portfolio_value()
-    total_return = ((final_equity - backtester.initial_capital) / backtester.initial_capital) * 100
+    total_return = (
+        (final_equity - backtester.initial_capital) / backtester.initial_capital
+    ) * 100
 
     # Calculate annualized return
     days = (end_date - start_date).days
     years = days / 365.25
-    annual_return = (float(final_equity / backtester.initial_capital) ** (1 / years) - 1) * 100 if years > 0 else 0
+    annual_return = (
+        (float(final_equity / backtester.initial_capital) ** (1 / years) - 1) * 100
+        if years > 0
+        else 0
+    )
 
     # Trade statistics
     winning_trades = [t for t in backtester.trades if t.pnl and t.pnl > 0]
@@ -282,11 +305,33 @@ def calculate_backtest_metrics(backtester: SimpleBacktester, start_date: datetim
 
     win_rate = len(winning_trades) / len(backtester.trades) if backtester.trades else 0
 
-    avg_win = Decimal(str(sum(t.pnl for t in winning_trades if t.pnl is not None) / len(winning_trades))) if winning_trades else Decimal("0")
-    avg_loss = Decimal(str(sum(t.pnl for t in losing_trades if t.pnl is not None) / len(losing_trades))) if losing_trades else Decimal("0")
+    avg_win = (
+        Decimal(
+            str(
+                sum(t.pnl for t in winning_trades if t.pnl is not None)
+                / len(winning_trades)
+            )
+        )
+        if winning_trades
+        else Decimal("0")
+    )
+    avg_loss = (
+        Decimal(
+            str(
+                sum(t.pnl for t in losing_trades if t.pnl is not None)
+                / len(losing_trades)
+            )
+        )
+        if losing_trades
+        else Decimal("0")
+    )
 
-    largest_win = max((t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0"))
-    largest_loss = min((t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0"))
+    largest_win = max(
+        (t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0")
+    )
+    largest_loss = min(
+        (t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0")
+    )
 
     # Calculate maximum drawdown
     max_equity = backtester.initial_capital
@@ -297,7 +342,9 @@ def calculate_backtest_metrics(backtester: SimpleBacktester, start_date: datetim
         if equity > max_equity:
             max_equity = equity
 
-        drawdown = (equity - max_equity) / max_equity if max_equity > 0 else Decimal("0")
+        drawdown = (
+            (equity - max_equity) / max_equity if max_equity > 0 else Decimal("0")
+        )
         if drawdown < max_drawdown:
             max_drawdown = drawdown
 
@@ -320,12 +367,21 @@ def calculate_backtest_metrics(backtester: SimpleBacktester, start_date: datetim
         losing_trades=len(losing_trades),
         avg_win=avg_win,
         avg_loss=avg_loss,
-        profit_factor=float(avg_win * len(winning_trades) / abs(avg_loss * len(losing_trades))) if losing_trades and avg_loss != 0 else 0.0
+        profit_factor=(
+            float(avg_win * len(winning_trades) / abs(avg_loss * len(losing_trades)))
+            if losing_trades and avg_loss != 0
+            else 0.0
+        ),
     )
 
 
-def run_backtest(strategy_name: str, symbol: str, start_date: datetime, end_date: datetime,
-                initial_capital: Decimal = Decimal("100000")) -> BacktestResult:
+def run_backtest(
+    strategy_name: str,
+    symbol: str,
+    start_date: datetime,
+    end_date: datetime,
+    initial_capital: Decimal = Decimal("100000"),
+) -> BacktestResult:
     """Run backtest for specified strategy."""
 
     print(f"Running backtest for {strategy_name} strategy on {symbol}")
@@ -362,7 +418,9 @@ def run_backtest(strategy_name: str, symbol: str, start_date: datetime, end_date
         if signal:
             executed = backtester.process_signal(signal, data.close)
             if executed:
-                print(f"  {data.timestamp.date()}: {signal.signal_type.value.upper()} {symbol} @ {format_currency(data.close)}")
+                print(
+                    f"  {data.timestamp.date()}: {signal.signal_type.value.upper()} {symbol} @ {format_currency(data.close)}"
+                )
 
         # Progress indicator
         if (i + 1) % 50 == 0:
@@ -384,7 +442,9 @@ def print_results(results: BacktestResult):
     print("=" * 60)
 
     print(f"Strategy:           {results.strategy_name}")
-    print(f"Period:             {results.start_date.date()} to {results.end_date.date()}")
+    print(
+        f"Period:             {results.start_date.date()} to {results.end_date.date()}"
+    )
     print(f"Duration:           {(results.end_date - results.start_date).days} days")
 
     print("\nPortfolio Performance:")
@@ -406,7 +466,9 @@ def print_results(results: BacktestResult):
         print(f"Profit Factor:      {results.profit_factor:.2f}")
 
         if results.avg_loss != 0:
-            profit_factor = abs(results.avg_win * results.winning_trades) / abs(results.avg_loss * results.losing_trades)
+            profit_factor = abs(results.avg_win * results.winning_trades) / abs(
+                results.avg_loss * results.losing_trades
+            )
             print(f"Profit Factor:      {profit_factor:.2f}")
 
     # Risk metrics
@@ -434,7 +496,7 @@ def save_results(results: BacktestResult, output_file: Optional[str] = None):
     # Convert to JSON-serializable format
     results_dict = results.dict()
 
-    with open(output_path, 'w') as f:
+    with open(output_path, "w") as f:
         json.dump(results_dict, f, indent=2, default=str)
 
     print(f"\nResults saved to: {output_path}")
@@ -444,17 +506,23 @@ def main():
     """Main backtesting function."""
 
     parser = argparse.ArgumentParser(description="Run backtest for trading strategies")
-    parser.add_argument("--strategy", required=True,
-                       choices=["moving_average"],
-                       help="Strategy to backtest")
+    parser.add_argument(
+        "--strategy",
+        required=True,
+        choices=["moving_average"],
+        help="Strategy to backtest",
+    )
     parser.add_argument("--symbol", required=True, help="Symbol to backtest")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
-    parser.add_argument("--capital", type=float, default=100000,
-                       help="Initial capital (default: 100000)")
+    parser.add_argument(
+        "--capital",
+        type=float,
+        default=100000,
+        help="Initial capital (default: 100000)",
+    )
     parser.add_argument("--output", help="Output file name")
-    parser.add_argument("--save", action="store_true",
-                       help="Save results to file")
+    parser.add_argument("--save", action="store_true", help="Save results to file")
 
     args = parser.parse_args()
 
@@ -475,7 +543,7 @@ def main():
             symbol=symbol,
             start_date=start_date,
             end_date=end_date,
-            initial_capital=Decimal(str(args.capital))
+            initial_capital=Decimal(str(args.capital)),
         )
 
         # Print results

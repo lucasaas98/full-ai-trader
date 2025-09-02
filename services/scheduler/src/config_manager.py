@@ -6,16 +6,14 @@ and dynamic parameter updates for the trading system.
 """
 
 import asyncio
-import logging
+import hashlib
 import json
-
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Set, Callable
+import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-
-import hashlib
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import redis.asyncio as redis
 
@@ -24,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ConfigSource(str, Enum):
     """Configuration source types."""
+
     ENVIRONMENT = "environment"
     FILE = "file"
     REDIS = "redis"
@@ -33,6 +32,7 @@ class ConfigSource(str, Enum):
 
 class ConfigChangeType(str, Enum):
     """Types of configuration changes."""
+
     ADDED = "added"
     MODIFIED = "modified"
     DELETED = "deleted"
@@ -41,6 +41,7 @@ class ConfigChangeType(str, Enum):
 @dataclass
 class ConfigChange:
     """Represents a configuration change."""
+
     key: str
     old_value: Any
     new_value: Any
@@ -53,6 +54,7 @@ class ConfigChange:
 @dataclass
 class ABTestConfig:
     """A/B test configuration."""
+
     name: str
     description: str
     variants: Dict[str, Dict[str, Any]]
@@ -69,13 +71,13 @@ class ConfigValidator:
 
     def __init__(self):
         self.validation_rules = {
-            'risk.max_position_size': lambda x: 0 < float(x) <= 1.0,
-            'risk.max_portfolio_risk': lambda x: 0 < float(x) <= 1.0,
-            'risk.stop_loss_percentage': lambda x: 0 < float(x) <= 0.5,
-            'scheduler.market_data_interval': lambda x: 10 <= int(x) <= 3600,
-            'scheduler.finviz_scan_interval': lambda x: 60 <= int(x) <= 86400,
-            'database.pool_size': lambda x: 1 <= int(x) <= 50,
-            'redis.max_connections': lambda x: 1 <= int(x) <= 100
+            "risk.max_position_size": lambda x: 0 < float(x) <= 1.0,
+            "risk.max_portfolio_risk": lambda x: 0 < float(x) <= 1.0,
+            "risk.stop_loss_percentage": lambda x: 0 < float(x) <= 0.5,
+            "scheduler.market_data_interval": lambda x: 10 <= int(x) <= 3600,
+            "scheduler.finviz_scan_interval": lambda x: 60 <= int(x) <= 86400,
+            "database.pool_size": lambda x: 1 <= int(x) <= 50,
+            "redis.max_connections": lambda x: 1 <= int(x) <= 100,
         }
 
     def validate_change(self, key: str, value: Any) -> tuple[bool, str]:
@@ -138,7 +140,7 @@ class ConfigurationManager:
         config_files = [
             "config/trading.yaml",
             "config/strategies.yaml",
-            "config/risk.yaml"
+            "config/risk.yaml",
         ]
 
         for config_file in config_files:
@@ -209,7 +211,11 @@ class ConfigurationManager:
             stored_version = await self.redis.get(config_version_key)
 
             if stored_version:
-                stored_hash = stored_version.decode() if isinstance(stored_version, bytes) else stored_version
+                stored_hash = (
+                    stored_version.decode()
+                    if isinstance(stored_version, bytes)
+                    else stored_version
+                )
                 if stored_hash != self.current_config_hash:
                     logger.info("Redis configuration changes detected")
                     await self._apply_redis_config_changes()
@@ -227,6 +233,7 @@ class ConfigurationManager:
 
             # Reload from shared config
             from shared.config import reload_config
+
             new_config = reload_config()
 
             # Calculate new hash
@@ -239,12 +246,16 @@ class ConfigurationManager:
                 # Validate changes
                 validation_errors = []
                 for change in changes:
-                    is_valid, error_msg = self.validator.validate_change(change.key, change.new_value)
+                    is_valid, error_msg = self.validator.validate_change(
+                        change.key, change.new_value
+                    )
                     if not is_valid:
                         validation_errors.append(f"{change.key}: {error_msg}")
 
                 if validation_errors:
-                    logger.error(f"Configuration validation failed: {validation_errors}")
+                    logger.error(
+                        f"Configuration validation failed: {validation_errors}"
+                    )
                     return False
 
                 # Apply changes
@@ -259,7 +270,9 @@ class ConfigurationManager:
                 # Notify callbacks
                 await self._notify_config_changes(changes)
 
-                logger.info(f"Configuration reloaded successfully - {len(changes)} changes applied")
+                logger.info(
+                    f"Configuration reloaded successfully - {len(changes)} changes applied"
+                )
                 return True
             else:
                 logger.info("No configuration changes detected")
@@ -270,7 +283,9 @@ class ConfigurationManager:
             await self.rollback_last_change()
             return False
 
-    async def _detect_config_changes(self, old_config: Any, new_config: Any) -> List[ConfigChange]:
+    async def _detect_config_changes(
+        self, old_config: Any, new_config: Any
+    ) -> List[ConfigChange]:
         """Detect changes between old and new configuration."""
         changes = []
 
@@ -285,42 +300,50 @@ class ConfigurationManager:
             # Find added and modified keys
             for key, new_value in new_flat.items():
                 if key not in old_flat:
-                    changes.append(ConfigChange(
-                        key=key,
-                        old_value=None,
-                        new_value=new_value,
-                        change_type=ConfigChangeType.ADDED,
-                        timestamp=datetime.now(),
-                        source=ConfigSource.FILE
-                    ))
+                    changes.append(
+                        ConfigChange(
+                            key=key,
+                            old_value=None,
+                            new_value=new_value,
+                            change_type=ConfigChangeType.ADDED,
+                            timestamp=datetime.now(),
+                            source=ConfigSource.FILE,
+                        )
+                    )
                 elif old_flat[key] != new_value:
-                    changes.append(ConfigChange(
-                        key=key,
-                        old_value=old_flat[key],
-                        new_value=new_value,
-                        change_type=ConfigChangeType.MODIFIED,
-                        timestamp=datetime.now(),
-                        source=ConfigSource.FILE
-                    ))
+                    changes.append(
+                        ConfigChange(
+                            key=key,
+                            old_value=old_flat[key],
+                            new_value=new_value,
+                            change_type=ConfigChangeType.MODIFIED,
+                            timestamp=datetime.now(),
+                            source=ConfigSource.FILE,
+                        )
+                    )
 
             # Find deleted keys
             for key, old_value in old_flat.items():
                 if key not in new_flat:
-                    changes.append(ConfigChange(
-                        key=key,
-                        old_value=old_value,
-                        new_value=None,
-                        change_type=ConfigChangeType.DELETED,
-                        timestamp=datetime.now(),
-                        source=ConfigSource.FILE
-                    ))
+                    changes.append(
+                        ConfigChange(
+                            key=key,
+                            old_value=old_value,
+                            new_value=None,
+                            change_type=ConfigChangeType.DELETED,
+                            timestamp=datetime.now(),
+                            source=ConfigSource.FILE,
+                        )
+                    )
 
         except Exception as e:
             logger.error(f"Error detecting config changes: {e}")
 
         return changes
 
-    def _flatten_dict(self, d: Dict[str, Any], parent_key: str = '', sep: str = '.') -> Dict[str, Any]:
+    def _flatten_dict(
+        self, d: Dict[str, Any], parent_key: str = "", sep: str = "."
+    ) -> Dict[str, Any]:
         """Flatten nested dictionary."""
         items = []
         for k, v in d.items():
@@ -335,7 +358,7 @@ class ConfigurationManager:
         """Notify registered callbacks about configuration changes."""
         for change in changes:
             callbacks = self.change_callbacks.get(change.key, [])
-            callbacks.extend(self.change_callbacks.get('*', []))  # Global callbacks
+            callbacks.extend(self.change_callbacks.get("*", []))  # Global callbacks
 
             for callback in callbacks:
                 try:
@@ -350,9 +373,9 @@ class ConfigurationManager:
         """Create a rollback point for the current configuration."""
         try:
             rollback_data = {
-                'timestamp': datetime.now().isoformat(),
-                'config_hash': self.current_config_hash,
-                'config': self.config.dict()
+                "timestamp": datetime.now().isoformat(),
+                "config_hash": self.current_config_hash,
+                "config": self.config.dict(),
             }
 
             self.rollback_stack.append(rollback_data)
@@ -363,8 +386,7 @@ class ConfigurationManager:
 
             # Store in Redis as well
             self.redis.lpush(
-                "config:rollback_stack",
-                json.dumps(rollback_data, default=str)
+                "config:rollback_stack", json.dumps(rollback_data, default=str)
             )
             self.redis.ltrim("config:rollback_stack", 0, self.max_rollback_entries - 1)
 
@@ -379,7 +401,9 @@ class ConfigurationManager:
 
         try:
             rollback_point = self.rollback_stack.pop()
-            logger.info(f"Rolling back to configuration from {rollback_point['timestamp']}")
+            logger.info(
+                f"Rolling back to configuration from {rollback_point['timestamp']}"
+            )
 
             # This would typically restore the configuration
             # For now, just log the rollback
@@ -398,7 +422,9 @@ class ConfigurationManager:
         self.change_callbacks[config_key].append(callback)
         logger.info(f"Registered callback for configuration key: {config_key}")
 
-    async def update_config_value(self, key: str, value: Any, source: ConfigSource = ConfigSource.API) -> bool:
+    async def update_config_value(
+        self, key: str, value: Any, source: ConfigSource = ConfigSource.API
+    ) -> bool:
         """Update a specific configuration value."""
         try:
             # Validate the change
@@ -423,7 +449,7 @@ class ConfigurationManager:
                     change_type=ConfigChangeType.MODIFIED,
                     timestamp=datetime.now(),
                     source=source,
-                    applied=True
+                    applied=True,
                 )
 
                 self.config_history.append(change)
@@ -435,7 +461,9 @@ class ConfigurationManager:
                 await self.redis.setex(
                     f"config:override:{key}",
                     86400,  # 24 hours
-                    json.dumps({'value': value, 'timestamp': datetime.now().isoformat()})
+                    json.dumps(
+                        {"value": value, "timestamp": datetime.now().isoformat()}
+                    ),
                 )
 
                 logger.info(f"Configuration updated: {key} = {value}")
@@ -450,7 +478,7 @@ class ConfigurationManager:
     def _get_config_value(self, key: str) -> Any:
         """Get current configuration value by key."""
         try:
-            keys = key.split('.')
+            keys = key.split(".")
             value = self.config
 
             for k in keys:
@@ -468,7 +496,7 @@ class ConfigurationManager:
     async def _set_config_value(self, key: str, value: Any) -> bool:
         """Set configuration value by key."""
         try:
-            keys = key.split('.')
+            keys = key.split(".")
             config_obj = self.config
 
             # Navigate to the parent object
@@ -497,16 +525,20 @@ class ConfigurationManager:
             override_keys = await self.redis.keys("config:override:*")
 
             for key_bytes in override_keys:
-                key_str = key_bytes.decode() if isinstance(key_bytes, bytes) else key_bytes
+                key_str = (
+                    key_bytes.decode() if isinstance(key_bytes, bytes) else key_bytes
+                )
                 config_key = key_str.replace("config:override:", "")
 
                 override_data = await self.redis.get(key_str)
                 if override_data:
                     try:
                         override_info = json.loads(override_data)
-                        value = override_info['value']
+                        value = override_info["value"]
 
-                        await self.update_config_value(config_key, value, ConfigSource.REDIS)
+                        await self.update_config_value(
+                            config_key, value, ConfigSource.REDIS
+                        )
 
                     except json.JSONDecodeError:
                         logger.error(f"Invalid override data for {config_key}")
@@ -528,16 +560,22 @@ class ConfigurationManager:
             await self.redis.setex(
                 f"ab_test:{test_config.name}",
                 86400 * 30,  # 30 days
-                json.dumps({
-                    'name': test_config.name,
-                    'description': test_config.description,
-                    'variants': test_config.variants,
-                    'traffic_split': test_config.traffic_split,
-                    'start_time': test_config.start_time.isoformat(),
-                    'end_time': test_config.end_time.isoformat() if test_config.end_time else None,
-                    'enabled': test_config.enabled,
-                    'metrics': test_config.metrics
-                })
+                json.dumps(
+                    {
+                        "name": test_config.name,
+                        "description": test_config.description,
+                        "variants": test_config.variants,
+                        "traffic_split": test_config.traffic_split,
+                        "start_time": test_config.start_time.isoformat(),
+                        "end_time": (
+                            test_config.end_time.isoformat()
+                            if test_config.end_time
+                            else None
+                        ),
+                        "enabled": test_config.enabled,
+                        "metrics": test_config.metrics,
+                    }
+                ),
             )
 
             logger.info(f"A/B test created: {test_config.name}")
@@ -563,7 +601,9 @@ class ConfigurationManager:
 
         return True
 
-    async def get_ab_test_assignment(self, test_name: str, user_id: str = "default") -> Optional[str]:
+    async def get_ab_test_assignment(
+        self, test_name: str, user_id: str = "default"
+    ) -> Optional[str]:
         """Get A/B test variant assignment for a user."""
         if test_name not in self.ab_tests:
             return None
@@ -584,6 +624,7 @@ class ConfigurationManager:
 
         # Assign variant based on traffic split
         import random
+
         random.seed(hash(f"{test_name}:{user_id}"))  # Consistent assignment
         rand_val = random.random()
 
@@ -592,7 +633,9 @@ class ConfigurationManager:
             cumulative += traffic
             if rand_val <= cumulative:
                 test.current_assignment[user_id] = variant
-                logger.debug(f"Assigned user {user_id} to variant {variant} for test {test_name}")
+                logger.debug(
+                    f"Assigned user {user_id} to variant {variant} for test {test_name}"
+                )
                 return variant
 
         # Fallback to first variant
@@ -600,7 +643,9 @@ class ConfigurationManager:
         test.current_assignment[user_id] = first_variant
         return first_variant
 
-    async def get_ab_test_config(self, test_name: str, user_id: str = "default") -> Optional[Dict[str, Any]]:
+    async def get_ab_test_config(
+        self, test_name: str, user_id: str = "default"
+    ) -> Optional[Dict[str, Any]]:
         """Get configuration for A/B test variant."""
         variant = await self.get_ab_test_assignment(test_name, user_id)
         if not variant or test_name not in self.ab_tests:
@@ -609,7 +654,9 @@ class ConfigurationManager:
         test = self.ab_tests[test_name]
         return test.variants.get(variant)
 
-    async def end_ab_test(self, test_name: str, winning_variant: Optional[str] = None) -> bool:
+    async def end_ab_test(
+        self, test_name: str, winning_variant: Optional[str] = None
+    ) -> bool:
         """End an A/B test and optionally apply winning variant."""
         if test_name not in self.ab_tests:
             return False
@@ -625,7 +672,9 @@ class ConfigurationManager:
                 for key, value in winning_config.items():
                     await self.update_config_value(key, value, ConfigSource.API)
 
-                logger.info(f"Applied winning variant {winning_variant} from test {test_name}")
+                logger.info(
+                    f"Applied winning variant {winning_variant} from test {test_name}"
+                )
 
             # Clean up assignments
             test.current_assignment.clear()
@@ -646,7 +695,9 @@ class ConfigurationManager:
             ab_test_keys = await self.redis.keys("ab_test:*")
 
             for key_bytes in ab_test_keys:
-                key_str = key_bytes.decode() if isinstance(key_bytes, bytes) else key_bytes
+                key_str = (
+                    key_bytes.decode() if isinstance(key_bytes, bytes) else key_bytes
+                )
                 test_name = key_str.replace("ab_test:", "")
 
                 test_data = await self.redis.get(key_str)
@@ -654,14 +705,18 @@ class ConfigurationManager:
                     try:
                         test_info = json.loads(test_data)
                         ab_test = ABTestConfig(
-                            name=test_info['name'],
-                            description=test_info['description'],
-                            variants=test_info['variants'],
-                            traffic_split=test_info['traffic_split'],
-                            start_time=datetime.fromisoformat(test_info['start_time']),
-                            end_time=datetime.fromisoformat(test_info['end_time']) if test_info['end_time'] else None,
-                            enabled=test_info['enabled'],
-                            metrics=test_info['metrics']
+                            name=test_info["name"],
+                            description=test_info["description"],
+                            variants=test_info["variants"],
+                            traffic_split=test_info["traffic_split"],
+                            start_time=datetime.fromisoformat(test_info["start_time"]),
+                            end_time=(
+                                datetime.fromisoformat(test_info["end_time"])
+                                if test_info["end_time"]
+                                else None
+                            ),
+                            enabled=test_info["enabled"],
+                            metrics=test_info["metrics"],
                         )
 
                         self.ab_tests[test_name] = ab_test
@@ -682,12 +737,12 @@ class ConfigurationManager:
 
         # Get metrics for each variant
         results = {
-            'test_name': test_name,
-            'start_time': test.start_time.isoformat(),
-            'end_time': test.end_time.isoformat() if test.end_time else None,
-            'enabled': test.enabled,
-            'variants': {},
-            'assignments': len(test.current_assignment)
+            "test_name": test_name,
+            "start_time": test.start_time.isoformat(),
+            "end_time": test.end_time.isoformat() if test.end_time else None,
+            "enabled": test.enabled,
+            "variants": {},
+            "assignments": len(test.current_assignment),
         }
 
         # Count assignments per variant
@@ -696,47 +751,49 @@ class ConfigurationManager:
             variant_counts[variant] = variant_counts.get(variant, 0) + 1
 
         for variant_name in test.variants:
-            results['variants'][variant_name] = {
-                'config': test.variants[variant_name],
-                'assignment_count': variant_counts.get(variant_name, 0),
-                'traffic_percentage': test.traffic_split.get(variant_name, 0) * 100
+            results["variants"][variant_name] = {
+                "config": test.variants[variant_name],
+                "assignment_count": variant_counts.get(variant_name, 0),
+                "traffic_percentage": test.traffic_split.get(variant_name, 0) * 100,
             }
 
         return results
 
     # Configuration export/import
-    async def export_configuration(self, include_history: bool = False) -> Dict[str, Any]:
+    async def export_configuration(
+        self, include_history: bool = False
+    ) -> Dict[str, Any]:
         """Export current configuration and optionally history."""
         export_data = {
-            'timestamp': datetime.now().isoformat(),
-            'config_hash': self.current_config_hash,
-            'configuration': self.config.dict(),
-            'ab_tests': {}
+            "timestamp": datetime.now().isoformat(),
+            "config_hash": self.current_config_hash,
+            "configuration": self.config.dict(),
+            "ab_tests": {},
         }
 
         # Export A/B tests
         for test_name, test in self.ab_tests.items():
-            export_data['ab_tests'][test_name] = {
-                'name': test.name,
-                'description': test.description,
-                'variants': test.variants,
-                'traffic_split': test.traffic_split,
-                'start_time': test.start_time.isoformat(),
-                'end_time': test.end_time.isoformat() if test.end_time else None,
-                'enabled': test.enabled,
-                'metrics': test.metrics
+            export_data["ab_tests"][test_name] = {
+                "name": test.name,
+                "description": test.description,
+                "variants": test.variants,
+                "traffic_split": test.traffic_split,
+                "start_time": test.start_time.isoformat(),
+                "end_time": test.end_time.isoformat() if test.end_time else None,
+                "enabled": test.enabled,
+                "metrics": test.metrics,
             }
 
         if include_history:
-            export_data['change_history'] = [
+            export_data["change_history"] = [
                 {
-                    'key': change.key,
-                    'old_value': change.old_value,
-                    'new_value': change.new_value,
-                    'change_type': change.change_type.value,
-                    'timestamp': change.timestamp.isoformat(),
-                    'source': change.source.value,
-                    'applied': change.applied
+                    "key": change.key,
+                    "old_value": change.old_value,
+                    "new_value": change.new_value,
+                    "change_type": change.change_type.value,
+                    "timestamp": change.timestamp.isoformat(),
+                    "source": change.source.value,
+                    "applied": change.applied,
                 }
                 for change in self.config_history
             ]
@@ -747,7 +804,7 @@ class ConfigurationManager:
         """Import configuration from exported data."""
         try:
             # Validate imported configuration
-            imported_config = config_data.get('configuration', {})
+            imported_config = config_data.get("configuration", {})
 
             # This would validate the entire configuration structure
             # For now, just check if it's a valid dictionary
@@ -763,17 +820,21 @@ class ConfigurationManager:
                 await self.update_config_value(key, value, ConfigSource.API)
 
             # Import A/B tests if present
-            ab_tests = config_data.get('ab_tests', {})
+            ab_tests = config_data.get("ab_tests", {})
             for test_name, test_data in ab_tests.items():
                 ab_test = ABTestConfig(
-                    name=test_data['name'],
-                    description=test_data['description'],
-                    variants=test_data['variants'],
-                    traffic_split=test_data['traffic_split'],
-                    start_time=datetime.fromisoformat(test_data['start_time']),
-                    end_time=datetime.fromisoformat(test_data['end_time']) if test_data['end_time'] else None,
-                    enabled=test_data['enabled'],
-                    metrics=test_data['metrics']
+                    name=test_data["name"],
+                    description=test_data["description"],
+                    variants=test_data["variants"],
+                    traffic_split=test_data["traffic_split"],
+                    start_time=datetime.fromisoformat(test_data["start_time"]),
+                    end_time=(
+                        datetime.fromisoformat(test_data["end_time"])
+                        if test_data["end_time"]
+                        else None
+                    ),
+                    enabled=test_data["enabled"],
+                    metrics=test_data["metrics"],
                 )
                 await self.create_ab_test(ab_test)
 
@@ -788,17 +849,16 @@ class ConfigurationManager:
     async def get_config_status(self) -> Dict[str, Any]:
         """Get comprehensive configuration status."""
         return {
-            'current_hash': self.current_config_hash,
-            'auto_reload_enabled': self.auto_reload_enabled,
-            'watched_files': list(self.watched_files),
-            'change_history_count': len(self.config_history),
-            'rollback_points': len(self.rollback_stack),
-            'active_ab_tests': len([t for t in self.ab_tests.values() if t.enabled]),
-            'total_ab_tests': len(self.ab_tests),
-            'last_reload': max(
-                (change.timestamp for change in self.config_history),
-                default=None
-            )
+            "current_hash": self.current_config_hash,
+            "auto_reload_enabled": self.auto_reload_enabled,
+            "watched_files": list(self.watched_files),
+            "change_history_count": len(self.config_history),
+            "rollback_points": len(self.rollback_stack),
+            "active_ab_tests": len([t for t in self.ab_tests.values() if t.enabled]),
+            "total_ab_tests": len(self.ab_tests),
+            "last_reload": max(
+                (change.timestamp for change in self.config_history), default=None
+            ),
         }
 
     async def cleanup_config_history(self, days: int = 7):
@@ -807,8 +867,7 @@ class ConfigurationManager:
 
         original_count = len(self.config_history)
         self.config_history = [
-            change for change in self.config_history
-            if change.timestamp > cutoff_date
+            change for change in self.config_history if change.timestamp > cutoff_date
         ]
 
         cleaned_count = original_count - len(self.config_history)
@@ -816,11 +875,7 @@ class ConfigurationManager:
 
     async def validate_current_config(self) -> Dict[str, Any]:
         """Validate the current configuration."""
-        validation_results = {
-            'valid': True,
-            'errors': [],
-            'warnings': []
-        }
+        validation_results = {"valid": True, "errors": [], "warnings": []}
 
         try:
             # Validate critical configuration values
@@ -829,25 +884,23 @@ class ConfigurationManager:
             for key, value in config_dict.items():
                 is_valid, error_msg = self.validator.validate_change(key, value)
                 if not is_valid:
-                    validation_results['errors'].append(f"{key}: {error_msg}")
-                    validation_results['valid'] = False
+                    validation_results["errors"].append(f"{key}: {error_msg}")
+                    validation_results["valid"] = False
 
             # Check for missing required values
-            required_keys = [
-                'database.password',
-                'alpaca.api_key',
-                'alpaca.secret_key'
-            ]
+            required_keys = ["database.password", "alpaca.api_key", "alpaca.secret_key"]
 
             for key in required_keys:
                 value = self._get_config_value(key)
                 if not value:
-                    validation_results['errors'].append(f"Required configuration missing: {key}")
-                    validation_results['valid'] = False
+                    validation_results["errors"].append(
+                        f"Required configuration missing: {key}"
+                    )
+                    validation_results["valid"] = False
 
         except Exception as e:
-            validation_results['valid'] = False
-            validation_results['errors'].append(f"Validation error: {str(e)}")
+            validation_results["valid"] = False
+            validation_results["errors"].append(f"Validation error: {str(e)}")
 
         return validation_results
 
@@ -860,15 +913,15 @@ class ConfigurationManager:
         # Save final state to Redis
         try:
             final_state = {
-                'timestamp': datetime.now().isoformat(),
-                'config_hash': self.current_config_hash,
-                'active_ab_tests': len([t for t in self.ab_tests.values() if t.enabled])
+                "timestamp": datetime.now().isoformat(),
+                "config_hash": self.current_config_hash,
+                "active_ab_tests": len(
+                    [t for t in self.ab_tests.values() if t.enabled]
+                ),
             }
 
             await self.redis.setex(
-                "config:manager:last_state",
-                86400,  # 24 hours
-                json.dumps(final_state)
+                "config:manager:last_state", 86400, json.dumps(final_state)  # 24 hours
             )
 
         except Exception as e:

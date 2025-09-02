@@ -5,17 +5,18 @@ Tests the complete flow of receiving trading signals and processing them
 through the AI strategy engine using local Ollama models with real market data.
 """
 
-import pytest
 import asyncio
-import tempfile
 import os
-import pandas as pd
-import numpy as np
+import tempfile
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
-from typing import Dict, Any
+from typing import Any, Dict
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
 
 # Import the classes we need to test
 from services.strategy_engine.src.ollama_client import OllamaClient
@@ -40,8 +41,8 @@ class TestOllamaAIStrategyIntegration:
     @pytest.fixture
     def ollama_client(self):
         """Create Ollama client for testing."""
-        url = os.getenv('OLLAMA_URL', 'http://192.168.1.133:11434')
-        model = os.getenv('OLLAMA_MODEL', 'llama3.1:latest')
+        url = os.getenv("OLLAMA_URL", "http://192.168.1.133:11434")
+        model = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
         return OllamaClient(url, model)
 
     @pytest.fixture
@@ -68,9 +69,7 @@ class TestOllamaAIStrategyIntegration:
             pytest.skip("Ollama server not available")
 
         response = await ollama_client.query(
-            "What is 2+2? Respond with just the number.",
-            max_tokens=10,
-            temperature=0.1
+            "What is 2+2? Respond with just the number.", max_tokens=10, temperature=0.1
         )
 
         assert response is not None
@@ -129,9 +128,9 @@ class TestOllamaAIStrategyIntegration:
             latest_data = df.iloc[-1]
 
             # Build trading analysis prompt
-            ticker = latest_data.get('ticker', 'UNKNOWN')
-            price = latest_data.get('close', latest_data.get('price', 100))
-            volume = latest_data.get('volume', 1000000)
+            ticker = latest_data.get("ticker", "UNKNOWN")
+            price = latest_data.get("close", latest_data.get("price", 100))
+            volume = latest_data.get("volume", 1000000)
 
             prompt = f"""Analyze this stock for trading:
 
@@ -146,7 +145,9 @@ Respond in JSON format:
             print(f"Testing AI analysis for {ticker} at ${price}")
 
             # Get AI analysis
-            response = await ollama_client.query(prompt, max_tokens=200, temperature=0.3)
+            response = await ollama_client.query(
+                prompt, max_tokens=200, temperature=0.3
+            )
 
             assert response is not None
             assert len(response.content) > 0
@@ -157,17 +158,18 @@ Respond in JSON format:
 
             # Try to parse JSON from response
             import json
+
             try:
                 # Extract JSON from response
-                json_start = response.content.find('{')
-                json_end = response.content.rfind('}') + 1
+                json_start = response.content.find("{")
+                json_end = response.content.rfind("}") + 1
 
                 if json_start >= 0 and json_end > json_start:
                     json_str = response.content[json_start:json_end]
                     decision_data = json.loads(json_str)
 
-                    assert 'decision' in decision_data
-                    assert decision_data['decision'] in ['BUY', 'SELL', 'HOLD']
+                    assert "decision" in decision_data
+                    assert decision_data["decision"] in ["BUY", "SELL", "HOLD"]
                     print(f"Parsed decision: {decision_data}")
 
             except json.JSONDecodeError:
@@ -185,7 +187,7 @@ Respond in JSON format:
         test_stocks = [
             {"ticker": "AAPL", "price": 150.25, "change": 1.5},
             {"ticker": "GOOGL", "price": 2800.50, "change": -0.8},
-            {"ticker": "TSLA", "price": 850.75, "change": 3.2}
+            {"ticker": "TSLA", "price": 850.75, "change": 3.2},
         ]
 
         results = []
@@ -197,8 +199,10 @@ Price: ${stock['price']}, Change: {stock['change']}%
 Recommendation (BUY/SELL/HOLD)?"""
 
             try:
-                response = await ollama_client.query(prompt, max_tokens=50, temperature=0.2)
-                results.append((stock['ticker'], response.content[:100]))
+                response = await ollama_client.query(
+                    prompt, max_tokens=50, temperature=0.2
+                )
+                results.append((stock["ticker"], response.content[:100]))
                 print(f"{stock['ticker']}: {response.content[:100]}")
 
             except Exception as e:
@@ -221,7 +225,9 @@ Volume: High
 
 Should I BUY, SELL, or HOLD? Brief explanation."""
 
-        response = await ollama_client.query(oversold_prompt, max_tokens=100, temperature=0.2)
+        response = await ollama_client.query(
+            oversold_prompt, max_tokens=100, temperature=0.2
+        )
         assert response is not None
         print(f"Oversold analysis: {response.content}")
 
@@ -234,7 +240,9 @@ Volume: High
 
 Should I BUY, SELL, or HOLD? Brief explanation."""
 
-        response2 = await ollama_client.query(overbought_prompt, max_tokens=100, temperature=0.2)
+        response2 = await ollama_client.query(
+            overbought_prompt, max_tokens=100, temperature=0.2
+        )
         assert response2 is not None
         print(f"Overbought analysis: {response2.content}")
 
@@ -266,7 +274,9 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
         assert response is not None
         assert response.response_time > 0
         assert response.tokens_used >= 0
-        print(f"Response time: {response.response_time:.2f}s, Tokens: {response.tokens_used}")
+        print(
+            f"Response time: {response.response_time:.2f}s, Tokens: {response.tokens_used}"
+        )
 
     @pytest.mark.slow
     async def test_realistic_trading_scenario(self, ollama_client, parquet_data_path):
@@ -279,7 +289,9 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
 
             # Simulate receiving a trading signal
             signal = MockSignal("AAPL", "BUY", 0.8)
-            print(f"Received signal: {signal.signal_type} {signal.ticker} (strength: {signal.strength})")
+            print(
+                f"Received signal: {signal.signal_type} {signal.ticker} (strength: {signal.strength})"
+            )
 
             # Try to get real production data
             try:
@@ -291,9 +303,9 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
                     df = pd.read_parquet(parquet_files[0])
                     if len(df) > 0:
                         latest = df.iloc[-1]
-                        price = latest.get('close', latest.get('price', 150))
-                        volume = latest.get('volume', 1000000)
-                        ticker = latest.get('ticker', 'AAPL')
+                        price = latest.get("close", latest.get("price", 150))
+                        volume = latest.get("volume", 1000000)
+                        ticker = latest.get("ticker", "AAPL")
 
                         # Create comprehensive trading prompt
                         trading_prompt = f"""
@@ -324,9 +336,7 @@ Consider the signal strength and current market conditions."""
 
                         # Get AI analysis
                         response = await ollama_client.query(
-                            trading_prompt,
-                            max_tokens=300,
-                            temperature=0.3
+                            trading_prompt, max_tokens=300, temperature=0.3
                         )
 
                         end_time = datetime.now()
@@ -339,32 +349,47 @@ Consider the signal strength and current market conditions."""
 
                         # Try to parse JSON response
                         import json
+
                         try:
-                            json_start = response.content.find('{')
-                            json_end = response.content.rfind('}') + 1
+                            json_start = response.content.find("{")
+                            json_end = response.content.rfind("}") + 1
 
                             if json_start >= 0 and json_end > json_start:
                                 json_str = response.content[json_start:json_end]
                                 decision_data = json.loads(json_str)
 
                                 print(f"\n=== Parsed Decision ===")
-                                print(f"Decision: {decision_data.get('decision', 'UNKNOWN')}")
-                                print(f"Confidence: {decision_data.get('confidence', 0)}%")
-                                print(f"Reasoning: {decision_data.get('reasoning', 'N/A')}")
+                                print(
+                                    f"Decision: {decision_data.get('decision', 'UNKNOWN')}"
+                                )
+                                print(
+                                    f"Confidence: {decision_data.get('confidence', 0)}%"
+                                )
+                                print(
+                                    f"Reasoning: {decision_data.get('reasoning', 'N/A')}"
+                                )
 
                                 # Simulate trade execution decision
-                                decision_type = decision_data.get('decision', 'HOLD')
-                                confidence = decision_data.get('confidence', 0)
+                                decision_type = decision_data.get("decision", "HOLD")
+                                confidence = decision_data.get("confidence", 0)
 
                                 if decision_type == "BUY" and confidence > 60:
-                                    print(f"\n✅ TRADE APPROVED: High confidence BUY signal")
+                                    print(
+                                        f"\n✅ TRADE APPROVED: High confidence BUY signal"
+                                    )
                                 elif decision_type == "SELL" and confidence > 60:
-                                    print(f"\n⚠️ SELL SIGNAL: High confidence SELL signal")
+                                    print(
+                                        f"\n⚠️ SELL SIGNAL: High confidence SELL signal"
+                                    )
                                 else:
-                                    print(f"\n⏸️ NO TRADE: Low confidence or HOLD decision")
+                                    print(
+                                        f"\n⏸️ NO TRADE: Low confidence or HOLD decision"
+                                    )
 
                         except json.JSONDecodeError:
-                            print("\n⚠️ Could not parse JSON response, but AI provided analysis")
+                            print(
+                                "\n⚠️ Could not parse JSON response, but AI provided analysis"
+                            )
 
                         # Assertions
                         assert response is not None
@@ -393,7 +418,9 @@ SCENARIO:
 
 Should you execute this trade? Provide BUY/SELL/HOLD recommendation with reasoning."""
 
-            response = await ollama_client.query(mock_prompt, max_tokens=200, temperature=0.2)
+            response = await ollama_client.query(
+                mock_prompt, max_tokens=200, temperature=0.2
+            )
 
             print(f"\n=== Mock Scenario Results ===")
             print(f"AI Response: {response.content}")
@@ -409,7 +436,9 @@ Should you execute this trade? Provide BUY/SELL/HOLD recommendation with reasoni
 # Utility functions for testing
 def create_test_parquet_data(ticker: str, days: int = 30) -> pd.DataFrame:
     """Create sample parquet data for testing."""
-    dates = pd.date_range(start=datetime.now() - timedelta(days=days), periods=days, freq='D')
+    dates = pd.date_range(
+        start=datetime.now() - timedelta(days=days), periods=days, freq="D"
+    )
 
     # Generate realistic price data
     base_price = 100.0
@@ -421,14 +450,15 @@ def create_test_parquet_data(ticker: str, days: int = 30) -> pd.DataFrame:
         prices.append(new_price)
 
     data = {
-        'date': dates,
-        'ticker': ticker,
-        'open': [p * (1 + np.random.uniform(-0.01, 0.01)) for p in prices],
-        'high': [p * (1 + np.random.uniform(0.00, 0.02)) for p in prices],
-        'low': [p * (1 + np.random.uniform(-0.02, 0.00)) for p in prices],
-        'close': prices,
-        'volume': [int(np.random.uniform(500000, 2000000)) for _ in range(days)],
-        'change_percent': [0] + [((prices[i] - prices[i-1]) / prices[i-1]) * 100 for i in range(1, days)]
+        "date": dates,
+        "ticker": ticker,
+        "open": [p * (1 + np.random.uniform(-0.01, 0.01)) for p in prices],
+        "high": [p * (1 + np.random.uniform(0.00, 0.02)) for p in prices],
+        "low": [p * (1 + np.random.uniform(-0.02, 0.00)) for p in prices],
+        "close": prices,
+        "volume": [int(np.random.uniform(500000, 2000000)) for _ in range(days)],
+        "change_percent": [0]
+        + [((prices[i] - prices[i - 1]) / prices[i - 1]) * 100 for i in range(1, days)],
     }
 
     return pd.DataFrame(data)

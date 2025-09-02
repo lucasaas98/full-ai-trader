@@ -6,12 +6,12 @@ with detailed timestamp analysis using polars
 """
 
 import asyncio
-from datetime import datetime, timezone
-from pathlib import Path
 import sys
-from typing import Tuple, Optional
+from datetime import date, datetime, timezone
+from pathlib import Path
+from typing import Optional, Tuple
+
 import polars as pl
-from datetime import date
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -22,7 +22,9 @@ from services.data_collector.src.redis_client import RedisClient, RedisConfig
 from shared.models import TimeFrame
 
 
-async def get_precise_timestamp_range(data_store: DataStore, ticker: str, timeframe: TimeFrame) -> Optional[Tuple[datetime, datetime, int]]:
+async def get_precise_timestamp_range(
+    data_store: DataStore, ticker: str, timeframe: TimeFrame
+) -> Optional[Tuple[datetime, datetime, int]]:
     """
     Get precise first and last timestamps from parquet files for a ticker/timeframe.
 
@@ -45,11 +47,15 @@ async def get_precise_timestamp_range(data_store: DataStore, ticker: str, timefr
         return first_timestamp, last_timestamp, record_count
 
     except Exception as e:
-        print(f"    Error getting precise timestamps for {ticker} {timeframe.value}: {e}")
+        print(
+            f"    Error getting precise timestamps for {ticker} {timeframe.value}: {e}"
+        )
         return None
 
 
-def read_parquet_directly(base_path: Path, ticker: str, timeframe: TimeFrame) -> Optional[Tuple[datetime, datetime, int]]:
+def read_parquet_directly(
+    base_path: Path, ticker: str, timeframe: TimeFrame
+) -> Optional[Tuple[datetime, datetime, int]]:
     """
     Directly read parquet files to get timestamp ranges when data_store fails.
 
@@ -93,7 +99,9 @@ def read_parquet_directly(base_path: Path, ticker: str, timeframe: TimeFrame) ->
         return first_timestamp, last_timestamp, record_count
 
     except Exception as e:
-        print(f"    Error reading parquet files directly for {ticker} {timeframe.value}: {e}")
+        print(
+            f"    Error reading parquet files directly for {ticker} {timeframe.value}: {e}"
+        )
         return None
 
 
@@ -128,7 +136,9 @@ async def inspect_data_completeness():
         print(f"Total size: {summary['total_size_mb']:.2f} MB")
         print(f"Tickers: {len(summary['tickers'])}")
         print(f"Timeframes: {summary['timeframes']}")
-        print(f"File date range: {summary['date_range']['earliest']} to {summary['date_range']['latest']}")
+        print(
+            f"File date range: {summary['date_range']['earliest']} to {summary['date_range']['latest']}"
+        )
 
         # 2. Get active tickers from Redis (if connected)
         active_tickers = []
@@ -151,7 +161,7 @@ async def inspect_data_completeness():
         # 3. File system vs Redis analysis
         print("\n📁 DATA SOURCE ANALYSIS")
         print("-" * 30)
-        fs_tickers = set(summary['tickers'])
+        fs_tickers = set(summary["tickers"])
         redis_tickers = set(active_tickers) if active_tickers else set()
 
         print(f"File system tickers: {len(fs_tickers)}")
@@ -185,7 +195,13 @@ async def inspect_data_completeness():
         print("\n📈 DETAILED DATA TIMESTAMP ANALYSIS")
         print("=" * 60)
 
-        timeframes_to_check = [TimeFrame.ONE_MINUTE, TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+        timeframes_to_check = [
+            TimeFrame.ONE_MINUTE,
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+            TimeFrame.ONE_DAY,
+        ]
 
         # Create a summary table
         data_summary = []
@@ -194,7 +210,9 @@ async def inspect_data_completeness():
         display_limit = 20
         tickers_list = sorted(tickers_to_analyze)
 
-        print(f"📊 Showing detailed analysis for first {min(display_limit, len(tickers_list))} tickers...")
+        print(
+            f"📊 Showing detailed analysis for first {min(display_limit, len(tickers_list))} tickers..."
+        )
         print(f"📊 (Full summary table will include all {len(tickers_list)} tickers)")
 
         for i, ticker in enumerate(tickers_list):
@@ -209,13 +227,17 @@ async def inspect_data_completeness():
                     print(f"  📊 {tf.value}:")
 
                 # First try using data_store method
-                timestamp_range = await get_precise_timestamp_range(data_store, ticker, tf)
+                timestamp_range = await get_precise_timestamp_range(
+                    data_store, ticker, tf
+                )
 
                 # If that fails, try direct parquet reading
                 if timestamp_range is None:
                     if show_details:
                         print(f"    Trying direct parquet reading...")
-                    timestamp_range = read_parquet_directly(data_store.base_path, ticker, tf)
+                    timestamp_range = read_parquet_directly(
+                        data_store.base_path, ticker, tf
+                    )
 
                 if timestamp_range:
                     first_ts, last_ts, record_count = timestamp_range
@@ -225,8 +247,12 @@ async def inspect_data_completeness():
 
                     if show_details:
                         print(f"    ✅ Records: {record_count:,}")
-                        print(f"    📅 First: {first_ts.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-                        print(f"    📅 Last:  {last_ts.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+                        print(
+                            f"    📅 First: {first_ts.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                        )
+                        print(
+                            f"    📅 Last:  {last_ts.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                        )
                         print(f"    ⏱️  Span:  {time_span}")
 
                     # Calculate expected vs actual records
@@ -245,18 +271,22 @@ async def inspect_data_completeness():
                     if expected_records:
                         completeness = (record_count / expected_records) * 100
                         if show_details:
-                            print(f"    📊 Completeness: {completeness:.1f}% ({record_count:,}/{expected_records:,} expected)")
+                            print(
+                                f"    📊 Completeness: {completeness:.1f}% ({record_count:,}/{expected_records:,} expected)"
+                            )
 
                     # Add to summary
-                    data_summary.append({
-                        'ticker': ticker,
-                        'timeframe': tf.value,
-                        'records': record_count,
-                        'first_timestamp': first_ts,
-                        'last_timestamp': last_ts,
-                        'span_days': time_span.days,
-                        'completeness_pct': completeness
-                    })
+                    data_summary.append(
+                        {
+                            "ticker": ticker,
+                            "timeframe": tf.value,
+                            "records": record_count,
+                            "first_timestamp": first_ts,
+                            "last_timestamp": last_ts,
+                            "span_days": time_span.days,
+                            "completeness_pct": completeness,
+                        }
+                    )
 
                     # Check for data gaps (only for detailed display)
                     if show_details:
@@ -265,7 +295,9 @@ async def inspect_data_completeness():
                             if gaps:
                                 print(f"    ⚠️  {len(gaps)} data gaps found")
                                 for gap in gaps[:2]:  # Show first 2 gaps
-                                    print(f"      Gap: {gap['start_time'].strftime('%m-%d %H:%M')} to {gap['end_time'].strftime('%m-%d %H:%M')} (ratio: {gap['gap_ratio']:.1f}x)")
+                                    print(
+                                        f"      Gap: {gap['start_time'].strftime('%m-%d %H:%M')} to {gap['end_time'].strftime('%m-%d %H:%M')} (ratio: {gap['gap_ratio']:.1f}x)"
+                                    )
                         except Exception as e:
                             if show_details:
                                 print(f"    Error checking gaps: {e}")
@@ -273,15 +305,17 @@ async def inspect_data_completeness():
                 else:
                     if show_details:
                         print(f"    ❌ No data found")
-                    data_summary.append({
-                        'ticker': ticker,
-                        'timeframe': tf.value,
-                        'records': 0,
-                        'first_timestamp': None,
-                        'last_timestamp': None,
-                        'span_days': 0,
-                        'completeness_pct': 0
-                    })
+                    data_summary.append(
+                        {
+                            "ticker": ticker,
+                            "timeframe": tf.value,
+                            "records": 0,
+                            "first_timestamp": None,
+                            "last_timestamp": None,
+                            "span_days": 0,
+                            "completeness_pct": 0,
+                        }
+                    )
 
             # Show progress for remaining tickers
             if not show_details and (i + 1) % 20 == 0:
@@ -290,15 +324,31 @@ async def inspect_data_completeness():
         # 5. SUMMARY TABLE
         print(f"\n📋 COMPLETE DATA SUMMARY TABLE ({len(data_summary)} entries)")
         print("=" * 110)
-        print(f"{'Ticker':<8} {'Timeframe':<12} {'Records':<10} {'First Date':<12} {'Last Date':<12} {'Days':<6} {'Complete%':<10}")
+        print(
+            f"{'Ticker':<8} {'Timeframe':<12} {'Records':<10} {'First Date':<12} {'Last Date':<12} {'Days':<6} {'Complete%':<10}"
+        )
         print("-" * 110)
 
         for item in data_summary:
-            first_date = item['first_timestamp'].strftime('%Y-%m-%d') if item['first_timestamp'] else 'None'
-            last_date = item['last_timestamp'].strftime('%Y-%m-%d') if item['last_timestamp'] else 'None'
-            completeness = f"{item['completeness_pct']:.1f}%" if item['completeness_pct'] else 'N/A'
+            first_date = (
+                item["first_timestamp"].strftime("%Y-%m-%d")
+                if item["first_timestamp"]
+                else "None"
+            )
+            last_date = (
+                item["last_timestamp"].strftime("%Y-%m-%d")
+                if item["last_timestamp"]
+                else "None"
+            )
+            completeness = (
+                f"{item['completeness_pct']:.1f}%"
+                if item["completeness_pct"]
+                else "N/A"
+            )
 
-            print(f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness:<10}")
+            print(
+                f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness:<10}"
+            )
 
         # 6. Check Redis cache status (if connected)
         if redis_connected and active_tickers:
@@ -309,10 +359,14 @@ async def inspect_data_completeness():
                 # Get last update times
                 for tf in timeframes_to_check:
                     try:
-                        last_update = await redis_client.get_last_update_time(ticker, tf)
+                        last_update = await redis_client.get_last_update_time(
+                            ticker, tf
+                        )
                         if last_update:
                             time_since_update = datetime.now(timezone.utc) - last_update
-                            print(f"{ticker} {tf.value}: Last updated {time_since_update} ago")
+                            print(
+                                f"{ticker} {tf.value}: Last updated {time_since_update} ago"
+                            )
                         else:
                             print(f"{ticker} {tf.value}: No update time recorded")
                     except Exception as e:
@@ -323,36 +377,70 @@ async def inspect_data_completeness():
         print("-" * 30)
 
         # Count tickers with data
-        tickers_with_5m = len([item for item in data_summary if item['timeframe'] == '5min' and item['records'] > 0])
-        tickers_with_15m = len([item for item in data_summary if item['timeframe'] == '15min' and item['records'] > 0])
-        total_tickers = len(set(item['ticker'] for item in data_summary))
+        tickers_with_5m = len(
+            [
+                item
+                for item in data_summary
+                if item["timeframe"] == "5min" and item["records"] > 0
+            ]
+        )
+        tickers_with_15m = len(
+            [
+                item
+                for item in data_summary
+                if item["timeframe"] == "15min" and item["records"] > 0
+            ]
+        )
+        total_tickers = len(set(item["ticker"] for item in data_summary))
 
         print(f"Total tickers analyzed: {total_tickers}")
         print(f"Tickers with 5-minute data: {tickers_with_5m}")
         print(f"Tickers with 15-minute data: {tickers_with_15m}")
 
         # Average completeness
-        completeness_5m = [item['completeness_pct'] for item in data_summary if item['timeframe'] == '5min' and item['completeness_pct']]
-        completeness_15m = [item['completeness_pct'] for item in data_summary if item['timeframe'] == '15min' and item['completeness_pct']]
+        completeness_5m = [
+            item["completeness_pct"]
+            for item in data_summary
+            if item["timeframe"] == "5min" and item["completeness_pct"]
+        ]
+        completeness_15m = [
+            item["completeness_pct"]
+            for item in data_summary
+            if item["timeframe"] == "15min" and item["completeness_pct"]
+        ]
 
         if completeness_5m:
-            print(f"Average 5-minute data completeness: {sum(completeness_5m)/len(completeness_5m):.1f}%")
+            print(
+                f"Average 5-minute data completeness: {sum(completeness_5m)/len(completeness_5m):.1f}%"
+            )
         if completeness_15m:
-            print(f"Average 15-minute data completeness: {sum(completeness_15m)/len(completeness_15m):.1f}%")
+            print(
+                f"Average 15-minute data completeness: {sum(completeness_15m)/len(completeness_15m):.1f}%"
+            )
 
         # Find tickers with low data counts
-        low_data_tickers = [item for item in data_summary if item['records'] < 50 and item['records'] > 0]
-        high_data_tickers = [item for item in data_summary if item['records'] > 1000]
+        low_data_tickers = [
+            item
+            for item in data_summary
+            if item["records"] < 50 and item["records"] > 0
+        ]
+        high_data_tickers = [item for item in data_summary if item["records"] > 1000]
 
         if low_data_tickers:
             print(f"\n⚠️ Tickers with low data counts ({len(low_data_tickers)}):")
-            for item in sorted(low_data_tickers, key=lambda x: x['records']):
-                print(f"  {item['ticker']} ({item['timeframe']}): {item['records']} records")
+            for item in sorted(low_data_tickers, key=lambda x: x["records"]):
+                print(
+                    f"  {item['ticker']} ({item['timeframe']}): {item['records']} records"
+                )
 
         if high_data_tickers:
             print(f"\n✅ Tickers with high data counts ({len(high_data_tickers)}):")
-            for item in sorted(high_data_tickers, key=lambda x: x['records'], reverse=True)[:5]:
-                print(f"  {item['ticker']} ({item['timeframe']}): {item['records']:,} records")
+            for item in sorted(
+                high_data_tickers, key=lambda x: x["records"], reverse=True
+            )[:5]:
+                print(
+                    f"  {item['ticker']} ({item['timeframe']}): {item['records']:,} records"
+                )
 
         # 8. System Status Analysis
         print("\n🔧 SYSTEM STATUS ANALYSIS")
@@ -360,7 +448,9 @@ async def inspect_data_completeness():
         if not redis_connected:
             print("❌ Redis connection failed - data collection service may be down")
         elif not active_tickers:
-            print("⚠️ Redis connected but no active tickers - data collection may be paused")
+            print(
+                "⚠️ Redis connected but no active tickers - data collection may be paused"
+            )
             print("   - Check if data collection service is running")
             print("   - Check if tickers were properly loaded into Redis")
         else:
@@ -377,14 +467,18 @@ async def inspect_data_completeness():
         if not redis_connected:
             print("1. 🔧 Fix Redis connection to enable real-time data collection")
         elif not active_tickers:
-            print("1. 🔧 Restart data collection service to populate active tickers in Redis")
+            print(
+                "1. 🔧 Restart data collection service to populate active tickers in Redis"
+            )
             print("2. 🔍 Check logs for data collection service startup issues")
 
         print("3. 📊 Consider data retention policy - you have data spanning full year")
         print("4. 🔄 Implement data cleanup for old files if storage is a concern")
 
         if low_data_tickers:
-            print("5. 🎯 Prioritize re-fetching data for tickers with low record counts")
+            print(
+                "5. 🎯 Prioritize re-fetching data for tickers with low record counts"
+            )
 
         print("6. 📈 Focus on 5-minute and 15-minute data for active trading")
         print("7. 🔍 Investigate why some tickers have much more data than others")
@@ -392,6 +486,7 @@ async def inspect_data_completeness():
     except Exception as e:
         print(f"❌ Error during inspection: {e}")
         import traceback
+
         traceback.print_exc()
 
     finally:

@@ -12,6 +12,7 @@ This script provides a production-ready maintenance runner with:
 - Health status reporting
 """
 
+import argparse
 import asyncio
 import json
 import logging
@@ -19,24 +20,23 @@ import signal
 import sys
 import time
 import traceback
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Set
-import argparse
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional, Set
 
-import redis.asyncio as redis
 import httpx
 import psutil
+import redis.asyncio as redis
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('data/logs/maintenance_runner.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
+        logging.FileHandler("data/logs/maintenance_runner.log"),
+        logging.StreamHandler(sys.stdout),
+    ],
 )
 logger = logging.getLogger(__name__)
 
@@ -80,16 +80,17 @@ class MaintenanceRunnerConfig:
     def __post_init__(self):
         if self.critical_tasks is None:
             self.critical_tasks = {
-                'system_health_check',
-                'portfolio_reconciliation',
-                'database_maintenance',
-                'backup_critical_data'
+                "system_health_check",
+                "portfolio_reconciliation",
+                "database_maintenance",
+                "backup_critical_data",
             }
 
 
 @dataclass
 class MaintenanceRunStatus:
     """Status of a maintenance run."""
+
     run_id: str
     start_time: datetime
     end_time: Optional[datetime] = None
@@ -110,7 +111,13 @@ class AlertManager:
         self.last_alert_times = {}
         self.alert_counts = {}
 
-    async def send_alert(self, alert_type: str, message: str, severity: str = "warning", details: Optional[Dict[str, Any]] = None):
+    async def send_alert(
+        self,
+        alert_type: str,
+        message: str,
+        severity: str = "warning",
+        details: Optional[Dict[str, Any]] = None,
+    ):
         """Send alert with cooldown and deduplication."""
         try:
             if not self.config.enable_alerts:
@@ -121,7 +128,9 @@ class AlertManager:
             alert_key = f"{alert_type}:{severity}"
 
             if alert_key in self.last_alert_times:
-                time_since_last = (now - self.last_alert_times[alert_key]).total_seconds()
+                time_since_last = (
+                    now - self.last_alert_times[alert_key]
+                ).total_seconds()
                 if time_since_last < self.config.alert_cooldown_minutes * 60:
                     logger.debug(f"Alert suppressed due to cooldown: {alert_key}")
                     return
@@ -135,7 +144,7 @@ class AlertManager:
                 "message": message,
                 "timestamp": now.isoformat(),
                 "count": self.alert_counts[alert_key],
-                "details": details or {}
+                "details": details or {},
             }
 
             # Send to configured endpoints
@@ -155,9 +164,7 @@ class AlertManager:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    self.config.alert_webhook_url,
-                    json=alert_data,
-                    timeout=10.0
+                    self.config.alert_webhook_url, json=alert_data, timeout=10.0
                 )
                 response.raise_for_status()
         except Exception as e:
@@ -173,32 +180,48 @@ class AlertManager:
                 "info": "ℹ️",
                 "warning": "⚠️",
                 "error": "🔴",
-                "critical": "🚨"
+                "critical": "🚨",
             }.get(alert_data["severity"], "📢")
 
             slack_message = {
                 "text": f"{severity_emoji} Maintenance Alert",
-                "attachments": [{
-                    "color": {
-                        "info": "good",
-                        "warning": "warning",
-                        "error": "danger",
-                        "critical": "danger"
-                    }.get(alert_data["severity"], "warning"),
-                    "fields": [
-                        {"title": "Type", "value": alert_data["type"], "short": True},
-                        {"title": "Severity", "value": alert_data["severity"], "short": True},
-                        {"title": "Message", "value": alert_data["message"], "short": False},
-                        {"title": "Timestamp", "value": alert_data["timestamp"], "short": True}
-                    ]
-                }]
+                "attachments": [
+                    {
+                        "color": {
+                            "info": "good",
+                            "warning": "warning",
+                            "error": "danger",
+                            "critical": "danger",
+                        }.get(alert_data["severity"], "warning"),
+                        "fields": [
+                            {
+                                "title": "Type",
+                                "value": alert_data["type"],
+                                "short": True,
+                            },
+                            {
+                                "title": "Severity",
+                                "value": alert_data["severity"],
+                                "short": True,
+                            },
+                            {
+                                "title": "Message",
+                                "value": alert_data["message"],
+                                "short": False,
+                            },
+                            {
+                                "title": "Timestamp",
+                                "value": alert_data["timestamp"],
+                                "short": True,
+                            },
+                        ],
+                    }
+                ],
             }
 
             async with httpx.AsyncClient() as client:
                 response = await client.post(
-                    self.config.slack_webhook_url,
-                    json=slack_message,
-                    timeout=10.0
+                    self.config.slack_webhook_url, json=slack_message, timeout=10.0
                 )
                 response.raise_for_status()
         except Exception as e:
@@ -234,7 +257,7 @@ class MaintenanceOrchestrator:
             self.redis_client = redis.from_url(
                 self.config.redis_url,
                 socket_timeout=self.config.redis_timeout,
-                retry_on_timeout=True
+                retry_on_timeout=True,
             )
 
             # Test Redis connection
@@ -252,12 +275,13 @@ class MaintenanceOrchestrator:
             await self.alert_manager.send_alert(
                 "orchestrator_init_failed",
                 f"Maintenance orchestrator initialization failed: {str(e)}",
-                "critical"
+                "critical",
             )
             return False
 
     def _register_signal_handlers(self):
         """Register signal handlers for graceful shutdown."""
+
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self.shutdown())
@@ -265,13 +289,14 @@ class MaintenanceOrchestrator:
         signal.signal(signal.SIGTERM, signal_handler)
         signal.signal(signal.SIGINT, signal_handler)
 
-    async def run_maintenance_cycle(self, cycle_type: str = "auto") -> MaintenanceRunStatus:
+    async def run_maintenance_cycle(
+        self, cycle_type: str = "auto"
+    ) -> MaintenanceRunStatus:
         """Run a complete maintenance cycle."""
         run_id = f"maintenance_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
         self.current_run_status = MaintenanceRunStatus(
-            run_id=run_id,
-            start_time=datetime.now()
+            run_id=run_id, start_time=datetime.now()
         )
 
         logger.info(f"Starting maintenance cycle: {run_id} (type: {cycle_type})")
@@ -279,10 +304,12 @@ class MaintenanceOrchestrator:
         try:
             # Pre-maintenance health check
             pre_health = await self._check_system_health()
-            self.current_run_status.system_health_score = pre_health['health_score']
+            self.current_run_status.system_health_score = pre_health["health_score"]
 
-            if pre_health['health_score'] < 50 and cycle_type != "emergency":
-                logger.warning("Low system health detected, switching to emergency mode")
+            if pre_health["health_score"] < 50 and cycle_type != "emergency":
+                logger.warning(
+                    "Low system health detected, switching to emergency mode"
+                )
                 self.emergency_mode = True
                 cycle_type = "emergency"
 
@@ -323,7 +350,11 @@ class MaintenanceOrchestrator:
                 "maintenance_cycle_failed",
                 f"Maintenance cycle {run_id} failed: {str(e)}",
                 "error",
-                {"run_id": run_id, "error": str(e), "traceback": traceback.format_exc()}
+                {
+                    "run_id": run_id,
+                    "error": str(e),
+                    "traceback": traceback.format_exc(),
+                },
             )
 
             return self.current_run_status
@@ -335,32 +366,44 @@ class MaintenanceOrchestrator:
                 "timestamp": datetime.now().isoformat(),
                 "cpu_percent": psutil.cpu_percent(interval=1),
                 "memory_percent": psutil.virtual_memory().percent,
-                "disk_percent": psutil.disk_usage('/').percent,
-                "load_average": psutil.getloadavg() if hasattr(psutil, 'getloadavg') else [0, 0, 0],
+                "disk_percent": psutil.disk_usage("/").percent,
+                "load_average": (
+                    psutil.getloadavg() if hasattr(psutil, "getloadavg") else [0, 0, 0]
+                ),
                 "health_score": 100.0,
-                "issues": []
+                "issues": [],
             }
 
             # Calculate health score
             if health_data["cpu_percent"] > self.config.cpu_threshold:
                 health_data["health_score"] -= 30
-                health_data["issues"].append(f"High CPU usage: {health_data['cpu_percent']:.1f}%")
+                health_data["issues"].append(
+                    f"High CPU usage: {health_data['cpu_percent']:.1f}%"
+                )
 
             if health_data["memory_percent"] > self.config.memory_threshold:
                 health_data["health_score"] -= 25
-                health_data["issues"].append(f"High memory usage: {health_data['memory_percent']:.1f}%")
+                health_data["issues"].append(
+                    f"High memory usage: {health_data['memory_percent']:.1f}%"
+                )
 
             if health_data["disk_percent"] > self.config.disk_threshold:
                 health_data["health_score"] -= 20
-                health_data["issues"].append(f"High disk usage: {health_data['disk_percent']:.1f}%")
+                health_data["issues"].append(
+                    f"High disk usage: {health_data['disk_percent']:.1f}%"
+                )
 
             # Check Redis connectivity
             try:
                 if self.redis_client:
                     await self.redis_client.ping()
                     redis_info = await self.redis_client.info()
-                    health_data["redis_memory_mb"] = redis_info.get('used_memory', 0) / (1024 * 1024)
-                    health_data["redis_connections"] = redis_info.get('connected_clients', 0)
+                    health_data["redis_memory_mb"] = redis_info.get(
+                        "used_memory", 0
+                    ) / (1024 * 1024)
+                    health_data["redis_connections"] = redis_info.get(
+                        "connected_clients", 0
+                    )
                 else:
                     health_data["health_score"] -= 15
                     health_data["issues"].append("Redis client not initialized")
@@ -371,7 +414,9 @@ class MaintenanceOrchestrator:
             # Check scheduler service
             try:
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{self.config.scheduler_url}/health", timeout=10.0)
+                    response = await client.get(
+                        f"{self.config.scheduler_url}/health", timeout=10.0
+                    )
                     if response.status_code != 200:
                         health_data["health_score"] -= 10
                         health_data["issues"].append("Scheduler service unhealthy")
@@ -392,10 +437,12 @@ class MaintenanceOrchestrator:
                 "timestamp": datetime.now().isoformat(),
                 "health_score": 0.0,
                 "issues": [f"Health check failed: {str(e)}"],
-                "error": str(e)
+                "error": str(e),
             }
 
-    async def _determine_maintenance_tasks(self, cycle_type: str) -> List[Dict[str, Any]]:
+    async def _determine_maintenance_tasks(
+        self, cycle_type: str
+    ) -> List[Dict[str, Any]]:
         """Determine which maintenance tasks to run based on cycle type and system state."""
         try:
             if cycle_type == "emergency":
@@ -403,7 +450,7 @@ class MaintenanceOrchestrator:
                     {"name": "system_health_check", "priority": 1, "timeout": 5},
                     {"name": "cache_cleanup", "priority": 1, "timeout": 10},
                     {"name": "portfolio_reconciliation", "priority": 1, "timeout": 15},
-                    {"name": "resource_optimization", "priority": 2, "timeout": 20}
+                    {"name": "resource_optimization", "priority": 2, "timeout": 20},
                 ]
 
             elif cycle_type == "daily":
@@ -414,7 +461,7 @@ class MaintenanceOrchestrator:
                     {"name": "cache_cleanup", "priority": 2, "timeout": 15},
                     {"name": "tradenote_export", "priority": 3, "timeout": 20},
                     {"name": "api_rate_limit_reset", "priority": 3, "timeout": 5},
-                    {"name": "intelligent_maintenance", "priority": 3, "timeout": 25}
+                    {"name": "intelligent_maintenance", "priority": 3, "timeout": 25},
                 ]
 
             elif cycle_type == "weekly":
@@ -427,7 +474,7 @@ class MaintenanceOrchestrator:
                     {"name": "trading_data_maintenance", "priority": 2, "timeout": 50},
                     {"name": "historical_data_update", "priority": 3, "timeout": 60},
                     {"name": "database_connection_pool", "priority": 3, "timeout": 20},
-                    {"name": "resource_optimization", "priority": 3, "timeout": 30}
+                    {"name": "resource_optimization", "priority": 3, "timeout": 30},
                 ]
 
             elif cycle_type == "auto":
@@ -451,21 +498,25 @@ class MaintenanceOrchestrator:
             # Fallback to essential tasks
             return [
                 {"name": "system_health_check", "priority": 1, "timeout": 10},
-                {"name": "cache_cleanup", "priority": 1, "timeout": 15}
+                {"name": "cache_cleanup", "priority": 1, "timeout": 15},
             ]
 
-    async def _execute_maintenance_tasks(self, tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    async def _execute_maintenance_tasks(
+        self, tasks: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Execute maintenance tasks with proper orchestration and error handling."""
         results = {}
         semaphore = asyncio.Semaphore(self.config.max_concurrent_tasks)
 
         # Sort tasks by priority
-        tasks.sort(key=lambda x: x.get('priority', 999))
+        tasks.sort(key=lambda x: x.get("priority", 999))
 
         async def execute_single_task(task_config: Dict[str, Any]):
             async with semaphore:
-                task_name = task_config['name']
-                timeout = task_config.get('timeout', self.config.task_timeout_minutes) * 60
+                task_name = task_config["name"]
+                timeout = (
+                    task_config.get("timeout", self.config.task_timeout_minutes) * 60
+                )
 
                 logger.info(f"Executing maintenance task: {task_name}")
                 start_time = time.time()
@@ -476,7 +527,7 @@ class MaintenanceOrchestrator:
                         self.running_tasks[task_name] = {
                             "start_time": datetime.now(),
                             "attempt": attempt,
-                            "timeout": timeout
+                            "timeout": timeout,
                         }
 
                         # Execute via scheduler API
@@ -484,7 +535,7 @@ class MaintenanceOrchestrator:
                             response = await client.post(
                                 f"{self.config.scheduler_url}/maintenance/tasks/{task_name}/run",
                                 json={},
-                                timeout=timeout
+                                timeout=timeout,
                             )
                             response.raise_for_status()
                             result_data = response.json()
@@ -492,20 +543,22 @@ class MaintenanceOrchestrator:
                         # Process result
                         duration = time.time() - start_time
                         task_result = {
-                            'success': result_data.get('success', False),
-                            'duration': duration,
-                            'message': result_data.get('message', ''),
-                            'bytes_freed': result_data.get('bytes_freed', 0),
-                            'files_processed': result_data.get('files_processed', 0),
-                            'attempts': attempt,
-                            'details': result_data.get('details', {})
+                            "success": result_data.get("success", False),
+                            "duration": duration,
+                            "message": result_data.get("message", ""),
+                            "bytes_freed": result_data.get("bytes_freed", 0),
+                            "files_processed": result_data.get("files_processed", 0),
+                            "attempts": attempt,
+                            "details": result_data.get("details", {}),
                         }
 
                         # Update run status
                         if self.current_run_status:
-                            if task_result['success']:
+                            if task_result["success"]:
                                 self.current_run_status.tasks_completed += 1
-                                self.current_run_status.total_bytes_freed += task_result['bytes_freed']
+                                self.current_run_status.total_bytes_freed += (
+                                    task_result["bytes_freed"]
+                                )
                             else:
                                 self.current_run_status.tasks_failed += 1
 
@@ -515,10 +568,14 @@ class MaintenanceOrchestrator:
                         self.running_tasks.pop(task_name, None)
 
                         # Log result
-                        if task_result['success']:
-                            logger.info(f"✅ Task {task_name} completed in {duration:.2f}s")
+                        if task_result["success"]:
+                            logger.info(
+                                f"✅ Task {task_name} completed in {duration:.2f}s"
+                            )
                         else:
-                            logger.error(f"❌ Task {task_name} failed: {task_result['message']}")
+                            logger.error(
+                                f"❌ Task {task_name} failed: {task_result['message']}"
+                            )
 
                             # Send alert for critical task failures
                             if task_name in self.config.critical_tasks:
@@ -526,7 +583,7 @@ class MaintenanceOrchestrator:
                                     "critical_maintenance_failure",
                                     f"Critical maintenance task {task_name} failed: {task_result['message']}",
                                     "error",
-                                    task_result
+                                    task_result,
                                 )
 
                         return task_result
@@ -538,24 +595,26 @@ class MaintenanceOrchestrator:
                             continue
                         else:
                             return {
-                                'success': False,
-                                'duration': time.time() - start_time,
-                                'message': f'Task timed out after {self.config.retry_attempts} attempts',
-                                'attempts': attempt
+                                "success": False,
+                                "duration": time.time() - start_time,
+                                "message": f"Task timed out after {self.config.retry_attempts} attempts",
+                                "attempts": attempt,
                             }
 
                     except Exception as e:
-                        logger.error(f"Task {task_name} failed (attempt {attempt}): {e}")
+                        logger.error(
+                            f"Task {task_name} failed (attempt {attempt}): {e}"
+                        )
                         if attempt < self.config.retry_attempts:
                             await asyncio.sleep(self.config.retry_delay_seconds)
                             continue
                         else:
                             return {
-                                'success': False,
-                                'duration': time.time() - start_time,
-                                'message': f'Task failed after {self.config.retry_attempts} attempts: {str(e)}',
-                                'attempts': attempt,
-                                'error': str(e)
+                                "success": False,
+                                "duration": time.time() - start_time,
+                                "message": f"Task failed after {self.config.retry_attempts} attempts: {str(e)}",
+                                "attempts": attempt,
+                                "error": str(e),
                             }
 
                 # Remove from running tasks if we get here
@@ -567,13 +626,13 @@ class MaintenanceOrchestrator:
 
         # Compile results
         for i, result in enumerate(task_results):
-            task_name = tasks[i]['name']
+            task_name = tasks[i]["name"]
             if isinstance(result, Exception):
                 results[task_name] = {
-                    'success': False,
-                    'duration': 0.0,
-                    'message': f'Task execution failed: {str(result)}',
-                    'error': str(result)
+                    "success": False,
+                    "duration": 0.0,
+                    "message": f"Task execution failed: {str(result)}",
+                    "error": str(result),
                 }
             else:
                 results[task_name] = result
@@ -607,16 +666,20 @@ class MaintenanceOrchestrator:
             for task_name, result in results.items():
                 result_data = {
                     **result,
-                    'timestamp': timestamp,
-                    "run_id": self.current_run_status.run_id if self.current_run_status else "unknown",
+                    "timestamp": timestamp,
+                    "run_id": (
+                        self.current_run_status.run_id
+                        if self.current_run_status
+                        else "unknown"
+                    ),
                 }
 
                 if self.redis_client:
                     await self.redis_client.setex(
-                    f"maintenance:latest:{task_name}",
-                    86400,  # 24 hours
-                    json.dumps(result_data, default=str)
-                )
+                        f"maintenance:latest:{task_name}",
+                        86400,  # 24 hours
+                        json.dumps(result_data, default=str),
+                    )
 
             # Store run summary
             if self.current_run_status is not None:
@@ -625,7 +688,7 @@ class MaintenanceOrchestrator:
                     await self.redis_client.setex(
                         f"maintenance:run:{self.current_run_status.run_id}",
                         604800,  # 1 week
-                        json.dumps(run_summary, default=str)
+                        json.dumps(run_summary, default=str),
                     )
 
         except Exception as e:
@@ -636,22 +699,21 @@ class MaintenanceOrchestrator:
         try:
             # Track task performance over time
             for task_name, result in results.items():
-                if result['success']:
+                if result["success"]:
                     # Store performance metrics
                     if self.redis_client:
                         await self.redis_client.zadd(
-                        f"maintenance:performance:{task_name}",
-                        {str(int(time.time())): result['duration']}
-                    )
+                            f"maintenance:performance:{task_name}",
+                            {str(int(time.time())): result["duration"]},
+                        )
 
                     # Clean old performance data (keep 30 days)
                     cutoff = time.time() - (30 * 24 * 3600)
                     if self.redis_client:
                         if self.redis_client:
                             await self.redis_client.zremrangebyscore(
-                        f"maintenance:performance:{task_name}",
-                        0, cutoff
-                    )
+                                f"maintenance:performance:{task_name}", 0, cutoff
+                            )
 
             # Detect performance degradation
             await self._detect_performance_degradation(results)
@@ -663,22 +725,23 @@ class MaintenanceOrchestrator:
         """Detect if maintenance tasks are showing performance degradation."""
         try:
             for task_name, result in current_results.items():
-                if not result['success']:
+                if not result["success"]:
                     continue
 
                 # Get historical performance
                 if self.redis_client is not None:
                     historical_runs = await self.redis_client.zrange(
-                        f"maintenance:performance:{task_name}",
-                        -10, -1, withscores=True
+                        f"maintenance:performance:{task_name}", -10, -1, withscores=True
                     )
                 else:
                     historical_runs = []
 
                 if len(historical_runs) >= 5:
                     # Calculate average historical duration
-                    avg_historical = sum(score for _, score in historical_runs) / len(historical_runs)
-                    current_duration = result['duration']
+                    avg_historical = sum(score for _, score in historical_runs) / len(
+                        historical_runs
+                    )
+                    current_duration = result["duration"]
 
                     # Check for significant degradation (>50% slower)
                     if current_duration > avg_historical * 1.5:
@@ -690,8 +753,10 @@ class MaintenanceOrchestrator:
                                 "task_name": task_name,
                                 "current_duration": current_duration,
                                 "historical_average": avg_historical,
-                                "degradation_percent": ((current_duration / avg_historical - 1) * 100)
-                            }
+                                "degradation_percent": (
+                                    (current_duration / avg_historical - 1) * 100
+                                ),
+                            },
                         )
 
         except Exception as e:
@@ -701,23 +766,25 @@ class MaintenanceOrchestrator:
         """Check for concerning maintenance trends."""
         try:
             # Check failure rate
-            failed_tasks = [name for name, result in results.items() if not result['success']]
+            failed_tasks = [
+                name for name, result in results.items() if not result["success"]
+            ]
             if len(failed_tasks) > len(results) * 0.3:  # More than 30% failed
                 await self.alert_manager.send_alert(
                     "high_maintenance_failure_rate",
                     f"High maintenance failure rate: {len(failed_tasks)}/{len(results)} tasks failed",
                     "error",
-                    {"failed_tasks": failed_tasks}
+                    {"failed_tasks": failed_tasks},
                 )
 
             # Check total execution time
-            total_duration = sum(result['duration'] for result in results.values())
+            total_duration = sum(result["duration"] for result in results.values())
             if total_duration > 3600:  # More than 1 hour
                 await self.alert_manager.send_alert(
                     "maintenance_cycle_slow",
                     f"Maintenance cycle took {total_duration:.0f} seconds",
                     "warning",
-                    {"total_duration": total_duration}
+                    {"total_duration": total_duration},
                 )
 
         except Exception as e:
@@ -731,14 +798,16 @@ class MaintenanceOrchestrator:
             # Store in time series
             if self.redis_client:
                 await self.redis_client.zadd(
-                "maintenance:health_metrics",
-                {json.dumps(health_data, default=str): timestamp}
-            )
+                    "maintenance:health_metrics",
+                    {json.dumps(health_data, default=str): timestamp},
+                )
 
             # Keep only last 7 days
             cutoff = timestamp - (7 * 24 * 3600)
             if self.redis_client is not None:
-                await self.redis_client.zremrangebyscore("maintenance:health_metrics", 0, cutoff)
+                await self.redis_client.zremrangebyscore(
+                    "maintenance:health_metrics", 0, cutoff
+                )
 
         except Exception as e:
             logger.error(f"Failed to store health metrics: {e}")
@@ -748,64 +817,135 @@ class MaintenanceOrchestrator:
         try:
             metrics = {
                 "last_maintenance_run": datetime.now().isoformat(),
-                "tasks_completed": self.current_run_status.tasks_completed if self.current_run_status else 0,
-                "tasks_failed": self.current_run_status.tasks_failed if self.current_run_status else 0,
-                "total_bytes_freed": self.current_run_status.total_bytes_freed if self.current_run_status else 0,
-                "total_duration": self.current_run_status.total_duration if self.current_run_status else 0,
-                "system_health_score": self.current_run_status.system_health_score if self.current_run_status else 0,
+                "tasks_completed": (
+                    self.current_run_status.tasks_completed
+                    if self.current_run_status
+                    else 0
+                ),
+                "tasks_failed": (
+                    self.current_run_status.tasks_failed
+                    if self.current_run_status
+                    else 0
+                ),
+                "total_bytes_freed": (
+                    self.current_run_status.total_bytes_freed
+                    if self.current_run_status
+                    else 0
+                ),
+                "total_duration": (
+                    self.current_run_status.total_duration
+                    if self.current_run_status
+                    else 0
+                ),
+                "system_health_score": (
+                    self.current_run_status.system_health_score
+                    if self.current_run_status
+                    else 0
+                ),
             }
 
             if self.redis_client:
                 await self.redis_client.setex(
-                "maintenance:system_metrics",
-                86400,  # 24 hours
-                json.dumps(metrics, default=str)
-            )
+                    "maintenance:system_metrics",
+                    86400,  # 24 hours
+                    json.dumps(metrics, default=str),
+                )
 
         except Exception as e:
             logger.error(f"Failed to update system metrics: {e}")
 
-    async def _generate_maintenance_report(self, results: Dict[str, Any], pre_health: Dict[str, Any], post_health: Dict[str, Any]):
+    async def _generate_maintenance_report(
+        self,
+        results: Dict[str, Any],
+        pre_health: Dict[str, Any],
+        post_health: Dict[str, Any],
+    ):
         """Generate comprehensive maintenance report."""
         try:
             report = {
-                "run_id": self.current_run_status.run_id if self.current_run_status else "unknown",
+                "run_id": (
+                    self.current_run_status.run_id
+                    if self.current_run_status
+                    else "unknown"
+                ),
                 "timestamp": datetime.now().isoformat(),
                 "cycle_type": "maintenance_cycle",
-                "duration": self.current_run_status.total_duration if self.current_run_status else 0,
+                "duration": (
+                    self.current_run_status.total_duration
+                    if self.current_run_status
+                    else 0
+                ),
                 "summary": {
-                    "completed": self.current_run_status.tasks_completed if self.current_run_status else 0,
-                    "failed": self.current_run_status.tasks_failed if self.current_run_status else 0,
-                    "total_freed_mb": (self.current_run_status.total_bytes_freed / (1024 * 1024)) if self.current_run_status else 0,
-                    "success_rate": (self.current_run_status.tasks_completed /
-                                   (self.current_run_status.tasks_completed + self.current_run_status.tasks_failed) * 100
-                                   if self.current_run_status and (self.current_run_status.tasks_completed + self.current_run_status.tasks_failed) > 0 else 0)
+                    "completed": (
+                        self.current_run_status.tasks_completed
+                        if self.current_run_status
+                        else 0
+                    ),
+                    "failed": (
+                        self.current_run_status.tasks_failed
+                        if self.current_run_status
+                        else 0
+                    ),
+                    "total_freed_mb": (
+                        (self.current_run_status.total_bytes_freed / (1024 * 1024))
+                        if self.current_run_status
+                        else 0
+                    ),
+                    "success_rate": (
+                        self.current_run_status.tasks_completed
+                        / (
+                            self.current_run_status.tasks_completed
+                            + self.current_run_status.tasks_failed
+                        )
+                        * 100
+                        if self.current_run_status
+                        and (
+                            self.current_run_status.tasks_completed
+                            + self.current_run_status.tasks_failed
+                        )
+                        > 0
+                        else 0
+                    ),
                 },
                 "health_comparison": {
                     "pre_maintenance": pre_health,
                     "post_maintenance": post_health,
-                    "health_improvement": post_health.get('health_score', 0) - pre_health.get('health_score', 0)
+                    "health_improvement": post_health.get("health_score", 0)
+                    - pre_health.get("health_score", 0),
                 },
                 "task_results": results,
-                "recommendations": []
+                "recommendations": [],
             }
 
             # Generate recommendations
-            if post_health.get('health_score', 0) < pre_health.get('health_score', 0):
-                report['recommendations'].append("System health declined during maintenance - investigate causes")
+            if post_health.get("health_score", 0) < pre_health.get("health_score", 0):
+                report["recommendations"].append(
+                    "System health declined during maintenance - investigate causes"
+                )
 
-            failed_tasks = [name for name, result in results.items() if not result['success']]
+            failed_tasks = [
+                name for name, result in results.items() if not result["success"]
+            ]
             if failed_tasks:
-                report['recommendations'].append(f"Failed tasks require attention: {', '.join(failed_tasks)}")
+                report["recommendations"].append(
+                    f"Failed tasks require attention: {', '.join(failed_tasks)}"
+                )
 
-            if self.current_run_status and self.current_run_status.total_bytes_freed < 10 * 1024 * 1024:  # Less than 10MB
-                report['recommendations'].append("Low disk space recovery - consider more aggressive cleanup")
+            if (
+                self.current_run_status
+                and self.current_run_status.total_bytes_freed < 10 * 1024 * 1024
+            ):  # Less than 10MB
+                report["recommendations"].append(
+                    "Low disk space recovery - consider more aggressive cleanup"
+                )
 
             # Store report
             await self._store_maintenance_report(report)
 
             if self.current_run_status:
-                logger.info(f"Maintenance report generated for run {self.current_run_status.run_id}")
+                logger.info(
+                    f"Maintenance report generated for run {self.current_run_status.run_id}"
+                )
             else:
                 logger.info("Maintenance report generated")
 
@@ -818,19 +958,19 @@ class MaintenanceOrchestrator:
             # Store in Redis
             if self.redis_client:
                 await self.redis_client.setex(
-                f"maintenance:report:{report['run_id']}",
-                604800,  # 1 week
-                json.dumps(report, default=str)
-            )
+                    f"maintenance:report:{report['run_id']}",
+                    604800,  # 1 week
+                    json.dumps(report, default=str),
+                )
 
             # Store in file system
             reports_dir = Path("data/reports/maintenance")
             reports_dir.mkdir(parents=True, exist_ok=True)
 
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_file = reports_dir / f"maintenance_report_{timestamp}.json"
 
-            with open(report_file, 'w') as f:
+            with open(report_file, "w") as f:
                 json.dump(report, f, indent=2, default=str)
 
         except Exception as e:
@@ -848,8 +988,10 @@ class MaintenanceOrchestrator:
                     health_data = await self._check_system_health()
 
                     # Check for emergency conditions
-                    if health_data['health_score'] < 30:
-                        logger.warning("Critical system health detected, running emergency maintenance")
+                    if health_data["health_score"] < 30:
+                        logger.warning(
+                            "Critical system health detected, running emergency maintenance"
+                        )
                         await self.run_maintenance_cycle("emergency")
 
                     # Regular monitoring tasks
@@ -861,7 +1003,7 @@ class MaintenanceOrchestrator:
                     try:
                         await asyncio.wait_for(
                             self.shutdown_event.wait(),
-                            timeout=self.config.health_check_interval
+                            timeout=self.config.health_check_interval,
                         )
                         break  # Shutdown requested
                     except asyncio.TimeoutError:
@@ -883,12 +1025,14 @@ class MaintenanceOrchestrator:
             current_time = datetime.now()
 
             for task_name, task_info in list(self.running_tasks.items()):
-                start_time = task_info['start_time']
-                timeout = task_info['timeout']
+                start_time = task_info["start_time"]
+                timeout = task_info["timeout"]
 
                 # Check for timeout
                 if (current_time - start_time).total_seconds() > timeout:
-                    logger.warning(f"Task {task_name} exceeded timeout, may need intervention")
+                    logger.warning(
+                        f"Task {task_name} exceeded timeout, may need intervention"
+                    )
 
                     await self.alert_manager.send_alert(
                         "maintenance_task_timeout",
@@ -898,8 +1042,10 @@ class MaintenanceOrchestrator:
                             "task_name": task_name,
                             "start_time": start_time.isoformat(),
                             "timeout": timeout,
-                            "current_duration": (current_time - start_time).total_seconds()
-                        }
+                            "current_duration": (
+                                current_time - start_time
+                            ).total_seconds(),
+                        },
                     )
 
         except Exception as e:
@@ -915,7 +1061,7 @@ class MaintenanceOrchestrator:
                     "high_cpu_usage",
                     f"CPU usage critical: {cpu_percent:.1f}%",
                     "critical",
-                    {"cpu_percent": cpu_percent}
+                    {"cpu_percent": cpu_percent},
                 )
 
             # Check memory
@@ -925,17 +1071,17 @@ class MaintenanceOrchestrator:
                     "high_memory_usage",
                     f"Memory usage critical: {memory_percent:.1f}%",
                     "critical",
-                    {"memory_percent": memory_percent}
+                    {"memory_percent": memory_percent},
                 )
 
             # Check disk space
-            disk_percent = psutil.disk_usage('/').percent
+            disk_percent = psutil.disk_usage("/").percent
             if disk_percent > self.config.disk_threshold:
                 await self.alert_manager.send_alert(
                     "high_disk_usage",
                     f"Disk usage critical: {disk_percent:.1f}%",
                     "critical",
-                    {"disk_percent": disk_percent}
+                    {"disk_percent": disk_percent},
                 )
 
         except Exception as e:
@@ -948,25 +1094,24 @@ class MaintenanceOrchestrator:
                 "timestamp": datetime.now().isoformat(),
                 "cpu_percent": psutil.cpu_percent(),
                 "memory_percent": psutil.virtual_memory().percent,
-                "disk_percent": psutil.disk_usage('/').percent,
+                "disk_percent": psutil.disk_usage("/").percent,
                 "running_tasks": len(self.running_tasks),
-                "is_emergency_mode": self.emergency_mode
+                "is_emergency_mode": self.emergency_mode,
             }
 
             # Store metrics
             if self.redis_client:
                 await self.redis_client.zadd(
-                "maintenance:system_metrics_timeseries",
-                {json.dumps(metrics, default=str): time.time()}
-            )
+                    "maintenance:system_metrics_timeseries",
+                    {json.dumps(metrics, default=str): time.time()},
+                )
 
             # Clean old metrics (keep 24 hours)
             cutoff = time.time() - (24 * 3600)
             if self.redis_client:
                 await self.redis_client.zremrangebyscore(
-                "maintenance:system_metrics_timeseries",
-                0, cutoff
-            )
+                    "maintenance:system_metrics_timeseries", 0, cutoff
+                )
 
         except Exception as e:
             logger.error(f"Metrics collection failed: {e}")
@@ -980,7 +1125,9 @@ class MaintenanceOrchestrator:
 
         # Wait for running tasks to complete (with timeout)
         if self.running_tasks:
-            logger.info(f"Waiting for {len(self.running_tasks)} running tasks to complete...")
+            logger.info(
+                f"Waiting for {len(self.running_tasks)} running tasks to complete..."
+            )
 
             max_wait = 300  # 5 minutes
             wait_start = time.time()
@@ -989,7 +1136,9 @@ class MaintenanceOrchestrator:
                 await asyncio.sleep(5)
 
             if self.running_tasks:
-                logger.warning(f"Forcefully terminating {len(self.running_tasks)} tasks")
+                logger.warning(
+                    f"Forcefully terminating {len(self.running_tasks)} tasks"
+                )
 
         # Close Redis connection
         if self.redis_client:
@@ -1003,15 +1152,17 @@ class MaintenanceOrchestrator:
             "is_running": self.is_running,
             "emergency_mode": self.emergency_mode,
             "running_tasks": len(self.running_tasks),
-            "current_run": asdict(self.current_run_status) if self.current_run_status else None,
+            "current_run": (
+                asdict(self.current_run_status) if self.current_run_status else None
+            ),
             "task_details": {
                 name: {
                     "start_time": info["start_time"].isoformat(),
                     "attempt": info["attempt"],
-                    "timeout": info["timeout"]
+                    "timeout": info["timeout"],
                 }
                 for name, info in self.running_tasks.items()
-            }
+            },
         }
 
 
@@ -1019,7 +1170,7 @@ async def run_maintenance_cycle(
     cycle_type: str = "auto",
     config_path: Optional[str] = None,
     redis_url: Optional[str] = None,
-    scheduler_url: Optional[str] = None
+    scheduler_url: Optional[str] = None,
 ) -> bool:
     """Run a single maintenance cycle."""
     try:
@@ -1051,7 +1202,7 @@ async def run_maintenance_cycle(
 async def run_continuous_maintenance(
     config_path: Optional[str] = None,
     redis_url: Optional[str] = None,
-    scheduler_url: Optional[str] = None
+    scheduler_url: Optional[str] = None,
 ):
     """Run continuous maintenance monitoring."""
     orchestrator = None
@@ -1084,9 +1235,7 @@ async def run_continuous_maintenance(
             logger.error(f"Failed to shutdown orchestrator: {e}")
 
 
-async def get_maintenance_status(
-    redis_url: Optional[str] = None
-) -> Dict[str, Any]:
+async def get_maintenance_status(redis_url: Optional[str] = None) -> Dict[str, Any]:
     """Get current maintenance system status."""
     try:
         config = MaintenanceRunnerConfig()
@@ -1102,8 +1251,7 @@ async def get_maintenance_status(
 
             # Get recent health data
             health_data = await redis_client.zrange(
-                "maintenance:health_metrics",
-                -1, -1, withscores=True
+                "maintenance:health_metrics", -1, -1, withscores=True
             )
 
             health = {}
@@ -1119,7 +1267,7 @@ async def get_maintenance_status(
                 "system_health": health,
                 "running_tasks": len(running_tasks),
                 "last_maintenance": metrics.get("last_maintenance_run"),
-                "health_score": health.get("health_score", 0)
+                "health_score": health.get("health_score", 0),
             }
 
             return status
@@ -1138,33 +1286,22 @@ def main():
     parser.add_argument(
         "command",
         choices=["run", "monitor", "status", "emergency"],
-        help="Command to execute"
+        help="Command to execute",
     )
     parser.add_argument(
         "--cycle-type",
         default="auto",
         choices=["auto", "daily", "weekly", "emergency"],
-        help="Type of maintenance cycle to run"
+        help="Type of maintenance cycle to run",
+    )
+    parser.add_argument("--config", help="Path to configuration file")
+    parser.add_argument(
+        "--redis-url", default="redis://localhost:6379/0", help="Redis connection URL"
     )
     parser.add_argument(
-        "--config",
-        help="Path to configuration file"
+        "--scheduler-url", default="http://localhost:8000", help="Scheduler service URL"
     )
-    parser.add_argument(
-        "--redis-url",
-        default="redis://localhost:6379/0",
-        help="Redis connection URL"
-    )
-    parser.add_argument(
-        "--scheduler-url",
-        default="http://localhost:8000",
-        help="Scheduler service URL"
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging"
-    )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
     args = parser.parse_args()
 
@@ -1175,32 +1312,38 @@ def main():
     # Execute command
     try:
         if args.command == "run":
-            success = asyncio.run(run_maintenance_cycle(
-                cycle_type=args.cycle_type,
-                config_path=args.config,
-                redis_url=args.redis_url,
-                scheduler_url=args.scheduler_url
-            ))
+            success = asyncio.run(
+                run_maintenance_cycle(
+                    cycle_type=args.cycle_type,
+                    config_path=args.config,
+                    redis_url=args.redis_url,
+                    scheduler_url=args.scheduler_url,
+                )
+            )
             sys.exit(0 if success else 1)
 
         elif args.command == "monitor":
-            asyncio.run(run_continuous_maintenance(
-                config_path=args.config,
-                redis_url=args.redis_url,
-                scheduler_url=args.scheduler_url
-            ))
+            asyncio.run(
+                run_continuous_maintenance(
+                    config_path=args.config,
+                    redis_url=args.redis_url,
+                    scheduler_url=args.scheduler_url,
+                )
+            )
 
         elif args.command == "status":
             status = asyncio.run(get_maintenance_status(args.redis_url))
             print(json.dumps(status, indent=2, default=str))
 
         elif args.command == "emergency":
-            success = asyncio.run(run_maintenance_cycle(
-                cycle_type="emergency",
-                config_path=args.config,
-                redis_url=args.redis_url,
-                scheduler_url=args.scheduler_url
-            ))
+            success = asyncio.run(
+                run_maintenance_cycle(
+                    cycle_type="emergency",
+                    config_path=args.config,
+                    redis_url=args.redis_url,
+                    scheduler_url=args.scheduler_url,
+                )
+            )
             sys.exit(0 if success else 1)
 
     except KeyboardInterrupt:

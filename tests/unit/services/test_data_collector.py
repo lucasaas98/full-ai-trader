@@ -1,24 +1,25 @@
-import pytest
 import asyncio
 import json
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone, timedelta
-from decimal import Decimal
-import httpx
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-from services.data_collector.src.main import DataCollectorApp
+import os
 
 # Add parent directory to path for imports
 import sys
-import os
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from unittest.mock import AsyncMock, Mock, patch
 
-
-from shared.models import MarketData, TimeFrame, FinVizData
-from shared.config import Config
+import httpx
+import pytest
 
 # Create minimal FastAPI app for testing
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from services.data_collector.src.main import DataCollectorApp
+from shared.config import Config
+from shared.models import FinVizData, MarketData, TimeFrame
+
 app = FastAPI(title="Data Collector Test API")
 
 
@@ -56,7 +57,9 @@ class TestDataCollectorApp:
         """Mock database connection pool"""
         pool_mock = AsyncMock()
         connection_mock = AsyncMock()
-        pool_mock.acquire.return_value.__aenter__ = AsyncMock(return_value=connection_mock)
+        pool_mock.acquire.return_value.__aenter__ = AsyncMock(
+            return_value=connection_mock
+        )
         pool_mock.acquire.return_value.__aexit__ = AsyncMock(return_value=None)
         connection_mock.execute = AsyncMock()
         connection_mock.fetch = AsyncMock()
@@ -66,8 +69,9 @@ class TestDataCollectorApp:
     @pytest.fixture
     async def service(self, mock_config, mock_redis, mock_db_pool):
         """Create DataCollectorApp instance for testing"""
-        with patch('main.redis.from_url', return_value=mock_redis), \
-             patch('main.asyncpg.create_pool', return_value=mock_db_pool):
+        with patch("main.redis.from_url", return_value=mock_redis), patch(
+            "main.asyncpg.create_pool", return_value=mock_db_pool
+        ):
             service = DataCollectorApp()
             await service.start()
             yield service
@@ -84,13 +88,13 @@ class TestDataCollectorApp:
                     "high": "197.50",
                     "low": "194.50",
                     "close": "196.80",
-                    "volume": "1000000"
+                    "volume": "1000000",
                 }
             ],
-            "status": "ok"
+            "status": "ok",
         }
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.return_value = mock_response_data
@@ -109,7 +113,7 @@ class TestDataCollectorApp:
     @pytest.mark.asyncio
     async def test_fetch_twelve_data_api_error(self, service):
         """Test handling of TwelveData API errors"""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 429  # Rate limit exceeded
             mock_response.text = "Rate limit exceeded"
@@ -122,14 +126,16 @@ class TestDataCollectorApp:
     @pytest.mark.asyncio
     async def test_fetch_twelve_data_network_error(self, service):
         """Test handling of network errors"""
-        with patch('httpx.AsyncClient.get', side_effect=httpx.RequestError("Network error")):
+        with patch(
+            "httpx.AsyncClient.get", side_effect=httpx.RequestError("Network error")
+        ):
             result = await service.fetch_twelve_data("AAPL", TimeFrame.ONE_HOUR)
             assert result == []
 
     @pytest.mark.asyncio
     async def test_fetch_twelve_data_invalid_response(self, service):
         """Test handling of invalid JSON response"""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
@@ -162,7 +168,7 @@ class TestDataCollectorApp:
         </html>
         """
 
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.text = mock_html
@@ -178,7 +184,7 @@ class TestDataCollectorApp:
     @pytest.mark.asyncio
     async def test_fetch_finviz_data_parse_error(self, service):
         """Test handling of FinViz parsing errors"""
-        with patch('httpx.AsyncClient.get') as mock_get:
+        with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
             mock_response.text = "<html><body>Invalid HTML</body></html>"
@@ -199,11 +205,13 @@ class TestDataCollectorApp:
             close=Decimal("196.80"),
             volume=1000000,
             timeframe=TimeFrame.ONE_MINUTE,
-            adjusted_close=Decimal("196.80")
+            adjusted_close=Decimal("196.80"),
         )
 
         # Mock database connection
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute = AsyncMock()
+        service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
+            AsyncMock()
+        )
 
         await service.store_market_data([market_data])
 
@@ -222,12 +230,12 @@ class TestDataCollectorApp:
             close=Decimal("196.80"),
             volume=1000000,
             timeframe=TimeFrame.ONE_MINUTE,
-            adjusted_close=Decimal("196.80")
+            adjusted_close=Decimal("196.80"),
         )
 
         # Mock database error
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute = AsyncMock(
-            side_effect=Exception("Database error")
+        service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
+            AsyncMock(side_effect=Exception("Database error"))
         )
 
         # Should not raise exception, should handle gracefully
@@ -245,7 +253,7 @@ class TestDataCollectorApp:
             close=Decimal("196.80"),
             volume=1000000,
             timeframe=TimeFrame.ONE_MINUTE,
-            adjusted_close=Decimal("196.80")
+            adjusted_close=Decimal("196.80"),
         )
 
         await service.publish_to_redis("market_data", market_data.model_dump())
@@ -268,13 +276,16 @@ class TestDataCollectorApp:
                 close=Decimal("101.00"),
                 volume=1000000,
                 timeframe=TimeFrame.ONE_HOUR,
-                adjusted_close=Decimal("101.00")
-            ) for symbol in symbols
+                adjusted_close=Decimal("101.00"),
+            )
+            for symbol in symbols
         ]
 
-        with patch.object(service, 'fetch_twelve_data', return_value=mock_market_data[:1]), \
-             patch.object(service, 'store_market_data') as mock_store, \
-             patch.object(service, 'publish_to_redis') as mock_publish:
+        with patch.object(
+            service, "fetch_twelve_data", return_value=mock_market_data[:1]
+        ), patch.object(service, "store_market_data") as mock_store, patch.object(
+            service, "publish_to_redis"
+        ) as mock_publish:
 
             await service.collect_data_for_symbols(symbols, TimeFrame.ONE_HOUR)
 
@@ -291,9 +302,9 @@ class TestDataCollectorApp:
 
         start_time = asyncio.get_event_loop().time()
 
-        with patch.object(service, 'fetch_twelve_data', return_value=[]), \
-             patch.object(service, 'store_market_data'), \
-             patch.object(service, 'publish_to_redis'):
+        with patch.object(service, "fetch_twelve_data", return_value=[]), patch.object(
+            service, "store_market_data"
+        ), patch.object(service, "publish_to_redis"):
 
             await service.collect_data_for_symbols(symbols, TimeFrame.ONE_HOUR)
 
@@ -312,13 +323,15 @@ class TestDataCollectorApp:
                     "high": "197.50",
                     "low": "194.50",
                     "close": "196.80",
-                    "volume": "1000000"
+                    "volume": "1000000",
                 }
             ],
-            "status": "ok"
+            "status": "ok",
         }
 
-        result = service._parse_twelve_data_response(response_data, "AAPL", TimeFrame.ONE_HOUR)
+        result = service._parse_twelve_data_response(
+            response_data, "AAPL", TimeFrame.ONE_HOUR
+        )
 
         assert len(result) == 1
         assert result[0].symbol == "AAPL"
@@ -334,25 +347,26 @@ class TestDataCollectorApp:
                     "high": "197.50",
                     "low": "194.50",
                     "close": "196.80",
-                    "volume": "1000000"
+                    "volume": "1000000",
                 }
             ],
-            "status": "ok"
+            "status": "ok",
         }
 
-        result = service._parse_twelve_data_response(response_data, "AAPL", TimeFrame.ONE_HOUR)
+        result = service._parse_twelve_data_response(
+            response_data, "AAPL", TimeFrame.ONE_HOUR
+        )
 
         # Should skip invalid entries
         assert len(result) == 0
 
     def test_parse_twelve_data_response_empty(self, service):
         """Test parsing empty TwelveData response"""
-        response_data = {
-            "values": [],
-            "status": "ok"
-        }
+        response_data = {"values": [], "status": "ok"}
 
-        result = service._parse_twelve_data_response(response_data, "AAPL", TimeFrame.ONE_HOUR)
+        result = service._parse_twelve_data_response(
+            response_data, "AAPL", TimeFrame.ONE_HOUR
+        )
         assert len(result) == 0
 
     def test_parse_finviz_data_valid_html(self, service):
@@ -405,12 +419,12 @@ class TestDataCollectorApp:
                 close=Decimal("196.80"),
                 volume=1000000,
                 timeframe=TimeFrame.ONE_MINUTE,
-                adjusted_close=Decimal("196.80")
+                adjusted_close=Decimal("196.80"),
             )
         ]
 
         # Should not store invalid data
-        with patch.object(service.db_pool, 'acquire') as mock_acquire:
+        with patch.object(service.db_pool, "acquire") as mock_acquire:
             await service.store_market_data(invalid_data)
             # Database execute should not be called for invalid data
             mock_acquire.assert_not_called()
@@ -420,9 +434,9 @@ class TestDataCollectorApp:
         """Test concurrent data collection for multiple symbols"""
         symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
 
-        with patch.object(service, 'fetch_twelve_data') as mock_fetch, \
-             patch.object(service, 'store_market_data') as mock_store, \
-             patch.object(service, 'publish_to_redis') as mock_publish:
+        with patch.object(service, "fetch_twelve_data") as mock_fetch, patch.object(
+            service, "store_market_data"
+        ) as mock_store, patch.object(service, "publish_to_redis") as mock_publish:
 
             mock_fetch.return_value = [Mock(spec=MarketData)]
 
@@ -441,9 +455,11 @@ class TestDataCollectorApp:
                 raise Exception("Invalid symbol")
             return [Mock(spec=MarketData)]
 
-        with patch.object(service, 'fetch_twelve_data', side_effect=mock_fetch_side_effect), \
-             patch.object(service, 'store_market_data') as mock_store, \
-             patch.object(service, 'publish_to_redis') as mock_publish:
+        with patch.object(
+            service, "fetch_twelve_data", side_effect=mock_fetch_side_effect
+        ), patch.object(service, "store_market_data") as mock_store, patch.object(
+            service, "publish_to_redis"
+        ) as mock_publish:
 
             await service.collect_data_for_symbols(symbols, TimeFrame.ONE_HOUR)
 
@@ -458,7 +474,7 @@ class TestDataCollectorApp:
             "high": "197.987654",
             "low": "194.111111",
             "close": "196.555555",
-            "volume": "1000000"
+            "volume": "1000000",
         }
 
         market_data = service._transform_raw_data(raw_data, "AAPL", TimeFrame.ONE_HOUR)
@@ -473,8 +489,8 @@ class TestDataCollectorApp:
         """Test health check for healthy service"""
         # Mock healthy dependencies
         service.redis_client.ping = AsyncMock(return_value=True)
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = AsyncMock(
-            return_value={"version": "15.0"}
+        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
+            AsyncMock(return_value={"version": "15.0"})
         )
 
         health = await service.get_health()
@@ -487,8 +503,8 @@ class TestDataCollectorApp:
     async def test_health_check_unhealthy_redis(self, service):
         """Test health check with unhealthy Redis"""
         service.redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = AsyncMock(
-            return_value={"version": "15.0"}
+        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
+            AsyncMock(return_value={"version": "15.0"})
         )
 
         health = await service.get_health()
@@ -500,8 +516,8 @@ class TestDataCollectorApp:
     async def test_health_check_unhealthy_database(self, service):
         """Test health check with unhealthy database"""
         service.redis_client.ping = AsyncMock(return_value=True)
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = AsyncMock(
-            side_effect=Exception("Database error")
+        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
+            AsyncMock(side_effect=Exception("Database error"))
         )
 
         health = await service.get_health()
@@ -521,7 +537,7 @@ class TestDataCollectorAPI:
     @pytest.fixture
     def mock_service(self):
         """Mock DataCollectorApp"""
-        with patch('main.data_collector_service') as mock:
+        with patch("main.data_collector_service") as mock:
             yield mock
 
     def test_health_endpoint_healthy(self, client, mock_service):
@@ -532,7 +548,7 @@ class TestDataCollectorAPI:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "redis": "connected",
             "database": "connected",
-            "uptime": 3600.0
+            "uptime": 3600.0,
         }
 
         response = client.get("/health")
@@ -549,7 +565,7 @@ class TestDataCollectorAPI:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "redis": "disconnected",
             "database": "disconnected",
-            "uptime": 3600.0
+            "uptime": 3600.0,
         }
 
         response = client.get("/health")
@@ -565,7 +581,7 @@ class TestDataCollectorAPI:
             "version": "1.0.0",
             "last_collection": datetime.now(timezone.utc).isoformat(),
             "symbols_tracked": 50,
-            "total_collections": 1000
+            "total_collections": 1000,
         }
 
         response = client.get("/status")
@@ -578,10 +594,10 @@ class TestDataCollectorAPI:
         """Test market data collection endpoint success"""
         mock_service.collect_data_for_symbols.return_value = None
 
-        response = client.post("/collect/market-data", json={
-            "symbols": ["AAPL", "GOOGL"],
-            "timeframe": "1h"
-        })
+        response = client.post(
+            "/collect/market-data",
+            json={"symbols": ["AAPL", "GOOGL"], "timeframe": "1h"},
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -589,10 +605,13 @@ class TestDataCollectorAPI:
 
     def test_collect_market_data_endpoint_invalid_request(self, client, mock_service):
         """Test market data collection endpoint with invalid request"""
-        response = client.post("/collect/market-data", json={
-            "symbols": [],  # Empty symbols list
-            "timeframe": "invalid_timeframe"
-        })
+        response = client.post(
+            "/collect/market-data",
+            json={
+                "symbols": [],  # Empty symbols list
+                "timeframe": "invalid_timeframe",
+            },
+        )
 
         assert response.status_code == 422
 
@@ -617,7 +636,7 @@ class TestDataCollectorAPI:
             close=Decimal("196.80"),
             volume=1000000,
             timeframe=TimeFrame.ONE_MINUTE,
-            adjusted_close=Decimal("196.80")
+            adjusted_close=Decimal("196.80"),
         )
 
         mock_service.get_latest_data.return_value = market_data
@@ -651,7 +670,7 @@ class TestDataValidation:
             close=Decimal("196.80"),
             volume=1000000,
             timeframe=TimeFrame.ONE_MINUTE,
-            adjusted_close=Decimal("196.80")
+            adjusted_close=Decimal("196.80"),
         )
 
         # Should not raise validation error
@@ -669,7 +688,7 @@ class TestDataValidation:
                 close=Decimal("196.80"),
                 volume=1000000,
                 timeframe=TimeFrame.ONE_MINUTE,
-                adjusted_close=Decimal("196.80")
+                adjusted_close=Decimal("196.80"),
             )
 
     def test_market_data_validation_negative_volume(self):
@@ -684,7 +703,7 @@ class TestDataValidation:
                 close=Decimal("196.80"),
                 volume=-1000,  # Negative volume
                 timeframe=TimeFrame.ONE_MINUTE,
-                adjusted_close=Decimal("196.80")
+                adjusted_close=Decimal("196.80"),
             )
 
     def test_market_data_validation_zero_prices(self):
@@ -699,7 +718,7 @@ class TestDataValidation:
                 close=Decimal("196.80"),
                 volume=1000000,
                 timeframe=TimeFrame.ONE_MINUTE,
-                adjusted_close=Decimal("196.80")
+                adjusted_close=Decimal("196.80"),
             )
 
     def test_finviz_data_validation_valid(self):
@@ -715,7 +734,7 @@ class TestDataValidation:
             change=float(2.50),
             volume=50000000,
             market_cap=Decimal("2500000000000.0"),
-            pe_ratio=25.0
+            pe_ratio=25.0,
         )
 
         assert data.symbol == "AAPL"
@@ -728,20 +747,22 @@ class TestMetricsAndMonitoring:
     @pytest.fixture
     def mock_prometheus_metrics(self):
         """Mock Prometheus metrics"""
-        with patch('main.prometheus_client') as mock_prometheus:
+        with patch("main.prometheus_client") as mock_prometheus:
             yield mock_prometheus
 
     @pytest.mark.asyncio
-    async def test_metrics_collection_api_response_time(self, service, mock_prometheus_metrics):
+    async def test_metrics_collection_api_response_time(
+        self, service, mock_prometheus_metrics
+    ):
         """Test API response time metrics collection"""
         # Mock the health check to simulate response time tracking
-        with patch.object(service, 'health_check') as mock_health:
+        with patch.object(service, "health_check") as mock_health:
             mock_health.return_value = {
                 "status": "healthy",
                 "timestamp": "2024-01-01T12:00:00Z",
                 "components": {
                     "data_service": {"status": "healthy", "response_time_ms": 150}
-                }
+                },
             }
 
             # Call health check which should track response time
@@ -752,7 +773,9 @@ class TestMetricsAndMonitoring:
             assert health["components"]["data_service"]["response_time_ms"] == 150
 
     @pytest.mark.asyncio
-    async def test_metrics_collection_data_points_processed(self, service, mock_prometheus_metrics):
+    async def test_metrics_collection_data_points_processed(
+        self, service, mock_prometheus_metrics
+    ):
         """Test data points processed metrics"""
         # Mock the data service to have statistics
         mock_data_service = Mock()
@@ -761,16 +784,16 @@ class TestMetricsAndMonitoring:
             "data_points_collected": 1250,
             "api_calls": 42,
             "successful_requests": 40,
-            "failed_requests": 2
+            "failed_requests": 2,
         }
         service.data_service = mock_data_service
 
         # Mock get_service_status to return statistics
-        with patch.object(service.data_service, 'get_service_status') as mock_status:
+        with patch.object(service.data_service, "get_service_status") as mock_status:
             mock_status.return_value = {
                 "is_running": True,
                 "statistics": mock_data_service._stats,
-                "active_tickers_count": 15
+                "active_tickers_count": 15,
             }
 
             status = await service.data_service.get_service_status()
@@ -781,7 +804,9 @@ class TestMetricsAndMonitoring:
             assert status["statistics"]["api_calls"] == 42
 
     @pytest.mark.asyncio
-    async def test_metrics_collection_error_rates(self, service, mock_prometheus_metrics):
+    async def test_metrics_collection_error_rates(
+        self, service, mock_prometheus_metrics
+    ):
         """Test error rate metrics collection"""
         # Mock the data service with error statistics
         mock_data_service = Mock()
@@ -789,16 +814,16 @@ class TestMetricsAndMonitoring:
             "successful_requests": 95,
             "failed_requests": 5,
             "api_calls": 100,
-            "error_rate": 0.05
+            "error_rate": 0.05,
         }
         service.data_service = mock_data_service
 
         # Mock get_service_status to return error statistics
-        with patch.object(service.data_service, 'get_service_status') as mock_status:
+        with patch.object(service.data_service, "get_service_status") as mock_status:
             mock_status.return_value = {
                 "is_running": True,
                 "statistics": mock_data_service._stats,
-                "active_tickers_count": 10
+                "active_tickers_count": 10,
             }
 
             status = await service.data_service.get_service_status()
@@ -806,14 +831,18 @@ class TestMetricsAndMonitoring:
             # Calculate and verify error rate
             stats = status["statistics"]
             total_requests = stats["successful_requests"] + stats["failed_requests"]
-            error_rate = stats["failed_requests"] / total_requests if total_requests > 0 else 0
+            error_rate = (
+                stats["failed_requests"] / total_requests if total_requests > 0 else 0
+            )
 
             assert total_requests == 100
             assert error_rate == 0.05
             assert stats["failed_requests"] == 5
 
     @pytest.mark.asyncio
-    async def test_health_check_metrics_collection(self, service, mock_prometheus_metrics):
+    async def test_health_check_metrics_collection(
+        self, service, mock_prometheus_metrics
+    ):
         """Test health check metrics are properly collected"""
         # Mock dependencies for health check
         mock_data_service = Mock()
@@ -825,8 +854,8 @@ class TestMetricsAndMonitoring:
                 "data_points_collected": 2500,
                 "api_calls": 85,
                 "successful_requests": 80,
-                "failed_requests": 5
-            }
+                "failed_requests": 5,
+            },
         }
         service.data_service = mock_data_service
 
@@ -851,17 +880,17 @@ class TestMetricsAndMonitoring:
             "successful_requests": 112,
             "failed_requests": 8,
             "last_screener_run": "2024-01-01T12:00:00Z",
-            "uptime_seconds": 3600
+            "uptime_seconds": 3600,
         }
         mock_data_service._stats = expected_stats
         service.data_service = mock_data_service
 
         # Mock get_service_status
-        with patch.object(service.data_service, 'get_service_status') as mock_status:
+        with patch.object(service.data_service, "get_service_status") as mock_status:
             mock_status.return_value = {
                 "is_running": True,
                 "statistics": expected_stats,
-                "active_tickers_count": 30
+                "active_tickers_count": 30,
             }
 
             status = await service.data_service.get_service_status()
@@ -882,8 +911,9 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_graceful_shutdown(self, mock_config, mock_redis, mock_db_pool):
         """Test graceful service shutdown"""
-        with patch('main.redis.from_url', return_value=mock_redis), \
-             patch('main.asyncpg.create_pool', return_value=mock_db_pool):
+        with patch("main.redis.from_url", return_value=mock_redis), patch(
+            "main.asyncpg.create_pool", return_value=mock_db_pool
+        ):
 
             service = DataCollectorApp()
             await service.start()
@@ -906,8 +936,12 @@ class TestErrorHandling:
                 raise httpx.RequestError("Temporary network error")
             return [Mock(spec=MarketData)]
 
-        with patch.object(service, 'fetch_twelve_data', side_effect=mock_fetch_with_retry):
-            result = await service.collect_data_for_symbols(["AAPL"], TimeFrame.ONE_HOUR)
+        with patch.object(
+            service, "fetch_twelve_data", side_effect=mock_fetch_with_retry
+        ):
+            result = await service.collect_data_for_symbols(
+                ["AAPL"], TimeFrame.ONE_HOUR
+            )
 
             # Should have retried and succeeded
             assert call_count == 2
@@ -931,8 +965,10 @@ class TestErrorHandling:
         service.data_service._stats = {"errors": 0}
 
         # Attempt multiple calls that should trigger circuit breaker logic
-        with patch.object(service.data_service, '_update_price_data') as mock_update:
-            mock_update.side_effect = Exception("Too many failures - circuit breaker activated")
+        with patch.object(service.data_service, "_update_price_data") as mock_update:
+            mock_update.side_effect = Exception(
+                "Too many failures - circuit breaker activated"
+            )
 
             with pytest.raises(Exception, match="circuit breaker"):
                 for _ in range(5):  # Exceed max retries
@@ -943,31 +979,35 @@ class TestErrorHandling:
         """Test handling of database connection failures"""
         # Mock database connection failure
         mock_data_store = Mock()
-        mock_data_store.save_market_data.side_effect = Exception("Database connection lost")
+        mock_data_store.save_market_data.side_effect = Exception(
+            "Database connection lost"
+        )
 
         service.data_service = Mock()
         service.data_service.data_store = mock_data_store
         service.data_service._stats = {"errors": 0}
 
         # Test that service continues despite database failures
-        with patch.object(service.data_service, 'store_market_data') as mock_store:
+        with patch.object(service.data_service, "store_market_data") as mock_store:
             mock_store.side_effect = Exception("Database connection lost")
 
             # Should not crash the service
             try:
-                await service.data_service.store_market_data([
-                    MarketData(
-                        symbol="AAPL",
-                        timestamp=datetime.now(timezone.utc),
-                        open=Decimal("150.00"),
-                        high=Decimal("155.00"),
-                        low=Decimal("149.00"),
-                        close=Decimal("154.00"),
-                        volume=1000000,
-                        adjusted_close=Decimal("154.00"),
-                        timeframe=TimeFrame.ONE_HOUR
-                    )
-                ])
+                await service.data_service.store_market_data(
+                    [
+                        MarketData(
+                            symbol="AAPL",
+                            timestamp=datetime.now(timezone.utc),
+                            open=Decimal("150.00"),
+                            high=Decimal("155.00"),
+                            low=Decimal("149.00"),
+                            close=Decimal("154.00"),
+                            volume=1000000,
+                            adjusted_close=Decimal("154.00"),
+                            timeframe=TimeFrame.ONE_HOUR,
+                        )
+                    ]
+                )
             except Exception as e:
                 # Should log error but not crash
                 assert "Database connection lost" in str(e)
@@ -979,20 +1019,18 @@ class TestErrorHandling:
         mock_redis = Mock()
         mock_redis.ping.side_effect = [
             Exception("Redis connection lost"),  # First call fails
-            True  # Second call succeeds (recovery)
+            True,  # Second call succeeds (recovery)
         ]
 
         service.data_service = Mock()
         service.data_service.redis_client = mock_redis
 
         # Test health check handles Redis failures gracefully
-        with patch.object(service, 'health_check') as mock_health:
+        with patch.object(service, "health_check") as mock_health:
             mock_health.return_value = {
                 "status": "degraded",
-                "components": {
-                    "redis": {"status": "unhealthy", "connected": False}
-                },
-                "errors": ["Redis connection failed"]
+                "components": {"redis": {"status": "unhealthy", "connected": False}},
+                "errors": ["Redis connection failed"],
             }
 
             health = await service.health_check()
@@ -1004,9 +1042,7 @@ class TestErrorHandling:
         """Test proper handling of API rate limit errors"""
         # Mock rate limit exceeded response
         rate_limit_error = httpx.HTTPStatusError(
-            "Rate limit exceeded",
-            request=Mock(),
-            response=Mock(status_code=429)
+            "Rate limit exceeded", request=Mock(), response=Mock(status_code=429)
         )
 
         mock_client = Mock()
@@ -1017,7 +1053,7 @@ class TestErrorHandling:
         service.data_service._stats = {"errors": 0}
 
         # Should handle rate limit gracefully
-        with patch.object(service.data_service, '_update_price_data') as mock_update:
+        with patch.object(service.data_service, "_update_price_data") as mock_update:
             mock_update.side_effect = rate_limit_error
 
             with pytest.raises(httpx.HTTPStatusError):
@@ -1031,19 +1067,19 @@ class TestErrorHandling:
             symbol="INVALID",
             timestamp=datetime.now(timezone.utc),
             open=Decimal("-1.00"),  # Invalid negative price
-            high=Decimal("0.00"),   # Invalid zero price
+            high=Decimal("0.00"),  # Invalid zero price
             low=Decimal("100.00"),  # Invalid: low > high
             close=Decimal("50.00"),
             volume=-1000,  # Invalid negative volume
             adjusted_close=Decimal("50.00"),
-            timeframe=TimeFrame.ONE_HOUR
+            timeframe=TimeFrame.ONE_HOUR,
         )
 
         service.data_service = Mock()
         service.data_service._stats = {"errors": 0}
 
         # Test that validation errors are properly handled
-        with patch('shared.models.MarketData.model_validate') as mock_validate:
+        with patch("shared.models.MarketData.model_validate") as mock_validate:
             mock_validate.side_effect = ValidationError("Invalid market data")
 
             with pytest.raises(ValidationError):
@@ -1073,7 +1109,7 @@ class TestErrorHandling:
     async def test_configuration_validation_errors(self, service):
         """Test handling of configuration validation errors"""
         # Test invalid configuration handling
-        with patch('src.main.DataCollectionConfig') as mock_config_class:
+        with patch("src.main.DataCollectionConfig") as mock_config_class:
             mock_config_class.side_effect = ValidationError("Invalid configuration")
 
             # Service should handle config errors gracefully
@@ -1130,7 +1166,7 @@ class TestDataFlow:
                 "high": "155.00",
                 "low": "149.00",
                 "close": "154.00",
-                "volume": "1000000"
+                "volume": "1000000",
             }
         ]
 
@@ -1169,8 +1205,9 @@ class TestDataFlow:
                     close=Decimal(item["close"]),
                     volume=int(item["volume"]),
                     adjusted_close=Decimal(item["close"]),
-                    timeframe=timeframe
-                ) for item in api_data
+                    timeframe=timeframe,
+                )
+                for item in api_data
             ]
 
             # Validate data (implicit through MarketData constructor)
@@ -1210,30 +1247,34 @@ class TestDataFlow:
         five_min_data = []
         for i in range(12):
             timestamp = base_time + timedelta(minutes=5 * i)
-            five_min_data.append(MarketData(
-                symbol="AAPL",
-                timestamp=timestamp,
-                open=Decimal("150.00") + Decimal(str(i * 0.1)),
-                high=Decimal("150.50") + Decimal(str(i * 0.1)),
-                low=Decimal("149.50") + Decimal(str(i * 0.1)),
-                close=Decimal("150.25") + Decimal(str(i * 0.1)),
-                volume=100000 + (i * 1000),
-                adjusted_close=Decimal("150.25") + Decimal(str(i * 0.1)),
-                timeframe=TimeFrame.FIVE_MINUTES
-            ))
+            five_min_data.append(
+                MarketData(
+                    symbol="AAPL",
+                    timestamp=timestamp,
+                    open=Decimal("150.00") + Decimal(str(i * 0.1)),
+                    high=Decimal("150.50") + Decimal(str(i * 0.1)),
+                    low=Decimal("149.50") + Decimal(str(i * 0.1)),
+                    close=Decimal("150.25") + Decimal(str(i * 0.1)),
+                    volume=100000 + (i * 1000),
+                    adjusted_close=Decimal("150.25") + Decimal(str(i * 0.1)),
+                    timeframe=TimeFrame.FIVE_MINUTES,
+                )
+            )
 
         # Mock 1-hour data (aggregated from 5-minute data)
-        one_hour_data = [MarketData(
-            symbol="AAPL",
-            timestamp=base_time,
-            open=five_min_data[0].open,  # First open
-            high=max(md.high for md in five_min_data),  # Highest high
-            low=min(md.low for md in five_min_data),  # Lowest low
-            close=five_min_data[-1].close,  # Last close
-            volume=sum(md.volume for md in five_min_data),  # Total volume
-            adjusted_close=five_min_data[-1].adjusted_close,
-            timeframe=TimeFrame.ONE_HOUR
-        )]
+        one_hour_data = [
+            MarketData(
+                symbol="AAPL",
+                timestamp=base_time,
+                open=five_min_data[0].open,  # First open
+                high=max(md.high for md in five_min_data),  # Highest high
+                low=min(md.low for md in five_min_data),  # Lowest low
+                close=five_min_data[-1].close,  # Last close
+                volume=sum(md.volume for md in five_min_data),  # Total volume
+                adjusted_close=five_min_data[-1].adjusted_close,
+                timeframe=TimeFrame.ONE_HOUR,
+            )
+        ]
 
         # Mock data store to return our test data
         mock_data_store = Mock()
@@ -1290,24 +1331,30 @@ class TestDataFlow:
                 pe_ratio=18.5,
                 price=Decimal("75.50"),
                 change=2.25,
-                volume=500000
+                volume=500000,
             )
         ]
 
         # Mock screener
         mock_screener = Mock()
-        mock_screener.scan_momentum_stocks = AsyncMock(return_value=Mock(data=mock_finviz_data))
+        mock_screener.scan_momentum_stocks = AsyncMock(
+            return_value=Mock(data=mock_finviz_data)
+        )
 
         # Mock TwelveData client
         mock_twelve_client = Mock()
-        mock_twelve_client.fetch_time_series = AsyncMock(return_value=[{
-            "datetime": "2024-01-01T10:00:00",
-            "open": "75.00",
-            "high": "76.00",
-            "low": "74.50",
-            "close": "75.50",
-            "volume": "500000"
-        }])
+        mock_twelve_client.fetch_time_series = AsyncMock(
+            return_value=[
+                {
+                    "datetime": "2024-01-01T10:00:00",
+                    "open": "75.00",
+                    "high": "76.00",
+                    "low": "74.50",
+                    "close": "75.50",
+                    "volume": "500000",
+                }
+            ]
+        )
 
         # Mock data store
         mock_data_store = Mock()
@@ -1333,20 +1380,24 @@ class TestDataFlow:
             service.data_service._active_tickers.add(new_ticker)
 
             # 3. Fetch price data for new ticker
-            price_data = await mock_twelve_client.fetch_time_series(new_ticker, TimeFrame.ONE_HOUR)
+            price_data = await mock_twelve_client.fetch_time_series(
+                new_ticker, TimeFrame.ONE_HOUR
+            )
 
             # 4. Save price data
-            market_data = [MarketData(
-                symbol=new_ticker,
-                timestamp=datetime.now(timezone.utc),
-                open=Decimal(price_data[0]["open"]),
-                high=Decimal(price_data[0]["high"]),
-                low=Decimal(price_data[0]["low"]),
-                close=Decimal(price_data[0]["close"]),
-                volume=int(price_data[0]["volume"]),
-                adjusted_close=Decimal(price_data[0]["close"]),
-                timeframe=TimeFrame.ONE_HOUR
-            )]
+            market_data = [
+                MarketData(
+                    symbol=new_ticker,
+                    timestamp=datetime.now(timezone.utc),
+                    open=Decimal(price_data[0]["open"]),
+                    high=Decimal(price_data[0]["high"]),
+                    low=Decimal(price_data[0]["low"]),
+                    close=Decimal(price_data[0]["close"]),
+                    volume=int(price_data[0]["volume"]),
+                    adjusted_close=Decimal(price_data[0]["close"]),
+                    timeframe=TimeFrame.ONE_HOUR,
+                )
+            ]
             await mock_data_store.save_market_data(market_data)
 
             return new_ticker, len(market_data)
@@ -1395,7 +1446,7 @@ class TestDataFlow:
                 close=Decimal("154.00"),
                 volume=1000000,
                 adjusted_close=Decimal("154.00"),
-                timeframe=TimeFrame.ONE_HOUR
+                timeframe=TimeFrame.ONE_HOUR,
             ),
             MarketData(
                 symbol="GOOGL",
@@ -1406,15 +1457,17 @@ class TestDataFlow:
                 close=Decimal("2845.00"),
                 volume=500000,
                 adjusted_close=Decimal("2845.00"),
-                timeframe=TimeFrame.ONE_HOUR
-            )
+                timeframe=TimeFrame.ONE_HOUR,
+            ),
         ]
 
         # Execute data pipeline
         async def mock_data_pipeline():
             # 1. Save data to store
             save_result = await mock_data_store.save_market_data(test_data)
-            service.data_service._stats["total_records_saved"] += save_result["total_saved"]
+            service.data_service._stats["total_records_saved"] += save_result[
+                "total_saved"
+            ]
 
             # 2. Publish updates to Redis for each ticker
             for data in test_data:
@@ -1427,7 +1480,7 @@ class TestDataFlow:
                 "PIPELINE",
                 TimeFrame.ONE_HOUR,
                 {"processed_tickers": len(set(d.symbol for d in test_data))},
-                ttl=3600
+                ttl=3600,
             )
 
             return len(test_data)
@@ -1452,33 +1505,38 @@ class TestDataFlow:
         fifteen_min_data = []
         for i in range(4):
             timestamp = base_time + timedelta(minutes=15 * i)
-            fifteen_min_data.append(MarketData(
-                symbol="AAPL",
-                timestamp=timestamp,
-                open=Decimal("150.00") + Decimal(str(i * 0.25)),
-                high=Decimal("150.75") + Decimal(str(i * 0.25)),
-                low=Decimal("149.75") + Decimal(str(i * 0.25)),
-                close=Decimal("150.50") + Decimal(str(i * 0.25)),
-                volume=250000,
-                adjusted_close=Decimal("150.50") + Decimal(str(i * 0.25)),
-                timeframe=TimeFrame.FIFTEEN_MINUTES
-            ))
+            fifteen_min_data.append(
+                MarketData(
+                    symbol="AAPL",
+                    timestamp=timestamp,
+                    open=Decimal("150.00") + Decimal(str(i * 0.25)),
+                    high=Decimal("150.75") + Decimal(str(i * 0.25)),
+                    low=Decimal("149.75") + Decimal(str(i * 0.25)),
+                    close=Decimal("150.50") + Decimal(str(i * 0.25)),
+                    volume=250000,
+                    adjusted_close=Decimal("150.50") + Decimal(str(i * 0.25)),
+                    timeframe=TimeFrame.FIFTEEN_MINUTES,
+                )
+            )
 
         # Create corresponding 1-hour data (aggregated)
-        one_hour_data = [MarketData(
-            symbol="AAPL",
-            timestamp=base_time,
-            open=fifteen_min_data[0].open,
-            high=max(md.high for md in fifteen_min_data),
-            low=min(md.low for md in fifteen_min_data),
-            close=fifteen_min_data[-1].close,
-            volume=sum(md.volume for md in fifteen_min_data),
-            adjusted_close=fifteen_min_data[-1].adjusted_close,
-            timeframe=TimeFrame.ONE_HOUR
-        )]
+        one_hour_data = [
+            MarketData(
+                symbol="AAPL",
+                timestamp=base_time,
+                open=fifteen_min_data[0].open,
+                high=max(md.high for md in fifteen_min_data),
+                low=min(md.low for md in fifteen_min_data),
+                close=fifteen_min_data[-1].close,
+                volume=sum(md.volume for md in fifteen_min_data),
+                adjusted_close=fifteen_min_data[-1].adjusted_close,
+                timeframe=TimeFrame.ONE_HOUR,
+            )
+        ]
 
         # Mock data store
         mock_data_store = Mock()
+
         async def mock_load_data(ticker, timeframe, start_date, end_date):
             if timeframe == TimeFrame.FIFTEEN_MINUTES:
                 return fifteen_min_data
@@ -1487,7 +1545,9 @@ class TestDataFlow:
             return []
 
         mock_data_store.load_market_data = AsyncMock(side_effect=mock_load_data)
-        mock_data_store.validate_data_integrity = AsyncMock(return_value={"valid": True, "issues": []})
+        mock_data_store.validate_data_integrity = AsyncMock(
+            return_value={"valid": True, "issues": []}
+        )
 
         service.data_service = Mock()
         service.data_service.data_store = mock_data_store
@@ -1501,11 +1561,15 @@ class TestDataFlow:
         )
 
         # Validate data integrity for both timeframes
-        fifteen_validation = await service.data_service.data_store.validate_data_integrity(
-            "AAPL", TimeFrame.FIFTEEN_MINUTES
+        fifteen_validation = (
+            await service.data_service.data_store.validate_data_integrity(
+                "AAPL", TimeFrame.FIFTEEN_MINUTES
+            )
         )
-        one_hour_validation = await service.data_service.data_store.validate_data_integrity(
-            "AAPL", TimeFrame.ONE_HOUR
+        one_hour_validation = (
+            await service.data_service.data_store.validate_data_integrity(
+                "AAPL", TimeFrame.ONE_HOUR
+            )
         )
 
         # Verify consistency checks
@@ -1541,7 +1605,7 @@ class TestDataFlow:
                 pe_ratio=15.2,
                 price=Decimal("85.50"),
                 change=5.25,
-                volume=750000
+                volume=750000,
             ),
             FinVizData(
                 symbol="MOMENTUM2",
@@ -1554,23 +1618,29 @@ class TestDataFlow:
                 pe_ratio=22.8,
                 price=Decimal("42.75"),
                 change=3.10,
-                volume=425000
-            )
+                volume=425000,
+            ),
         ]
 
         # Mock components
         mock_screener = Mock()
-        mock_screener.scan_momentum_stocks = AsyncMock(return_value=Mock(data=screener_data))
+        mock_screener.scan_momentum_stocks = AsyncMock(
+            return_value=Mock(data=screener_data)
+        )
 
         mock_twelve_client = Mock()
-        mock_twelve_client.fetch_time_series = AsyncMock(return_value=[{
-            "datetime": "2024-01-01T10:00:00",
-            "open": "85.00",
-            "high": "86.00",
-            "low": "84.50",
-            "close": "85.50",
-            "volume": "750000"
-        }])
+        mock_twelve_client.fetch_time_series = AsyncMock(
+            return_value=[
+                {
+                    "datetime": "2024-01-01T10:00:00",
+                    "open": "85.00",
+                    "high": "86.00",
+                    "low": "84.50",
+                    "close": "85.50",
+                    "volume": "750000",
+                }
+            ]
+        )
 
         mock_data_store = Mock()
         mock_data_store.save_screener_data = AsyncMock()
@@ -1604,7 +1674,9 @@ class TestDataFlow:
             # 3. Collect price data for new tickers
             collected_data = []
             for ticker in service.data_service._active_tickers:
-                price_data = await mock_twelve_client.fetch_time_series(ticker, TimeFrame.ONE_HOUR)
+                price_data = await mock_twelve_client.fetch_time_series(
+                    ticker, TimeFrame.ONE_HOUR
+                )
                 market_data = MarketData(
                     symbol=ticker,
                     timestamp=datetime.now(timezone.utc),
@@ -1614,7 +1686,7 @@ class TestDataFlow:
                     close=Decimal(price_data[0]["close"]),
                     volume=int(price_data[0]["volume"]),
                     adjusted_close=Decimal(price_data[0]["close"]),
-                    timeframe=TimeFrame.ONE_HOUR
+                    timeframe=TimeFrame.ONE_HOUR,
                 )
                 collected_data.append(market_data)
 
@@ -1650,7 +1722,9 @@ class TestDataFlow:
         """Test historical data backfill flow for new tickers"""
         # Mock data store with no existing data
         mock_data_store = Mock()
-        mock_data_store.get_available_data_range = AsyncMock(return_value=None)  # No existing data
+        mock_data_store.get_available_data_range = AsyncMock(
+            return_value=None
+        )  # No existing data
         mock_data_store.save_market_data = AsyncMock(return_value={"total_saved": 100})
 
         # Mock TwelveData client with historical data
@@ -1661,16 +1735,20 @@ class TestDataFlow:
         # Generate 30 days of daily data
         for i in range(30):
             timestamp = base_time + timedelta(days=i)
-            historical_data.append({
-                "datetime": timestamp.isoformat(),
-                "open": f"{150 + i * 0.5:.2f}",
-                "high": f"{151 + i * 0.5:.2f}",
-                "low": f"{149 + i * 0.5:.2f}",
-                "close": f"{150.5 + i * 0.5:.2f}",
-                "volume": str(1000000 + i * 10000)
-            })
+            historical_data.append(
+                {
+                    "datetime": timestamp.isoformat(),
+                    "open": f"{150 + i * 0.5:.2f}",
+                    "high": f"{151 + i * 0.5:.2f}",
+                    "low": f"{149 + i * 0.5:.2f}",
+                    "close": f"{150.5 + i * 0.5:.2f}",
+                    "volume": str(1000000 + i * 10000),
+                }
+            )
 
-        mock_twelve_client.fetch_historical_data = AsyncMock(return_value=historical_data)
+        mock_twelve_client.fetch_historical_data = AsyncMock(
+            return_value=historical_data
+        )
 
         # Set up service
         service.data_service = Mock()
@@ -1681,7 +1759,9 @@ class TestDataFlow:
         # Test backfill flow
         async def mock_backfill_flow(ticker, timeframe):
             # 1. Check for existing data
-            existing_range = await mock_data_store.get_available_data_range(ticker, timeframe)
+            existing_range = await mock_data_store.get_available_data_range(
+                ticker, timeframe
+            )
 
             # 2. If no data, fetch historical data
             if not existing_range:
@@ -1692,21 +1772,25 @@ class TestDataFlow:
                 # 3. Convert to MarketData objects
                 market_data = []
                 for item in historical:
-                    market_data.append(MarketData(
-                        symbol=ticker,
-                        timestamp=datetime.fromisoformat(item["datetime"]),
-                        open=Decimal(item["open"]),
-                        high=Decimal(item["high"]),
-                        low=Decimal(item["low"]),
-                        close=Decimal(item["close"]),
-                        volume=int(item["volume"]),
-                        adjusted_close=Decimal(item["close"]),
-                        timeframe=timeframe
-                    ))
+                    market_data.append(
+                        MarketData(
+                            symbol=ticker,
+                            timestamp=datetime.fromisoformat(item["datetime"]),
+                            open=Decimal(item["open"]),
+                            high=Decimal(item["high"]),
+                            low=Decimal(item["low"]),
+                            close=Decimal(item["close"]),
+                            volume=int(item["volume"]),
+                            adjusted_close=Decimal(item["close"]),
+                            timeframe=timeframe,
+                        )
+                    )
 
                 # 4. Save historical data
                 save_result = await mock_data_store.save_market_data(market_data)
-                service.data_service._stats["total_records_saved"] += save_result["total_saved"]
+                service.data_service._stats["total_records_saved"] += save_result[
+                    "total_saved"
+                ]
 
                 return len(market_data)
 
@@ -1741,17 +1825,19 @@ class TestPerformance:
             ticker = f"TEST{ticker_idx:02d}"
             for i in range(100):
                 timestamp = start_time + timedelta(minutes=i)
-                large_dataset.append(MarketData(
-                    symbol=ticker,
-                    timestamp=timestamp,
-                    open=Decimal("100.00") + Decimal(str(i * 0.1)),
-                    high=Decimal("101.00") + Decimal(str(i * 0.1)),
-                    low=Decimal("99.00") + Decimal(str(i * 0.1)),
-                    close=Decimal("100.50") + Decimal(str(i * 0.1)),
-                    volume=100000 + (i * 1000),
-                    adjusted_close=Decimal("100.50") + Decimal(str(i * 0.1)),
-                    timeframe=TimeFrame.FIVE_MINUTES
-                ))
+                large_dataset.append(
+                    MarketData(
+                        symbol=ticker,
+                        timestamp=timestamp,
+                        open=Decimal("100.00") + Decimal(str(i * 0.1)),
+                        high=Decimal("101.00") + Decimal(str(i * 0.1)),
+                        low=Decimal("99.00") + Decimal(str(i * 0.1)),
+                        close=Decimal("100.50") + Decimal(str(i * 0.1)),
+                        volume=100000 + (i * 1000),
+                        adjusted_close=Decimal("100.50") + Decimal(str(i * 0.1)),
+                        timeframe=TimeFrame.FIVE_MINUTES,
+                    )
+                )
 
         # Mock data store with performance tracking
         mock_data_store = Mock()
@@ -1774,7 +1860,10 @@ class TestPerformance:
 
         # Test bulk processing with batching
         batch_size = 200
-        batches = [large_dataset[i:i + batch_size] for i in range(0, len(large_dataset), batch_size)]
+        batches = [
+            large_dataset[i : i + batch_size]
+            for i in range(0, len(large_dataset), batch_size)
+        ]
 
         processing_start = time.time()
         total_processed = 0
@@ -1795,8 +1884,9 @@ class TestPerformance:
     @pytest.mark.asyncio
     async def test_memory_usage_under_load(self, service):
         """Test memory usage under high load"""
-        import psutil
         import gc
+
+        import psutil
 
         # Get initial memory usage
         process = psutil.Process()
@@ -1813,18 +1903,21 @@ class TestPerformance:
             base_time = datetime.now(timezone.utc)
             for i in range(1000):
                 timestamp = base_time + timedelta(minutes=i)
-                ticker_data.append({
-                    "datetime": timestamp.isoformat(),
-                    "open": f"{100 + i * 0.01:.2f}",
-                    "high": f"{101 + i * 0.01:.2f}",
-                    "low": f"{99 + i * 0.01:.2f}",
-                    "close": f"{100.5 + i * 0.01:.2f}",
-                    "volume": str(100000 + i * 100)
-                })
+                ticker_data.append(
+                    {
+                        "datetime": timestamp.isoformat(),
+                        "open": f"{100 + i * 0.01:.2f}",
+                        "high": f"{101 + i * 0.01:.2f}",
+                        "low": f"{99 + i * 0.01:.2f}",
+                        "close": f"{100.5 + i * 0.01:.2f}",
+                        "volume": str(100000 + i * 100),
+                    }
+                )
             mock_large_responses[ticker] = ticker_data
 
         # Mock TwelveData client
         mock_twelve_client = Mock()
+
         async def mock_batch_fetch(symbols, timeframe, start_date, end_date):
             # Simulate memory-intensive operation
             result = {}
@@ -1833,17 +1926,19 @@ class TestPerformance:
                     # Convert to MarketData objects (memory intensive)
                     market_data = []
                     for item in mock_large_responses[symbol]:
-                        market_data.append(MarketData(
-                            symbol=symbol,
-                            timestamp=datetime.fromisoformat(item["datetime"]),
-                            open=Decimal(item["open"]),
-                            high=Decimal(item["high"]),
-                            low=Decimal(item["low"]),
-                            close=Decimal(item["close"]),
-                            volume=int(item["volume"]),
-                            adjusted_close=Decimal(item["close"]),
-                            timeframe=timeframe
-                        ))
+                        market_data.append(
+                            MarketData(
+                                symbol=symbol,
+                                timestamp=datetime.fromisoformat(item["datetime"]),
+                                open=Decimal(item["open"]),
+                                high=Decimal(item["high"]),
+                                low=Decimal(item["low"]),
+                                close=Decimal(item["close"]),
+                                volume=int(item["volume"]),
+                                adjusted_close=Decimal(item["close"]),
+                                timeframe=timeframe,
+                            )
+                        )
                     result[symbol] = market_data
             return result
 
@@ -1856,7 +1951,7 @@ class TestPerformance:
         async def mock_chunked_save(data, append=True):
             # Process in smaller chunks to manage memory
             chunk_size = 500
-            chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
+            chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
 
             total_saved = 0
             for chunk in chunks:
@@ -1881,12 +1976,19 @@ class TestPerformance:
         memory_readings = []
 
         # Process data in batches of 10 tickers to control memory usage
-        ticker_batches = [large_ticker_list[i:i + 10] for i in range(0, len(large_ticker_list), 10)]
+        ticker_batches = [
+            large_ticker_list[i : i + 10] for i in range(0, len(large_ticker_list), 10)
+        ]
 
         for batch in ticker_batches:
             # Fetch data
-            batch_data = await service.data_service.twelvedata_client.get_batch_time_series(
-                batch, TimeFrame.FIVE_MINUTES, datetime.now().date(), datetime.now().date()
+            batch_data = (
+                await service.data_service.twelvedata_client.get_batch_time_series(
+                    batch,
+                    TimeFrame.FIVE_MINUTES,
+                    datetime.now().date(),
+                    datetime.now().date(),
+                )
             )
 
             # Flatten data for storage
@@ -1911,7 +2013,9 @@ class TestPerformance:
         # Memory should not grow excessively (allow for some overhead)
         assert memory_growth < 500  # Less than 500MB growth
         assert len(processed_batches) > 0  # Data was actually processed
-        assert sum(processed_batches) == 100000  # All data points processed (100 tickers * 1000 points)
+        assert (
+            sum(processed_batches) == 100000
+        )  # All data points processed (100 tickers * 1000 points)
 
     @pytest.mark.asyncio
     async def test_concurrent_request_handling(self, service):
@@ -1919,7 +2023,18 @@ class TestPerformance:
         import time
 
         # Create multiple tickers for concurrent processing
-        test_tickers = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "AMD", "INTC", "CRM"]
+        test_tickers = [
+            "AAPL",
+            "GOOGL",
+            "MSFT",
+            "AMZN",
+            "TSLA",
+            "META",
+            "NVDA",
+            "AMD",
+            "INTC",
+            "CRM",
+        ]
 
         # Mock TwelveData client with realistic delays
         mock_twelve_client = Mock()
@@ -1933,14 +2048,16 @@ class TestPerformance:
 
             request_times[symbol] = end_time - start_time
 
-            return [{
-                "datetime": "2024-01-01T10:00:00",
-                "open": "150.00",
-                "high": "155.00",
-                "low": "149.00",
-                "close": "154.00",
-                "volume": "1000000"
-            }]
+            return [
+                {
+                    "datetime": "2024-01-01T10:00:00",
+                    "open": "150.00",
+                    "high": "155.00",
+                    "low": "149.00",
+                    "close": "154.00",
+                    "volume": "1000000",
+                }
+            ]
 
         mock_twelve_client.fetch_time_series = mock_fetch_with_delay
 
@@ -2003,14 +2120,16 @@ class TestPerformance:
             nonlocal individual_call_count
             individual_call_count += 1
             await asyncio.sleep(0.1)  # 100ms per individual request
-            return [{
-                "datetime": "2024-01-01T10:00:00",
-                "open": "100.00",
-                "high": "101.00",
-                "low": "99.00",
-                "close": "100.50",
-                "volume": "500000"
-            }]
+            return [
+                {
+                    "datetime": "2024-01-01T10:00:00",
+                    "open": "100.00",
+                    "high": "101.00",
+                    "low": "99.00",
+                    "close": "100.50",
+                    "volume": "500000",
+                }
+            ]
 
         # Batch request simulation (more efficient)
         async def mock_batch_fetch(symbols, timeframe, start_date, end_date):
@@ -2020,17 +2139,19 @@ class TestPerformance:
 
             result = {}
             for symbol in symbols:
-                result[symbol] = [MarketData(
-                    symbol=symbol,
-                    timestamp=datetime.now(timezone.utc),
-                    open=Decimal("100.00"),
-                    high=Decimal("101.00"),
-                    low=Decimal("99.00"),
-                    close=Decimal("100.50"),
-                    volume=500000,
-                    adjusted_close=Decimal("100.50"),
-                    timeframe=timeframe
-                )]
+                result[symbol] = [
+                    MarketData(
+                        symbol=symbol,
+                        timestamp=datetime.now(timezone.utc),
+                        open=Decimal("100.00"),
+                        high=Decimal("101.00"),
+                        low=Decimal("99.00"),
+                        close=Decimal("100.50"),
+                        volume=500000,
+                        adjusted_close=Decimal("100.50"),
+                        timeframe=timeframe,
+                    )
+                ]
             return result
 
         mock_twelve_client.fetch_time_series = mock_individual_fetch
@@ -2042,7 +2163,9 @@ class TestPerformance:
         # Test individual requests (inefficient)
         start_time = time.time()
         individual_tasks = [
-            service.data_service.twelvedata_client.fetch_time_series(ticker, TimeFrame.ONE_HOUR)
+            service.data_service.twelvedata_client.fetch_time_series(
+                ticker, TimeFrame.ONE_HOUR
+            )
             for ticker in test_tickers
         ]
         await asyncio.gather(*individual_tasks)
@@ -2050,8 +2173,13 @@ class TestPerformance:
 
         # Test batch request (efficient)
         start_time = time.time()
-        batch_result = await service.data_service.twelvedata_client.get_batch_time_series(
-            test_tickers, TimeFrame.ONE_HOUR, datetime.now().date(), datetime.now().date()
+        batch_result = (
+            await service.data_service.twelvedata_client.get_batch_time_series(
+                test_tickers,
+                TimeFrame.ONE_HOUR,
+                datetime.now().date(),
+                datetime.now().date(),
+            )
         )
         batch_time = time.time() - start_time
 
@@ -2084,14 +2212,16 @@ class TestPerformance:
             if request_count > 5:  # After 5 requests, add delay
                 await asyncio.sleep(0.05)  # 50ms rate limit delay
 
-            return [{
-                "datetime": "2024-01-01T10:00:00",
-                "open": "150.00",
-                "high": "155.00",
-                "low": "149.00",
-                "close": "154.00",
-                "volume": "1000000"
-            }]
+            return [
+                {
+                    "datetime": "2024-01-01T10:00:00",
+                    "open": "150.00",
+                    "high": "155.00",
+                    "low": "149.00",
+                    "close": "154.00",
+                    "volume": "1000000",
+                }
+            ]
 
         mock_twelve_client.fetch_time_series = mock_rate_limited_fetch
 
@@ -2108,7 +2238,9 @@ class TestPerformance:
         start_time = time.time()
         tasks = []
         for ticker in test_tickers:
-            task = service.data_service.twelvedata_client.fetch_time_series(ticker, TimeFrame.ONE_HOUR)
+            task = service.data_service.twelvedata_client.fetch_time_series(
+                ticker, TimeFrame.ONE_HOUR
+            )
             tasks.append(task)
             service.data_service._stats["api_calls"] += 1
 
@@ -2131,7 +2263,9 @@ class TestPerformance:
             later_requests = request_timestamps[5:10]
             avg_early_interval = (early_requests[-1] - early_requests[0]) / 4
             avg_later_interval = (later_requests[-1] - later_requests[0]) / 4
-            assert avg_later_interval >= avg_early_interval  # Later requests should be slower
+            assert (
+                avg_later_interval >= avg_early_interval
+            )  # Later requests should be slower
 
     @pytest.mark.asyncio
     async def test_large_dataset_processing_efficiency(self, service):
@@ -2170,18 +2304,22 @@ class TestPerformance:
             for ticker_idx in range(tickers_per_batch):
                 ticker = f"PERF{batch_idx:02d}_{ticker_idx:02d}"
                 for point_idx in range(data_points_per_ticker):
-                    timestamp = datetime.now(timezone.utc) + timedelta(minutes=point_idx)
-                    all_market_data.append(MarketData(
-                        symbol=ticker,
-                        timestamp=timestamp,
-                        open=Decimal("100.00"),
-                        high=Decimal("101.00"),
-                        low=Decimal("99.00"),
-                        close=Decimal("100.50"),
-                        volume=100000,
-                        adjusted_close=Decimal("100.50"),
-                        timeframe=TimeFrame.FIVE_MINUTES
-                    ))
+                    timestamp = datetime.now(timezone.utc) + timedelta(
+                        minutes=point_idx
+                    )
+                    all_market_data.append(
+                        MarketData(
+                            symbol=ticker,
+                            timestamp=timestamp,
+                            open=Decimal("100.00"),
+                            high=Decimal("101.00"),
+                            low=Decimal("99.00"),
+                            close=Decimal("100.50"),
+                            volume=100000,
+                            adjusted_close=Decimal("100.50"),
+                            timeframe=TimeFrame.FIVE_MINUTES,
+                        )
+                    )
 
         # Set up service
         service.data_service = Mock()
@@ -2190,7 +2328,10 @@ class TestPerformance:
 
         # Process in optimized batches
         batch_size = 1000
-        batches = [all_market_data[i:i + batch_size] for i in range(0, len(all_market_data), batch_size)]
+        batches = [
+            all_market_data[i : i + batch_size]
+            for i in range(0, len(all_market_data), batch_size)
+        ]
 
         start_time = time.time()
         for batch in batches:
@@ -2216,7 +2357,12 @@ class TestPerformance:
         import time
 
         # Set up multiple timeframes for concurrent collection
-        timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR, TimeFrame.ONE_DAY]
+        timeframes = [
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+            TimeFrame.ONE_DAY,
+        ]
         test_tickers = ["CONC1", "CONC2", "CONC3", "CONC4", "CONC5"]
 
         # Mock TwelveData client
@@ -2230,7 +2376,7 @@ class TestPerformance:
                 TimeFrame.FIVE_MINUTES: 0.3,  # More data points = longer processing
                 TimeFrame.FIFTEEN_MINUTES: 0.2,
                 TimeFrame.ONE_HOUR: 0.1,
-                TimeFrame.ONE_DAY: 0.05
+                TimeFrame.ONE_DAY: 0.05,
             }
 
             await asyncio.sleep(timeframe_delays.get(timeframe, 0.1))
@@ -2243,17 +2389,19 @@ class TestPerformance:
             # Return data for all symbols
             result = {}
             for symbol in symbols:
-                result[symbol] = [MarketData(
-                    symbol=symbol,
-                    timestamp=datetime.now(timezone.utc),
-                    open=Decimal("100.00"),
-                    high=Decimal("101.00"),
-                    low=Decimal("99.00"),
-                    close=Decimal("100.50"),
-                    volume=100000,
-                    adjusted_close=Decimal("100.50"),
-                    timeframe=timeframe
-                )]
+                result[symbol] = [
+                    MarketData(
+                        symbol=symbol,
+                        timestamp=datetime.now(timezone.utc),
+                        open=Decimal("100.00"),
+                        high=Decimal("101.00"),
+                        low=Decimal("99.00"),
+                        close=Decimal("100.50"),
+                        volume=100000,
+                        adjusted_close=Decimal("100.50"),
+                        timeframe=timeframe,
+                    )
+                ]
             return result
 
         mock_twelve_client.get_batch_time_series = mock_timeframe_fetch
@@ -2273,7 +2421,10 @@ class TestPerformance:
             tasks = []
             for timeframe in timeframes:
                 task = service.data_service.twelvedata_client.get_batch_time_series(
-                    test_tickers, timeframe, datetime.now().date(), datetime.now().date()
+                    test_tickers,
+                    timeframe,
+                    datetime.now().date(),
+                    datetime.now().date(),
                 )
                 tasks.append((timeframe, task))
 
@@ -2300,7 +2451,9 @@ class TestPerformance:
         # Concurrent execution should be faster than sequential
         # Sequential would be ~0.65s (0.3+0.2+0.1+0.05), concurrent should be ~0.3s (max time)
         assert total_time < 0.5  # Should complete in under 500ms due to concurrency
-        assert total_time > 0.25  # But not too fast (should take at least the longest operation)
+        assert (
+            total_time > 0.25
+        )  # But not too fast (should take at least the longest operation)
 
         # Verify data was saved for all timeframes
         assert mock_data_store.save_market_data.call_count == 4

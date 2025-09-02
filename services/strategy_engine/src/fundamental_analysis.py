@@ -6,21 +6,23 @@ to evaluate stock health, valuation metrics, and sector performance.
 """
 
 import logging
-from typing import Dict, Optional, Any
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from dataclasses import dataclass
 from enum import Enum
+from typing import Any, Dict, Optional
 
-import polars as pl
 import numpy as np
+import polars as pl
 
-from .base_strategy import BaseStrategy, StrategyConfig, Signal
-from shared.models import SignalType, FinVizData
+from shared.models import FinVizData, SignalType
+
+from .base_strategy import BaseStrategy, Signal, StrategyConfig
 
 
 class ValuationTier(Enum):
     """Stock valuation tiers."""
+
     UNDERVALUED = "undervalued"
     FAIRLY_VALUED = "fairly_valued"
     OVERVALUED = "overvalued"
@@ -29,6 +31,7 @@ class ValuationTier(Enum):
 
 class FinancialHealth(Enum):
     """Financial health ratings."""
+
     EXCELLENT = "excellent"
     GOOD = "good"
     AVERAGE = "average"
@@ -39,6 +42,7 @@ class FinancialHealth(Enum):
 @dataclass
 class FundamentalMetrics:
     """Container for fundamental analysis metrics."""
+
     pe_ratio: Optional[float] = None
     peg_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
@@ -75,10 +79,12 @@ class FundamentalAnalyzer:
             "Real Estate": {"pe": 20, "pb": 1.8, "roe": 8, "margin": 30},
             "Materials": {"pe": 16, "pb": 1.8, "roe": 12, "margin": 8},
             "Industrials": {"pe": 18, "pb": 2.2, "roe": 12, "margin": 10},
-            "Communication Services": {"pe": 20, "pb": 2.8, "roe": 12, "margin": 15}
+            "Communication Services": {"pe": 20, "pb": 2.8, "roe": 12, "margin": 15},
         }
 
-    def analyze_valuation(self, metrics: FundamentalMetrics, sector: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_valuation(
+        self, metrics: FundamentalMetrics, sector: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Analyze stock valuation using multiple metrics.
 
@@ -98,22 +104,26 @@ class FundamentalAnalyzer:
 
             # P/E Ratio Analysis
             if metrics.pe_ratio is not None and metrics.pe_ratio > 0:
-                pe_score = self._score_pe_ratio(metrics.pe_ratio, benchmarks.get("pe", 20))
+                pe_score = self._score_pe_ratio(
+                    metrics.pe_ratio, benchmarks.get("pe", 20)
+                )
                 valuation_scores.append(pe_score)
                 details["pe_analysis"] = {
                     "value": metrics.pe_ratio,
                     "benchmark": benchmarks.get("pe", 20),
-                    "score": pe_score
+                    "score": pe_score,
                 }
 
             # P/B Ratio Analysis
             if metrics.pb_ratio is not None and metrics.pb_ratio > 0:
-                pb_score = self._score_pb_ratio(metrics.pb_ratio, benchmarks.get("pb", 3))
+                pb_score = self._score_pb_ratio(
+                    metrics.pb_ratio, benchmarks.get("pb", 3)
+                )
                 valuation_scores.append(pb_score)
                 details["pb_analysis"] = {
                     "value": metrics.pb_ratio,
                     "benchmark": benchmarks.get("pb", 3),
-                    "score": pb_score
+                    "score": pb_score,
                 }
 
             # PEG Ratio Analysis
@@ -122,7 +132,7 @@ class FundamentalAnalyzer:
                 valuation_scores.append(peg_score)
                 details["peg_analysis"] = {
                     "value": metrics.peg_ratio,
-                    "score": peg_score
+                    "score": peg_score,
                 }
 
             # Calculate overall valuation score
@@ -137,7 +147,7 @@ class FundamentalAnalyzer:
                 "valuation_score": avg_score,
                 "valuation_tier": valuation_tier,
                 "details": details,
-                "metrics_available": len(valuation_scores)
+                "metrics_available": len(valuation_scores),
             }
 
         except Exception as e:
@@ -145,10 +155,12 @@ class FundamentalAnalyzer:
             return {
                 "valuation_score": 50.0,
                 "valuation_tier": ValuationTier.FAIRLY_VALUED,
-                "error": str(e)
+                "error": str(e),
             }
 
-    def analyze_growth(self, metrics: FundamentalMetrics, sector: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_growth(
+        self, metrics: FundamentalMetrics, sector: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Analyze financial health and quality metrics.
 
@@ -171,7 +183,7 @@ class FundamentalAnalyzer:
                 details["roe_analysis"] = {
                     "value": metrics.roe,
                     "benchmark": benchmarks.get("roe", 12),
-                    "score": roe_score
+                    "score": roe_score,
                 }
 
             # Debt-to-Equity Analysis
@@ -180,7 +192,7 @@ class FundamentalAnalyzer:
                 health_scores.append(debt_score)
                 details["debt_analysis"] = {
                     "value": metrics.debt_to_equity,
-                    "score": debt_score
+                    "score": debt_score,
                 }
 
             # Current Ratio Analysis
@@ -189,20 +201,19 @@ class FundamentalAnalyzer:
                 health_scores.append(liquidity_score)
                 details["liquidity_analysis"] = {
                     "value": metrics.current_ratio,
-                    "score": liquidity_score
+                    "score": liquidity_score,
                 }
 
             # Profit Margin Analysis
             if metrics.profit_margin is not None:
                 margin_score = self._score_profit_margin(
-                    metrics.profit_margin,
-                    benchmarks.get("margin", 10)
+                    metrics.profit_margin, benchmarks.get("margin", 10)
                 )
                 health_scores.append(margin_score)
                 details["margin_analysis"] = {
                     "value": metrics.profit_margin,
                     "benchmark": benchmarks.get("margin", 10),
-                    "score": margin_score
+                    "score": margin_score,
                 }
 
             # Growth Analysis
@@ -223,7 +234,7 @@ class FundamentalAnalyzer:
                 "health_score": avg_score,
                 "health_rating": health_rating,
                 "details": details,
-                "metrics_available": len(health_scores)
+                "metrics_available": len(health_scores),
             }
 
         except Exception as e:
@@ -231,11 +242,12 @@ class FundamentalAnalyzer:
             return {
                 "health_score": 50.0,
                 "health_rating": FinancialHealth.AVERAGE,
-                "error": str(e)
+                "error": str(e),
             }
 
-    def analyze_volume_surge(self, current_volume: float, avg_volume: float,
-                           market_data: pl.DataFrame) -> Dict[str, Any]:
+    def analyze_volume_surge(
+        self, current_volume: float, avg_volume: float, market_data: pl.DataFrame
+    ) -> Dict[str, Any]:
         """
         Analyze volume surge patterns and their significance.
 
@@ -254,8 +266,12 @@ class FundamentalAnalyzer:
             surge_ratio = current_volume / avg_volume
 
             # Calculate volume percentile over recent period
-            recent_volumes = market_data.select("volume").tail(60).to_series().to_numpy()
-            volume_percentile = (np.sum(recent_volumes <= current_volume) / len(recent_volumes)) * 100
+            recent_volumes = (
+                market_data.select("volume").tail(60).to_series().to_numpy()
+            )
+            volume_percentile = (
+                np.sum(recent_volumes <= current_volume) / len(recent_volumes)
+            ) * 100
 
             # Determine significance
             if surge_ratio >= 3.0 and volume_percentile >= 95:
@@ -293,14 +309,16 @@ class FundamentalAnalyzer:
                 "significance": significance,
                 "score": score,
                 "price_change": price_change,
-                "divergence": divergence
+                "divergence": divergence,
             }
 
         except Exception as e:
             self.logger.error(f"Error in volume surge analysis: {e}")
             return {"surge_ratio": 1.0, "significance": "error", "score": 50.0}
 
-    def analyze_sector_performance(self, sector: str, industry: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_sector_performance(
+        self, sector: str, industry: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Analyze sector and industry performance relative to market.
 
@@ -327,7 +345,7 @@ class FundamentalAnalyzer:
                 "Real Estate": 0.03,
                 "Materials": 0.18,
                 "Industrials": 0.10,
-                "Communication Services": -0.03
+                "Communication Services": -0.03,
             }
 
             sector_perf = sector_strength.get(sector, 0.0)
@@ -356,7 +374,11 @@ class FundamentalAnalyzer:
                 "relative_performance": sector_perf,
                 "score": score,
                 "rating": rating,
-                "trend": "bullish" if sector_perf > 0.02 else "bearish" if sector_perf < -0.02 else "neutral"
+                "trend": (
+                    "bullish"
+                    if sector_perf > 0.02
+                    else "bearish" if sector_perf < -0.02 else "neutral"
+                ),
             }
 
         except Exception as e:
@@ -365,7 +387,7 @@ class FundamentalAnalyzer:
                 "sector": sector,
                 "score": 50.0,
                 "rating": "neutral",
-                "error": str(e)
+                "error": str(e),
             }
 
     def _score_pe_ratio(self, pe_ratio: float, benchmark_pe: float) -> float:
@@ -529,8 +551,10 @@ class FundamentalAnalyzer:
         try:
             if isinstance(value, str):
                 # Remove common non-numeric characters
-                cleaned = value.replace('$', '').replace(',', '').replace('%', '').strip()
-                if cleaned == '' or cleaned == '-' or cleaned == 'N/A':
+                cleaned = (
+                    value.replace("$", "").replace(",", "").replace("%", "").strip()
+                )
+                if cleaned == "" or cleaned == "-" or cleaned == "N/A":
                     return None
                 return float(cleaned)
             return float(value)
@@ -576,20 +600,20 @@ class FundamentalStrategy(BaseStrategy):
 
         # Default fundamental parameters
         self.default_params = {
-            "min_market_cap": 1e9,        # $1B minimum market cap
-            "max_pe_ratio": 30,           # Maximum P/E ratio
-            "min_roe": 10,                # Minimum ROE percentage
-            "max_debt_to_equity": 1.0,    # Maximum debt-to-equity ratio
-            "min_current_ratio": 1.2,     # Minimum current ratio
-            "min_revenue_growth": 5,      # Minimum revenue growth percentage
-            "volume_surge_threshold": 2.0, # Volume surge multiplier
-            "sector_weight": 0.2,         # Weight for sector performance
-            "valuation_weight": 0.4,      # Weight for valuation metrics
-            "health_weight": 0.3,         # Weight for financial health
-            "growth_weight": 0.1,         # Weight for growth metrics
+            "min_market_cap": 1e9,  # $1B minimum market cap
+            "max_pe_ratio": 30,  # Maximum P/E ratio
+            "min_roe": 10,  # Minimum ROE percentage
+            "max_debt_to_equity": 1.0,  # Maximum debt-to-equity ratio
+            "min_current_ratio": 1.2,  # Minimum current ratio
+            "min_revenue_growth": 5,  # Minimum revenue growth percentage
+            "volume_surge_threshold": 2.0,  # Volume surge multiplier
+            "sector_weight": 0.2,  # Weight for sector performance
+            "valuation_weight": 0.4,  # Weight for valuation metrics
+            "health_weight": 0.3,  # Weight for financial health
+            "growth_weight": 0.1,  # Weight for growth metrics
             "enable_value_investing": True,
             "enable_growth_investing": True,
-            "enable_quality_investing": True
+            "enable_quality_investing": True,
         }
 
         # Merge with user parameters
@@ -603,8 +627,9 @@ class FundamentalStrategy(BaseStrategy):
         # Fundamental analysis doesn't require technical indicators
         pass
 
-    async def analyze(self, symbol: str, data: pl.DataFrame,
-                     finviz_data: Optional[FinVizData] = None) -> Signal:
+    async def analyze(
+        self, symbol: str, data: pl.DataFrame, finviz_data: Optional[FinVizData] = None
+    ) -> Signal:
         """
         Perform comprehensive fundamental analysis.
 
@@ -622,7 +647,7 @@ class FundamentalStrategy(BaseStrategy):
                     action=SignalType.HOLD,
                     confidence=0.0,
                     position_size=0.0,
-                    reasoning="Invalid or insufficient data"
+                    reasoning="Invalid or insufficient data",
                 )
 
             # Extract metrics from FinViz data
@@ -633,9 +658,7 @@ class FundamentalStrategy(BaseStrategy):
                 metrics, finviz_data.sector
             )
 
-            health_analysis = self.analyzer.analyze_growth(
-                metrics, finviz_data.sector
-            )
+            health_analysis = self.analyzer.analyze_growth(metrics, finviz_data.sector)
 
             # Volume surge analysis
             current_volume = float(data.select("volume").tail(1).item())
@@ -659,18 +682,26 @@ class FundamentalStrategy(BaseStrategy):
                     confidence=0.0,
                     position_size=0.0,
                     reasoning=f"Failed screening: {screening_result['reason']}",
-                    metadata={"screening": screening_result}
+                    metadata={"screening": screening_result},
                 )
 
             # Calculate composite fundamental score
             composite_score = self._calculate_composite_score(
-                valuation_analysis, health_analysis, sector_analysis or {}, volume_analysis
+                valuation_analysis,
+                health_analysis,
+                sector_analysis or {},
+                volume_analysis,
             )
 
             # Generate signal based on composite score
             signal = self._generate_fundamental_signal(
-                symbol, composite_score, valuation_analysis,
-                health_analysis, sector_analysis or {}, volume_analysis, data
+                symbol,
+                composite_score,
+                valuation_analysis,
+                health_analysis,
+                sector_analysis or {},
+                volume_analysis,
+                data,
             )
 
             return signal
@@ -681,25 +712,25 @@ class FundamentalStrategy(BaseStrategy):
                 action=SignalType.HOLD,
                 confidence=0.0,
                 position_size=0.0,
-                reasoning="No FinViz data available"
+                reasoning="No FinViz data available",
             )
 
     def _extract_metrics(self, finviz_data: FinVizData) -> FundamentalMetrics:
         """Extract metrics from FinViz data."""
         try:
             return FundamentalMetrics(
-                pe_ratio=getattr(finviz_data, 'pe_ratio', None),
-                peg_ratio=getattr(finviz_data, 'peg_ratio', None),
-                pb_ratio=getattr(finviz_data, 'pb_ratio', None),
-                ps_ratio=getattr(finviz_data, 'ps_ratio', None),
-                debt_to_equity=getattr(finviz_data, 'debt_equity', None),
-                current_ratio=getattr(finviz_data, 'current_ratio', None),
-                roe=getattr(finviz_data, 'roe', None),
-                roa=getattr(finviz_data, 'roa', None),
-                profit_margin=getattr(finviz_data, 'profit_margin', None),
-                revenue_growth=getattr(finviz_data, 'sales_growth_qtr', None),
-                earnings_growth=getattr(finviz_data, 'eps_growth_qtr', None),
-                market_cap=self._safe_float(getattr(finviz_data, 'market_cap', None)),
+                pe_ratio=getattr(finviz_data, "pe_ratio", None),
+                peg_ratio=getattr(finviz_data, "peg_ratio", None),
+                pb_ratio=getattr(finviz_data, "pb_ratio", None),
+                ps_ratio=getattr(finviz_data, "ps_ratio", None),
+                debt_to_equity=getattr(finviz_data, "debt_equity", None),
+                current_ratio=getattr(finviz_data, "current_ratio", None),
+                roe=getattr(finviz_data, "roe", None),
+                roa=getattr(finviz_data, "roa", None),
+                profit_margin=getattr(finviz_data, "profit_margin", None),
+                revenue_growth=getattr(finviz_data, "sales_growth_qtr", None),
+                earnings_growth=getattr(finviz_data, "eps_growth_qtr", None),
+                market_cap=self._safe_float(getattr(finviz_data, "market_cap", None)),
             )
         except Exception as e:
             self.logger.error(f"Error extracting metrics: {e}")
@@ -714,46 +745,63 @@ class FundamentalStrategy(BaseStrategy):
                 return float(value)
             if isinstance(value, str):
                 # Remove common formatting characters
-                cleaned = value.replace(',', '').replace('%', '').replace('$', '').replace('B', '').replace('M', '').replace('K', '')
+                cleaned = (
+                    value.replace(",", "")
+                    .replace("%", "")
+                    .replace("$", "")
+                    .replace("B", "")
+                    .replace("M", "")
+                    .replace("K", "")
+                )
                 return float(cleaned)
             return None
         except (ValueError, TypeError):
             return None
 
-    def _screen_stock(self, metrics: FundamentalMetrics,
-                     finviz_data: FinVizData) -> Dict[str, Any]:
+    def _screen_stock(
+        self, metrics: FundamentalMetrics, finviz_data: FinVizData
+    ) -> Dict[str, Any]:
         """Screen stock based on minimum fundamental criteria."""
         try:
             reasons = []
 
             # Market cap screening
-            if (metrics.market_cap is not None and
-                metrics.market_cap < self.params["min_market_cap"]):
+            if (
+                metrics.market_cap is not None
+                and metrics.market_cap < self.params["min_market_cap"]
+            ):
                 reasons.append(f"Market cap too small: ${metrics.market_cap/1e9:.1f}B")
 
             # P/E ratio screening
-            if (metrics.pe_ratio is not None and
-                metrics.pe_ratio > self.params["max_pe_ratio"]):
+            if (
+                metrics.pe_ratio is not None
+                and metrics.pe_ratio > self.params["max_pe_ratio"]
+            ):
                 reasons.append(f"P/E too high: {metrics.pe_ratio:.1f}")
 
             # ROE screening
-            if (metrics.roe is not None and
-                metrics.roe < self.params["min_roe"]):
+            if metrics.roe is not None and metrics.roe < self.params["min_roe"]:
                 reasons.append(f"ROE too low: {metrics.roe:.1f}%")
 
             # Debt screening
-            if (metrics.debt_to_equity is not None and
-                metrics.debt_to_equity > self.params["max_debt_to_equity"]):
+            if (
+                metrics.debt_to_equity is not None
+                and metrics.debt_to_equity > self.params["max_debt_to_equity"]
+            ):
                 reasons.append(f"Debt/Equity too high: {metrics.debt_to_equity:.2f}")
 
             # Liquidity screening
-            if (metrics.current_ratio is not None and
-                metrics.current_ratio < self.params["min_current_ratio"]):
+            if (
+                metrics.current_ratio is not None
+                and metrics.current_ratio < self.params["min_current_ratio"]
+            ):
                 reasons.append(f"Current ratio too low: {metrics.current_ratio:.2f}")
 
             # Revenue growth screening
-            if (metrics.revenue_growth is not None and
-                metrics.revenue_growth < self.params["min_revenue_growth"]):
+            if (
+                metrics.revenue_growth is not None
+                and metrics.revenue_growth < self.params["min_revenue_growth"]
+            ):
                 reasons.append(f"Revenue growth too low: {metrics.revenue_growth:.1f}%")
 
             passed = len(reasons) == 0
@@ -762,16 +810,20 @@ class FundamentalStrategy(BaseStrategy):
                 "passed": passed,
                 "reason": "; ".join(reasons) if reasons else "Passed all screens",
                 "failed_criteria": len(reasons),
-                "total_criteria": 6
+                "total_criteria": 6,
             }
 
         except Exception as e:
             self.logger.error(f"Error in stock screening: {e}")
             return {"passed": False, "reason": f"Screening error: {str(e)}"}
 
-    def _calculate_composite_score(self, valuation_analysis: Dict,
-                                 health_analysis: Dict, sector_analysis: Dict,
-                                 volume_analysis: Dict) -> Dict[str, Any]:
+    def _calculate_composite_score(
+        self,
+        valuation_analysis: Dict,
+        health_analysis: Dict,
+        sector_analysis: Dict,
+        volume_analysis: Dict,
+    ) -> Dict[str, Any]:
         """Calculate composite fundamental score."""
         try:
             # Extract component scores
@@ -782,11 +834,16 @@ class FundamentalStrategy(BaseStrategy):
 
             # Apply weights
             weighted_score = (
-                valuation_score * self.params["valuation_weight"] +
-                health_score * self.params["health_weight"] +
-                sector_score * self.params["sector_weight"] +
-                volume_score * (1 - self.params["valuation_weight"] -
-                               self.params["health_weight"] - self.params["sector_weight"])
+                valuation_score * self.params["valuation_weight"]
+                + health_score * self.params["health_weight"]
+                + sector_score * self.params["sector_weight"]
+                + volume_score
+                * (
+                    1
+                    - self.params["valuation_weight"]
+                    - self.params["health_weight"]
+                    - self.params["sector_weight"]
+                )
             )
 
             # Investment style adjustments
@@ -794,13 +851,18 @@ class FundamentalStrategy(BaseStrategy):
 
             if self.params["enable_value_investing"]:
                 # Boost undervalued stocks
-                if valuation_analysis.get("valuation_tier") == ValuationTier.UNDERVALUED:
+                if (
+                    valuation_analysis.get("valuation_tier")
+                    == ValuationTier.UNDERVALUED
+                ):
                     weighted_score += 10
                     style_adjustments.append("value_boost")
 
             if self.params["enable_growth_investing"]:
                 # Boost high-growth stocks
-                growth_details = health_analysis.get("details", {}).get("growth_analysis")
+                growth_details = health_analysis.get("details", {}).get(
+                    "growth_analysis"
+                )
                 if growth_details and growth_details.get("score", 0) >= 75:
                     weighted_score += 8
                     style_adjustments.append("growth_boost")
@@ -817,28 +879,31 @@ class FundamentalStrategy(BaseStrategy):
                     "valuation": valuation_score,
                     "health": health_score,
                     "sector": sector_score,
-                    "volume": volume_score
+                    "volume": volume_score,
                 },
                 "weights_applied": {
                     "valuation": self.params["valuation_weight"],
                     "health": self.params["health_weight"],
-                    "sector": self.params["sector_weight"]
+                    "sector": self.params["sector_weight"],
                 },
                 "style_adjustments": style_adjustments,
-                "raw_weighted_score": weighted_score
+                "raw_weighted_score": weighted_score,
             }
 
         except Exception as e:
             self.logger.error(f"Error calculating composite score: {e}")
-            return {
-                "composite_score": 50.0,
-                "error": str(e)
-            }
+            return {"composite_score": 50.0, "error": str(e)}
 
-    def _generate_fundamental_signal(self, symbol: str, composite_score: Dict,
-                                   valuation_analysis: Dict, health_analysis: Dict,
-                                   sector_analysis: Dict, volume_analysis: Dict,
-                                   data: pl.DataFrame) -> Signal:
+    def _generate_fundamental_signal(
+        self,
+        symbol: str,
+        composite_score: Dict,
+        valuation_analysis: Dict,
+        health_analysis: Dict,
+        sector_analysis: Dict,
+        volume_analysis: Dict,
+        data: pl.DataFrame,
+    ) -> Signal:
         """Generate trading signal based on fundamental analysis."""
         try:
             score = composite_score["composite_score"]
@@ -900,8 +965,8 @@ class FundamentalStrategy(BaseStrategy):
                     "health": health_analysis,
                     "sector": sector_analysis,
                     "volume": volume_analysis,
-                    "fundamental_score": score
-                }
+                    "fundamental_score": score,
+                },
             )
 
         except Exception as e:
@@ -910,7 +975,7 @@ class FundamentalStrategy(BaseStrategy):
                 action=SignalType.HOLD,
                 confidence=0.0,
                 position_size=0.0,
-                reasoning="Insufficient financial data for analysis"
+                reasoning="Insufficient financial data for analysis",
             )
 
 
@@ -929,6 +994,7 @@ class FinVizDataProcessor:
             Structured fundamental metrics
         """
         try:
+
             def safe_float(value, default=None):
                 """Safely convert value to float."""
                 if value in [None, "", "-", "N/A"]:
@@ -960,11 +1026,13 @@ class FinVizDataProcessor:
                 revenue_growth=safe_float(raw_data.get("Sales growth past 5 years")),
                 earnings_growth=safe_float(raw_data.get("EPS growth past 5 years")),
                 market_cap=safe_float(raw_data.get("Market Cap")),
-                analyst_rating=raw_data.get("Analyst Recom")
+                analyst_rating=raw_data.get("Analyst Recom"),
             )
 
         except Exception as e:
-            logging.getLogger("finviz_processor").error(f"Error parsing FinViz data: {e}")
+            logging.getLogger("finviz_processor").error(
+                f"Error parsing FinViz data: {e}"
+            )
             return FundamentalMetrics()
 
     @staticmethod
@@ -1095,16 +1163,14 @@ class FinVizDataProcessor:
                 "signals": signals,
                 "revenue_growth": metrics.revenue_growth,
                 "earnings_growth": metrics.earnings_growth,
-                "peg_ratio": metrics.peg_ratio
+                "peg_ratio": metrics.peg_ratio,
             }
 
         except Exception as e:
-            logging.getLogger("finviz_processor").error(f"Error detecting earnings momentum: {e}")
-            return {
-                "momentum_score": 50.0,
-                "signals": [],
-                "error": str(e)
-            }
+            logging.getLogger("finviz_processor").error(
+                f"Error detecting earnings momentum: {e}"
+            )
+            return {"momentum_score": 50.0, "signals": [], "error": str(e)}
 
 
 class SectorAnalyzer:
@@ -1119,11 +1185,12 @@ class SectorAnalyzer:
             "early_cycle": ["Technology", "Consumer Cyclical", "Industrials"],
             "mid_cycle": ["Materials", "Energy", "Finance"],
             "late_cycle": ["Consumer Defensive", "Healthcare", "Utilities"],
-            "recession": ["Consumer Defensive", "Healthcare", "Utilities"]
+            "recession": ["Consumer Defensive", "Healthcare", "Utilities"],
         }
 
-    def analyze_sector_rotation(self, current_sector: str,
-                              market_phase: str = "mid_cycle") -> Dict[str, Any]:
+    def analyze_sector_rotation(
+        self, current_sector: str, market_phase: str = "mid_cycle"
+    ) -> Dict[str, Any]:
         """
         Analyze sector rotation and positioning.
 
@@ -1156,16 +1223,12 @@ class SectorAnalyzer:
                 "rotation_score": rotation_score,
                 "rotation_signal": rotation_signal,
                 "sector_metrics": sector_metrics,
-                "favorable_sectors": favorable_sectors
+                "favorable_sectors": favorable_sectors,
             }
 
         except Exception as e:
             self.logger.error(f"Error in sector rotation analysis: {e}")
-            return {
-                "sector": current_sector,
-                "rotation_score": 50.0,
-                "error": str(e)
-            }
+            return {"sector": current_sector, "rotation_score": 50.0, "error": str(e)}
 
     def _get_sector_metrics(self, sector: str) -> Dict[str, Any]:
         """Get sector-specific metrics and characteristics."""
@@ -1177,7 +1240,7 @@ class SectorAnalyzer:
                 "cyclical": True,
                 "defensive": False,
                 "avg_pe": 25,
-                "avg_growth": 15
+                "avg_growth": 15,
             },
             "Healthcare": {
                 "volatility": "low",
@@ -1185,7 +1248,7 @@ class SectorAnalyzer:
                 "cyclical": False,
                 "defensive": True,
                 "avg_pe": 18,
-                "avg_growth": 8
+                "avg_growth": 8,
             },
             "Finance": {
                 "volatility": "high",
@@ -1193,7 +1256,7 @@ class SectorAnalyzer:
                 "cyclical": True,
                 "defensive": False,
                 "avg_pe": 12,
-                "avg_growth": 5
+                "avg_growth": 5,
             },
             "Consumer Defensive": {
                 "volatility": "low",
@@ -1201,18 +1264,21 @@ class SectorAnalyzer:
                 "cyclical": False,
                 "defensive": True,
                 "avg_pe": 20,
-                "avg_growth": 3
-            }
+                "avg_growth": 3,
+            },
         }
 
-        return sector_data.get(sector, {
-            "volatility": "medium",
-            "growth_oriented": False,
-            "cyclical": True,
-            "defensive": False,
-            "avg_pe": 18,
-            "avg_growth": 7
-        })
+        return sector_data.get(
+            sector,
+            {
+                "volatility": "medium",
+                "growth_oriented": False,
+                "cyclical": True,
+                "defensive": False,
+                "avg_pe": 18,
+                "avg_growth": 7,
+            },
+        )
 
 
 class FundamentalScreener:
@@ -1222,8 +1288,9 @@ class FundamentalScreener:
         """Initialize fundamental screener."""
         self.logger = logging.getLogger("fundamental_screener")
 
-    def value_screen(self, metrics: FundamentalMetrics,
-                    sector_benchmarks: Dict[str, float]) -> Dict[str, Any]:
+    def value_screen(
+        self, metrics: FundamentalMetrics, sector_benchmarks: Dict[str, float]
+    ) -> Dict[str, Any]:
         """Screen for value investing opportunities."""
         try:
             value_signals = []
@@ -1262,7 +1329,7 @@ class FundamentalScreener:
                 "passed": len(value_signals) >= 2,
                 "score": min(100.0, score),
                 "signals": value_signals,
-                "criteria_met": len(value_signals)
+                "criteria_met": len(value_signals),
             }
 
         except Exception as e:
@@ -1313,7 +1380,7 @@ class FundamentalScreener:
                 "passed": len(growth_signals) >= 2,
                 "score": min(100.0, score),
                 "signals": growth_signals,
-                "criteria_met": len(growth_signals)
+                "criteria_met": len(growth_signals),
             }
 
         except Exception as e:
@@ -1376,7 +1443,7 @@ class FundamentalScreener:
                 "passed": len(quality_signals) >= 3,
                 "score": min(100.0, score),
                 "signals": quality_signals,
-                "criteria_met": len(quality_signals)
+                "criteria_met": len(quality_signals),
             }
 
         except Exception as e:
@@ -1395,8 +1462,9 @@ class FundamentalAnalysisEngine:
         self.sector_analyzer = SectorAnalyzer()
         self.data_processor = FinVizDataProcessor()
 
-    def full_analysis(self, symbol: str, finviz_data: FinVizData,
-                     market_data: pl.DataFrame) -> Dict[str, Any]:
+    def full_analysis(
+        self, symbol: str, finviz_data: FinVizData, market_data: pl.DataFrame
+    ) -> Dict[str, Any]:
         """
         Perform comprehensive fundamental analysis.
 
@@ -1418,9 +1486,7 @@ class FundamentalAnalysisEngine:
             )
 
             # Financial health analysis
-            health_analysis = self.analyzer.analyze_growth(
-                metrics, finviz_data.sector
-            )
+            health_analysis = self.analyzer.analyze_growth(metrics, finviz_data.sector)
 
             # Quality score
             quality_score = self.data_processor.calculate_quality_score(metrics)
@@ -1437,7 +1503,10 @@ class FundamentalAnalysisEngine:
 
             # Investment style screens
             value_screen = self.screener.value_screen(
-                metrics, self.analyzer.industry_benchmarks.get(finviz_data.sector or "unknown", {})
+                metrics,
+                self.analyzer.industry_benchmarks.get(
+                    finviz_data.sector or "unknown", {}
+                ),
             )
             growth_screen = self.screener.growth_screen(metrics)
             quality_screen = self.screener.quality_screen(metrics)
@@ -1451,8 +1520,12 @@ class FundamentalAnalysisEngine:
 
             # Calculate composite fundamental score
             composite_score = self._calculate_composite_fundamental_score(
-                valuation_analysis, health_analysis, quality_score,
-                earnings_momentum, sector_analysis or {}, volume_analysis
+                valuation_analysis,
+                health_analysis,
+                quality_score,
+                earnings_momentum,
+                sector_analysis or {},
+                volume_analysis,
             )
 
             return {
@@ -1468,10 +1541,10 @@ class FundamentalAnalysisEngine:
                 "screens": {
                     "value": value_screen,
                     "growth": growth_screen,
-                    "quality": quality_screen
+                    "quality": quality_screen,
                 },
                 "metrics": metrics,
-                "finviz_data": finviz_data
+                "finviz_data": finviz_data,
             }
 
         except Exception as e:
@@ -1480,12 +1553,18 @@ class FundamentalAnalysisEngine:
                 "symbol": symbol,
                 "timestamp": datetime.now(timezone.utc),
                 "composite_score": 50.0,
-                "error": str(e)
+                "error": str(e),
             }
 
-    def _calculate_composite_fundamental_score(self, valuation: Dict, health: Dict,
-                                             quality_score: float, earnings_momentum: Dict,
-                                             sector: Dict, volume: Dict) -> float:
+    def _calculate_composite_fundamental_score(
+        self,
+        valuation: Dict,
+        health: Dict,
+        quality_score: float,
+        earnings_momentum: Dict,
+        sector: Dict,
+        volume: Dict,
+    ) -> float:
         """Calculate composite fundamental score."""
         try:
             # Component scores
@@ -1497,12 +1576,12 @@ class FundamentalAnalysisEngine:
 
             # Weighted combination
             composite = (
-                val_score * 0.25 +        # Valuation: 25%
-                health_score * 0.25 +     # Financial health: 25%
-                quality_score * 0.20 +    # Quality: 20%
-                momentum_score * 0.15 +   # Earnings momentum: 15%
-                sector_score * 0.10 +     # Sector rotation: 10%
-                volume_score * 0.05       # Volume: 5%
+                val_score * 0.25  # Valuation: 25%
+                + health_score * 0.25  # Financial health: 25%
+                + quality_score * 0.20  # Quality: 20%
+                + momentum_score * 0.15  # Earnings momentum: 15%
+                + sector_score * 0.10  # Sector rotation: 10%
+                + volume_score * 0.05  # Volume: 5%
             )
 
             return max(0.0, min(100.0, composite))

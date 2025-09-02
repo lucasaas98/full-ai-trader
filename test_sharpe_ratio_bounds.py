@@ -6,13 +6,15 @@ This script tests the fixed Sharpe ratio calculations to ensure they don't
 exceed the database field limits of DECIMAL(8,6) which allows ±99.999999.
 """
 
-import sys
 import os
-import numpy as np
+import sys
 from decimal import Decimal
+
+import numpy as np
 
 # Add the project root to path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 
 def test_portfolio_monitor_sharpe_bounds():
     """Test the portfolio monitor Sharpe ratio calculation bounds."""
@@ -47,16 +49,24 @@ def test_portfolio_monitor_sharpe_bounds():
 
     # Test case 2: Extreme positive returns (should be clamped to upper bound)
     # Create returns with high mean and low std dev to produce extreme Sharpe ratio
-    extreme_positive_returns = [0.005 + (0.0001 * (i % 3)) for i in range(50)]  # ~0.5% daily returns with tiny variance
+    extreme_positive_returns = [
+        0.005 + (0.0001 * (i % 3)) for i in range(50)
+    ]  # ~0.5% daily returns with tiny variance
     sharpe_extreme_pos = calculate_sharpe_ratio_with_bounds(extreme_positive_returns)
     print(f"Extreme positive returns Sharpe ratio: {sharpe_extreme_pos}")
-    assert sharpe_extreme_pos == 99.999999, "Extreme positive Sharpe not clamped correctly"
+    assert (
+        sharpe_extreme_pos == 99.999999
+    ), "Extreme positive Sharpe not clamped correctly"
 
     # Test case 3: Extreme negative returns (should be clamped to lower bound)
-    extreme_negative_returns = [-0.005 - (0.0001 * (i % 3)) for i in range(50)]  # ~-0.5% daily returns with tiny variance
+    extreme_negative_returns = [
+        -0.005 - (0.0001 * (i % 3)) for i in range(50)
+    ]  # ~-0.5% daily returns with tiny variance
     sharpe_extreme_neg = calculate_sharpe_ratio_with_bounds(extreme_negative_returns)
     print(f"Extreme negative returns Sharpe ratio: {sharpe_extreme_neg}")
-    assert sharpe_extreme_neg == -99.999999, "Extreme negative Sharpe not clamped correctly"
+    assert (
+        sharpe_extreme_neg == -99.999999
+    ), "Extreme negative Sharpe not clamped correctly"
 
     # Test case 4: Very volatile returns that could cause overflow
     volatile_returns = []
@@ -67,9 +77,12 @@ def test_portfolio_monitor_sharpe_bounds():
             volatile_returns.append(-0.06)  # 6% loss
     sharpe_volatile = calculate_sharpe_ratio_with_bounds(volatile_returns)
     print(f"Volatile returns Sharpe ratio: {sharpe_volatile}")
-    assert -99.999999 <= sharpe_volatile <= 99.999999, "Volatile Sharpe ratio out of bounds"
+    assert (
+        -99.999999 <= sharpe_volatile <= 99.999999
+    ), "Volatile Sharpe ratio out of bounds"
 
     print("✓ Portfolio Monitor Sharpe ratio bounds test passed!\n")
+
 
 def test_performance_tracker_sharpe_bounds():
     """Test the performance tracker Sharpe ratio calculation bounds."""
@@ -82,7 +95,9 @@ def test_performance_tracker_sharpe_bounds():
             excess_return = Decimal(str(avg_pnl)) - risk_free_rate
             calculated_sharpe = excess_return / Decimal(str(pnl_stddev))
             # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
-            sharpe_ratio = max(Decimal("-99.999999"), min(Decimal("99.999999"), calculated_sharpe))
+            sharpe_ratio = max(
+                Decimal("-99.999999"), min(Decimal("99.999999"), calculated_sharpe)
+            )
             return float(sharpe_ratio)
         return None
 
@@ -108,6 +123,7 @@ def test_performance_tracker_sharpe_bounds():
 
     print("✓ Performance Tracker Sharpe ratio bounds test passed!\n")
 
+
 def test_utils_sharpe_bounds():
     """Test the utils Sharpe ratio calculation bounds."""
     print("Testing Utils Sharpe Ratio Bounds...")
@@ -121,7 +137,10 @@ def test_utils_sharpe_bounds():
         daily_rf_rate = risk_free_rate / 252
 
         # Calculate excess returns
-        excess_returns = [Decimal(str(float(ret))) - Decimal(str(float(daily_rf_rate))) for ret in returns]
+        excess_returns = [
+            Decimal(str(float(ret))) - Decimal(str(float(daily_rf_rate)))
+            for ret in returns
+        ]
 
         # Calculate mean and std
         mean_excess = sum(excess_returns) / len(excess_returns)
@@ -129,14 +148,21 @@ def test_utils_sharpe_bounds():
         if len(excess_returns) < 2:
             return None
 
-        variance = sum((Decimal(str(float(ret))) - Decimal(str(float(mean_excess)))) ** 2 for ret in excess_returns) / (len(excess_returns) - 1)
-        std_excess = Decimal(str((float(variance)) ** 0.5)) if variance > 0 else Decimal("0")
+        variance = sum(
+            (Decimal(str(float(ret))) - Decimal(str(float(mean_excess)))) ** 2
+            for ret in excess_returns
+        ) / (len(excess_returns) - 1)
+        std_excess = (
+            Decimal(str((float(variance)) ** 0.5)) if variance > 0 else Decimal("0")
+        )
 
         if std_excess == 0:
             return None
 
         # Annualize
-        sharpe = (Decimal(str(float(mean_excess))) / std_excess) * Decimal(str((252) ** 0.5))
+        sharpe = (Decimal(str(float(mean_excess))) / std_excess) * Decimal(
+            str((252) ** 0.5)
+        )
         # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
         return max(Decimal("-99.999999"), min(Decimal("99.999999"), sharpe))
 
@@ -147,18 +173,23 @@ def test_utils_sharpe_bounds():
     assert normal_sharpe is not None and -99.999999 <= float(normal_sharpe) <= 99.999999
 
     # Test case 2: Very high returns (should be clamped)
-    high_returns = [Decimal("0.005") + Decimal(str(0.0001 * (i % 3))) for i in range(30)]
+    high_returns = [
+        Decimal("0.005") + Decimal(str(0.0001 * (i % 3))) for i in range(30)
+    ]
     high_sharpe = calculate_utils_sharpe_with_bounds(high_returns)
     print(f"High returns utils Sharpe ratio: {high_sharpe}")
     assert high_sharpe == Decimal("99.999999"), "High returns Sharpe not clamped"
 
     # Test case 3: Very low returns (should be clamped)
-    low_returns = [Decimal("-0.005") - Decimal(str(0.0001 * (i % 3))) for i in range(30)]
+    low_returns = [
+        Decimal("-0.005") - Decimal(str(0.0001 * (i % 3))) for i in range(30)
+    ]
     low_sharpe = calculate_utils_sharpe_with_bounds(low_returns)
     print(f"Low returns utils Sharpe ratio: {low_sharpe}")
     assert low_sharpe == Decimal("-99.999999"), "Low returns Sharpe not clamped"
 
     print("✓ Utils Sharpe ratio bounds test passed!\n")
+
 
 def test_database_field_compatibility():
     """Test that our bounds match the database field constraints."""
@@ -185,6 +216,7 @@ def test_database_field_compatibility():
         assert min_allowed <= clamped_value <= max_allowed
 
     print("✓ Database field compatibility test passed!\n")
+
 
 def main():
     """Run all Sharpe ratio bounds tests."""
@@ -214,6 +246,7 @@ def main():
         return 1
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

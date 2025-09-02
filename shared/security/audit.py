@@ -13,28 +13,32 @@ Note: All imports verified and syntax validated
 """
 
 import asyncio
+import datetime as dt
 import json
 import logging
-import datetime as dt
 from datetime import timezone
-from typing import Dict, Any, Optional, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 # Explicit type aliases for clarity
 TypeAny = Any
 TimeDelta = dt.timedelta
-from dataclasses import dataclass, asdict
-from enum import Enum
 from contextlib import asynccontextmanager
+from dataclasses import asdict, dataclass
+from enum import Enum
+
 import asyncpg
+import redis.asyncio as redis
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+
 from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
-import redis.asyncio as redis
 
 logger = logging.getLogger(__name__)
 
+
 class AuditEventType(Enum):
     """Types of events that can be audited"""
+
     TRADE_EXECUTION = "trade_execution"
     TRADE_MODIFICATION = "trade_modification"
     TRADE_CANCELLATION = "trade_cancellation"
@@ -56,16 +60,20 @@ class AuditEventType(Enum):
     SECURITY_EVENT = "security_event"
     ERROR_EVENT = "error_event"
 
+
 class AuditSeverity(Enum):
     """Severity levels for audit events"""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     CRITICAL = "critical"
 
+
 @dataclass
 class AuditEvent:
     """Audit event data structure"""
+
     timestamp: dt.datetime
     event_type: AuditEventType
     severity: AuditSeverity
@@ -89,10 +97,11 @@ class AuditEvent:
     def to_dict(self) -> Dict[str, Any]:
         """Convert audit event to dictionary"""
         result = asdict(self)
-        result['timestamp'] = self.timestamp.isoformat()
-        result['event_type'] = self.event_type.value
-        result['severity'] = self.severity.value
+        result["timestamp"] = self.timestamp.isoformat()
+        result["event_type"] = self.event_type.value
+        result["severity"] = self.severity.value
         return result
+
 
 class AuditLogger:
     """Core audit logging functionality"""
@@ -180,8 +189,7 @@ class AuditLogger:
         # Also store in Redis for real-time access
         try:
             await cast(Any, self.redis.lpush)(
-                "audit:recent",
-                json.dumps(event.to_dict())
+                "audit:recent", json.dumps(event.to_dict())
             )
             # Keep only last 1000 events in Redis
             await cast(Any, self.redis.ltrim)("audit:recent", 0, 999)
@@ -213,7 +221,8 @@ class AuditLogger:
 
         try:
             async with self.db_pool.acquire() as conn:
-                await conn.executemany("""
+                await conn.executemany(
+                    """
                     INSERT INTO audit_logs (
                         timestamp, event_type, severity, service_name, action,
                         entity_type, entity_id, user_id, session_id, ip_address,
@@ -223,30 +232,32 @@ class AuditLogger:
                         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                         $11, $12, $13, $14, $15, $16, $17, $18, $19
                     )
-                """, [
-                    (
-                        event.timestamp,
-                        event.event_type.value,
-                        event.severity.value,
-                        event.service_name,
-                        event.action,
-                        event.entity_type,
-                        event.entity_id,
-                        event.user_id,
-                        event.session_id,
-                        event.ip_address,
-                        event.user_agent,
-                        event.request_id,
-                        json.dumps(event.changes) if event.changes else None,
-                        json.dumps(event.old_values) if event.old_values else None,
-                        json.dumps(event.new_values) if event.new_values else None,
-                        event.success,
-                        event.error_message,
-                        event.execution_time_ms,
-                        json.dumps(event.metadata) if event.metadata else None
-                    )
-                    for event in events_to_flush
-                ])
+                """,
+                    [
+                        (
+                            event.timestamp,
+                            event.event_type.value,
+                            event.severity.value,
+                            event.service_name,
+                            event.action,
+                            event.entity_type,
+                            event.entity_id,
+                            event.user_id,
+                            event.session_id,
+                            event.ip_address,
+                            event.user_agent,
+                            event.request_id,
+                            json.dumps(event.changes) if event.changes else None,
+                            json.dumps(event.old_values) if event.old_values else None,
+                            json.dumps(event.new_values) if event.new_values else None,
+                            event.success,
+                            event.error_message,
+                            event.execution_time_ms,
+                            json.dumps(event.metadata) if event.metadata else None,
+                        )
+                        for event in events_to_flush
+                    ],
+                )
 
             logger.debug(f"Flushed {len(events_to_flush)} audit events to database")
 
@@ -265,7 +276,7 @@ class AuditLogger:
         user_ids: Optional[List[str]] = None,
         success_only: Optional[bool] = None,
         limit: int = 1000,
-        offset: int = 0
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """Query audit events with filters"""
         query = "SELECT * FROM audit_logs WHERE 1=1"
@@ -305,15 +316,20 @@ class AuditLogger:
     async def get_recent_events(self, count: int = 100) -> List[Dict[str, Any]]:
         """Get recent audit events from Redis cache"""
         try:
-            events_data = await cast(Any, self.redis.lrange)("audit:recent", 0, count - 1)
+            events_data = await cast(Any, self.redis.lrange)(
+                "audit:recent", 0, count - 1
+            )
             result = []
             for event in events_data:
-                event_str = event.decode('utf-8') if isinstance(event, bytes) else str(event)
+                event_str = (
+                    event.decode("utf-8") if isinstance(event, bytes) else str(event)
+                )
                 result.append(json.loads(event_str))
             return result
         except Exception as e:
             logger.error(f"Failed to get recent events from Redis: {e}")
             return []
+
 
 class AuditMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for automatic audit logging"""
@@ -354,7 +370,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             response = Response(
                 content=json.dumps({"error": "Internal server error"}),
                 status_code=500,
-                media_type="application/json"
+                media_type="application/json",
             )
 
         # Calculate execution time
@@ -385,8 +401,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     "path": str(request.url.path),
                     "query_params": dict(request.query_params),
                     "status_code": response.status_code if response else None,
-                    "content_length": response.headers.get("content-length") if response else None
-                }
+                    "content_length": (
+                        response.headers.get("content-length") if response else None
+                    ),
+                },
             )
 
             # Log the event
@@ -463,7 +481,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             "/config",
             "/admin",
             "/export",
-            "/maintenance"
+            "/maintenance",
         ]
 
         path = request.url.path
@@ -476,6 +494,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             return False
 
         return False
+
 
 class TradeAuditor:
     """Specialized auditor for trading operations"""
@@ -494,7 +513,7 @@ class TradeAuditor:
         user_id: str = "system",
         success: bool = True,
         error_message: Optional[str] = None,
-        execution_details: Optional[Dict[str, Any]] = None
+        execution_details: Optional[Dict[str, Any]] = None,
     ):
         """Log trade execution event"""
         event = AuditEvent(
@@ -514,8 +533,8 @@ class TradeAuditor:
                 "quantity": quantity,
                 "price": price,
                 "strategy_id": strategy_id,
-                "execution_details": execution_details
-            }
+                "execution_details": execution_details,
+            },
         )
 
         await self.audit_logger.log_event(event)
@@ -528,31 +547,33 @@ class TradeAuditor:
         new_quantity: float,
         old_price: Optional[float],
         new_price: float,
-        user_id: str = "system"
+        user_id: str = "system",
     ):
         """Log position changes"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
-            event_type=AuditEventType.POSITION_OPEN if action == "open" else AuditEventType.POSITION_CLOSE,
+            event_type=(
+                AuditEventType.POSITION_OPEN
+                if action == "open"
+                else AuditEventType.POSITION_CLOSE
+            ),
             severity=AuditSeverity.MEDIUM,
             service_name="trade_executor",
             action=f"position_{action}",
             entity_type="position",
             entity_id=symbol,
             user_id=user_id,
-            old_values={
-                "quantity": old_quantity,
-                "price": old_price
-            } if old_quantity is not None else None,
-            new_values={
-                "quantity": new_quantity,
-                "price": new_price
-            },
+            old_values=(
+                {"quantity": old_quantity, "price": old_price}
+                if old_quantity is not None
+                else None
+            ),
+            new_values={"quantity": new_quantity, "price": new_price},
             changes={
                 "action": action,
                 "quantity_change": new_quantity - (old_quantity or 0),
-                "price_change": new_price - (old_price or 0) if old_price else 0
-            }
+                "price_change": new_price - (old_price or 0) if old_price else 0,
+            },
         )
 
         await self.audit_logger.log_event(event)
@@ -565,13 +586,15 @@ class TradeAuditor:
         approved_quantity: float,
         risk_score: float,
         risk_factors: Dict[str, Any],
-        user_id: str = "system"
+        user_id: str = "system",
     ):
         """Log risk management decisions"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
             event_type=AuditEventType.RISK_DECISION,
-            severity=AuditSeverity.HIGH if decision == "reject" else AuditSeverity.MEDIUM,
+            severity=(
+                AuditSeverity.HIGH if decision == "reject" else AuditSeverity.MEDIUM
+            ),
             service_name="risk_manager",
             action=f"risk_{decision}",
             entity_type="trade_proposal",
@@ -585,11 +608,12 @@ class TradeAuditor:
                 "decision": decision,
                 "risk_score": risk_score,
                 "risk_factors": risk_factors,
-                "quantity_reduction": proposed_quantity - approved_quantity
-            }
+                "quantity_reduction": proposed_quantity - approved_quantity,
+            },
         )
 
         await self.audit_logger.log_event(event)
+
 
 class ConfigAuditor:
     """Specialized auditor for configuration changes"""
@@ -604,7 +628,7 @@ class ConfigAuditor:
         new_value: Any,
         change_reason: str,
         user_id: str,
-        service_name: str = "config_manager"
+        service_name: str = "config_manager",
     ):
         """Log configuration changes"""
         event = AuditEvent(
@@ -621,11 +645,12 @@ class ConfigAuditor:
             changes={
                 "key": config_key,
                 "reason": change_reason,
-                "value_changed": old_value != new_value
-            }
+                "value_changed": old_value != new_value,
+            },
         )
 
         await self.audit_logger.log_event(event)
+
 
 class SecurityAuditor:
     """Specialized auditor for security events"""
@@ -640,7 +665,7 @@ class SecurityAuditor:
         user_agent: str,
         success: bool,
         method: str = "api_key",
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Log authentication attempts"""
         event = AuditEvent(
@@ -654,10 +679,7 @@ class SecurityAuditor:
             user_agent=user_agent,
             success=success,
             error_message=error_message,
-            metadata={
-                "authentication_method": method,
-                "failed_attempt": not success
-            }
+            metadata={"authentication_method": method, "failed_attempt": not success},
         )
 
         await self.audit_logger.log_event(event)
@@ -669,7 +691,7 @@ class SecurityAuditor:
         severity: AuditSeverity,
         user_id: Optional[str] = None,
         ip_address: Optional[str] = None,
-        additional_data: Optional[Dict[str, Any]] = None
+        additional_data: Optional[Dict[str, Any]] = None,
     ):
         """Log general security events"""
         event = AuditEvent(
@@ -682,11 +704,12 @@ class SecurityAuditor:
             ip_address=ip_address,
             metadata={
                 "description": description,
-                "additional_data": additional_data or {}
-            }
+                "additional_data": additional_data or {},
+            },
         )
 
         await self.audit_logger.log_event(event)
+
 
 @asynccontextmanager
 async def create_audit_context(db_pool: asyncpg.Pool, redis_client: redis.Redis):
@@ -699,25 +722,30 @@ async def create_audit_context(db_pool: asyncpg.Pool, redis_client: redis.Redis)
     finally:
         await audit_logger.shutdown()
 
+
 def create_trade_auditor(audit_logger: AuditLogger) -> TradeAuditor:
     """Factory function for trade auditor"""
     return TradeAuditor(audit_logger)
+
 
 def create_config_auditor(audit_logger: AuditLogger) -> ConfigAuditor:
     """Factory function for config auditor"""
     return ConfigAuditor(audit_logger)
 
+
 def create_security_auditor(audit_logger: AuditLogger) -> SecurityAuditor:
     """Factory function for security auditor"""
     return SecurityAuditor(audit_logger)
+
 
 # Decorator for auditing function calls
 def audit_operation(
     event_type: AuditEventType,
     severity: AuditSeverity = AuditSeverity.MEDIUM,
-    entity_type: Optional[str] = None
+    entity_type: Optional[str] = None,
 ):
     """Decorator to automatically audit function calls"""
+
     def decorator(func):
         async def wrapper(*args, **kwargs):
             start_time = dt.datetime.now(timezone.utc)
@@ -734,15 +762,17 @@ def audit_operation(
                 raise
             finally:
                 # Try to get audit logger from function context
-                audit_logger = getattr(func, '_audit_logger', None)
+                audit_logger = getattr(func, "_audit_logger", None)
                 if audit_logger:
-                    execution_time = (dt.datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    execution_time = (
+                        dt.datetime.now(timezone.utc) - start_time
+                    ).total_seconds() * 1000
 
                     event = AuditEvent(
                         timestamp=start_time,
                         event_type=event_type,
                         severity=severity,
-                        service_name=getattr(func, '_service_name', 'unknown'),
+                        service_name=getattr(func, "_service_name", "unknown"),
                         action=func.__name__,
                         entity_type=entity_type,
                         success=success,
@@ -752,65 +782,70 @@ def audit_operation(
                             "function": func.__name__,
                             "args_count": len(args),
                             "kwargs_keys": list(kwargs.keys()) if kwargs else [],
-                            "result_type": type(result).__name__ if result else None
-                        }
+                            "result_type": type(result).__name__ if result else None,
+                        },
                     )
 
                     await audit_logger.log_event(event)
 
         return wrapper
+
     return decorator
 
+
 # Utility functions for audit queries
-async def get_audit_summary(
-    audit_logger: AuditLogger,
-    days: int = 7
-) -> Dict[str, Any]:
+async def get_audit_summary(audit_logger: AuditLogger, days: int = 7) -> Dict[str, Any]:
     """Get audit summary for specified period"""
     end_date = dt.datetime.now(timezone.utc)
     start_date = end_date - TimeDelta(days=days)
 
     events = await audit_logger.query_events(
-        start_date=start_date,
-        end_date=end_date,
-        limit=10000
+        start_date=start_date, end_date=end_date, limit=10000
     )
 
     # Calculate summary statistics
     total_events = len(events)
-    failed_events = len([e for e in events if not e['success']])
+    failed_events = len([e for e in events if not e["success"]])
     event_type_counts = {}
     service_counts = {}
     hourly_distribution = {}
 
     for event in events:
         # Count by event type
-        event_type = event['event_type']
+        event_type = event["event_type"]
         event_type_counts[event_type] = event_type_counts.get(event_type, 0) + 1
 
         # Count by service
-        service = event['service_name']
+        service = event["service_name"]
         service_counts[service] = service_counts.get(service, 0) + 1
 
         # Count by hour
-        hour = dt.datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00')).hour
+        hour = dt.datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).hour
         hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
 
     return {
         "period_days": days,
         "total_events": total_events,
         "failed_events": failed_events,
-        "success_rate": ((total_events - failed_events) / total_events * 100) if total_events > 0 else 0,
+        "success_rate": (
+            ((total_events - failed_events) / total_events * 100)
+            if total_events > 0
+            else 0
+        ),
         "event_type_distribution": event_type_counts,
         "service_distribution": service_counts,
         "hourly_distribution": hourly_distribution,
-        "most_active_hour": max(hourly_distribution.items(), key=lambda x: x[1])[0] if hourly_distribution else None,
-        "error_rate": (failed_events / total_events * 100) if total_events > 0 else 0
+        "most_active_hour": (
+            max(hourly_distribution.items(), key=lambda x: x[1])[0]
+            if hourly_distribution
+            else None
+        ),
+        "error_rate": (failed_events / total_events * 100) if total_events > 0 else 0,
     }
 
+
 async def cleanup_old_audit_logs(
-    db_pool: asyncpg.Pool,
-    retention_days: int = 2555  # 7 years default
+    db_pool: asyncpg.Pool, retention_days: int = 2555  # 7 years default
 ):
     """Clean up old audit logs beyond retention period"""
     cutoff_date = dt.datetime.now(timezone.utc) - TimeDelta(days=retention_days)
@@ -818,20 +853,22 @@ async def cleanup_old_audit_logs(
     async with db_pool.acquire() as conn:
         # Count records to be deleted
         count_result = await conn.fetchrow(
-            "SELECT COUNT(*) FROM audit_logs WHERE timestamp < $1",
-            cutoff_date
+            "SELECT COUNT(*) FROM audit_logs WHERE timestamp < $1", cutoff_date
         )
-        records_to_delete = count_result['count']
+        records_to_delete = count_result["count"]
 
         if records_to_delete > 0:
-            logger.info(f"Cleaning up {records_to_delete} audit log records older than {retention_days} days")
+            logger.info(
+                f"Cleaning up {records_to_delete} audit log records older than {retention_days} days"
+            )
 
             # Delete in batches to avoid long locks
             batch_size = 10000
             total_deleted = 0
 
             while True:
-                deleted_count = await conn.fetchval("""
+                deleted_count = await conn.fetchval(
+                    """
                     WITH batch AS (
                         SELECT id FROM audit_logs
                         WHERE timestamp < $1
@@ -840,30 +877,38 @@ async def cleanup_old_audit_logs(
                     DELETE FROM audit_logs
                     WHERE id IN (SELECT id FROM batch)
                     RETURNING 1
-                """, cutoff_date, batch_size)
+                """,
+                    cutoff_date,
+                    batch_size,
+                )
 
                 if not deleted_count:
                     break
 
-                total_deleted += len(deleted_count) if isinstance(deleted_count, list) else 1
-                logger.debug(f"Deleted batch of audit logs, total so far: {total_deleted}")
+                total_deleted += (
+                    len(deleted_count) if isinstance(deleted_count, list) else 1
+                )
+                logger.debug(
+                    f"Deleted batch of audit logs, total so far: {total_deleted}"
+                )
 
             logger.info(f"Audit log cleanup completed: {total_deleted} records deleted")
         else:
             logger.debug("No old audit logs to clean up")
+
 
 # Export audit data for compliance
 async def export_audit_for_compliance(
     audit_logger: AuditLogger,
     start_date: dt.datetime,
     end_date: dt.datetime,
-    output_path: str
+    output_path: str,
 ) -> str:
     """Export audit data for compliance purposes"""
     events = await audit_logger.query_events(
         start_date=start_date,
         end_date=end_date,
-        limit=1000000  # Large limit for compliance exports
+        limit=1000000,  # Large limit for compliance exports
     )
 
     # Create compliance-friendly format
@@ -873,19 +918,20 @@ async def export_audit_for_compliance(
             "period_start": start_date.isoformat(),
             "period_end": end_date.isoformat(),
             "total_events": len(events),
-            "export_purpose": "regulatory_compliance"
+            "export_purpose": "regulatory_compliance",
         },
-        "audit_events": events
+        "audit_events": events,
     }
 
     # Write to file
     output_file = f"{output_path}/compliance_audit_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.json"
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(compliance_data, f, indent=2, default=str)
 
     logger.info(f"Compliance audit export completed: {output_file}")
     return output_file
+
 
 # Audit event builders for common operations
 class AuditEventBuilder:
@@ -901,7 +947,7 @@ class AuditEventBuilder:
         strategy_id: str,
         success: bool = True,
         error_message: Optional[str] = None,
-        user_id: str = "system"
+        user_id: str = "system",
     ) -> AuditEvent:
         """Build trade execution audit event"""
         return AuditEvent(
@@ -921,8 +967,8 @@ class AuditEventBuilder:
                 "quantity": quantity,
                 "price": price,
                 "strategy_id": strategy_id,
-                "dollar_amount": quantity * price
-            }
+                "dollar_amount": quantity * price,
+            },
         )
 
     @staticmethod
@@ -931,12 +977,16 @@ class AuditEventBuilder:
         service_name: str,
         success: bool = True,
         error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> AuditEvent:
         """Build system event audit entry"""
         return AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
-            event_type=AuditEventType.SYSTEM_START if "start" in action else AuditEventType.SYSTEM_STOP,
+            event_type=(
+                AuditEventType.SYSTEM_START
+                if "start" in action
+                else AuditEventType.SYSTEM_STOP
+            ),
             severity=AuditSeverity.MEDIUM,
             service_name=service_name,
             action=action,
@@ -944,20 +994,24 @@ class AuditEventBuilder:
             user_id="system",
             success=success,
             error_message=error_message,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
+
 
 # Global audit logger instance (to be initialized by each service)
 _global_audit_logger: Optional[AuditLogger] = None
+
 
 def set_global_audit_logger(audit_logger: AuditLogger):
     """Set global audit logger instance"""
     global _global_audit_logger
     _global_audit_logger = audit_logger
 
+
 def get_global_audit_logger() -> Optional[AuditLogger]:
     """Get global audit logger instance"""
     return _global_audit_logger
+
 
 async def audit_async(
     event_type: AuditEventType,
@@ -969,7 +1023,7 @@ async def audit_async(
     user_id: Optional[str] = None,
     success: bool = True,
     error_message: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ):
     """Convenience function for async audit logging"""
     audit_logger = get_global_audit_logger()
@@ -985,9 +1039,10 @@ async def audit_async(
             user_id=user_id,
             success=success,
             error_message=error_message,
-            metadata=metadata
+            metadata=metadata,
         )
         await audit_logger.log_event(event)
+
 
 def audit_sync(
     event_type: AuditEventType,
@@ -999,11 +1054,20 @@ def audit_sync(
     user_id: Optional[str] = None,
     success: bool = True,
     error_message: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
 ):
     """Convenience function for sync audit logging (creates async task)"""
-    asyncio.create_task(audit_async(
-        event_type, action, service_name, severity,
-        entity_type, entity_id, user_id, success,
-        error_message, metadata
-    ))
+    asyncio.create_task(
+        audit_async(
+            event_type,
+            action,
+            service_name,
+            severity,
+            entity_type,
+            entity_id,
+            user_id,
+            success,
+            error_message,
+            metadata,
+        )
+    )

@@ -6,23 +6,25 @@ market event detection, and data cleaning capabilities for the trading system.
 """
 
 import logging
-from datetime import datetime, timedelta, time as dt_time, timezone
-from typing import Dict, List, Optional, Any, Tuple
-from enum import Enum
 import statistics
+from datetime import datetime
+from datetime import time as dt_time
+from datetime import timedelta, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 import polars as pl
 from pydantic import BaseModel, Field
 
-from shared.models import MarketData, TimeFrame
 from shared.market_hours import is_market_open
-
+from shared.models import MarketData, TimeFrame
 
 logger = logging.getLogger(__name__)
 
 
 class AnomalyType(Enum):
     """Types of data anomalies."""
+
     PRICE_SPIKE = "price_spike"
     VOLUME_SPIKE = "volume_spike"
     MISSING_DATA = "missing_data"
@@ -37,6 +39,7 @@ class AnomalyType(Enum):
 
 class AnomalySeverity(Enum):
     """Severity levels for anomalies."""
+
     INFO = "info"
     LOW = "low"
     MEDIUM = "medium"
@@ -62,31 +65,57 @@ class DataQualityConfig(BaseModel):
     """Configuration for data quality validation."""
 
     # Price validation thresholds
-    max_price_change_percent: float = Field(default=30.0, description="Maximum price change percentage")
-    max_intraday_volatility: float = Field(default=50.0, description="Maximum intraday volatility")
+    max_price_change_percent: float = Field(
+        default=30.0, description="Maximum price change percentage"
+    )
+    max_intraday_volatility: float = Field(
+        default=50.0, description="Maximum intraday volatility"
+    )
     min_price: float = Field(default=0.01, description="Minimum valid price")
     max_price: float = Field(default=10000.0, description="Maximum valid price")
 
     # Volume validation thresholds
-    max_volume_spike_ratio: float = Field(default=10.0, description="Maximum volume spike ratio")
-    min_volume_threshold: int = Field(default=100, description="Minimum volume threshold")
+    max_volume_spike_ratio: float = Field(
+        default=10.0, description="Maximum volume spike ratio"
+    )
+    min_volume_threshold: int = Field(
+        default=100, description="Minimum volume threshold"
+    )
 
     # Data freshness thresholds
-    max_data_age_minutes: int = Field(default=60, description="Maximum data age in minutes")
-    max_gap_multiplier: float = Field(default=3.0, description="Maximum gap as multiple of expected interval")
+    max_data_age_minutes: int = Field(
+        default=60, description="Maximum data age in minutes"
+    )
+    max_gap_multiplier: float = Field(
+        default=3.0, description="Maximum gap as multiple of expected interval"
+    )
 
     # Split/dividend detection
-    min_split_ratio: float = Field(default=1.5, description="Minimum ratio to detect splits")
-    max_split_ratio: float = Field(default=10.0, description="Maximum ratio to detect splits")
-    min_dividend_yield: float = Field(default=0.001, description="Minimum dividend yield for detection")
+    min_split_ratio: float = Field(
+        default=1.5, description="Minimum ratio to detect splits"
+    )
+    max_split_ratio: float = Field(
+        default=10.0, description="Maximum ratio to detect splits"
+    )
+    min_dividend_yield: float = Field(
+        default=0.001, description="Minimum dividend yield for detection"
+    )
 
     # Statistical thresholds
-    outlier_std_threshold: float = Field(default=3.0, description="Standard deviations for outlier detection")
-    volatility_lookback_periods: int = Field(default=20, description="Periods for volatility calculation")
+    outlier_std_threshold: float = Field(
+        default=3.0, description="Standard deviations for outlier detection"
+    )
+    volatility_lookback_periods: int = Field(
+        default=20, description="Periods for volatility calculation"
+    )
 
     # Market event detection
-    enable_market_event_detection: bool = Field(default=True, description="Enable market event detection")
-    earnings_impact_threshold: float = Field(default=5.0, description="Earnings impact threshold percentage")
+    enable_market_event_detection: bool = Field(
+        default=True, description="Enable market event detection"
+    )
+    earnings_impact_threshold: float = Field(
+        default=5.0, description="Earnings impact threshold percentage"
+    )
 
 
 class MarketEventDetector:
@@ -118,7 +147,7 @@ class MarketEventDetector:
             close_prices = data_sorted["close"].to_list()
 
             for i in range(1, len(close_prices)):
-                prev_close = close_prices[i-1]
+                prev_close = close_prices[i - 1]
                 curr_open = data_sorted["open"][i]
 
                 if prev_close <= 0 or curr_open <= 0:
@@ -144,10 +173,10 @@ class MarketEventDetector:
                                 "split_ratio": ratio,
                                 "previous_close": float(prev_close),
                                 "current_open": float(curr_open),
-                                "confidence": 0.8 if is_clean_split else 0.6
+                                "confidence": 0.8 if is_clean_split else 0.6,
                             },
                             suggested_action="Verify split and adjust historical data",
-                            confidence_score=0.8 if is_clean_split else 0.6
+                            confidence_score=0.8 if is_clean_split else 0.6,
                         )
                         anomalies.append(anomaly)
 
@@ -175,7 +204,7 @@ class MarketEventDetector:
             data_sorted = data.sort("timestamp")
 
             for i in range(1, len(data_sorted)):
-                prev_close = data_sorted["close"][i-1]
+                prev_close = data_sorted["close"][i - 1]
                 curr_open = data_sorted["open"][i]
 
                 if prev_close <= 0 or curr_open <= 0:
@@ -202,10 +231,10 @@ class MarketEventDetector:
                                 "estimated_dividend": float(dividend_amount),
                                 "dividend_yield": dividend_yield,
                                 "previous_close": float(prev_close),
-                                "current_open": float(curr_open)
+                                "current_open": float(curr_open),
                             },
                             suggested_action="Verify dividend payment and adjust data",
-                            confidence_score=0.7
+                            confidence_score=0.7,
                         )
                         anomalies.append(anomaly)
 
@@ -233,7 +262,7 @@ class MarketEventDetector:
             data_sorted = data.sort("timestamp")
 
             for i in range(1, len(data_sorted)):
-                prev_close = data_sorted["close"][i-1]
+                prev_close = data_sorted["close"][i - 1]
                 curr_open = data_sorted["open"][i]
                 curr_volume = data_sorted["volume"][i]
 
@@ -247,7 +276,9 @@ class MarketEventDetector:
                 if gap_percent >= self.config.earnings_impact_threshold:
                     # Calculate average volume from previous periods
                     if i >= 5:
-                        avg_volume = statistics.mean(data_sorted["volume"][i-5:i].to_list())
+                        avg_volume = statistics.mean(
+                            data_sorted["volume"][i - 5 : i].to_list()
+                        )
                         volume_ratio = curr_volume / avg_volume if avg_volume > 0 else 1
 
                         if volume_ratio >= 2.0:  # Volume spike
@@ -262,10 +293,10 @@ class MarketEventDetector:
                                     "gap_percent": gap_percent,
                                     "volume_ratio": volume_ratio,
                                     "current_volume": curr_volume,
-                                    "average_volume": avg_volume
+                                    "average_volume": avg_volume,
                                 },
                                 suggested_action="Check for earnings announcement or news",
-                                confidence_score=0.8
+                                confidence_score=0.8,
                             )
                             anomalies.append(anomaly)
 
@@ -288,8 +319,7 @@ class DataQualityValidator:
         self.event_detector = MarketEventDetector(config)
 
     async def validate_market_data(
-        self,
-        data: List[MarketData]
+        self, data: List[MarketData]
     ) -> Tuple[List[DataAnomaly], List[MarketData]]:
         """
         Validate market data and return anomalies and cleaned data.
@@ -345,20 +375,24 @@ class DataQualityValidator:
                         anomaly_type=AnomalyType.MISSING_DATA,
                         severity=AnomalySeverity.HIGH,
                         timestamp=datetime.now(timezone.utc),
-                        timeframe=TimeFrame(df["timeframe"][0]) if len(df) > 0 else TimeFrame.FIVE_MINUTES,
+                        timeframe=(
+                            TimeFrame(df["timeframe"][0])
+                            if len(df) > 0
+                            else TimeFrame.FIVE_MINUTES
+                        ),
                         description=f"Missing values in column '{col}': {null_count} records",
                         details={"column": col, "null_count": null_count},
-                        suggested_action="Fill missing values or exclude records"
+                        suggested_action="Fill missing values or exclude records",
                     )
                     anomalies.append(anomaly)
 
             # Check OHLC relationships
             invalid_ohlc = df.filter(
-                (pl.col("high") < pl.col("low")) |
-                (pl.col("high") < pl.col("open")) |
-                (pl.col("high") < pl.col("close")) |
-                (pl.col("low") > pl.col("open")) |
-                (pl.col("low") > pl.col("close"))
+                (pl.col("high") < pl.col("low"))
+                | (pl.col("high") < pl.col("open"))
+                | (pl.col("high") < pl.col("close"))
+                | (pl.col("low") > pl.col("open"))
+                | (pl.col("low") > pl.col("close"))
             )
 
             for row in invalid_ohlc.iter_rows(named=True):
@@ -373,9 +407,9 @@ class DataQualityValidator:
                         "open": row["open"],
                         "high": row["high"],
                         "low": row["low"],
-                        "close": row["close"]
+                        "close": row["close"],
                     },
-                    suggested_action="Correct OHLC values or exclude record"
+                    suggested_action="Correct OHLC values or exclude record",
                 )
                 anomalies.append(anomaly)
 
@@ -391,14 +425,14 @@ class DataQualityValidator:
         try:
             # Check for prices outside valid range
             invalid_prices = df.filter(
-                (pl.col("open") < self.config.min_price) |
-                (pl.col("high") < self.config.min_price) |
-                (pl.col("low") < self.config.min_price) |
-                (pl.col("close") < self.config.min_price) |
-                (pl.col("open") > self.config.max_price) |
-                (pl.col("high") > self.config.max_price) |
-                (pl.col("low") > self.config.max_price) |
-                (pl.col("close") > self.config.max_price)
+                (pl.col("open") < self.config.min_price)
+                | (pl.col("high") < self.config.min_price)
+                | (pl.col("low") < self.config.min_price)
+                | (pl.col("close") < self.config.min_price)
+                | (pl.col("open") > self.config.max_price)
+                | (pl.col("high") > self.config.max_price)
+                | (pl.col("low") > self.config.max_price)
+                | (pl.col("close") > self.config.max_price)
             )
 
             for row in invalid_prices.iter_rows(named=True):
@@ -406,7 +440,9 @@ class DataQualityValidator:
                 min_price = min(price_values)
                 max_price = max(price_values)
 
-                severity = AnomalySeverity.CRITICAL if min_price <= 0 else AnomalySeverity.HIGH
+                severity = (
+                    AnomalySeverity.CRITICAL if min_price <= 0 else AnomalySeverity.HIGH
+                )
 
                 anomaly = DataAnomaly(
                     symbol=row["symbol"],
@@ -418,9 +454,9 @@ class DataQualityValidator:
                     details={
                         "min_price": min_price,
                         "max_price": max_price,
-                        "valid_range": f"${self.config.min_price} - ${self.config.max_price}"
+                        "valid_range": f"${self.config.min_price} - ${self.config.max_price}",
                     },
-                    suggested_action="Verify price data accuracy"
+                    suggested_action="Verify price data accuracy",
                 )
                 anomalies.append(anomaly)
 
@@ -449,7 +485,7 @@ class DataQualityValidator:
                         timeframe=TimeFrame(row["timeframe"]),
                         description="Zero volume during market hours",
                         details={"timestamp": timestamp.isoformat()},
-                        suggested_action="Verify trading halt or data source issue"
+                        suggested_action="Verify trading halt or data source issue",
                     )
                     anomalies.append(anomaly)
 
@@ -465,7 +501,7 @@ class DataQualityValidator:
                     timeframe=TimeFrame(row["timeframe"]),
                     description=f"Negative volume detected: {row['volume']}",
                     details={"volume": row["volume"]},
-                    suggested_action="Correct volume data"
+                    suggested_action="Correct volume data",
                 )
                 anomalies.append(anomaly)
 
@@ -492,7 +528,7 @@ class DataQualityValidator:
                     TimeFrame.FIVE_MINUTES: timedelta(minutes=5),
                     TimeFrame.FIFTEEN_MINUTES: timedelta(minutes=15),
                     TimeFrame.ONE_HOUR: timedelta(hours=1),
-                    TimeFrame.ONE_DAY: timedelta(days=1)
+                    TimeFrame.ONE_DAY: timedelta(days=1),
                 }
 
                 expected_interval = expected_intervals.get(tf_enum)
@@ -505,12 +541,14 @@ class DataQualityValidator:
 
                 # Check for gaps
                 for i in range(1, len(timestamps)):
-                    gap = timestamps[i] - timestamps[i-1]
+                    gap = timestamps[i] - timestamps[i - 1]
                     max_allowed_gap = expected_interval * self.config.max_gap_multiplier
 
                     if gap > max_allowed_gap:
                         # Account for weekends and market hours
-                        if not await self._is_reasonable_gap(timestamps[i-1], timestamps[i], tf_enum):
+                        if not await self._is_reasonable_gap(
+                            timestamps[i - 1], timestamps[i], tf_enum
+                        ):
                             anomaly = DataAnomaly(
                                 symbol=symbol_str,
                                 anomaly_type=AnomalyType.MISSING_DATA,
@@ -521,10 +559,10 @@ class DataQualityValidator:
                                 details={
                                     "gap_duration": str(gap),
                                     "expected_interval": str(expected_interval),
-                                    "gap_start": timestamps[i-1].isoformat(),
-                                    "gap_end": timestamps[i].isoformat()
+                                    "gap_start": timestamps[i - 1].isoformat(),
+                                    "gap_end": timestamps[i].isoformat(),
                                 },
-                                suggested_action="Backfill missing data"
+                                suggested_action="Backfill missing data",
                             )
                             anomalies.append(anomaly)
 
@@ -557,7 +595,9 @@ class DataQualityValidator:
                 # Statistical analysis
                 return_values = returns["returns"].to_list()
                 mean_return = statistics.mean(return_values)
-                std_return = statistics.stdev(return_values) if len(return_values) > 1 else 0
+                std_return = (
+                    statistics.stdev(return_values) if len(return_values) > 1 else 0
+                )
 
                 # Detect outliers
                 outlier_threshold = self.config.outlier_std_threshold
@@ -576,13 +616,21 @@ class DataQualityValidator:
                             description=f"Statistical price anomaly: {ret:.1%} return ({outlier_threshold:.1f}σ outlier)",
                             details={
                                 "return_percent": ret * 100,
-                                "z_score": (ret - mean_return) / std_return if std_return > 0 else 0,
+                                "z_score": (
+                                    (ret - mean_return) / std_return
+                                    if std_return > 0
+                                    else 0
+                                ),
                                 "price": float(price),
                                 "mean_return": mean_return,
-                                "std_return": std_return
+                                "std_return": std_return,
                             },
                             suggested_action="Investigate potential market event or data error",
-                            confidence_score=min(0.9, abs(ret - mean_return) / (outlier_threshold * std_return))
+                            confidence_score=min(
+                                0.9,
+                                abs(ret - mean_return)
+                                / (outlier_threshold * std_return),
+                            ),
                         )
                         anomalies.append(anomaly)
 
@@ -614,7 +662,10 @@ class DataQualityValidator:
 
                 # Detect volume spikes
                 for i, volume in enumerate(volumes):
-                    if volume > 0 and volume > avg_volume * self.config.max_volume_spike_ratio:
+                    if (
+                        volume > 0
+                        and volume > avg_volume * self.config.max_volume_spike_ratio
+                    ):
                         timestamp = sorted_data["timestamp"][i]
 
                         anomaly = DataAnomaly(
@@ -627,10 +678,14 @@ class DataQualityValidator:
                             details={
                                 "volume": volume,
                                 "average_volume": avg_volume,
-                                "spike_ratio": volume / avg_volume
+                                "spike_ratio": volume / avg_volume,
                             },
                             suggested_action="Investigate news or events causing volume spike",
-                            confidence_score=min(0.9, (volume / avg_volume) / self.config.max_volume_spike_ratio)
+                            confidence_score=min(
+                                0.9,
+                                (volume / avg_volume)
+                                / self.config.max_volume_spike_ratio,
+                            ),
                         )
                         anomalies.append(anomaly)
 
@@ -655,7 +710,10 @@ class DataQualityValidator:
                     # Only flag as stale if it should be fresh (market hours for intraday data)
                     timeframe = TimeFrame(row["timeframe"])
 
-                    if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES] and await self._is_market_hours(current_time):
+                    if timeframe in [
+                        TimeFrame.FIVE_MINUTES,
+                        TimeFrame.FIFTEEN_MINUTES,
+                    ] and await self._is_market_hours(current_time):
                         anomaly = DataAnomaly(
                             symbol=row["symbol"],
                             anomaly_type=AnomalyType.STALE_DATA,
@@ -665,9 +723,9 @@ class DataQualityValidator:
                             description=f"Stale data: {data_age} old",
                             details={
                                 "data_age_minutes": data_age.total_seconds() / 60,
-                                "threshold_minutes": self.config.max_data_age_minutes
+                                "threshold_minutes": self.config.max_data_age_minutes,
                             },
-                            suggested_action="Update with fresh data"
+                            suggested_action="Update with fresh data",
                         )
                         anomalies.append(anomaly)
 
@@ -677,9 +735,7 @@ class DataQualityValidator:
         return anomalies
 
     async def _clean_data(
-        self,
-        original_data: List[MarketData],
-        anomalies: List[DataAnomaly]
+        self, original_data: List[MarketData], anomalies: List[DataAnomaly]
     ) -> List[MarketData]:
         """
         Clean data based on detected anomalies.
@@ -702,17 +758,20 @@ class DataQualityValidator:
                 if anomaly.severity in [AnomalySeverity.CRITICAL, AnomalySeverity.HIGH]:
                     if anomaly.anomaly_type in [
                         AnomalyType.INVALID_OHLC,
-                        AnomalyType.MISSING_DATA
+                        AnomalyType.MISSING_DATA,
                     ]:
                         exclude_timestamps.add(anomaly.timestamp)
 
             # Filter out problematic records
             cleaned_data = [
-                data for data in original_data
+                data
+                for data in original_data
                 if data.timestamp not in exclude_timestamps
             ]
 
-            logger.info(f"Cleaned data: removed {len(original_data) - len(cleaned_data)} problematic records")
+            logger.info(
+                f"Cleaned data: removed {len(original_data) - len(cleaned_data)} problematic records"
+            )
 
             return cleaned_data
 
@@ -727,17 +786,19 @@ class DataQualityValidator:
 
         records = []
         for md in data:
-            records.append({
-                "symbol": md.symbol,
-                "timestamp": md.timestamp,
-                "timeframe": md.timeframe.value,
-                "open": float(md.open),
-                "high": float(md.high),
-                "low": float(md.low),
-                "close": float(md.close),
-                "volume": md.volume,
-                "asset_type": md.asset_type.value
-            })
+            records.append(
+                {
+                    "symbol": md.symbol,
+                    "timestamp": md.timestamp,
+                    "timeframe": md.timeframe.value,
+                    "open": float(md.open),
+                    "high": float(md.high),
+                    "low": float(md.low),
+                    "close": float(md.close),
+                    "volume": md.volume,
+                    "asset_type": md.asset_type.value,
+                }
+            )
 
         return pl.DataFrame(records)
 
@@ -777,14 +838,22 @@ class DataQualityValidator:
             return gap <= timedelta(days=2)
 
         # For intraday data, gaps outside market hours are normal
-        if timeframe in [TimeFrame.FIVE_MINUTES, TimeFrame.FIFTEEN_MINUTES, TimeFrame.ONE_HOUR]:
+        if timeframe in [
+            TimeFrame.FIVE_MINUTES,
+            TimeFrame.FIFTEEN_MINUTES,
+            TimeFrame.ONE_HOUR,
+        ]:
             # If gap spans non-market hours, it's reasonable
             try:
-                if not await self._is_market_hours(start_time) or not await self._is_market_hours(end_time):
+                if not await self._is_market_hours(
+                    start_time
+                ) or not await self._is_market_hours(end_time):
                     return True
             except Exception:
                 # Fallback to simple check if async call fails
-                if not self._is_market_hours_fallback(start_time) or not self._is_market_hours_fallback(end_time):
+                if not self._is_market_hours_fallback(
+                    start_time
+                ) or not self._is_market_hours_fallback(end_time):
                     return True
             # Weekend gaps are normal
             if start_time.weekday() >= 5 or end_time.weekday() >= 5:

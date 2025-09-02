@@ -4,23 +4,24 @@ Export Service Runner
 Simple startup script for the export service
 """
 
+import logging
 import os
 import sys
-import logging
+
 import uvicorn
 
 # Setup basic logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 def main():
     """Main entry point for the export service"""
     try:
         # Add app directory to path
-        sys.path.insert(0, '/app')
+        sys.path.insert(0, "/app")
 
         # Import the FastAPI app
         from src.main import app
@@ -58,9 +59,13 @@ def main():
                 "loggers": {
                     "uvicorn": {"handlers": ["default"], "level": log_level.upper()},
                     "uvicorn.error": {"level": log_level.upper()},
-                    "uvicorn.access": {"handlers": ["default"], "level": log_level.upper(), "propagate": False},
+                    "uvicorn.access": {
+                        "handlers": ["default"],
+                        "level": log_level.upper(),
+                        "propagate": False,
+                    },
                 },
-            }
+            },
         )
 
     except ImportError as e:
@@ -71,8 +76,10 @@ def main():
         logger.error(f"Failed to start Export Service: {e}")
         logger.error(f"Error type: {type(e).__name__}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

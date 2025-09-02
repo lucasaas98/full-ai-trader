@@ -9,10 +9,10 @@ Redis pub/sub communication patterns as the real data collector.
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, date, timezone
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Set
 import sys
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 import pandas as pd
 import polars as pl
@@ -23,9 +23,8 @@ from pydantic import BaseModel, Field
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.models import MarketData, FinVizData, TimeFrame, AssetType
 from shared.config import get_config
-
+from shared.models import AssetType, FinVizData, MarketData, TimeFrame
 
 logger = logging.getLogger(__name__)
 
@@ -33,11 +32,21 @@ logger = logging.getLogger(__name__)
 class MockDataCollectorConfig(BaseModel):
     """Configuration for mock data collector."""
 
-    historical_data_path: str = Field(default="data/parquet", description="Path to historical parquet data")
-    available_symbols: List[str] = Field(default=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"], description="Available symbols")
-    redis_publish_interval: int = Field(default=30, description="Interval for publishing data updates (seconds)")
-    simulate_screener: bool = Field(default=True, description="Simulate screener updates")
-    screener_interval: int = Field(default=300, description="Screener simulation interval (seconds)")
+    historical_data_path: str = Field(
+        default="data/parquet", description="Path to historical parquet data"
+    )
+    available_symbols: List[str] = Field(
+        default=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"], description="Available symbols"
+    )
+    redis_publish_interval: int = Field(
+        default=30, description="Interval for publishing data updates (seconds)"
+    )
+    simulate_screener: bool = Field(
+        default=True, description="Simulate screener updates"
+    )
+    screener_interval: int = Field(
+        default=300, description="Screener simulation interval (seconds)"
+    )
     enable_redis: bool = Field(default=True, description="Enable Redis pub/sub")
 
 
@@ -59,16 +68,18 @@ class MockDataCollector:
         self.is_running = False
         self._tasks: List[asyncio.Task] = []
         self._cached_data: Dict[str, Dict[str, pl.DataFrame]] = {}
-        self._simulation_date = date.today() - timedelta(days=30)  # Start from 30 days ago
+        self._simulation_date = date.today() - timedelta(
+            days=30
+        )  # Start from 30 days ago
 
         # Redis channels (same as real data collector)
         self.CHANNELS = {
-            'TICKERS_NEW': 'tickers:new',
-            'PRICES': 'prices:',
-            'SCREENER_UPDATES': 'screener:updates',
-            'MARKET_DATA_UPDATES': 'market_data:updates',
-            'SYSTEM_ALERTS': 'system:alerts',
-            'DATA_VALIDATION': 'data:validation'
+            "TICKERS_NEW": "tickers:new",
+            "PRICES": "prices:",
+            "SCREENER_UPDATES": "screener:updates",
+            "MARKET_DATA_UPDATES": "market_data:updates",
+            "SYSTEM_ALERTS": "system:alerts",
+            "DATA_VALIDATION": "data:validation",
         }
 
     async def start(self):
@@ -90,7 +101,9 @@ class MockDataCollector:
         if self.config.simulate_screener:
             self._tasks.append(asyncio.create_task(self._simulate_screener()))
 
-        logger.info(f"Mock Data Collector started with {len(self.config.available_symbols)} symbols")
+        logger.info(
+            f"Mock Data Collector started with {len(self.config.available_symbols)} symbols"
+        )
 
     async def stop(self):
         """Stop the mock data collector."""
@@ -121,7 +134,7 @@ class MockDataCollector:
                 port=config.redis.port,
                 password=config.redis.password,
                 db=config.redis.db,
-                decode_responses=True
+                decode_responses=True,
             )
 
             # Test connection
@@ -147,10 +160,10 @@ class MockDataCollector:
 
             # Load different timeframes
             timeframe_mapping = {
-                '5m': TimeFrame.FIVE_MINUTES,
-                '15m': TimeFrame.FIFTEEN_MINUTES,
-                '1h': TimeFrame.ONE_HOUR,
-                '1d': TimeFrame.ONE_DAY
+                "5m": TimeFrame.FIVE_MINUTES,
+                "15m": TimeFrame.FIFTEEN_MINUTES,
+                "1h": TimeFrame.ONE_HOUR,
+                "1d": TimeFrame.ONE_DAY,
             }
 
             for tf_str, timeframe in timeframe_mapping.items():
@@ -167,7 +180,9 @@ class MockDataCollector:
                 if tf_data:
                     combined_df = pl.concat(tf_data).sort("timestamp")
                     self._cached_data[symbol][tf_str] = combined_df
-                    logger.debug(f"Loaded {len(combined_df)} records for {symbol} {tf_str}")
+                    logger.debug(
+                        f"Loaded {len(combined_df)} records for {symbol} {tf_str}"
+                    )
 
         total_symbols = len([s for s in self._cached_data if self._cached_data[s]])
         logger.info(f"Historical data loaded for {total_symbols} symbols")
@@ -178,7 +193,9 @@ class MockDataCollector:
             try:
                 # Advance simulation date
                 self._simulation_date += timedelta(minutes=5)
-                current_time = datetime.combine(self._simulation_date, datetime.min.time())
+                current_time = datetime.combine(
+                    self._simulation_date, datetime.min.time()
+                )
 
                 # Publish market data updates for each symbol
                 for symbol in self.config.available_symbols:
@@ -213,33 +230,39 @@ class MockDataCollector:
                     # Create MarketData object
                     market_data = MarketData(
                         symbol=symbol,
-                        timestamp=latest_record['timestamp'],
-                        timeframe=TimeFrame(timeframe_str.replace('m', '_minutes').replace('h', '_hour').replace('d', '_day')),
-                        open=float(latest_record['open']),
-                        high=float(latest_record['high']),
-                        low=float(latest_record['low']),
-                        close=float(latest_record['close']),
-                        volume=int(latest_record['volume']),
-                        asset_type=AssetType.STOCK
+                        timestamp=latest_record["timestamp"],
+                        timeframe=TimeFrame(
+                            timeframe_str.replace("m", "_minutes")
+                            .replace("h", "_hour")
+                            .replace("d", "_day")
+                        ),
+                        open=float(latest_record["open"]),
+                        high=float(latest_record["high"]),
+                        low=float(latest_record["low"]),
+                        close=float(latest_record["close"]),
+                        volume=int(latest_record["volume"]),
+                        asset_type=AssetType.STOCK,
                     )
 
                     # Publish to Redis
                     channel = f"{self.CHANNELS['PRICES']}{symbol}:{timeframe_str}"
                     message = {
-                        'type': 'market_data_update',
-                        'symbol': symbol,
-                        'timeframe': timeframe_str,
-                        'timestamp': current_time.isoformat(),
-                        'data': market_data.dict(),
-                        'source': 'mock_data_collector'
+                        "type": "market_data_update",
+                        "symbol": symbol,
+                        "timeframe": timeframe_str,
+                        "timestamp": current_time.isoformat(),
+                        "data": market_data.dict(),
+                        "source": "mock_data_collector",
                     }
 
-                    await self.redis_client.publish(channel, json.dumps(message, default=str))
+                    await self.redis_client.publish(
+                        channel, json.dumps(message, default=str)
+                    )
 
                     # Also publish to general market data updates channel
                     await self.redis_client.publish(
-                        self.CHANNELS['MARKET_DATA_UPDATES'],
-                        json.dumps(message, default=str)
+                        self.CHANNELS["MARKET_DATA_UPDATES"],
+                        json.dumps(message, default=str),
                     )
 
         except Exception as e:
@@ -255,21 +278,29 @@ class MockDataCollector:
                 for symbol in self.config.available_symbols:
                     if symbol in self._cached_data and self._cached_data[symbol]:
                         # Get latest price data
-                        daily_data = self._cached_data[symbol].get('1d')
+                        daily_data = self._cached_data[symbol].get("1d")
                         if daily_data is not None and len(daily_data) > 0:
                             latest = daily_data.tail(1).to_dicts()[0]
 
                             finviz_data = FinVizData(
                                 symbol=symbol,
                                 company=f"{symbol} Corporation",
-                                sector="Technology" if symbol in ["AAPL", "MSFT", "TSLA"] else "Financial",
-                                industry="Software" if symbol in ["AAPL", "MSFT"] else "ETF" if symbol in ["SPY", "QQQ"] else "Auto",
+                                sector=(
+                                    "Technology"
+                                    if symbol in ["AAPL", "MSFT", "TSLA"]
+                                    else "Financial"
+                                ),
+                                industry=(
+                                    "Software"
+                                    if symbol in ["AAPL", "MSFT"]
+                                    else "ETF" if symbol in ["SPY", "QQQ"] else "Auto"
+                                ),
                                 country="USA",
                                 market_cap="1B-10B",
                                 pe_ratio=25.5,
-                                price=float(latest['close']),
-                                change=float(latest['close'] - latest['open']),
-                                volume=int(latest['volume'])
+                                price=float(latest["close"]),
+                                change=float(latest["close"] - latest["open"]),
+                                volume=int(latest["volume"]),
                             )
 
                             screener_data.append(finviz_data)
@@ -277,20 +308,22 @@ class MockDataCollector:
                 # Publish screener update
                 if screener_data and self.redis_client:
                     message = {
-                        'type': 'screener_update',
-                        'timestamp': datetime.now(timezone.utc).isoformat(),
-                        'screener_type': 'mock_screener',
-                        'results_count': len(screener_data),
-                        'data': [stock.dict() for stock in screener_data],
-                        'source': 'mock_data_collector'
+                        "type": "screener_update",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "screener_type": "mock_screener",
+                        "results_count": len(screener_data),
+                        "data": [stock.dict() for stock in screener_data],
+                        "source": "mock_data_collector",
                     }
 
                     await self.redis_client.publish(
-                        self.CHANNELS['SCREENER_UPDATES'],
-                        json.dumps(message, default=str)
+                        self.CHANNELS["SCREENER_UPDATES"],
+                        json.dumps(message, default=str),
                     )
 
-                    logger.debug(f"Published mock screener update with {len(screener_data)} stocks")
+                    logger.debug(
+                        f"Published mock screener update with {len(screener_data)} stocks"
+                    )
 
                 await asyncio.sleep(self.config.screener_interval)
 
@@ -300,9 +333,14 @@ class MockDataCollector:
                 logger.error(f"Error in screener simulation: {e}")
                 await asyncio.sleep(10)
 
-    async def get_historical_data(self, symbol: str, timeframe: str, start_date: date, end_date: date) -> List[MarketData]:
+    async def get_historical_data(
+        self, symbol: str, timeframe: str, start_date: date, end_date: date
+    ) -> List[MarketData]:
         """Get historical data for a symbol and timeframe."""
-        if symbol not in self._cached_data or timeframe not in self._cached_data[symbol]:
+        if (
+            symbol not in self._cached_data
+            or timeframe not in self._cached_data[symbol]
+        ):
             return []
 
         df = self._cached_data[symbol][timeframe]
@@ -312,40 +350,49 @@ class MockDataCollector:
         end_dt = datetime.combine(end_date, datetime.max.time())
 
         filtered_df = df.filter(
-            (pl.col("timestamp") >= start_dt) &
-            (pl.col("timestamp") <= end_dt)
+            (pl.col("timestamp") >= start_dt) & (pl.col("timestamp") <= end_dt)
         )
 
         # Convert to MarketData objects
         market_data = []
         for record in filtered_df.to_dicts():
-            market_data.append(MarketData(
-                symbol=symbol,
-                timestamp=record['timestamp'],
-                timeframe=TimeFrame(timeframe.replace('m', '_minutes').replace('h', '_hour').replace('d', '_day')),
-                open=float(record['open']),
-                high=float(record['high']),
-                low=float(record['low']),
-                close=float(record['close']),
-                volume=int(record['volume']),
-                asset_type=AssetType.STOCK
-            ))
+            market_data.append(
+                MarketData(
+                    symbol=symbol,
+                    timestamp=record["timestamp"],
+                    timeframe=TimeFrame(
+                        timeframe.replace("m", "_minutes")
+                        .replace("h", "_hour")
+                        .replace("d", "_day")
+                    ),
+                    open=float(record["open"]),
+                    high=float(record["high"]),
+                    low=float(record["low"]),
+                    close=float(record["close"]),
+                    volume=int(record["volume"]),
+                    asset_type=AssetType.STOCK,
+                )
+            )
 
         return market_data
 
     async def get_available_symbols(self) -> List[str]:
         """Get list of available symbols."""
-        return [symbol for symbol in self.config.available_symbols if symbol in self._cached_data]
+        return [
+            symbol
+            for symbol in self.config.available_symbols
+            if symbol in self._cached_data
+        ]
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check."""
         return {
-            'status': 'healthy' if self.is_running else 'stopped',
-            'available_symbols': len(self._cached_data),
-            'redis_connected': self.redis_client is not None,
-            'simulation_date': self._simulation_date.isoformat(),
-            'running_tasks': len([t for t in self._tasks if not t.done()]),
-            'service': 'mock_data_collector'
+            "status": "healthy" if self.is_running else "stopped",
+            "available_symbols": len(self._cached_data),
+            "redis_connected": self.redis_client is not None,
+            "simulation_date": self._simulation_date.isoformat(),
+            "running_tasks": len([t for t in self._tasks if not t.done()]),
+            "service": "mock_data_collector",
         }
 
     async def force_screener_update(self):
@@ -363,7 +410,9 @@ class MockDataCollector:
         logger.info(f"Simulation date reset to {self._simulation_date}")
 
 
-async def create_mock_data_collector(config: Optional[MockDataCollectorConfig] = None) -> MockDataCollector:
+async def create_mock_data_collector(
+    config: Optional[MockDataCollectorConfig] = None,
+) -> MockDataCollector:
     """Factory function to create and start a mock data collector."""
     if config is None:
         config = MockDataCollectorConfig()
@@ -381,7 +430,7 @@ if __name__ == "__main__":
         config = MockDataCollectorConfig(
             available_symbols=["AAPL", "SPY"],
             redis_publish_interval=10,
-            simulate_screener=True
+            simulate_screener=True,
         )
 
         collector = await create_mock_data_collector(config)

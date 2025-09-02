@@ -7,22 +7,24 @@ and automatic recovery mechanisms.
 """
 
 import asyncio
-import logging
-from datetime import datetime
-from typing import Dict, List, Optional, Set, Callable, Any
-from dataclasses import dataclass, field
-from enum import Enum
 import json
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional, Set
+
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
-from circuitbreaker import circuit
 import redis.asyncio as redis
+from circuitbreaker import circuit
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
 
 class ServiceStatus(str, Enum):
     """Service status enumeration."""
+
     UNKNOWN = "unknown"
     STARTING = "starting"
     RUNNING = "running"
@@ -35,6 +37,7 @@ class ServiceStatus(str, Enum):
 
 class HealthCheckStatus(str, Enum):
     """Health check status."""
+
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
     TIMEOUT = "timeout"
@@ -45,6 +48,7 @@ class HealthCheckStatus(str, Enum):
 @dataclass
 class ServiceDependency:
     """Service dependency information."""
+
     service_name: str
     required: bool = True
     startup_delay: float = 0.0  # Seconds to wait after dependency starts
@@ -53,6 +57,7 @@ class ServiceDependency:
 @dataclass
 class HealthCheck:
     """Health check configuration."""
+
     endpoint: str = "/health"
     timeout: float = 5.0
     interval: float = 30.0
@@ -67,6 +72,7 @@ class HealthCheck:
 @dataclass
 class ServiceConfiguration:
     """Service configuration and metadata."""
+
     name: str
     url: str
     port: int
@@ -127,7 +133,9 @@ class ServiceOrchestrator:
 
         def visit_for_startup(service_name: str):
             if service_name in temp_visited:
-                raise ValueError(f"Circular dependency detected involving {service_name}")
+                raise ValueError(
+                    f"Circular dependency detected involving {service_name}"
+                )
             if service_name in visited:
                 return
 
@@ -231,7 +239,9 @@ class ServiceOrchestrator:
             # Check and start dependencies first
             for dep in service.dependencies:
                 if dep.required and not await self._ensure_dependency_running(dep):
-                    logger.error(f"Required dependency {dep.service_name} not available")
+                    logger.error(
+                        f"Required dependency {dep.service_name} not available"
+                    )
                     service.status = ServiceStatus.ERROR
                     return False
 
@@ -324,7 +334,9 @@ class ServiceOrchestrator:
         # If already running, just wait for startup delay
         if dep_service.status == ServiceStatus.RUNNING:
             if dependency.startup_delay > 0:
-                logger.info(f"Waiting {dependency.startup_delay}s for dependency {dep_service_name}")
+                logger.info(
+                    f"Waiting {dependency.startup_delay}s for dependency {dep_service_name}"
+                )
                 await asyncio.sleep(dependency.startup_delay)
             return True
 
@@ -336,7 +348,9 @@ class ServiceOrchestrator:
 
         return False
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10)
+    )
     async def _start_service_process(self, service: ServiceConfiguration) -> bool:
         """Start the actual service process."""
         try:
@@ -357,7 +371,9 @@ class ServiceOrchestrator:
                     return True
                 await asyncio.sleep(1)
 
-            logger.error(f"Service {service.name} failed to become healthy within {timeout}s")
+            logger.error(
+                f"Service {service.name} failed to become healthy within {timeout}s"
+            )
             return False
 
         except Exception as e:
@@ -374,14 +390,18 @@ class ServiceOrchestrator:
 
             # Wait for graceful shutdown
             start_time = datetime.now()
-            while (datetime.now() - start_time).total_seconds() < service.shutdown_timeout:
+            while (
+                datetime.now() - start_time
+            ).total_seconds() < service.shutdown_timeout:
                 # Check if service stopped responding (indicating shutdown)
                 if not await self._check_service_health(service):
                     return True
                 await asyncio.sleep(1)
 
             # Force kill if graceful shutdown failed
-            logger.warning(f"Service {service.name} didn't shutdown gracefully, forcing stop")
+            logger.warning(
+                f"Service {service.name} didn't shutdown gracefully, forcing stop"
+            )
             # This would send SIGKILL or force stop container
 
             return True
@@ -398,8 +418,7 @@ class ServiceOrchestrator:
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    health_url,
-                    timeout=service.health_check.timeout
+                    health_url, timeout=service.health_check.timeout
                 )
 
             if response.status_code == 200:
@@ -409,7 +428,9 @@ class ServiceOrchestrator:
                 service.health_check.last_check = datetime.now()
                 return True
             else:
-                logger.warning(f"Service {service.name} health check returned {response.status_code}")
+                logger.warning(
+                    f"Service {service.name} health check returned {response.status_code}"
+                )
                 return False
 
         except asyncio.TimeoutError:
@@ -460,7 +481,10 @@ class ServiceOrchestrator:
         while self.is_running:
             try:
                 for service_name, service in self.services.items():
-                    if service.status in [ServiceStatus.RUNNING, ServiceStatus.DEGRADED]:
+                    if service.status in [
+                        ServiceStatus.RUNNING,
+                        ServiceStatus.DEGRADED,
+                    ]:
                         await self._perform_health_check(service)
 
                 await asyncio.sleep(10)  # Check every 10 seconds
@@ -474,15 +498,20 @@ class ServiceOrchestrator:
     async def _perform_health_check(self, service: ServiceConfiguration):
         """Perform health check for a single service."""
         # Skip if too soon since last check
-        if (service.health_check.last_check and
-            (datetime.now() - service.health_check.last_check).total_seconds() <
-            service.health_check.interval):
+        if (
+            service.health_check.last_check
+            and (datetime.now() - service.health_check.last_check).total_seconds()
+            < service.health_check.interval
+        ):
             return
 
         is_healthy = await self._check_service_health(service)
 
         if is_healthy:
-            if service.health_check.consecutive_successes >= service.health_check.success_threshold:
+            if (
+                service.health_check.consecutive_successes
+                >= service.health_check.success_threshold
+            ):
                 if service.status == ServiceStatus.DEGRADED:
                     service.status = ServiceStatus.RUNNING
                     logger.info(f"Service {service.name} recovered to healthy state")
@@ -490,7 +519,10 @@ class ServiceOrchestrator:
         else:
             service.health_check.consecutive_failures += 1
 
-            if service.health_check.consecutive_failures >= service.health_check.failure_threshold:
+            if (
+                service.health_check.consecutive_failures
+                >= service.health_check.failure_threshold
+            ):
                 if service.status == ServiceStatus.RUNNING:
                     service.status = ServiceStatus.DEGRADED
                     logger.warning(f"Service {service.name} marked as degraded")
@@ -511,7 +543,9 @@ class ServiceOrchestrator:
                 logger.error(f"Recovery monitoring loop error: {e}")
                 await asyncio.sleep(60)
 
-    async def _check_service_recovery(self, service_name: str, service: ServiceConfiguration):
+    async def _check_service_recovery(
+        self, service_name: str, service: ServiceConfiguration
+    ):
         """Check if a service needs recovery and attempt it."""
         if service.restart_policy == "never":
             return
@@ -520,8 +554,11 @@ class ServiceOrchestrator:
 
         if service.status == ServiceStatus.ERROR:
             should_restart = True
-        elif (service.status == ServiceStatus.DEGRADED and
-              service.health_check.consecutive_failures > service.health_check.failure_threshold * 2):
+        elif (
+            service.status == ServiceStatus.DEGRADED
+            and service.health_check.consecutive_failures
+            > service.health_check.failure_threshold * 2
+        ):
             should_restart = True
 
         if should_restart and service.restart_count < service.max_restarts:
@@ -564,7 +601,7 @@ class ServiceOrchestrator:
                 await self.redis.setex(
                     f"service:metrics:{service.name}",
                     300,  # 5 minutes TTL
-                    json.dumps(metrics)
+                    json.dumps(metrics),
                 )
 
         except Exception as e:
@@ -583,29 +620,37 @@ class ServiceOrchestrator:
             uptime = (datetime.now() - service.start_time).total_seconds()
 
         return {
-            'name': service.name,
-            'status': service.status.value,
-            'url': service.url,
-            'port': service.port,
-            'uptime': uptime,
-            'restart_count': service.restart_count,
-            'error_count': service.error_count,
-            'last_error': service.last_error,
-            'health_check': {
-                'status': service.health_check.status.value,
-                'last_check': service.health_check.last_check.isoformat() if service.health_check.last_check else None,
-                'consecutive_failures': service.health_check.consecutive_failures,
-                'consecutive_successes': service.health_check.consecutive_successes
+            "name": service.name,
+            "status": service.status.value,
+            "url": service.url,
+            "port": service.port,
+            "uptime": uptime,
+            "restart_count": service.restart_count,
+            "error_count": service.error_count,
+            "last_error": service.last_error,
+            "health_check": {
+                "status": service.health_check.status.value,
+                "last_check": (
+                    service.health_check.last_check.isoformat()
+                    if service.health_check.last_check
+                    else None
+                ),
+                "consecutive_failures": service.health_check.consecutive_failures,
+                "consecutive_successes": service.health_check.consecutive_successes,
             },
-            'dependencies': [
+            "dependencies": [
                 {
-                    'service': dep.service_name,
-                    'required': dep.required,
-                    'status': self.services[dep.service_name].status.value if dep.service_name in self.services else 'unknown'
+                    "service": dep.service_name,
+                    "required": dep.required,
+                    "status": (
+                        self.services[dep.service_name].status.value
+                        if dep.service_name in self.services
+                        else "unknown"
+                    ),
                 }
                 for dep in service.dependencies
             ],
-            'metrics': service.metrics
+            "metrics": service.metrics,
         }
 
     async def get_all_services_status(self) -> Dict[str, Dict[str, Any]]:
@@ -620,9 +665,15 @@ class ServiceOrchestrator:
     async def get_system_health_summary(self) -> Dict[str, Any]:
         """Get overall system health summary."""
         total_services = len(self.services)
-        running_services = sum(1 for s in self.services.values() if s.status == ServiceStatus.RUNNING)
-        degraded_services = sum(1 for s in self.services.values() if s.status == ServiceStatus.DEGRADED)
-        error_services = sum(1 for s in self.services.values() if s.status == ServiceStatus.ERROR)
+        running_services = sum(
+            1 for s in self.services.values() if s.status == ServiceStatus.RUNNING
+        )
+        degraded_services = sum(
+            1 for s in self.services.values() if s.status == ServiceStatus.DEGRADED
+        )
+        error_services = sum(
+            1 for s in self.services.values() if s.status == ServiceStatus.ERROR
+        )
 
         overall_health = "healthy"
         if error_services > 0:
@@ -631,12 +682,14 @@ class ServiceOrchestrator:
             overall_health = "degraded"
 
         return {
-            'overall_health': overall_health,
-            'total_services': total_services,
-            'running_services': running_services,
-            'degraded_services': degraded_services,
-            'error_services': error_services,
-            'health_percentage': (running_services / total_services * 100) if total_services > 0 else 0
+            "overall_health": overall_health,
+            "total_services": total_services,
+            "running_services": running_services,
+            "degraded_services": degraded_services,
+            "error_services": error_services,
+            "health_percentage": (
+                (running_services / total_services * 100) if total_services > 0 else 0
+            ),
         }
 
     def register_status_change_callback(self, callback: Callable):
@@ -678,7 +731,10 @@ class ServiceOrchestrator:
         service = self.services[service_name]
 
         while (datetime.now() - start_time).total_seconds() < timeout:
-            if service.status == ServiceStatus.RUNNING and await self._check_service_health(service):
+            if (
+                service.status == ServiceStatus.RUNNING
+                and await self._check_service_health(service)
+            ):
                 return True
 
             await asyncio.sleep(1)
@@ -693,7 +749,10 @@ class ServiceOrchestrator:
             all_healthy = True
 
             for service in self.services.values():
-                if service.status != ServiceStatus.RUNNING or not await self._check_service_health(service):
+                if (
+                    service.status != ServiceStatus.RUNNING
+                    or not await self._check_service_health(service)
+                ):
                     all_healthy = False
                     break
 
@@ -706,33 +765,36 @@ class ServiceOrchestrator:
 
     async def get_dependency_graph(self) -> Dict[str, Any]:
         """Generate service dependency graph."""
-        graph = {
-            'nodes': [],
-            'edges': []
-        }
+        graph = {"nodes": [], "edges": []}
 
         # Add nodes
         for service_name, service in self.services.items():
-            graph['nodes'].append({
-                'id': service_name,
-                'name': service_name,
-                'status': service.status.value,
-                'url': service.url,
-                'health': service.health_check.status.value
-            })
+            graph["nodes"].append(
+                {
+                    "id": service_name,
+                    "name": service_name,
+                    "status": service.status.value,
+                    "url": service.url,
+                    "health": service.health_check.status.value,
+                }
+            )
 
         # Add edges (dependencies)
         for service_name, service in self.services.items():
             for dep in service.dependencies:
-                graph['edges'].append({
-                    'from': dep.service_name,
-                    'to': service_name,
-                    'required': dep.required
-                })
+                graph["edges"].append(
+                    {
+                        "from": dep.service_name,
+                        "to": service_name,
+                        "required": dep.required,
+                    }
+                )
 
         return graph
 
-    async def perform_rolling_restart(self, services: List[str], delay: float = 10.0) -> bool:
+    async def perform_rolling_restart(
+        self, services: List[str], delay: float = 10.0
+    ) -> bool:
         """Perform rolling restart of specified services."""
         logger.info(f"Performing rolling restart of services: {services}")
 
@@ -752,7 +814,9 @@ class ServiceOrchestrator:
 
             # Wait for service to stabilize
             if not await self.wait_for_service(service_name, timeout=60.0):
-                logger.error(f"Service {service_name} failed to stabilize after restart")
+                logger.error(
+                    f"Service {service_name} failed to stabilize after restart"
+                )
                 success = False
                 break
 
@@ -786,7 +850,9 @@ class ServiceOrchestrator:
 
         return results
 
-    async def export_service_logs(self, service_name: str, lines: int = 1000) -> List[str]:
+    async def export_service_logs(
+        self, service_name: str, lines: int = 1000
+    ) -> List[str]:
         """Export logs from a specific service."""
         if service_name not in self.services:
             return []
@@ -800,7 +866,7 @@ class ServiceOrchestrator:
 
             if response.status_code == 200:
                 logs_data = response.json()
-                return logs_data.get('logs', [])
+                return logs_data.get("logs", [])
 
         except Exception as e:
             logger.error(f"Failed to export logs for {service_name}: {e}")
@@ -823,7 +889,9 @@ class ServiceOrchestrator:
                 logger.info(f"Backup completed for service {service_name}")
                 return True
             else:
-                logger.error(f"Backup failed for service {service_name}: {response.status_code}")
+                logger.error(
+                    f"Backup failed for service {service_name}: {response.status_code}"
+                )
                 return False
 
         except Exception as e:
@@ -838,7 +906,9 @@ class ServiceOrchestrator:
         # Placeholder implementation
         return True
 
-    async def update_service_config(self, service_name: str, config: Dict[str, Any]) -> bool:
+    async def update_service_config(
+        self, service_name: str, config: Dict[str, Any]
+    ) -> bool:
         """Update service configuration."""
         if service_name not in self.services:
             return False
@@ -890,7 +960,9 @@ class ServiceOrchestrator:
         for dep in service.dependencies:
             if dep.service_name in self.services:
                 dep_service = self.services[dep.service_name]
-                dependency_health[dep.service_name] = await self._check_service_health(dep_service)
+                dependency_health[dep.service_name] = await self._check_service_health(
+                    dep_service
+                )
             else:
                 dependency_health[dep.service_name] = False
 
@@ -912,14 +984,22 @@ class ServiceOrchestrator:
         for dep in service.dependencies:
             if dep.required:
                 if dep.service_name not in self.services:
-                    dependency_issues.append(f"Required dependency {dep.service_name} not registered")
+                    dependency_issues.append(
+                        f"Required dependency {dep.service_name} not registered"
+                    )
                 else:
                     dep_service = self.services[dep.service_name]
                     if dep_service.status != ServiceStatus.RUNNING:
-                        dependency_issues.append(f"Required dependency {dep.service_name} not running")
+                        dependency_issues.append(
+                            f"Required dependency {dep.service_name} not running"
+                        )
 
         if dependency_issues:
-            return {"ready": False, "reason": "Dependency issues", "issues": dependency_issues}
+            return {
+                "ready": False,
+                "reason": "Dependency issues",
+                "issues": dependency_issues,
+            }
 
         return {"ready": True, "reason": "All checks passed"}
 
@@ -957,8 +1037,8 @@ class ServiceOrchestrator:
             service = self.services[service_name]
 
             # Get metrics from service
-            if 'resource_usage' in service.metrics:
-                return service.metrics['resource_usage']
+            if "resource_usage" in service.metrics:
+                return service.metrics["resource_usage"]
 
             # Try to get from service endpoint
             metrics_url = f"{service.url}/metrics/resources"
@@ -976,7 +1056,9 @@ class ServiceOrchestrator:
     def get_critical_path(self) -> List[str]:
         """Get the critical path of service dependencies."""
         # Find services with no dependencies (roots)
-        roots = [name for name, service in self.services.items() if not service.dependencies]
+        roots = [
+            name for name, service in self.services.items() if not service.dependencies
+        ]
 
         if not roots:
             return []
@@ -1052,17 +1134,21 @@ class ServiceOrchestrator:
             "service": service_name,
             "current_status": service.status.value,
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Check basic status
         if service.status == ServiceStatus.ERROR:
-            diagnosis["issues"].append(f"Service is in error state: {service.last_error}")
+            diagnosis["issues"].append(
+                f"Service is in error state: {service.last_error}"
+            )
             diagnosis["recommendations"].append("Check service logs and restart")
 
         # Check health
         if service.health_check.consecutive_failures > 0:
-            diagnosis["issues"].append(f"Health check failing: {service.health_check.consecutive_failures} consecutive failures")
+            diagnosis["issues"].append(
+                f"Health check failing: {service.health_check.consecutive_failures} consecutive failures"
+            )
             diagnosis["recommendations"].append("Investigate health check endpoint")
 
         # Check dependencies
@@ -1070,27 +1156,37 @@ class ServiceOrchestrator:
             if dep.service_name in self.services:
                 dep_service = self.services[dep.service_name]
                 if dep_service.status != ServiceStatus.RUNNING:
-                    diagnosis["issues"].append(f"Dependency {dep.service_name} not running")
-                    diagnosis["recommendations"].append(f"Start dependency service {dep.service_name}")
+                    diagnosis["issues"].append(
+                        f"Dependency {dep.service_name} not running"
+                    )
+                    diagnosis["recommendations"].append(
+                        f"Start dependency service {dep.service_name}"
+                    )
 
         # Check restart count
         if service.restart_count > service.max_restarts / 2:
             diagnosis["issues"].append(f"High restart count: {service.restart_count}")
-            diagnosis["recommendations"].append("Investigate underlying cause of frequent restarts")
+            diagnosis["recommendations"].append(
+                "Investigate underlying cause of frequent restarts"
+            )
 
         # Check resource usage
         resource_usage = await self.get_service_resource_usage(service_name)
         if resource_usage:
-            cpu = resource_usage.get('cpu_percent', 0)
-            memory = resource_usage.get('memory_percent', 0)
+            cpu = resource_usage.get("cpu_percent", 0)
+            memory = resource_usage.get("memory_percent", 0)
 
             if cpu > 80:
                 diagnosis["issues"].append(f"High CPU usage: {cpu:.1f}%")
-                diagnosis["recommendations"].append("Scale service or optimize performance")
+                diagnosis["recommendations"].append(
+                    "Scale service or optimize performance"
+                )
 
             if memory > 85:
                 diagnosis["issues"].append(f"High memory usage: {memory:.1f}%")
-                diagnosis["recommendations"].append("Check for memory leaks or scale service")
+                diagnosis["recommendations"].append(
+                    "Check for memory leaks or scale service"
+                )
 
         return diagnosis
 
@@ -1126,7 +1222,9 @@ class ServiceOrchestrator:
                     await asyncio.sleep(service.restart_delay)
                     if await self.start_service(service_name):
                         recovery_success = True
-                        logger.info(f"Service {service_name} recovered with force restart")
+                        logger.info(
+                            f"Service {service_name} recovered with force restart"
+                        )
 
             # Verify recovery
             if recovery_success:
@@ -1134,7 +1232,9 @@ class ServiceOrchestrator:
                     logger.info(f"Service {service_name} auto-recovery successful")
                     return True
                 else:
-                    logger.error(f"Service {service_name} failed post-recovery health check")
+                    logger.error(
+                        f"Service {service_name} failed post-recovery health check"
+                    )
                     return False
 
         except Exception as e:
@@ -1145,7 +1245,9 @@ class ServiceOrchestrator:
     async def get_orchestrator_metrics(self) -> Dict[str, Any]:
         """Get orchestrator performance metrics."""
         total_services = len(self.services)
-        running_services = sum(1 for s in self.services.values() if s.status == ServiceStatus.RUNNING)
+        running_services = sum(
+            1 for s in self.services.values() if s.status == ServiceStatus.RUNNING
+        )
 
         total_restarts = sum(s.restart_count for s in self.services.values())
         total_errors = sum(s.error_count for s in self.services.values())
@@ -1164,12 +1266,14 @@ class ServiceOrchestrator:
             "total_services": total_services,
             "running_services": running_services,
             "stopped_services": total_services - running_services,
-            "service_availability": (running_services / total_services * 100) if total_services > 0 else 0,
+            "service_availability": (
+                (running_services / total_services * 100) if total_services > 0 else 0
+            ),
             "total_restarts": total_restarts,
             "total_errors": total_errors,
             "average_uptime_seconds": avg_uptime,
             "monitoring_tasks": len(self.monitoring_tasks),
-            "is_orchestrator_running": self.is_running
+            "is_orchestrator_running": self.is_running,
         }
 
     async def cleanup_failed_services(self):
@@ -1202,7 +1306,7 @@ class ServiceOrchestrator:
             "orchestrator_metrics": await self.get_orchestrator_metrics(),
             "services": {},
             "dependency_graph": await self.get_dependency_graph(),
-            "critical_path": self.get_critical_path()
+            "critical_path": self.get_critical_path(),
         }
 
         # Add detailed service information

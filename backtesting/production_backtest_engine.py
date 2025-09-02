@@ -14,43 +14,45 @@ Key Features:
 """
 
 import asyncio
+import json
 import logging
-import sys
 import os
+import sys
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Any, Tuple, Set
-from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+
 import pandas as pd
 import polars as pl
-from pathlib import Path
-import json
-import time
 
 # Add paths for strategy imports
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-strategy_path = os.path.join(project_root, 'services', 'strategy_engine', 'src')
-data_collector_path = os.path.join(project_root, 'services', 'data_collector', 'src')
-shared_path = os.path.join(project_root, 'shared')
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+strategy_path = os.path.join(project_root, "services", "strategy_engine", "src")
+data_collector_path = os.path.join(project_root, "services", "data_collector", "src")
+shared_path = os.path.join(project_root, "shared")
 
 # Add all necessary paths
 for path in [strategy_path, data_collector_path, shared_path, project_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from backtest_models import TimeFrame, SignalType, MarketData
+from backtest_models import MarketData, SignalType, TimeFrame
 from simple_data_store import SimpleDataStore
 
 try:
     # Use the production strategy adapter
     from production_strategy_adapter import (
+        PRODUCTION_STRATEGIES_AVAILABLE,
+        ProductionSignal,
         ProductionStrategyAdapter,
         ProductionStrategyFactory,
-        StrategyMode as AdapterStrategyMode,
-        ProductionSignal,
-        PRODUCTION_STRATEGIES_AVAILABLE
     )
+    from production_strategy_adapter import StrategyMode as AdapterStrategyMode
+
     logging.info("Production strategy adapter loaded successfully")
 
 except Exception as e:
@@ -63,6 +65,7 @@ logger = logging.getLogger(__name__)
 
 class BacktestMode(Enum):
     """Backtesting execution modes."""
+
     FAST = "fast"
     DETAILED = "detailed"
     DEBUG = "debug"
@@ -71,6 +74,7 @@ class BacktestMode(Enum):
 @dataclass
 class ScreenerCriteria:
     """Criteria for simulating screener alerts."""
+
     # Breakouts criteria
     breakout_volume_ratio: float = 2.0
     breakout_price_min: float = 3.0
@@ -96,6 +100,7 @@ class ScreenerCriteria:
 @dataclass
 class ProductionBacktestConfig:
     """Configuration for production backtesting."""
+
     # Time period
     start_date: datetime
     end_date: datetime
@@ -105,16 +110,16 @@ class ProductionBacktestConfig:
     custom_strategy_config: Optional[Dict[str, Any]] = None
 
     # Portfolio settings
-    initial_capital: Decimal = Decimal('100000')
+    initial_capital: Decimal = Decimal("100000")
     max_positions: int = 10
-    max_position_size: Decimal = Decimal('0.15')  # 15% max per position
+    max_position_size: Decimal = Decimal("0.15")  # 15% max per position
 
     # Execution settings
     mode: BacktestMode = BacktestMode.FAST
     timeframe: TimeFrame = TimeFrame.ONE_DAY
-    commission_per_trade: Decimal = Decimal('1.00')
-    commission_percentage: Decimal = Decimal('0.0005')  # 0.05%
-    slippage_bps: Decimal = Decimal('5')  # 5 basis points
+    commission_per_trade: Decimal = Decimal("1.00")
+    commission_percentage: Decimal = Decimal("0.0005")  # 0.05%
+    slippage_bps: Decimal = Decimal("5")  # 5 basis points
 
     # Data settings
     data_path: str = "data/parquet"
@@ -122,7 +127,9 @@ class ProductionBacktestConfig:
     # Screener settings
     enable_screener_simulation: bool = True
     screener_criteria: ScreenerCriteria = field(default_factory=ScreenerCriteria)
-    screener_types: List[str] = field(default_factory=lambda: ["breakouts", "momentum", "value_stocks"])
+    screener_types: List[str] = field(
+        default_factory=lambda: ["breakouts", "momentum", "value_stocks"]
+    )
     max_screener_symbols_per_day: int = 50
 
     # Symbol filtering
@@ -135,18 +142,19 @@ class ProductionBacktestConfig:
 @dataclass
 class ProductionPosition:
     """Active position during backtesting."""
+
     symbol: str
     quantity: int
     entry_price: Decimal
     entry_date: datetime
     entry_reason: str
     strategy_name: str
-    current_price: Decimal = Decimal('0')
+    current_price: Decimal = Decimal("0")
     stop_loss: Optional[Decimal] = None
     take_profit: Optional[Decimal] = None
     trailing_stop: Optional[Decimal] = None
-    max_price_seen: Decimal = Decimal('0')
-    unrealized_pnl: Decimal = Decimal('0')
+    max_price_seen: Decimal = Decimal("0")
+    unrealized_pnl: Decimal = Decimal("0")
 
     @property
     def market_value(self) -> Decimal:
@@ -160,6 +168,7 @@ class ProductionPosition:
 @dataclass
 class ProductionTrade:
     """Completed trade record."""
+
     symbol: str
     strategy_name: str
     entry_date: datetime
@@ -181,6 +190,7 @@ class ProductionTrade:
 @dataclass
 class ProductionBacktestResults:
     """Comprehensive production backtesting results."""
+
     # Configuration
     config: ProductionBacktestConfig
     strategy_name: str
@@ -252,13 +262,11 @@ class HistoricalScreenerSimulator:
         self.criteria = criteria
         self.logger = logging.getLogger(f"{__name__}.ScreenerSimulator")
 
-    async def simulate_screener_for_date(self, date: datetime, symbols: List[str]) -> Dict[str, List[str]]:
+    async def simulate_screener_for_date(
+        self, date: datetime, symbols: List[str]
+    ) -> Dict[str, List[str]]:
         """Simulate screener results for a specific date."""
-        screener_results = {
-            "breakouts": [],
-            "momentum": [],
-            "value_stocks": []
-        }
+        screener_results = {"breakouts": [], "momentum": [], "value_stocks": []}
 
         # Load market data for all symbols for this date and previous days for analysis
         symbol_data = await self._load_symbol_data_for_screening(date, symbols)
@@ -270,11 +278,15 @@ class HistoricalScreenerSimulator:
             current_data = data_history[-1]  # Most recent data point
 
             # Check breakout criteria
-            if await self._matches_breakout_criteria(symbol, current_data, data_history):
+            if await self._matches_breakout_criteria(
+                symbol, current_data, data_history
+            ):
                 screener_results["breakouts"].append(symbol)
 
             # Check momentum criteria
-            if await self._matches_momentum_criteria(symbol, current_data, data_history):
+            if await self._matches_momentum_criteria(
+                symbol, current_data, data_history
+            ):
                 screener_results["momentum"].append(symbol)
 
             # Check value criteria
@@ -288,7 +300,9 @@ class HistoricalScreenerSimulator:
 
         return screener_results
 
-    async def _load_symbol_data_for_screening(self, date: datetime, symbols: List[str]) -> Dict[str, List[MarketData]]:
+    async def _load_symbol_data_for_screening(
+        self, date: datetime, symbols: List[str]
+    ) -> Dict[str, List[MarketData]]:
         """Load historical data needed for screening analysis."""
         symbol_data = {}
 
@@ -302,25 +316,27 @@ class HistoricalScreenerSimulator:
                     ticker=symbol,
                     timeframe=TimeFrame.ONE_DAY,
                     start_date=start_date,
-                    end_date=end_date
+                    end_date=end_date,
                 )
 
                 if not df.is_empty():
                     market_data_list = []
                     for row in df.sort("timestamp").iter_rows(named=True):
-                        adjusted_close = row.get('adjusted_close', row['close'])
+                        adjusted_close = row.get("adjusted_close", row["close"])
 
-                        market_data_list.append(MarketData(
-                            symbol=symbol,
-                            timestamp=row['timestamp'],
-                            open=Decimal(str(row['open'])),
-                            high=Decimal(str(row['high'])),
-                            low=Decimal(str(row['low'])),
-                            close=Decimal(str(row['close'])),
-                            adjusted_close=Decimal(str(adjusted_close)),
-                            volume=int(row['volume']),
-                            timeframe=TimeFrame.ONE_DAY
-                        ))
+                        market_data_list.append(
+                            MarketData(
+                                symbol=symbol,
+                                timestamp=row["timestamp"],
+                                open=Decimal(str(row["open"])),
+                                high=Decimal(str(row["high"])),
+                                low=Decimal(str(row["low"])),
+                                close=Decimal(str(row["close"])),
+                                adjusted_close=Decimal(str(adjusted_close)),
+                                volume=int(row["volume"]),
+                                timeframe=TimeFrame.ONE_DAY,
+                            )
+                        )
 
                     if market_data_list:
                         symbol_data[symbol] = market_data_list
@@ -330,7 +346,9 @@ class HistoricalScreenerSimulator:
 
         return symbol_data
 
-    async def _matches_breakout_criteria(self, symbol: str, current: MarketData, history: List[MarketData]) -> bool:
+    async def _matches_breakout_criteria(
+        self, symbol: str, current: MarketData, history: List[MarketData]
+    ) -> bool:
         """Check if symbol matches breakout screener criteria."""
         try:
             if len(history) < 20:
@@ -338,7 +356,10 @@ class HistoricalScreenerSimulator:
 
             # Price range check
             current_price = float(current.close)
-            if current_price < self.criteria.breakout_price_min or current_price > self.criteria.breakout_price_max:
+            if (
+                current_price < self.criteria.breakout_price_min
+                or current_price > self.criteria.breakout_price_max
+            ):
                 return False
 
             # Volume analysis
@@ -376,7 +397,9 @@ class HistoricalScreenerSimulator:
             self.logger.debug(f"Error checking breakout criteria for {symbol}: {e}")
             return False
 
-    async def _matches_momentum_criteria(self, symbol: str, current: MarketData, history: List[MarketData]) -> bool:
+    async def _matches_momentum_criteria(
+        self, symbol: str, current: MarketData, history: List[MarketData]
+    ) -> bool:
         """Check if symbol matches momentum screener criteria."""
         try:
             if len(history) < 5:
@@ -411,7 +434,9 @@ class HistoricalScreenerSimulator:
             self.logger.debug(f"Error checking momentum criteria for {symbol}: {e}")
             return False
 
-    async def _matches_value_criteria(self, symbol: str, current: MarketData, history: List[MarketData]) -> bool:
+    async def _matches_value_criteria(
+        self, symbol: str, current: MarketData, history: List[MarketData]
+    ) -> bool:
         """Check if symbol matches value screener criteria."""
         try:
             current_price = float(current.close)
@@ -436,7 +461,11 @@ class HistoricalScreenerSimulator:
             # Stable/declining volatility (value characteristic)
             if len(history) >= 20:
                 recent_volatility = self._calculate_volatility(history[-20:])
-                older_volatility = self._calculate_volatility(history[-40:-20]) if len(history) >= 40 else recent_volatility
+                older_volatility = (
+                    self._calculate_volatility(history[-40:-20])
+                    if len(history) >= 40
+                    else recent_volatility
+                )
 
                 # Prefer stocks with declining volatility
                 if recent_volatility > older_volatility * 1.5:
@@ -457,7 +486,7 @@ class HistoricalScreenerSimulator:
         returns = []
 
         for i in range(1, len(prices)):
-            ret = (prices[i] - prices[i-1]) / prices[i-1]
+            ret = (prices[i] - prices[i - 1]) / prices[i - 1]
             returns.append(ret)
 
         if not returns:
@@ -466,7 +495,7 @@ class HistoricalScreenerSimulator:
         mean_return = sum(returns) / len(returns)
         variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
 
-        return variance ** 0.5
+        return variance**0.5
 
 
 class ProductionBacktestEngine:
@@ -481,7 +510,9 @@ class ProductionBacktestEngine:
 
         # Initialize data components
         self.data_store = SimpleDataStore(base_path=config.data_path)
-        self.screener_simulator = HistoricalScreenerSimulator(self.data_store, config.screener_criteria)
+        self.screener_simulator = HistoricalScreenerSimulator(
+            self.data_store, config.screener_criteria
+        )
 
         # Initialize strategy
         self.strategy: Optional[BaseStrategy] = None
@@ -505,7 +536,7 @@ class ProductionBacktestEngine:
             "total_analysis_calls": 0,
             "signals_generated": 0,
             "high_confidence_signals": 0,
-            "avg_confidence": 0.0
+            "avg_confidence": 0.0,
         }
 
     async def initialize_strategy(self) -> None:
@@ -518,7 +549,7 @@ class ProductionBacktestEngine:
             strategy_mode_map = {
                 "day_trading": AdapterStrategyMode.DAY_TRADING,
                 "swing_trading": AdapterStrategyMode.SWING_TRADING,
-                "position_trading": AdapterStrategyMode.POSITION_TRADING
+                "position_trading": AdapterStrategyMode.POSITION_TRADING,
             }
 
             if self.config.strategy_type not in strategy_mode_map:
@@ -527,7 +558,9 @@ class ProductionBacktestEngine:
             strategy_mode = strategy_mode_map[self.config.strategy_type]
             self.strategy = ProductionStrategyAdapter(strategy_mode)
 
-            self.logger.info(f"Initialized {self.config.strategy_type} strategy: {self.strategy.name}")
+            self.logger.info(
+                f"Initialized {self.config.strategy_type} strategy: {self.strategy.name}"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to initialize strategy: {e}")
@@ -536,7 +569,9 @@ class ProductionBacktestEngine:
     async def run_backtest(self) -> ProductionBacktestResults:
         """Run the complete production backtesting simulation."""
         start_time = time.time()
-        self.logger.info(f"Starting production backtest: {self.config.start_date.date()} to {self.config.end_date.date()}")
+        self.logger.info(
+            f"Starting production backtest: {self.config.start_date.date()} to {self.config.end_date.date()}"
+        )
 
         try:
             # Initialize strategy
@@ -564,7 +599,9 @@ class ProductionBacktestEngine:
 
                 # Log progress periodically
                 if (i + 1) % 20 == 0 or i == len(trading_days) - 1:
-                    self.logger.info(f"Progress: {i+1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}")
+                    self.logger.info(
+                        f"Progress: {i+1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}"
+                    )
 
             # Close any remaining positions
             await self._close_all_positions(trading_days[-1], "end_of_backtest")
@@ -574,7 +611,9 @@ class ProductionBacktestEngine:
             results = await self._generate_results(execution_time)
 
             self.logger.info(f"Backtest completed in {execution_time:.2f}s")
-            self.logger.info(f"Total Return: {results.total_return:.2%}, Trades: {results.total_trades}")
+            self.logger.info(
+                f"Total Return: {results.total_return:.2%}, Trades: {results.total_trades}"
+            )
 
             return results
 
@@ -585,7 +624,11 @@ class ProductionBacktestEngine:
     async def _get_available_symbols(self) -> List[str]:
         """Get list of available symbols for backtesting."""
         if self.config.specific_symbols:
-            return [s for s in self.config.specific_symbols if s not in self.config.exclude_symbols]
+            return [
+                s
+                for s in self.config.specific_symbols
+                if s not in self.config.exclude_symbols
+            ]
 
         # Get all available symbols from data store
         all_symbols = self.data_store.get_available_symbols()
@@ -597,7 +640,9 @@ class ProductionBacktestEngine:
                 continue
 
             # Check if symbol has sufficient data in date range
-            date_range = self.data_store.get_date_range_for_symbol(symbol, self.config.timeframe)
+            date_range = self.data_store.get_date_range_for_symbol(
+                symbol, self.config.timeframe
+            )
             if not date_range[0] or not date_range[1]:
                 continue
 
@@ -605,8 +650,10 @@ class ProductionBacktestEngine:
             # and extends at least 7 days into the backtest period
             min_required_end = self.config.start_date.date() + timedelta(days=7)
 
-            if (date_range[0] > self.config.start_date.date() or
-                date_range[1] < min_required_end):
+            if (
+                date_range[0] > self.config.start_date.date()
+                or date_range[1] < min_required_end
+            ):
                 continue
 
             filtered_symbols.append(symbol)
@@ -627,18 +674,27 @@ class ProductionBacktestEngine:
             # Find the latest available data date across all symbols
             latest_data_date = None
             for symbol in available_symbols[:10]:  # Check first 10 symbols
-                date_range = self.data_store.get_date_range_for_symbol(symbol, self.config.timeframe)
+                date_range = self.data_store.get_date_range_for_symbol(
+                    symbol, self.config.timeframe
+                )
                 if date_range[1]:
                     if latest_data_date is None or date_range[1] > latest_data_date:
                         latest_data_date = date_range[1]
 
             if latest_data_date:
-                adjusted_end_date = min(self.config.end_date,
-                                      datetime.combine(latest_data_date, datetime.min.time()).replace(tzinfo=timezone.utc))
+                adjusted_end_date = min(
+                    self.config.end_date,
+                    datetime.combine(latest_data_date, datetime.min.time()).replace(
+                        tzinfo=timezone.utc
+                    ),
+                )
 
         while current_date <= adjusted_end_date:
             # Skip weekends for daily timeframes
-            if self.config.timeframe == TimeFrame.ONE_DAY and current_date.weekday() < 5:
+            if (
+                self.config.timeframe == TimeFrame.ONE_DAY
+                and current_date.weekday() < 5
+            ):
                 trading_days.append(current_date)
             elif self.config.timeframe != TimeFrame.ONE_DAY:
                 trading_days.append(current_date)
@@ -647,7 +703,9 @@ class ProductionBacktestEngine:
 
         return trading_days
 
-    async def _process_trading_day(self, date: datetime, available_symbols: List[str]) -> None:
+    async def _process_trading_day(
+        self, date: datetime, available_symbols: List[str]
+    ) -> None:
         """Process a single trading day."""
         try:
             # 1. Update existing positions
@@ -659,7 +717,11 @@ class ProductionBacktestEngine:
             # 3. Simulate screener alerts for the day
             screener_symbols = set()
             if self.config.enable_screener_simulation:
-                screener_results = await self.screener_simulator.simulate_screener_for_date(date, available_symbols)
+                screener_results = (
+                    await self.screener_simulator.simulate_screener_for_date(
+                        date, available_symbols
+                    )
+                )
 
                 for screener_type, symbols in screener_results.items():
                     if screener_type in self.config.screener_types:
@@ -667,7 +729,9 @@ class ProductionBacktestEngine:
                         self.screener_alerts += len(symbols)
 
             # 4. Combine screener results with any specific symbols
-            analysis_symbols = list(screener_symbols)[:self.config.max_screener_symbols_per_day]
+            analysis_symbols = list(screener_symbols)[
+                : self.config.max_screener_symbols_per_day
+            ]
 
             # 5. Generate signals for potential trades
             if len(self.positions) < self.config.max_positions and analysis_symbols:
@@ -690,17 +754,19 @@ class ProductionBacktestEngine:
                     ticker=symbol,
                     timeframe=self.config.timeframe,
                     start_date=date.date(),
-                    end_date=date.date()
+                    end_date=date.date(),
                 )
 
                 if not df.is_empty():
                     row = df.sort("timestamp").tail(1).row(0, named=True)
-                    new_price = Decimal(str(row['close']))
+                    new_price = Decimal(str(row["close"]))
 
                     position = self.positions[symbol]
                     position.current_price = new_price
                     position.max_price_seen = max(position.max_price_seen, new_price)
-                    position.unrealized_pnl = (new_price - position.entry_price) * Decimal(str(position.quantity))
+                    position.unrealized_pnl = (
+                        new_price - position.entry_price
+                    ) * Decimal(str(position.quantity))
 
             except Exception as e:
                 self.logger.debug(f"Could not update price for {symbol}: {e}")
@@ -721,8 +787,13 @@ class ProductionBacktestEngine:
                 continue
 
             # Trailing stop check
-            if position.trailing_stop and position.max_price_seen > position.entry_price:
-                trailing_stop_price = position.max_price_seen * (Decimal('1') - position.trailing_stop)
+            if (
+                position.trailing_stop
+                and position.max_price_seen > position.entry_price
+            ):
+                trailing_stop_price = position.max_price_seen * (
+                    Decimal("1") - position.trailing_stop
+                )
                 if position.current_price <= trailing_stop_price:
                     positions_to_close.append((symbol, "trailing_stop"))
                     continue
@@ -731,7 +802,9 @@ class ProductionBacktestEngine:
         for symbol, reason in positions_to_close:
             await self._close_position(symbol, date, reason)
 
-    async def _generate_and_execute_signals(self, date: datetime, symbols: List[str]) -> None:
+    async def _generate_and_execute_signals(
+        self, date: datetime, symbols: List[str]
+    ) -> None:
         """Generate trading signals using the production strategy."""
         for symbol in symbols:
             if symbol in self.positions:  # Skip if already holding
@@ -739,7 +812,9 @@ class ProductionBacktestEngine:
 
             try:
                 # Load historical data for strategy analysis
-                historical_data = await self._get_historical_data_for_symbol(symbol, date)
+                historical_data = await self._get_historical_data_for_symbol(
+                    symbol, date
+                )
                 if not historical_data or len(historical_data) < 20:
                     continue
 
@@ -753,7 +828,7 @@ class ProductionBacktestEngine:
                     symbol=symbol,
                     current_data=current_data,
                     historical_data=historical_data[-50:],  # Last 50 days
-                    market_context=self._get_market_context(date)
+                    market_context=self._get_market_context(date),
                 )
 
                 if analysis_result and analysis_result.action != SignalType.HOLD:
@@ -761,13 +836,14 @@ class ProductionBacktestEngine:
                     self.total_signals += 1
 
                     # Track confidence statistics
-                    if hasattr(analysis_result, 'confidence'):
+                    if hasattr(analysis_result, "confidence"):
                         if analysis_result.confidence > 75:
                             self.strategy_stats["high_confidence_signals"] += 1
                         self.strategy_stats["avg_confidence"] = (
-                            (self.strategy_stats["avg_confidence"] * (self.strategy_stats["signals_generated"] - 1) +
-                             analysis_result.confidence) / self.strategy_stats["signals_generated"]
-                        )
+                            self.strategy_stats["avg_confidence"]
+                            * (self.strategy_stats["signals_generated"] - 1)
+                            + analysis_result.confidence
+                        ) / self.strategy_stats["signals_generated"]
 
                     # Execute the signal if it meets our criteria
                     if await self._should_execute_signal(analysis_result, current_data):
@@ -776,7 +852,9 @@ class ProductionBacktestEngine:
             except Exception as e:
                 self.logger.debug(f"Error analyzing {symbol}: {e}")
 
-    async def _get_historical_data_for_symbol(self, symbol: str, current_date: datetime) -> Optional[List[MarketData]]:
+    async def _get_historical_data_for_symbol(
+        self, symbol: str, current_date: datetime
+    ) -> Optional[List[MarketData]]:
         """Get historical data for symbol analysis."""
         try:
             lookback_days = 60  # Get sufficient history
@@ -787,7 +865,7 @@ class ProductionBacktestEngine:
                 ticker=symbol,
                 timeframe=self.config.timeframe,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df.is_empty():
@@ -795,19 +873,21 @@ class ProductionBacktestEngine:
 
             historical_data = []
             for row in df.sort("timestamp").iter_rows(named=True):
-                adjusted_close = row.get('adjusted_close', row['close'])
+                adjusted_close = row.get("adjusted_close", row["close"])
 
-                historical_data.append(MarketData(
-                    symbol=symbol,
-                    timestamp=row['timestamp'],
-                    open=Decimal(str(row['open'])),
-                    high=Decimal(str(row['high'])),
-                    low=Decimal(str(row['low'])),
-                    close=Decimal(str(row['close'])),
-                    adjusted_close=Decimal(str(adjusted_close)),
-                    volume=int(row['volume']),
-                    timeframe=self.config.timeframe
-                ))
+                historical_data.append(
+                    MarketData(
+                        symbol=symbol,
+                        timestamp=row["timestamp"],
+                        open=Decimal(str(row["open"])),
+                        high=Decimal(str(row["high"])),
+                        low=Decimal(str(row["low"])),
+                        close=Decimal(str(row["close"])),
+                        adjusted_close=Decimal(str(adjusted_close)),
+                        volume=int(row["volume"]),
+                        timeframe=self.config.timeframe,
+                    )
+                )
 
             return historical_data
 
@@ -819,14 +899,18 @@ class ProductionBacktestEngine:
         """Get market context for strategy analysis."""
         return {
             "current_date": date,
-            "portfolio_value": float(self.cash + sum(pos.market_value for pos in self.positions.values())),
+            "portfolio_value": float(
+                self.cash + sum(pos.market_value for pos in self.positions.values())
+            ),
             "positions_count": len(self.positions),
             "available_capital": float(self.cash),
             "max_position_size": float(self.config.max_position_size),
-            "strategy_type": self.config.strategy_type
+            "strategy_type": self.config.strategy_type,
         }
 
-    async def _should_execute_signal(self, analysis_result: ProductionSignal, current_data: MarketData) -> bool:
+    async def _should_execute_signal(
+        self, analysis_result: ProductionSignal, current_data: MarketData
+    ) -> bool:
         """Determine if a signal should be executed based on risk management."""
         try:
             # Check if we have enough cash
@@ -854,7 +938,12 @@ class ProductionBacktestEngine:
             self.logger.error(f"Error in signal execution check: {e}")
             return False
 
-    async def _execute_signal(self, analysis_result: ProductionSignal, current_data: MarketData, date: datetime) -> None:
+    async def _execute_signal(
+        self,
+        analysis_result: ProductionSignal,
+        current_data: MarketData,
+        date: datetime,
+    ) -> None:
         """Execute a trading signal."""
         try:
             symbol = current_data.symbol
@@ -862,14 +951,20 @@ class ProductionBacktestEngine:
 
             # Calculate position size using signal's recommended size
             portfolio_value = await self._calculate_portfolio_value()
-            position_value = portfolio_value * Decimal(str(analysis_result.position_size)) * Decimal('0.95')  # Leave buffer for commission
+            position_value = (
+                portfolio_value
+                * Decimal(str(analysis_result.position_size))
+                * Decimal("0.95")
+            )  # Leave buffer for commission
 
             quantity = int(position_value / entry_price)
             if quantity <= 0:
                 return
 
             # Calculate commission
-            commission = self.config.commission_per_trade + (entry_price * Decimal(str(quantity)) * self.config.commission_percentage)
+            commission = self.config.commission_per_trade + (
+                entry_price * Decimal(str(quantity)) * self.config.commission_percentage
+            )
 
             if commission > self.cash:
                 return
@@ -883,7 +978,7 @@ class ProductionBacktestEngine:
                 entry_reason=f"strategy_signal_{analysis_result.action.value}",
                 strategy_name=self.strategy.name if self.strategy else "unknown",
                 current_price=entry_price,
-                max_price_seen=entry_price
+                max_price_seen=entry_price,
             )
 
             # Set risk management levels from signal
@@ -895,10 +990,12 @@ class ProductionBacktestEngine:
 
             # Update portfolio
             self.positions[symbol] = position
-            self.cash -= (entry_price * Decimal(str(quantity)) + commission)
+            self.cash -= entry_price * Decimal(str(quantity)) + commission
             self.executed_signals += 1
 
-            self.logger.info(f"Opened {analysis_result.action.value} position: {symbol} x{quantity} @ ${entry_price}")
+            self.logger.info(
+                f"Opened {analysis_result.action.value} position: {symbol} x{quantity} @ ${entry_price}"
+            )
 
         except Exception as e:
             self.logger.error(f"Error executing signal for {current_data.symbol}: {e}")
@@ -913,13 +1010,21 @@ class ProductionBacktestEngine:
             exit_price = position.current_price
 
             # Calculate P&L
-            gross_pnl = (exit_price - position.entry_price) * Decimal(str(position.quantity))
-            commission = self.config.commission_per_trade + (exit_price * Decimal(str(abs(position.quantity))) * self.config.commission_percentage)
+            gross_pnl = (exit_price - position.entry_price) * Decimal(
+                str(position.quantity)
+            )
+            commission = self.config.commission_per_trade + (
+                exit_price
+                * Decimal(str(abs(position.quantity)))
+                * self.config.commission_percentage
+            )
             net_pnl = gross_pnl - commission
 
             # Calculate trade metrics
             hold_duration = (date - position.entry_date).total_seconds() / 3600  # hours
-            pnl_percentage = float(net_pnl / (position.entry_price * Decimal(str(abs(position.quantity)))))
+            pnl_percentage = float(
+                net_pnl / (position.entry_price * Decimal(str(abs(position.quantity))))
+            )
 
             # Create trade record
             trade = ProductionTrade(
@@ -938,7 +1043,9 @@ class ProductionBacktestEngine:
                 entry_reason=position.entry_reason,
                 exit_reason=reason,
                 max_favorable_excursion=position.max_price_seen - position.entry_price,
-                max_adverse_excursion=Decimal('0')  # Would need to track this during position lifetime
+                max_adverse_excursion=Decimal(
+                    "0"
+                ),  # Would need to track this during position lifetime
             )
 
             # Update portfolio
@@ -948,7 +1055,9 @@ class ProductionBacktestEngine:
 
             del self.positions[symbol]
 
-            self.logger.info(f"Closed position: {symbol}, P&L: ${net_pnl:.2f} ({pnl_percentage:.2%}), Reason: {reason}")
+            self.logger.info(
+                f"Closed position: {symbol}, P&L: ${net_pnl:.2f} ({pnl_percentage:.2%}), Reason: {reason}"
+            )
 
         except Exception as e:
             self.logger.error(f"Error closing position {symbol}: {e}")
@@ -975,35 +1084,59 @@ class ProductionBacktestEngine:
         if len(self.portfolio_history) > 0:
             previous_value = self.portfolio_history[-1][1]
             if previous_value > 0:
-                daily_return = float((portfolio_value - previous_value) / previous_value)
+                daily_return = float(
+                    (portfolio_value - previous_value) / previous_value
+                )
                 self.daily_returns.append(daily_return)
 
-    async def _generate_results(self, execution_time: float) -> ProductionBacktestResults:
+    async def _generate_results(
+        self, execution_time: float
+    ) -> ProductionBacktestResults:
         """Generate comprehensive backtest results."""
         try:
             final_capital = await self._calculate_portfolio_value()
 
             # Calculate performance metrics
-            total_return = float((final_capital - self.config.initial_capital) / self.config.initial_capital)
+            total_return = float(
+                (final_capital - self.config.initial_capital)
+                / self.config.initial_capital
+            )
 
             # Calculate risk metrics
             returns_array = self.daily_returns
             if returns_array:
                 import numpy as np
+
                 returns_np = np.array(returns_array)
 
                 # Annualized metrics
                 trading_days = len(returns_array)
-                annualized_return = float((1 + np.mean(returns_np)) ** 252 - 1) if trading_days > 0 else 0.0
+                annualized_return = (
+                    float((1 + np.mean(returns_np)) ** 252 - 1)
+                    if trading_days > 0
+                    else 0.0
+                )
                 volatility = float(np.std(returns_np) * np.sqrt(252))
 
                 # Sharpe ratio
-                sharpe_ratio = float((annualized_return - 0.02) / volatility) if volatility > 0 else 0.0
+                sharpe_ratio = (
+                    float((annualized_return - 0.02) / volatility)
+                    if volatility > 0
+                    else 0.0
+                )
 
                 # Sortino ratio
                 negative_returns = returns_np[returns_np < 0]
-                downside_volatility = float(np.std(negative_returns) * np.sqrt(252)) if len(negative_returns) > 0 else 0.0
-                sortino_ratio = float((annualized_return - 0.02) / downside_volatility) if downside_volatility > 0 else 0.0
+                downside_volatility = (
+                    float(np.std(negative_returns) * np.sqrt(252))
+                    if len(negative_returns) > 0
+                    else 0.0
+                )
+                sortino_ratio = (
+                    float((annualized_return - 0.02) / downside_volatility)
+                    if downside_volatility > 0
+                    else 0.0
+                )
             else:
                 annualized_return = total_return
                 sharpe_ratio = 0.0
@@ -1020,23 +1153,40 @@ class ProductionBacktestEngine:
                     drawdown = (peak - value_float) / peak
                     max_drawdown = max(max_drawdown, drawdown)
 
-            current_drawdown = (float(self.max_capital) - float(final_capital)) / float(self.max_capital) if self.max_capital > 0 else 0.0
-            calmar_ratio = float(annualized_return / max_drawdown) if max_drawdown > 0 else 0.0
+            current_drawdown = (
+                (float(self.max_capital) - float(final_capital))
+                / float(self.max_capital)
+                if self.max_capital > 0
+                else 0.0
+            )
+            calmar_ratio = (
+                float(annualized_return / max_drawdown) if max_drawdown > 0 else 0.0
+            )
 
             # Trading statistics
             winning_trades = [t for t in self.trades if t.net_pnl > 0]
             losing_trades = [t for t in self.trades if t.net_pnl <= 0]
 
             win_rate = len(winning_trades) / len(self.trades) if self.trades else 0.0
-            avg_win = sum(t.net_pnl for t in winning_trades) / len(winning_trades) if winning_trades else Decimal('0')
-            avg_loss = sum(t.net_pnl for t in losing_trades) / len(losing_trades) if losing_trades else Decimal('0')
+            avg_win = (
+                sum(t.net_pnl for t in winning_trades) / len(winning_trades)
+                if winning_trades
+                else Decimal("0")
+            )
+            avg_loss = (
+                sum(t.net_pnl for t in losing_trades) / len(losing_trades)
+                if losing_trades
+                else Decimal("0")
+            )
 
             gross_profit = sum(t.net_pnl for t in winning_trades)
             gross_loss = abs(sum(t.net_pnl for t in losing_trades))
-            profit_factor = float(gross_profit / gross_loss) if gross_loss > 0 else float('inf')
+            profit_factor = (
+                float(gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+            )
 
-            largest_win = max((t.net_pnl for t in winning_trades), default=Decimal('0'))
-            largest_loss = min((t.net_pnl for t in losing_trades), default=Decimal('0'))
+            largest_win = max((t.net_pnl for t in winning_trades), default=Decimal("0"))
+            largest_loss = min((t.net_pnl for t in losing_trades), default=Decimal("0"))
 
             # Monthly returns
             monthly_returns = {}
@@ -1049,9 +1199,12 @@ class ProductionBacktestEngine:
             strategy_breakdown = {
                 "analysis_calls": self.strategy_stats["total_analysis_calls"],
                 "signals_generated": self.strategy_stats["signals_generated"],
-                "high_confidence_signals": self.strategy_stats["high_confidence_signals"],
+                "high_confidence_signals": self.strategy_stats[
+                    "high_confidence_signals"
+                ],
                 "avg_confidence": self.strategy_stats["avg_confidence"],
-                "signal_to_trade_ratio": len(self.trades) / max(self.strategy_stats["signals_generated"], 1)
+                "signal_to_trade_ratio": len(self.trades)
+                / max(self.strategy_stats["signals_generated"], 1),
             }
 
             return ProductionBacktestResults(
@@ -1080,23 +1233,42 @@ class ProductionBacktestEngine:
                 avg_loss_amount=avg_loss,
                 largest_win=largest_win,
                 largest_loss=largest_loss,
-                avg_hold_time_hours=sum(t.hold_duration_hours for t in self.trades) / len(self.trades) if self.trades else 0.0,
+                avg_hold_time_hours=(
+                    sum(t.hold_duration_hours for t in self.trades) / len(self.trades)
+                    if self.trades
+                    else 0.0
+                ),
                 total_signals_generated=self.total_signals,
                 signals_executed=self.executed_signals,
-                signal_execution_rate=self.executed_signals / max(self.total_signals, 1),
+                signal_execution_rate=self.executed_signals
+                / max(self.total_signals, 1),
                 avg_signal_confidence=self.strategy_stats["avg_confidence"],
                 screener_alerts_simulated=self.screener_alerts,
                 symbols_screened=len(set(t.symbol for t in self.trades)),
                 unique_symbols_traded=len(set(t.symbol for t in self.trades)),
-                var_95=Decimal('0'),  # Would need more sophisticated calculation
+                var_95=Decimal("0"),  # Would need more sophisticated calculation
                 max_concurrent_positions=max(len(self.positions), 1),
-                avg_position_size=sum(abs(t.entry_price * Decimal(str(abs(t.quantity)))) for t in self.trades) / len(self.trades) if self.trades else Decimal('0'),
-                largest_position_size=max((abs(t.entry_price * Decimal(str(abs(t.quantity)))) for t in self.trades), default=Decimal('0')),
+                avg_position_size=(
+                    sum(
+                        abs(t.entry_price * Decimal(str(abs(t.quantity))))
+                        for t in self.trades
+                    )
+                    / len(self.trades)
+                    if self.trades
+                    else Decimal("0")
+                ),
+                largest_position_size=max(
+                    (
+                        abs(t.entry_price * Decimal(str(abs(t.quantity))))
+                        for t in self.trades
+                    ),
+                    default=Decimal("0"),
+                ),
                 trades=self.trades,
                 daily_portfolio_values=self.portfolio_history,
                 daily_returns=self.daily_returns,
                 monthly_returns=monthly_returns,
-                strategy_performance_breakdown=strategy_breakdown
+                strategy_performance_breakdown=strategy_breakdown,
             )
 
         except Exception as e:
@@ -1106,12 +1278,13 @@ class ProductionBacktestEngine:
 
 # Utility functions for easy backtesting
 
+
 async def run_production_backtest(
     start_date: datetime,
     end_date: datetime,
     strategy_type: str = "day_trading",
-    initial_capital: Decimal = Decimal('100000'),
-    symbols: Optional[List[str]] = None
+    initial_capital: Decimal = Decimal("100000"),
+    symbols: Optional[List[str]] = None,
 ) -> ProductionBacktestResults:
     """
     Run a production backtest with default settings.
@@ -1132,7 +1305,7 @@ async def run_production_backtest(
         strategy_type=strategy_type,
         initial_capital=initial_capital,
         specific_symbols=symbols,
-        enable_screener_simulation=symbols is None
+        enable_screener_simulation=symbols is None,
     )
 
     engine = ProductionBacktestEngine(config)
@@ -1142,7 +1315,7 @@ async def run_production_backtest(
 async def run_multi_strategy_comparison(
     start_date: datetime,
     end_date: datetime,
-    initial_capital: Decimal = Decimal('100000')
+    initial_capital: Decimal = Decimal("100000"),
 ) -> Dict[str, ProductionBacktestResults]:
     """
     Compare all three production strategies over the same period.
@@ -1159,7 +1332,7 @@ async def run_multi_strategy_comparison(
                 start_date=start_date,
                 end_date=end_date,
                 strategy_type=strategy_type,
-                initial_capital=initial_capital
+                initial_capital=initial_capital,
             )
             results[strategy_type] = result
         except Exception as e:

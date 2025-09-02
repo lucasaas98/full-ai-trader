@@ -13,14 +13,13 @@ import os
 import time
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 from pydantic import BaseModel, Field
 
-from shared.models import FinVizData
 from shared.config import get_config
-
+from shared.models import FinVizData
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,9 @@ class FinVizScreenerParams(BaseModel):
 
     # Volume filters
     avg_volume_min: Optional[str] = Field(None, description="Minimum average volume")
-    current_volume_min: Optional[str] = Field(None, description="Minimum current volume")
+    current_volume_min: Optional[str] = Field(
+        None, description="Minimum current volume"
+    )
 
     # Price filters
     price_min: Optional[float] = Field(None, description="Minimum price")
@@ -42,17 +43,21 @@ class FinVizScreenerParams(BaseModel):
 
     # Technical filters
     above_sma20: bool = Field(False, description="Above SMA 20")
-    weekly_volatility_min: Optional[float] = Field(None, description="Minimum weekly volatility")
+    weekly_volatility_min: Optional[float] = Field(
+        None, description="Minimum weekly volatility"
+    )
 
     # Custom filters
-    custom_filters: Dict[str, str] = Field(default_factory=dict, description="Additional custom filters")
+    custom_filters: Dict[str, str] = Field(
+        default_factory=dict, description="Additional custom filters"
+    )
 
     def to_finviz_params(self) -> Dict[str, str]:
         """Convert parameters to FinViz screener format."""
         params = {
-            'v': '111',  # Export format
-            'f': '',     # Filters will be built
-            'c': '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70'
+            "v": "111",  # Export format
+            "f": "",  # Filters will be built
+            "c": "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70",
         }
 
         filters = []
@@ -105,7 +110,7 @@ class FinVizScreenerParams(BaseModel):
         # Add custom filters
         filters.extend(self.custom_filters.values())
 
-        params['f'] = ','.join(filters)
+        params["f"] = ",".join(filters)
         return params
 
 
@@ -156,10 +161,10 @@ class FinVizScreener:
         max_retries: int = 3,
         rate_limit_interval: float = 30.0,
         session: Optional[aiohttp.ClientSession] = None,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
     ):
         """Initialize FinViz screener."""
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.export_url = f"{self.base_url}/export.ashx"
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.max_retries = max_retries
@@ -175,10 +180,12 @@ class FinVizScreener:
                 self.api_key = config.finviz.api_key
             except:
                 # Fallback to environment variable
-                self.api_key = os.getenv('FINVIZ_API_KEY')
+                self.api_key = os.getenv("FINVIZ_API_KEY")
 
         if not self.api_key:
-            logger.warning("No FinViz API key configured - screener will likely return no results")
+            logger.warning(
+                "No FinViz API key configured - screener will likely return no results"
+            )
 
         # Default screener parameters for momentum trading (relaxed criteria)
         self.default_params = FinVizScreenerParams(
@@ -189,7 +196,7 @@ class FinVizScreener:
             price_min=3.0,  # Reduced from 5.0
             price_max=50.0,  # Increased from 35.0
             above_sma20=True,
-            weekly_volatility_min=3.0  # Reduced from 6.0 to 3.0
+            weekly_volatility_min=3.0,  # Reduced from 6.0 to 3.0
         )
 
     async def __aenter__(self):
@@ -210,9 +217,7 @@ class FinVizScreener:
         return self._session
 
     async def fetch_screener_data(
-        self,
-        params: Optional[FinVizScreenerParams] = None,
-        limit: Optional[int] = 20
+        self, params: Optional[FinVizScreenerParams] = None, limit: Optional[int] = 20
     ) -> FinVizScreenerResult:
         """
         Fetch data from FinViz screener.
@@ -241,10 +246,12 @@ class FinVizScreener:
 
         # Add API authentication
         if self.api_key:
-            request_params['auth'] = self.api_key
-            request_params['ft'] = '4'  # Filter type for authenticated requests
+            request_params["auth"] = self.api_key
+            request_params["ft"] = "4"  # Filter type for authenticated requests
 
-        logger.info(f"Fetching FinViz screener data with filters: {request_params['f']}")
+        logger.info(
+            f"Fetching FinViz screener data with filters: {request_params['f']}"
+        )
         logger.info(f"Request URL: {self.export_url}")
         logger.info(f"Request params: {request_params}")
 
@@ -256,14 +263,14 @@ class FinVizScreener:
                     self.export_url,
                     params=request_params,
                     headers={
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                        'Accept': 'text/csv,application/csv,*/*',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Accept-Encoding': 'gzip, deflate, br',
-                        'DNT': '1',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                    }
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                        "Accept": "text/csv,application/csv,*/*",
+                        "Accept-Language": "en-US,en;q=0.9",
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "DNT": "1",
+                        "Connection": "keep-alive",
+                        "Upgrade-Insecure-Requests": "1",
+                    },
                 ) as response:
                     response.raise_for_status()
                     content = await response.text()
@@ -282,21 +289,25 @@ class FinVizScreener:
                         timestamp=datetime.now(timezone.utc),
                         total_count=len(parsed_data),
                         screener_params=params,
-                        execution_time=execution_time
+                        execution_time=execution_time,
                     )
 
-                    logger.info(f"Successfully fetched {len(parsed_data)} tickers in {execution_time:.2f}s")
+                    logger.info(
+                        f"Successfully fetched {len(parsed_data)} tickers in {execution_time:.2f}s"
+                    )
                     return result
 
             except aiohttp.ClientError as e:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == self.max_retries - 1:
                     raise
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                await asyncio.sleep(2**attempt)  # Exponential backoff
 
         raise Exception("Max retries exceeded")
 
-    def _parse_csv_response(self, content: str, limit: Optional[int] = None) -> List[FinVizData]:
+    def _parse_csv_response(
+        self, content: str, limit: Optional[int] = None
+    ) -> List[FinVizData]:
         """
         Parse CSV response from FinViz into structured data.
 
@@ -341,7 +352,9 @@ class FinVizScreener:
             # Sort by volume (descending) to get most active stocks first
             parsed_data.sort(key=lambda x: x.volume or 0, reverse=True)
 
-            logger.info(f"Successfully parsed {len(parsed_data)} tickers from {len(rows_list)} rows")
+            logger.info(
+                f"Successfully parsed {len(parsed_data)} tickers from {len(rows_list)} rows"
+            )
             return parsed_data
 
         except Exception as e:
@@ -349,7 +362,9 @@ class FinVizScreener:
             logger.info(f"Content preview: {content[:1000]}")
             raise ValueError(f"CSV parsing failed: {e}")
 
-    def _clean_row_data(self, row: Dict[str, str], timestamp: datetime) -> Optional[FinVizData]:
+    def _clean_row_data(
+        self, row: Dict[str, str], timestamp: datetime
+    ) -> Optional[FinVizData]:
         """
         Clean and validate a single row of data.
 
@@ -362,16 +377,16 @@ class FinVizScreener:
         """
         try:
             # Map common column names (FinViz column names may vary)
-            symbol_keys = ['Ticker', 'Symbol', 'ticker', 'symbol']
-            company_keys = ['Company', 'company', 'Company Name']
-            sector_keys = ['Sector', 'sector']
-            industry_keys = ['Industry', 'industry']
-            country_keys = ['Country', 'country']
-            market_cap_keys = ['Market Cap', 'Market_Cap', 'market_cap', 'Mkt Cap']
-            pe_keys = ['P/E', 'PE', 'pe', 'PE Ratio']
-            price_keys = ['Price', 'price', 'Current Price']
-            change_keys = ['Change', 'change', '% Change', 'Change %']
-            volume_keys = ['Volume', 'volume', 'Vol']
+            symbol_keys = ["Ticker", "Symbol", "ticker", "symbol"]
+            company_keys = ["Company", "company", "Company Name"]
+            sector_keys = ["Sector", "sector"]
+            industry_keys = ["Industry", "industry"]
+            country_keys = ["Country", "country"]
+            market_cap_keys = ["Market Cap", "Market_Cap", "market_cap", "Mkt Cap"]
+            pe_keys = ["P/E", "PE", "pe", "PE Ratio"]
+            price_keys = ["Price", "price", "Current Price"]
+            change_keys = ["Change", "change", "% Change", "Change %"]
+            volume_keys = ["Volume", "volume", "Vol"]
 
             # Extract data using flexible key matching
             symbol = self._get_value_by_keys(row, symbol_keys)
@@ -384,7 +399,9 @@ class FinVizScreener:
             country = self._get_value_by_keys(row, country_keys) or "USA"
 
             # Parse numeric fields with error handling
-            market_cap = self._parse_market_cap(self._get_value_by_keys(row, market_cap_keys))
+            market_cap = self._parse_market_cap(
+                self._get_value_by_keys(row, market_cap_keys)
+            )
             pe_ratio = self._parse_float(self._get_value_by_keys(row, pe_keys))
             price = self._parse_decimal(self._get_value_by_keys(row, price_keys))
             change = self._parse_float(self._get_value_by_keys(row, change_keys))
@@ -402,11 +419,13 @@ class FinVizScreener:
                 price=price,
                 change=change,
                 volume=volume,
-                timestamp=timestamp
+                timestamp=timestamp,
             )
 
         except Exception as e:
-            logger.warning(f"Failed to clean row data for {row.get('Ticker', 'unknown')}: {e}")
+            logger.warning(
+                f"Failed to clean row data for {row.get('Ticker', 'unknown')}: {e}"
+            )
             return None
 
     def _get_value_by_keys(self, row: Dict[str, str], keys: List[str]) -> Optional[str]:
@@ -418,39 +437,39 @@ class FinVizScreener:
 
     def _parse_float(self, value: Optional[str]) -> Optional[float]:
         """Parse string to float with error handling."""
-        if not value or value in ['-', 'N/A', '']:
+        if not value or value in ["-", "N/A", ""]:
             return None
         try:
             # Remove percentage signs and commas
-            cleaned = value.replace('%', '').replace(',', '')
+            cleaned = value.replace("%", "").replace(",", "")
             return float(cleaned)
         except (ValueError, TypeError):
             return None
 
     def _parse_decimal(self, value: Optional[str]) -> Optional[Decimal]:
         """Parse string to Decimal with error handling."""
-        if not value or value in ['-', 'N/A', '']:
+        if not value or value in ["-", "N/A", ""]:
             return None
         try:
             # Remove currency symbols and commas
-            cleaned = value.replace('$', '').replace(',', '')
+            cleaned = value.replace("$", "").replace(",", "")
             return Decimal(cleaned)
         except (ValueError, TypeError, Exception):
             return None
 
     def _parse_volume(self, value: Optional[str]) -> Optional[int]:
         """Parse volume string to integer."""
-        if not value or value in ['-', 'N/A', '']:
+        if not value or value in ["-", "N/A", ""]:
             return None
         try:
             # Handle volume suffixes (K, M, B)
-            cleaned = value.replace(',', '').upper()
+            cleaned = value.replace(",", "").upper()
 
-            if cleaned.endswith('K'):
+            if cleaned.endswith("K"):
                 return int(float(cleaned[:-1]) * 1000)
-            elif cleaned.endswith('M'):
+            elif cleaned.endswith("M"):
                 return int(float(cleaned[:-1]) * 1000000)
-            elif cleaned.endswith('B'):
+            elif cleaned.endswith("B"):
                 return int(float(cleaned[:-1]) * 1000000000)
             else:
                 return int(float(cleaned))
@@ -460,20 +479,20 @@ class FinVizScreener:
 
     def _parse_market_cap(self, value: Optional[str]) -> Optional[Decimal]:
         """Parse market cap string to Decimal with error handling."""
-        if not value or value in ['-', 'N/A', '']:
+        if not value or value in ["-", "N/A", ""]:
             return None
         try:
             # Remove currency symbols and commas
-            cleaned = value.replace('$', '').replace(',', '').upper()
+            cleaned = value.replace("$", "").replace(",", "").upper()
 
             # Handle market cap suffixes (K, M, B, T)
-            if cleaned.endswith('K'):
+            if cleaned.endswith("K"):
                 return Decimal(str(float(cleaned[:-1]) * 1000))
-            elif cleaned.endswith('M'):
+            elif cleaned.endswith("M"):
                 return Decimal(str(float(cleaned[:-1]) * 1000000))
-            elif cleaned.endswith('B'):
+            elif cleaned.endswith("B"):
                 return Decimal(str(float(cleaned[:-1]) * 1000000000))
-            elif cleaned.endswith('T'):
+            elif cleaned.endswith("T"):
                 return Decimal(str(float(cleaned[:-1]) * 1000000000000))
             else:
                 return Decimal(cleaned)
@@ -482,9 +501,7 @@ class FinVizScreener:
             return None
 
     async def get_top_momentum_stocks(
-        self,
-        limit: int = 20,
-        custom_params: Optional[Dict[str, Any]] = None
+        self, limit: int = 20, custom_params: Optional[Dict[str, Any]] = None
     ) -> FinVizScreenerResult:
         """
         Get top momentum stocks using default parameters.
@@ -506,9 +523,7 @@ class FinVizScreener:
         return await self.fetch_screener_data(params, limit)
 
     async def get_high_volume_breakouts(
-        self,
-        limit: int = 15,
-        min_volume_ratio: float = 2.0
+        self, limit: int = 15, min_volume_ratio: float = 2.0
     ) -> FinVizScreenerResult:
         """
         Get stocks with high volume breakouts.
@@ -539,15 +554,13 @@ class FinVizScreener:
             price_max=None,
             above_sma20=False,
             weekly_volatility_min=None,
-            custom_filters=custom_filters
+            custom_filters=custom_filters,
         )
 
         return await self.fetch_screener_data(params, limit)
 
     async def get_gappers(
-        self,
-        limit: int = 15,
-        min_gap_percent: float = 5.0
+        self, limit: int = 15, min_gap_percent: float = 5.0
     ) -> FinVizScreenerResult:
         """
         Get stocks with significant gaps.
@@ -559,7 +572,7 @@ class FinVizScreener:
         Returns:
             FinVizScreenerResult with gap stocks
         """
-        custom_filters={
+        custom_filters = {
             "market_cap": "cap_0.1to",
             "average_volume": "sh_avgvol_o200",
             "current_volume": "sh_curvol_o500",
@@ -575,15 +588,12 @@ class FinVizScreener:
             price_max=None,
             above_sma20=False,
             weekly_volatility_min=None,
-            custom_filters=custom_filters
+            custom_filters=custom_filters,
         )
 
         return await self.fetch_screener_data(params, limit)
 
-    async def get_stable_growth_stocks(
-        self,
-        limit: int = 15
-    ) -> FinVizScreenerResult:
+    async def get_stable_growth_stocks(self, limit: int = 15) -> FinVizScreenerResult:
         """
         Get stable growth stocks with consistent performance.
         Conservative approach for steady returns.
@@ -605,16 +615,13 @@ class FinVizScreener:
             weekly_volatility_min=1.0,  # Very low volatility requirement
             custom_filters={
                 "earnings_growth": "fa_epsqoq_pos",  # Positive earnings growth
-                "revenue_growth": "fa_salesqoq_pos"  # Positive revenue growth
-            }
+                "revenue_growth": "fa_salesqoq_pos",  # Positive revenue growth
+            },
         )
 
         return await self.fetch_screener_data(params, limit)
 
-    async def get_value_stocks(
-        self,
-        limit: int = 15
-    ) -> FinVizScreenerResult:
+    async def get_value_stocks(self, limit: int = 15) -> FinVizScreenerResult:
         """
         Get undervalued stocks with good fundamentals.
         Value investing approach.
@@ -637,16 +644,14 @@ class FinVizScreener:
             custom_filters={
                 "pe_low": "fa_pe_low",  # Low P/E ratio
                 "pb_low": "fa_pb_low",  # Low P/B ratio
-                "debt_low": "fa_debteq_low"  # Low debt-to-equity
-            }
+                "debt_low": "fa_debteq_low",  # Low debt-to-equity
+            },
         )
 
         return await self.fetch_screener_data(params, limit)
 
     async def get_dividend_stocks(
-        self,
-        limit: int = 10,
-        min_yield: float = 2.0
+        self, limit: int = 10, min_yield: float = 2.0
     ) -> FinVizScreenerResult:
         """
         Get dividend-paying stocks for income strategy.
@@ -669,8 +674,8 @@ class FinVizScreener:
             weekly_volatility_min=None,
             custom_filters={
                 "dividend_yield": f"fa_div_o{min_yield}",  # Dividend yield over min_yield%
-                "payout_ratio": "fa_payoutratio_low"  # Sustainable payout ratio
-            }
+                "payout_ratio": "fa_payoutratio_low",  # Sustainable payout ratio
+            },
         )
 
         return await self.fetch_screener_data(params, limit)
@@ -703,14 +708,17 @@ class FinVizScreener:
                 "price": "sh_price_2to20",
                 "relative_volume": "sh_relvol_o5",
                 "performance": "ta_perf_d10o",
-            }
+            },
         )
 
         return await self.fetch_screener_data(params, limit)
 
     def get_last_scan_time(self) -> datetime:
         """Get timestamp of last successful scan."""
-        if hasattr(self._rate_limiter, 'last_call') and self._rate_limiter.last_call > 0:
+        if (
+            hasattr(self._rate_limiter, "last_call")
+            and self._rate_limiter.last_call > 0
+        ):
             return datetime.fromtimestamp(self._rate_limiter.last_call)
         return None
 
@@ -748,7 +756,7 @@ class FinVizScreener:
                 price_max=None,
                 above_sma20=False,
                 weekly_volatility_min=None,
-                custom_filters={"sector": "sec_technology"}
+                custom_filters={"sector": "sec_technology"},
             )
 
             session = await self._get_session()
@@ -757,12 +765,12 @@ class FinVizScreener:
             async with session.get(
                 self.export_url,
                 params=request_params,
-                timeout=aiohttp.ClientTimeout(total=10.0)
+                timeout=aiohttp.ClientTimeout(total=10.0),
             ) as response:
                 if response.status == 200:
                     content = await response.text()
                     # Check if we got valid CSV content
-                    return content.startswith('No.,Ticker') or 'Ticker' in content[:100]
+                    return content.startswith("No.,Ticker") or "Ticker" in content[:100]
                 return False
 
         except Exception as e:
@@ -770,9 +778,7 @@ class FinVizScreener:
             return False
 
     async def get_sector_leaders(
-        self,
-        sector: str,
-        limit: int = 10
+        self, sector: str, limit: int = 10
     ) -> FinVizScreenerResult:
         """
         Get leading stocks from a specific sector.
@@ -795,7 +801,7 @@ class FinVizScreener:
             "materials": "sec_basicmaterials",
             "utilities": "sec_utilities",
             "real_estate": "sec_realestate",
-            "communication": "sec_communicationservices"
+            "communication": "sec_communicationservices",
         }
 
         sector_code = sector_map.get(sector.lower(), f"sec_{sector.lower()}")
@@ -811,16 +817,13 @@ class FinVizScreener:
             weekly_volatility_min=None,
             custom_filters={
                 "sector": sector_code,
-                "performance": "ta_perf_1w_o5"  # 1-week performance > 5%
-            }
+                "performance": "ta_perf_1w_o5",  # 1-week performance > 5%
+            },
         )
 
         return await self.fetch_screener_data(params, limit)
 
-    def create_custom_screener(
-        self,
-        **kwargs
-    ) -> FinVizScreenerParams:
+    def create_custom_screener(self, **kwargs) -> FinVizScreenerParams:
         """
         Create custom screener parameters.
 
@@ -836,10 +839,7 @@ class FinVizScreener:
 
 
 # Convenience functions for common screening strategies
-async def scan_momentum_stocks(
-    screener: FinVizScreener,
-    limit: int = 20
-) -> List[str]:
+async def scan_momentum_stocks(screener: FinVizScreener, limit: int = 20) -> List[str]:
     """
     Quick scan for momentum stocks returning just ticker symbols.
 
@@ -855,8 +855,7 @@ async def scan_momentum_stocks(
 
 
 async def scan_volume_leaders(
-    screener: FinVizScreener,
-    limit: int = 15
+    screener: FinVizScreener, limit: int = 15
 ) -> List[Dict[str, Any]]:
     """
     Scan for volume leaders with essential data.
@@ -872,12 +871,12 @@ async def scan_volume_leaders(
 
     return [
         {
-            'symbol': stock.symbol,
-            'price': float(stock.price) if stock.price else 0.0,
-            'change': stock.change or 0.0,
-            'volume': stock.volume or 0,
-            'sector': stock.sector,
-            'market_cap': stock.market_cap
+            "symbol": stock.symbol,
+            "price": float(stock.price) if stock.price else 0.0,
+            "change": stock.change or 0.0,
+            "volume": stock.volume or 0,
+            "sector": stock.sector,
+            "market_cap": stock.market_cap,
         }
         for stock in result.data
     ]
@@ -885,6 +884,7 @@ async def scan_volume_leaders(
 
 # Example usage patterns
 if __name__ == "__main__":
+
     async def main():
         async with FinVizScreener() as screener:
             # Test connection
@@ -897,7 +897,9 @@ if __name__ == "__main__":
             print(f"Found {result.total_count} momentum stocks:")
 
             for stock in result.data[:5]:  # Show top 5
-                print(f"  {stock.symbol}: ${stock.price} ({stock.change:+.2f}%) Vol: {stock.volume:,}")
+                print(
+                    f"  {stock.symbol}: ${stock.price} ({stock.change:+.2f}%) Vol: {stock.volume:,}"
+                )
 
             # Get technology sector leaders
             tech_result = await screener.get_sector_leaders("technology", limit=5)

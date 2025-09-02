@@ -6,23 +6,21 @@ and various helper functions for the trade execution service.
 """
 
 import asyncio
+import functools
+import json
 import logging
+import math
+import time
 import traceback
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, List, Optional, Any, Callable, Union, Tuple
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from uuid import UUID
-import json
-import functools
-import time
 
 import asyncpg
 import redis.asyncio as redis
 
-import math
-
 from shared.config import get_config
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +28,12 @@ logger = logging.getLogger(__name__)
 class ExecutionError(Exception):
     """Custom exception for execution errors."""
 
-    def __init__(self, message: str, error_code: Optional[str] = None, context: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        message: str,
+        error_code: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         self.message = message
         self.error_code = error_code
         self.context = context or {}
@@ -45,7 +48,9 @@ class AuditLogger:
     with detailed context for compliance and debugging.
     """
 
-    def __init__(self, db_pool: Optional[asyncpg.Pool], redis_client: Optional[redis.Redis]):
+    def __init__(
+        self, db_pool: Optional[asyncpg.Pool], redis_client: Optional[redis.Redis]
+    ):
         """Initialize audit logger."""
         self.db_pool = db_pool
         self.redis = redis_client
@@ -57,19 +62,19 @@ class AuditLogger:
         symbol: str,
         decision: str,
         reasoning: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ):
         """Log a trade decision."""
         try:
             audit_entry = {
-                'event_type': 'TRADE_DECISION',
-                'signal_id': str(signal_id),
-                'symbol': symbol,
-                'decision': decision,
-                'reasoning': reasoning,
-                'context': context or {},
-                'timestamp': datetime.now(timezone.utc),
-                'service': 'trade_executor'
+                "event_type": "TRADE_DECISION",
+                "signal_id": str(signal_id),
+                "symbol": symbol,
+                "decision": decision,
+                "reasoning": reasoning,
+                "context": context or {},
+                "timestamp": datetime.now(timezone.utc),
+                "service": "trade_executor",
             }
 
             await self._store_audit_entry(audit_entry)
@@ -82,17 +87,17 @@ class AuditLogger:
         order_id: UUID,
         broker_order_id: str,
         event_type: str,
-        details: Dict[str, Any]
+        details: Dict[str, Any],
     ):
         """Log order-related events."""
         try:
             audit_entry = {
-                'event_type': f'ORDER_{event_type.upper()}',
-                'order_id': str(order_id),
-                'broker_order_id': broker_order_id,
-                'details': details,
-                'timestamp': datetime.now(timezone.utc),
-                'service': 'trade_executor'
+                "event_type": f"ORDER_{event_type.upper()}",
+                "order_id": str(order_id),
+                "broker_order_id": broker_order_id,
+                "details": details,
+                "timestamp": datetime.now(timezone.utc),
+                "service": "trade_executor",
             }
 
             await self._store_audit_entry(audit_entry)
@@ -101,21 +106,17 @@ class AuditLogger:
             logger.error(f"Failed to log order event: {e}")
 
     async def log_position_event(
-        self,
-        position_id: UUID,
-        symbol: str,
-        event_type: str,
-        details: Dict[str, Any]
+        self, position_id: UUID, symbol: str, event_type: str, details: Dict[str, Any]
     ):
         """Log position-related events."""
         try:
             audit_entry = {
-                'event_type': f'POSITION_{event_type.upper()}',
-                'position_id': str(position_id),
-                'symbol': symbol,
-                'details': details,
-                'timestamp': datetime.now(timezone.utc),
-                'service': 'trade_executor'
+                "event_type": f"POSITION_{event_type.upper()}",
+                "position_id": str(position_id),
+                "symbol": symbol,
+                "details": details,
+                "timestamp": datetime.now(timezone.utc),
+                "service": "trade_executor",
             }
 
             await self._store_audit_entry(audit_entry)
@@ -129,18 +130,18 @@ class AuditLogger:
         severity: str,
         symbol: str,
         description: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ):
         """Log risk management events."""
         try:
             audit_entry = {
-                'event_type': f'RISK_{event_type.upper()}',
-                'severity': severity,
-                'symbol': symbol,
-                'description': description,
-                'context': context or {},
-                'timestamp': datetime.now(timezone.utc),
-                'service': 'trade_executor'
+                "event_type": f"RISK_{event_type.upper()}",
+                "severity": severity,
+                "symbol": symbol,
+                "description": description,
+                "context": context or {},
+                "timestamp": datetime.now(timezone.utc),
+                "service": "trade_executor",
             }
 
             await self._store_audit_entry(audit_entry)
@@ -149,19 +150,16 @@ class AuditLogger:
             logger.error(f"Failed to log risk event: {e}")
 
     async def log_system_event(
-        self,
-        event_type: str,
-        message: str,
-        context: Optional[Dict[str, Any]] = None
+        self, event_type: str, message: str, context: Optional[Dict[str, Any]] = None
     ):
         """Log system events."""
         try:
             audit_entry = {
-                'event_type': f'SYSTEM_{event_type.upper()}',
-                'message': message,
-                'context': context or {},
-                'timestamp': datetime.now(timezone.utc),
-                'service': 'trade_executor'
+                "event_type": f"SYSTEM_{event_type.upper()}",
+                "message": message,
+                "context": context or {},
+                "timestamp": datetime.now(timezone.utc),
+                "service": "trade_executor",
             }
 
             await self._store_audit_entry(audit_entry)
@@ -175,16 +173,17 @@ class AuditLogger:
             # Store in database
             if self.db_pool:
                 async with self.db_pool.acquire() as conn:
-                    await conn.execute("""
+                    await conn.execute(
+                        """
                         INSERT INTO audit.execution_log (
                             event_type, symbol, details, timestamp, service
                         ) VALUES ($1, $2, $3, $4, $5)
                     """,
-                        entry['event_type'],
-                        entry.get('symbol'),
-                        json.dumps(entry['details'], default=str),
-                        entry['timestamp'],
-                        entry['service']
+                        entry["event_type"],
+                        entry.get("symbol"),
+                        json.dumps(entry["details"], default=str),
+                        entry["timestamp"],
+                        entry["service"],
                     )
 
             # Also publish to Redis for real-time monitoring
@@ -216,7 +215,7 @@ class RetryManager:
         exponential_base: float = 2.0,
         jitter: bool = True,
         retry_on: tuple = (Exception,),
-        circuit_breaker_key: Optional[str] = None
+        circuit_breaker_key: Optional[str] = None,
     ):
         """
         Execute function with advanced retry logic.
@@ -261,10 +260,11 @@ class RetryManager:
                         await self._record_circuit_failure(circuit_breaker_key)
 
                     # Send to dead letter queue
-                    await self._send_to_dlq(func.__name__, str(e), {
-                        'attempts': attempt,
-                        'last_error': str(e)
-                    })
+                    await self._send_to_dlq(
+                        func.__name__,
+                        str(e),
+                        {"attempts": attempt, "last_error": str(e)},
+                    )
 
                     break
 
@@ -273,12 +273,15 @@ class RetryManager:
 
                 if jitter:
                     import random
-                    delay *= (0.5 + random.random())
 
-                logger.warning(f"Retry {attempt}/{max_attempts} for {func.__name__} after {delay:.2f}s: {e}")
+                    delay *= 0.5 + random.random()
+
+                logger.warning(
+                    f"Retry {attempt}/{max_attempts} for {func.__name__} after {delay:.2f}s: {e}"
+                )
                 await asyncio.sleep(delay)
 
-        if 'last_exception' in locals() and last_exception:
+        if "last_exception" in locals() and last_exception:
             raise last_exception
         else:
             raise ExecutionError("Maximum retry attempts exceeded")
@@ -293,13 +296,15 @@ class RetryManager:
             if not circuit_data:
                 return False
 
-            failure_count = int(circuit_data.get('failures', 0))
-            last_failure = circuit_data.get('last_failure')
+            failure_count = int(circuit_data.get("failures", 0))
+            last_failure = circuit_data.get("last_failure")
 
             if failure_count >= 5:  # Failure threshold
                 if last_failure:
                     last_failure_time = datetime.fromisoformat(last_failure)
-                    if datetime.now(timezone.utc) - last_failure_time < timedelta(minutes=5):  # Cool-down period
+                    if datetime.now(timezone.utc) - last_failure_time < timedelta(
+                        minutes=5
+                    ):  # Cool-down period
                         return True
 
             return False
@@ -311,8 +316,10 @@ class RetryManager:
     async def _record_circuit_failure(self, key: str):
         """Record failure in circuit breaker."""
         try:
-            await self.redis.hincrby(f"circuit:{key}", 'failures', 1)
-            await self.redis.hset(f"circuit:{key}", 'last_failure', datetime.now(timezone.utc).isoformat())
+            await self.redis.hincrby(f"circuit:{key}", "failures", 1)
+            await self.redis.hset(
+                f"circuit:{key}", "last_failure", datetime.now(timezone.utc).isoformat()
+            )
             await self.redis.expire(f"circuit:{key}", 3600)  # Expire after 1 hour
 
         except Exception as e:
@@ -330,11 +337,11 @@ class RetryManager:
         """Send failed operation to dead letter queue."""
         try:
             dlq_entry = {
-                'operation': operation,
-                'error': error,
-                'context': context,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'retry_count': context.get('attempts', 0)
+                "operation": operation,
+                "error": error,
+                "context": context,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "retry_count": context.get("attempts", 0),
             }
 
             await self.redis.lpush("execution_dlq", json.dumps(dlq_entry, default=str))
@@ -363,7 +370,9 @@ class DecimalUtils:
         Returns:
             Rounded price
         """
-        return (price / tick_size).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * tick_size
+        return (price / tick_size).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        ) * tick_size
 
     @staticmethod
     def calculate_percentage_change(old_value: Decimal, new_value: Decimal) -> Decimal:
@@ -379,10 +388,7 @@ class DecimalUtils:
 
     @staticmethod
     def calculate_pnl(
-        entry_price: Decimal,
-        exit_price: Decimal,
-        quantity: int,
-        side: str
+        entry_price: Decimal, exit_price: Decimal, quantity: int, side: str
     ) -> Decimal:
         """
         Calculate P&L for a trade.
@@ -396,7 +402,7 @@ class DecimalUtils:
         Returns:
             Realized P&L
         """
-        if side.lower() == 'long':
+        if side.lower() == "long":
             return (exit_price - entry_price) * abs(quantity)
         else:  # short
             return (entry_price - exit_price) * abs(quantity)
@@ -407,7 +413,9 @@ class DecimalUtils:
         return f"{currency} {amount:,.2f}"
 
     @staticmethod
-    def safe_divide(numerator: Decimal, denominator: Decimal, default: Decimal = Decimal("0")) -> Decimal:
+    def safe_divide(
+        numerator: Decimal, denominator: Decimal, default: Decimal = Decimal("0")
+    ) -> Decimal:
         """Safe division that handles zero denominator."""
         if denominator == 0:
             return default
@@ -435,7 +443,7 @@ class MarketDataUtils:
         # Calculate returns
         returns = []
         for i in range(1, min(len(prices), periods + 1)):
-            ret = (prices[i] - prices[i-1]) / prices[i-1]
+            ret = (prices[i] - prices[i - 1]) / prices[i - 1]
             returns.append(ret)
 
         if not returns:
@@ -445,7 +453,9 @@ class MarketDataUtils:
         mean_return = sum(returns) / len(returns)
         variance = sum((ret - mean_return) ** 2 for ret in returns) / len(returns)
 
-        return Decimal(str(math.sqrt(float(variance)))) if variance > 0 else Decimal("0")
+        return (
+            Decimal(str(math.sqrt(float(variance)))) if variance > 0 else Decimal("0")
+        )
 
     @staticmethod
     def calculate_rsi(prices: List[Decimal], periods: int = 14) -> Optional[Decimal]:
@@ -466,7 +476,7 @@ class MarketDataUtils:
         losses = []
 
         for i in range(1, periods + 1):
-            change = prices[i] - prices[i-1]
+            change = prices[i] - prices[i - 1]
             if change > 0:
                 gains.append(change)
                 losses.append(Decimal("0"))
@@ -489,9 +499,10 @@ class MarketDataUtils:
     def is_market_hours() -> bool:
         """Check if current time is within market hours."""
         from datetime import datetime, timezone
+
         import pytz
 
-        ny_tz = pytz.timezone('America/New_York')
+        ny_tz = pytz.timezone("America/New_York")
         ny_time = datetime.now(ny_tz)
 
         # Basic market hours check (9:30 AM - 4:00 PM ET, Mon-Fri)
@@ -509,8 +520,7 @@ class PerformanceUtils:
 
     @staticmethod
     def calculate_sharpe_ratio(
-        returns: List[Decimal],
-        risk_free_rate: Decimal = Decimal("0.02")
+        returns: List[Decimal], risk_free_rate: Decimal = Decimal("0.02")
     ) -> Optional[Decimal]:
         """
         Calculate Sharpe ratio.
@@ -529,7 +539,10 @@ class PerformanceUtils:
         daily_rf_rate = risk_free_rate / 252
 
         # Calculate excess returns
-        excess_returns = [Decimal(str(float(ret))) - Decimal(str(float(daily_rf_rate))) for ret in returns]
+        excess_returns = [
+            Decimal(str(float(ret))) - Decimal(str(float(daily_rf_rate)))
+            for ret in returns
+        ]
 
         # Calculate mean and std
         mean_excess = sum(excess_returns) / len(excess_returns)
@@ -537,21 +550,27 @@ class PerformanceUtils:
         if len(excess_returns) < 2:
             return None
 
-        variance = sum((Decimal(str(float(ret))) - Decimal(str(float(mean_excess)))) ** 2 for ret in excess_returns) / (len(excess_returns) - 1)
-        std_excess = Decimal(str(math.sqrt(float(variance)))) if variance > 0 else Decimal("0")
+        variance = sum(
+            (Decimal(str(float(ret))) - Decimal(str(float(mean_excess)))) ** 2
+            for ret in excess_returns
+        ) / (len(excess_returns) - 1)
+        std_excess = (
+            Decimal(str(math.sqrt(float(variance)))) if variance > 0 else Decimal("0")
+        )
 
         if std_excess == 0:
             return None
 
         # Annualize
-        sharpe = (Decimal(str(float(mean_excess))) / std_excess) * Decimal(str(math.sqrt(252)))
+        sharpe = (Decimal(str(float(mean_excess))) / std_excess) * Decimal(
+            str(math.sqrt(252))
+        )
         # Clamp the value to database field limits (DECIMAL(8,6) = ±99.999999)
         return max(Decimal("-99.999999"), min(Decimal("99.999999"), sharpe))
 
     @staticmethod
     def calculate_sortino_ratio(
-        returns: List[Decimal],
-        risk_free_rate: Decimal = Decimal("0.02")
+        returns: List[Decimal], risk_free_rate: Decimal = Decimal("0.02")
     ) -> Optional[Decimal]:
         """
         Calculate Sortino ratio (using downside deviation).
@@ -576,14 +595,22 @@ class PerformanceUtils:
             return None
 
         mean_excess = sum(excess_returns) / len(excess_returns)
-        downside_variance = sum(Decimal(str(float(ret))) ** 2 for ret in downside_returns) / len(downside_returns)
-        std_downside = Decimal(str(math.sqrt(float(downside_variance)))) if downside_variance > 0 else Decimal("0")
+        downside_variance = sum(
+            Decimal(str(float(ret))) ** 2 for ret in downside_returns
+        ) / len(downside_returns)
+        std_downside = (
+            Decimal(str(math.sqrt(float(downside_variance))))
+            if downside_variance > 0
+            else Decimal("0")
+        )
 
         if std_downside == 0:
             return None
 
         # Annualize
-        sortino = (Decimal(str(float(mean_excess))) / std_downside) * Decimal(str(math.sqrt(252)))
+        sortino = (Decimal(str(float(mean_excess))) / std_downside) * Decimal(
+            str(math.sqrt(252))
+        )
         return sortino
 
     @staticmethod
@@ -598,7 +625,7 @@ class PerformanceUtils:
             Dictionary with drawdown metrics
         """
         if len(values) < 2:
-            return {'max_drawdown': 0, 'drawdown_duration': 0}
+            return {"max_drawdown": 0, "drawdown_duration": 0}
 
         peak = values[0]
         max_drawdown = Decimal("0")
@@ -629,9 +656,9 @@ class PerformanceUtils:
             max_duration = max(max_duration, current_duration)
 
         return {
-            'max_drawdown': float(max_drawdown),
-            'max_drawdown_duration': max_duration,
-            'current_drawdown': float((peak - values[-1]) / peak) if peak > 0 else 0
+            "max_drawdown": float(max_drawdown),
+            "max_drawdown_duration": max_duration,
+            "current_drawdown": float((peak - values[-1]) / peak) if peak > 0 else 0,
         }
 
 
@@ -643,7 +670,7 @@ class ValidationUtils:
         entry_price: Decimal,
         stop_loss: Optional[Decimal],
         take_profit: Optional[Decimal],
-        side: str
+        side: str,
     ) -> List[str]:
         """
         Validate price levels for logical consistency.
@@ -659,25 +686,29 @@ class ValidationUtils:
         """
         errors = []
 
-        if side.lower() == 'long':
+        if side.lower() == "long":
             if stop_loss and stop_loss >= entry_price:
                 errors.append("Stop loss must be below entry price for long positions")
 
             if take_profit and take_profit <= entry_price:
-                errors.append("Take profit must be above entry price for long positions")
+                errors.append(
+                    "Take profit must be above entry price for long positions"
+                )
 
-        elif side.lower() == 'short':
+        elif side.lower() == "short":
             if stop_loss and stop_loss <= entry_price:
                 errors.append("Stop loss must be above entry price for short positions")
 
             if take_profit and take_profit >= entry_price:
-                errors.append("Take profit must be below entry price for short positions")
+                errors.append(
+                    "Take profit must be below entry price for short positions"
+                )
 
         # Check that stop loss and take profit make sense relative to each other
         if stop_loss and take_profit:
-            if side.lower() == 'long' and stop_loss >= take_profit:
+            if side.lower() == "long" and stop_loss >= take_profit:
                 errors.append("Stop loss must be below take profit for long positions")
-            elif side.lower() == 'short' and stop_loss <= take_profit:
+            elif side.lower() == "short" and stop_loss <= take_profit:
                 errors.append("Stop loss must be above take profit for short positions")
 
         return errors
@@ -720,12 +751,14 @@ class TimeUtils:
     def get_market_timezone():
         """Get market timezone."""
         import pytz
-        return pytz.timezone('America/New_York')
+
+        return pytz.timezone("America/New_York")
 
     @staticmethod
     def to_market_time(dt: datetime) -> datetime:
         """Convert datetime to market timezone."""
         import pytz
+
         if dt.tzinfo is None:
             dt = pytz.utc.localize(dt)
         return dt.astimezone(TimeUtils.get_market_timezone())
@@ -751,7 +784,9 @@ class TimeUtils:
         while True:
             next_day = now + timedelta(days=days_ahead)
             if next_day.weekday() < 5:  # Monday = 0, Friday = 4
-                return ny_tz.localize(datetime.combine(next_day.date(), market_open_time))
+                return ny_tz.localize(
+                    datetime.combine(next_day.date(), market_open_time)
+                )
             days_ahead += 1
 
     @staticmethod
@@ -782,18 +817,18 @@ class NotificationUtils:
         symbol: str,
         message: str,
         severity: str = "info",
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Dict[str, Any]] = None,
     ):
         """Send execution-related alert."""
         try:
             alert = {
-                'type': 'execution_alert',
-                'symbol': symbol,
-                'message': message,
-                'severity': severity,
-                'context': context or {},
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'service': 'trade_executor'
+                "type": "execution_alert",
+                "symbol": symbol,
+                "message": message,
+                "severity": severity,
+                "context": context or {},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "trade_executor",
             }
 
             # Publish to alerts channel
@@ -814,23 +849,25 @@ class NotificationUtils:
         symbol: str,
         risk_type: str,
         message: str,
-        metrics: Optional[Dict[str, Any]] = None
+        metrics: Optional[Dict[str, Any]] = None,
     ):
         """Send risk management alert."""
         try:
             alert = {
-                'type': 'risk_alert',
-                'position_id': str(position_id),
-                'symbol': symbol,
-                'risk_type': risk_type,
-                'message': message,
-                'metrics': metrics or {},
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'service': 'trade_executor'
+                "type": "risk_alert",
+                "position_id": str(position_id),
+                "symbol": symbol,
+                "risk_type": risk_type,
+                "message": message,
+                "metrics": metrics or {},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "trade_executor",
             }
 
             await self.redis.publish("alerts:risk", json.dumps(alert, default=str))
-            await self.redis.lpush("alerts:risk_history", json.dumps(alert, default=str))
+            await self.redis.lpush(
+                "alerts:risk_history", json.dumps(alert, default=str)
+            )
             await self.redis.ltrim("alerts:risk_history", 0, 999)
 
             logger.warning(f"Risk alert: {symbol} - {message}")
@@ -839,21 +876,21 @@ class NotificationUtils:
             logger.error(f"Failed to send risk alert: {e}")
 
     async def send_performance_notification(
-        self,
-        metrics: Dict[str, Any],
-        notification_type: str = "daily_summary"
+        self, metrics: Dict[str, Any], notification_type: str = "daily_summary"
     ):
         """Send performance notification."""
         try:
             notification = {
-                'type': 'performance_notification',
-                'notification_type': notification_type,
-                'metrics': metrics,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'service': 'trade_executor'
+                "type": "performance_notification",
+                "notification_type": notification_type,
+                "metrics": metrics,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "service": "trade_executor",
             }
 
-            await self.redis.publish("notifications:performance", json.dumps(notification, default=str))
+            await self.redis.publish(
+                "notifications:performance", json.dumps(notification, default=str)
+            )
 
             logger.info(f"Performance notification sent: {notification_type}")
 
@@ -868,14 +905,14 @@ class CacheManager:
         """Initialize cache manager."""
         self.redis = redis_client
 
-    async def cache_position_data(self, symbol: str, position_data: Dict[str, Any], ttl: int = 300):
+    async def cache_position_data(
+        self, symbol: str, position_data: Dict[str, Any], ttl: int = 300
+    ):
         """Cache position data."""
         try:
             cache_key = f"position:{symbol}"
             await self.redis.setex(
-                cache_key,
-                ttl,
-                json.dumps(position_data, default=str)
+                cache_key, ttl, json.dumps(position_data, default=str)
             )
         except Exception as e:
             logger.error(f"Failed to cache position data for {symbol}: {e}")
@@ -896,11 +933,7 @@ class CacheManager:
         """Cache market data."""
         try:
             cache_key = f"market_data:{symbol}"
-            await self.redis.setex(
-                cache_key,
-                ttl,
-                json.dumps(data, default=str)
-            )
+            await self.redis.setex(cache_key, ttl, json.dumps(data, default=str))
         except Exception as e:
             logger.error(f"Failed to cache market data for {symbol}: {e}")
 
@@ -935,6 +968,7 @@ def rate_limit(max_calls: int, period: int):
         max_calls: Maximum calls allowed
         period: Time period in seconds
     """
+
     def decorator(func):
         calls = []
 
@@ -947,7 +981,9 @@ def rate_limit(max_calls: int, period: int):
 
             # Check rate limit
             if len(calls) >= max_calls:
-                raise ExecutionError(f"Rate limit exceeded: {max_calls} calls per {period} seconds")
+                raise ExecutionError(
+                    f"Rate limit exceeded: {max_calls} calls per {period} seconds"
+                )
 
             # Record this call
             calls.append(now)
@@ -955,11 +991,13 @@ def rate_limit(max_calls: int, period: int):
             return await func(*args, **kwargs)
 
         return wrapper
+
     return decorator
 
 
 def timing_decorator(func):
     """Decorator to measure function execution time."""
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -972,47 +1010,45 @@ def timing_decorator(func):
             execution_time = time.time() - start_time
             logger.error(f"{func.__name__} failed after {execution_time:.3f}s: {e}")
             raise
+
     return wrapper
 
 
 class ErrorHandler:
     """Centralized error handling for the execution service."""
 
-    def __init__(self, audit_logger: AuditLogger, notification_utils: NotificationUtils):
+    def __init__(
+        self, audit_logger: AuditLogger, notification_utils: NotificationUtils
+    ):
         """Initialize error handler."""
         self.audit_logger = audit_logger
         self.notification_utils = notification_utils
 
     async def handle_execution_error(
-        self,
-        error: Exception,
-        context: Dict[str, Any],
-        severity: str = "error"
+        self, error: Exception, context: Dict[str, Any], severity: str = "error"
     ):
         """Handle execution errors with proper logging and notifications."""
         try:
             error_details = {
-                'error_type': type(error).__name__,
-                'error_message': str(error),
-                'stack_trace': traceback.format_exc(),
-                'context': context,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+                "stack_trace": traceback.format_exc(),
+                "context": context,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             # Log to audit system
             await self.audit_logger.log_system_event(
-                "ERROR",
-                f"Execution error: {error}",
-                error_details
+                "ERROR", f"Execution error: {error}", error_details
             )
 
             # Send notification for critical errors
             if severity in ["critical", "error"]:
                 await self.notification_utils.send_execution_alert(
-                    context.get('symbol', 'SYSTEM'),
+                    context.get("symbol", "SYSTEM"),
                     f"Execution error: {error}",
                     severity,
-                    error_details
+                    error_details,
                 )
 
             logger.error(f"Handled execution error: {error}")
@@ -1021,69 +1057,69 @@ class ErrorHandler:
             logger.error(f"Error handler failed: {e}")
 
     async def handle_api_error(
-        self,
-        error: Exception,
-        api_name: str,
-        operation: str,
-        context: Dict[str, Any]
+        self, error: Exception, api_name: str, operation: str, context: Dict[str, Any]
     ):
         """Handle API-specific errors."""
         try:
             error_details = {
-                'api_name': api_name,
-                'operation': operation,
-                'error_type': type(error).__name__,
-                'error_message': str(error),
-                'context': context,
-                'timestamp': datetime.now(timezone.utc).isoformat()
+                "api_name": api_name,
+                "operation": operation,
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+                "context": context,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
 
             await self.audit_logger.log_system_event(
-                "API_ERROR",
-                f"{api_name} {operation} failed: {error}",
-                error_details
+                "API_ERROR", f"{api_name} {operation} failed: {error}", error_details
             )
 
             # Specific handling for different APIs
-            if api_name.lower() == 'alpaca':
+            if api_name.lower() == "alpaca":
                 await self._handle_alpaca_error(error, operation, context)
 
         except Exception as e:
             logger.error(f"API error handler failed: {e}")
 
-    async def _handle_alpaca_error(self, error: Exception, operation: str, context: Dict[str, Any]):
+    async def _handle_alpaca_error(
+        self, error: Exception, operation: str, context: Dict[str, Any]
+    ):
         """Handle Alpaca-specific errors."""
         error_str = str(error).lower()
 
         # Insufficient funds
         if "insufficient" in error_str and "buying power" in error_str:
             await self.notification_utils.send_execution_alert(
-                context.get('symbol', 'SYSTEM'),
+                context.get("symbol", "SYSTEM"),
                 f"Insufficient buying power for {operation}",
                 "warning",
-                context
+                context,
             )
 
         # Market closed
         elif "market" in error_str and "closed" in error_str:
-            logger.info(f"Market closed error for {operation} - this is expected outside market hours")
+            logger.info(
+                f"Market closed error for {operation} - this is expected outside market hours"
+            )
 
         # Rate limiting
         elif "rate limit" in error_str or "429" in error_str:
             await self.notification_utils.send_execution_alert(
-                context.get('symbol', 'SYSTEM'),
+                context.get("symbol", "SYSTEM"),
                 f"Alpaca rate limit hit during {operation}",
                 "warning",
-                context
+                context,
             )
 
         # Symbol not found
-        elif "symbol" in error_str and ("not found" in error_str or "invalid" in error_str):
+        elif "symbol" in error_str and (
+            "not found" in error_str or "invalid" in error_str
+        ):
             await self.notification_utils.send_execution_alert(
-                context.get('symbol', 'UNKNOWN'),
+                context.get("symbol", "UNKNOWN"),
                 f"Invalid symbol in {operation}",
                 "error",
-                context
+                context,
             )
 
 
@@ -1105,33 +1141,37 @@ class HealthChecker:
                 await conn.fetchval("SELECT 1")
 
                 # Check table accessibility
-                tables_count = await conn.fetchval("""
+                tables_count = await conn.fetchval(
+                    """
                     SELECT COUNT(*) FROM information_schema.tables
                     WHERE table_schema = 'trading'
-                """)
+                """
+                )
 
                 # Check recent activity
-                recent_orders = await conn.fetchval("""
+                recent_orders = await conn.fetchval(
+                    """
                     SELECT COUNT(*) FROM trading.orders
                     WHERE created_at >= NOW() - INTERVAL '1 hour'
-                """)
+                """
+                )
 
             latency = time.time() - start_time
 
             return {
-                'status': 'healthy',
-                'latency_seconds': latency,
-                'trading_tables_count': tables_count,
-                'recent_orders_1h': recent_orders,
-                'pool_size': self.db_pool.get_size(),
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "status": "healthy",
+                "latency_seconds": latency,
+                "trading_tables_count": tables_count,
+                "recent_orders_1h": recent_orders,
+                "pool_size": self.db_pool.get_size(),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             return {
-                'status': 'unhealthy',
-                'error': str(e),
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "status": "unhealthy",
+                "error": str(e),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
     async def check_redis_health(self) -> Dict[str, Any]:
@@ -1154,20 +1194,20 @@ class HealthChecker:
             info = await self.redis.info()
 
             return {
-                'status': 'healthy',
-                'latency_seconds': latency,
-                'connected_clients': info.get('connected_clients', 0),
-                'used_memory_human': info.get('used_memory_human', 'unknown'),
-                'keyspace_hits': info.get('keyspace_hits', 0),
-                'keyspace_misses': info.get('keyspace_misses', 0),
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "status": "healthy",
+                "latency_seconds": latency,
+                "connected_clients": info.get("connected_clients", 0),
+                "used_memory_human": info.get("used_memory_human", "unknown"),
+                "keyspace_hits": info.get("keyspace_hits", 0),
+                "keyspace_misses": info.get("keyspace_misses", 0),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             return {
-                'status': 'unhealthy',
-                'error': str(e),
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "status": "unhealthy",
+                "error": str(e),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
     async def check_overall_health(self) -> Dict[str, Any]:
@@ -1176,22 +1216,22 @@ class HealthChecker:
             db_health = await self.check_database_health()
             redis_health = await self.check_redis_health()
 
-            overall_status = 'healthy'
-            if db_health['status'] != 'healthy' or redis_health['status'] != 'healthy':
-                overall_status = 'degraded'
+            overall_status = "healthy"
+            if db_health["status"] != "healthy" or redis_health["status"] != "healthy":
+                overall_status = "degraded"
 
             return {
-                'overall_status': overall_status,
-                'database': db_health,
-                'redis': redis_health,
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "overall_status": overall_status,
+                "database": db_health,
+                "redis": redis_health,
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
         except Exception as e:
             return {
-                'overall_status': 'unhealthy',
-                'error': str(e),
-                'checked_at': datetime.now(timezone.utc).isoformat()
+                "overall_status": "unhealthy",
+                "error": str(e),
+                "checked_at": datetime.now(timezone.utc).isoformat(),
             }
 
 
@@ -1256,9 +1296,9 @@ class ConfigValidator:
     def validate_all_config(config) -> Dict[str, List[str]]:
         """Validate all configuration sections."""
         validation_results = {
-            'alpaca': ConfigValidator.validate_alpaca_config(config),
-            'risk': ConfigValidator.validate_risk_config(config),
-            'database': ConfigValidator.validate_database_config(config)
+            "alpaca": ConfigValidator.validate_alpaca_config(config),
+            "risk": ConfigValidator.validate_risk_config(config),
+            "database": ConfigValidator.validate_database_config(config),
         }
 
         return {k: v for k, v in validation_results.items() if v}
@@ -1309,23 +1349,19 @@ class MetricsCollector:
             gauge_keys = await self.redis.keys("metrics:gauge:*")
             execution_time_keys = await self.redis.keys("metrics:execution_time:*")
 
-            metrics = {
-                'counters': {},
-                'gauges': {},
-                'execution_times': {}
-            }
+            metrics = {"counters": {}, "gauges": {}, "execution_times": {}}
 
             # Get counter values
             for key in counter_keys:
                 metric_name = key.decode().replace("metrics:counter:", "")
                 value = await self.redis.get(key)
-                metrics['counters'][metric_name] = int(value) if value else 0
+                metrics["counters"][metric_name] = int(value) if value else 0
 
             # Get gauge values
             for key in gauge_keys:
                 metric_name = key.decode().replace("metrics:gauge:", "")
                 value = await self.redis.get(key)
-                metrics['gauges'][metric_name] = float(value) if value else 0.0
+                metrics["gauges"][metric_name] = float(value) if value else 0.0
 
             # Get execution time averages
             for key in execution_time_keys:
@@ -1333,10 +1369,10 @@ class MetricsCollector:
                 values = await self.redis.lrange(key, 0, -1)
                 if values:
                     avg_time = sum(float(v) for v in values) / len(values)
-                    metrics['execution_times'][metric_name] = {
-                        'avg': avg_time,
-                        'count': len(values),
-                        'latest': float(values[0]) if values else 0
+                    metrics["execution_times"][metric_name] = {
+                        "avg": avg_time,
+                        "count": len(values),
+                        "latest": float(values[0]) if values else 0,
                     }
 
             return metrics
@@ -1374,7 +1410,7 @@ def truncate_string(text: str, max_length: int = 100) -> str:
     """Truncate string to maximum length."""
     if len(text) <= max_length:
         return text
-    return text[:max_length - 3] + "..."
+    return text[: max_length - 3] + "..."
 
 
 async def ensure_database_schema(db_pool: asyncpg.Pool):
@@ -1382,30 +1418,42 @@ async def ensure_database_schema(db_pool: asyncpg.Pool):
     try:
         async with db_pool.acquire() as conn:
             # Check if trading schema exists
-            schema_exists = await conn.fetchval("""
+            schema_exists = await conn.fetchval(
+                """
                 SELECT EXISTS(
                     SELECT 1 FROM information_schema.schemata
                     WHERE schema_name = 'trading'
                 )
-            """)
+            """
+            )
 
             if not schema_exists:
-                logger.warning("Trading schema does not exist - run database migration scripts")
+                logger.warning(
+                    "Trading schema does not exist - run database migration scripts"
+                )
                 return False
 
             # Check required tables
             required_tables = [
-                'positions', 'orders', 'fills', 'trade_performance',
-                'daily_performance', 'execution_errors', 'bracket_orders'
+                "positions",
+                "orders",
+                "fills",
+                "trade_performance",
+                "daily_performance",
+                "execution_errors",
+                "bracket_orders",
             ]
 
             for table in required_tables:
-                table_exists = await conn.fetchval("""
+                table_exists = await conn.fetchval(
+                    """
                     SELECT EXISTS(
                         SELECT 1 FROM information_schema.tables
                         WHERE table_schema = 'trading' AND table_name = $1
                     )
-                """, table)
+                """,
+                    table,
+                )
 
                 if not table_exists:
                     logger.error(f"Required table trading.{table} does not exist")
@@ -1423,7 +1471,8 @@ async def create_audit_schema(db_pool: asyncpg.Pool):
     """Create audit schema if it doesn't exist."""
     try:
         async with db_pool.acquire() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 CREATE SCHEMA IF NOT EXISTS audit;
 
                 CREATE TABLE IF NOT EXISTS audit.execution_log (
@@ -1447,7 +1496,8 @@ async def create_audit_schema(db_pool: asyncpg.Pool):
 
                 CREATE INDEX IF NOT EXISTS idx_execution_log_service
                 ON audit.execution_log(service);
-            """)
+            """
+            )
 
         logger.info("Audit schema created/verified")
 
@@ -1461,7 +1511,7 @@ def calculate_position_sizing(
     risk_per_trade: Decimal,
     entry_price: Decimal,
     stop_loss: Decimal,
-    max_position_size: Decimal
+    max_position_size: Decimal,
 ) -> Dict[str, Any]:
     """
     Calculate optimal position sizing based on risk parameters.
@@ -1482,10 +1532,10 @@ def calculate_position_sizing(
 
         if risk_per_share == 0:
             return {
-                'shares': 0,
-                'position_value': Decimal("0"),
-                'risk_amount': Decimal("0"),
-                'error': 'No risk per share (entry price equals stop loss)'
+                "shares": 0,
+                "position_value": Decimal("0"),
+                "risk_amount": Decimal("0"),
+                "error": "No risk per share (entry price equals stop loss)",
             }
 
         # Calculate shares based on risk
@@ -1503,22 +1553,22 @@ def calculate_position_sizing(
         actual_risk = optimal_shares * risk_per_share
 
         return {
-            'shares': optimal_shares,
-            'position_value': position_value,
-            'risk_amount': actual_risk,
-            'risk_percentage': (actual_risk / account_value) * 100,
-            'position_percentage': (position_value / account_value) * 100,
-            'shares_by_risk': shares_by_risk,
-            'shares_by_position_limit': shares_by_position_limit
+            "shares": optimal_shares,
+            "position_value": position_value,
+            "risk_amount": actual_risk,
+            "risk_percentage": (actual_risk / account_value) * 100,
+            "position_percentage": (position_value / account_value) * 100,
+            "shares_by_risk": shares_by_risk,
+            "shares_by_position_limit": shares_by_position_limit,
         }
 
     except Exception as e:
         logger.error(f"Position sizing calculation failed: {e}")
         return {
-            'shares': 0,
-            'position_value': Decimal("0"),
-            'risk_amount': Decimal("0"),
-            'error': str(e)
+            "shares": 0,
+            "position_value": Decimal("0"),
+            "risk_amount": Decimal("0"),
+            "error": str(e),
         }
 
 
@@ -1532,7 +1582,7 @@ def is_tradeable_symbol(symbol: str) -> bool:
         return False
 
     # Check against common non-tradeable patterns
-    non_tradeable_patterns = ['TEST', 'DEMO', 'FAKE']
+    non_tradeable_patterns = ["TEST", "DEMO", "FAKE"]
     if any(pattern in symbol.upper() for pattern in non_tradeable_patterns):
         return False
 
@@ -1559,7 +1609,7 @@ def get_market_session(dt: Optional[datetime] = None) -> str:
     import pytz
 
     dt = dt or datetime.now(timezone.utc)
-    ny_tz = pytz.timezone('America/New_York')
+    ny_tz = pytz.timezone("America/New_York")
 
     # Convert to NY time
     if dt.tzinfo is None:
@@ -1568,7 +1618,7 @@ def get_market_session(dt: Optional[datetime] = None) -> str:
 
     # Check if weekday
     if ny_time.weekday() >= 5:  # Weekend
-        return 'closed'
+        return "closed"
 
     # Define session times
     pre_market_start = ny_time.replace(hour=4, minute=0, second=0, microsecond=0)
@@ -1577,13 +1627,13 @@ def get_market_session(dt: Optional[datetime] = None) -> str:
     after_hours_end = ny_time.replace(hour=20, minute=0, second=0, microsecond=0)
 
     if pre_market_start <= ny_time < regular_start:
-        return 'pre_market'
+        return "pre_market"
     elif regular_start <= ny_time < regular_end:
-        return 'regular'
+        return "regular"
     elif regular_end <= ny_time < after_hours_end:
-        return 'after_hours'
+        return "after_hours"
     else:
-        return 'closed'
+        return "closed"
 
 
 async def wait_for_market_open(max_wait_hours: int = 24):
@@ -1598,15 +1648,19 @@ async def wait_for_market_open(max_wait_hours: int = 24):
 
     while datetime.now(timezone.utc) - start_wait < max_wait:
         session = get_market_session()
-        if session in ['regular', 'pre_market']:
+        if session in ["regular", "pre_market"]:
             logger.info("Market is open, proceeding")
             return
 
         # Calculate time to next market open
         next_open = TimeUtils.get_next_market_open()
-        wait_time = min((next_open - datetime.now(timezone.utc)).total_seconds(), 3600)  # Max 1 hour wait
+        wait_time = min(
+            (next_open - datetime.now(timezone.utc)).total_seconds(), 3600
+        )  # Max 1 hour wait
 
-        logger.info(f"Market closed, waiting {wait_time/60:.1f} minutes until next check")
+        logger.info(
+            f"Market closed, waiting {wait_time/60:.1f} minutes until next check"
+        )
         await asyncio.sleep(wait_time)
 
     logger.warning(f"Stopped waiting for market open after {max_wait_hours} hours")
@@ -1624,19 +1678,20 @@ class ExecutionQueue:
         """Enqueue a signal for processing."""
         try:
             queue_item = {
-                'signal': signal,
-                'priority': priority,
-                'enqueued_at': datetime.now(timezone.utc).isoformat(),
-                'attempts': 0
+                "signal": signal,
+                "priority": priority,
+                "enqueued_at": datetime.now(timezone.utc).isoformat(),
+                "attempts": 0,
             }
 
             # Use priority queue (sorted set)
             await self.redis.zadd(
-                "execution_queue",
-                {json.dumps(queue_item, default=str): priority}
+                "execution_queue", {json.dumps(queue_item, default=str): priority}
             )
 
-            logger.info(f"Signal queued for {signal.get('symbol', 'unknown')} with priority {priority}")
+            logger.info(
+                f"Signal queued for {signal.get('symbol', 'unknown')} with priority {priority}"
+            )
 
         except Exception as e:
             logger.error(f"Failed to enqueue signal: {e}")
@@ -1656,7 +1711,9 @@ class ExecutionQueue:
             # Remove from queue
             await self.redis.zrem("execution_queue", item_data)
 
-            logger.debug(f"Dequeued signal for {queue_item['signal'].get('symbol', 'unknown')}")
+            logger.debug(
+                f"Dequeued signal for {queue_item['signal'].get('symbol', 'unknown')}"
+            )
             return queue_item
 
         except Exception as e:
@@ -1689,14 +1746,14 @@ async def get_business_days_between(start_date: datetime, end_date: datetime) ->
 
 def chunk_list(lst: List[Any], chunk_size: int) -> List[List[Any]]:
     """Split list into chunks of specified size."""
-    return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 async def batch_process(
     items: List[Any],
     processor: Callable,
     batch_size: int = 10,
-    delay_between_batches: float = 1.0
+    delay_between_batches: float = 1.0,
 ) -> List[Any]:
     """Process items in batches with delay."""
     results = []
@@ -1718,7 +1775,9 @@ async def batch_process(
     return results
 
 
-def create_correlation_matrix(symbols: List[str], correlations: Dict[Tuple[str, str], float]) -> Dict[str, Dict[str, float]]:
+def create_correlation_matrix(
+    symbols: List[str], correlations: Dict[Tuple[str, str], float]
+) -> Dict[str, Dict[str, float]]:
     """Create correlation matrix from pairwise correlations."""
     matrix = {}
 
@@ -1739,36 +1798,36 @@ def create_correlation_matrix(symbols: List[str], correlations: Dict[Tuple[str, 
 
 # Export key utilities for easy import
 __all__ = [
-    'ExecutionError',
-    'AuditLogger',
-    'RetryManager',
-    'DecimalUtils',
-    'MarketDataUtils',
-    'PerformanceUtils',
-    'ValidationUtils',
-    'TimeUtils',
-    'NotificationUtils',
-    'CacheManager',
-    'ErrorHandler',
-    'HealthChecker',
-    'ConfigValidator',
-    'MetricsCollector',
-    'ExecutionQueue',
-    'rate_limit',
-    'timing_decorator',
-    'safe_json_dumps',
-    'safe_json_loads',
-    'format_decimal',
-    'truncate_string',
-    'ensure_database_schema',
-    'create_audit_schema',
-    'calculate_position_sizing',
-    'is_tradeable_symbol',
-    'calculate_slippage',
-    'get_market_session',
-    'wait_for_market_open',
-    'get_business_days_between',
-    'chunk_list',
-    'batch_process',
-    'create_correlation_matrix'
+    "ExecutionError",
+    "AuditLogger",
+    "RetryManager",
+    "DecimalUtils",
+    "MarketDataUtils",
+    "PerformanceUtils",
+    "ValidationUtils",
+    "TimeUtils",
+    "NotificationUtils",
+    "CacheManager",
+    "ErrorHandler",
+    "HealthChecker",
+    "ConfigValidator",
+    "MetricsCollector",
+    "ExecutionQueue",
+    "rate_limit",
+    "timing_decorator",
+    "safe_json_dumps",
+    "safe_json_loads",
+    "format_decimal",
+    "truncate_string",
+    "ensure_database_schema",
+    "create_audit_schema",
+    "calculate_position_sizing",
+    "is_tradeable_symbol",
+    "calculate_slippage",
+    "get_market_session",
+    "wait_for_market_open",
+    "get_business_days_between",
+    "chunk_list",
+    "batch_process",
+    "create_correlation_matrix",
 ]

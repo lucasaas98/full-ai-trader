@@ -8,14 +8,14 @@ microservices architecture.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, date
-from typing import Dict, List, Optional, Any, Tuple
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
+
 import aiohttp
 import polars as pl
-from decimal import Decimal
 
 from shared.models import TimeFrame
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class DataCollectorClient:
             base_url: Base URL of the data collector service
             timeout: Request timeout in seconds
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._session: Optional[aiohttp.ClientSession] = None
 
@@ -62,7 +62,7 @@ class DataCollectorClient:
         method: str,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
-        json_data: Optional[Dict[str, Any]] = None
+        json_data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Make HTTP request to the data collector service.
@@ -84,7 +84,9 @@ class DataCollectorClient:
         url = f"{self.base_url}{endpoint}"
 
         try:
-            async with session.request(method, url, params=params, json=json_data) as response:
+            async with session.request(
+                method, url, params=params, json=json_data
+            ) as response:
                 response.raise_for_status()
                 data = await response.json()
 
@@ -103,10 +105,7 @@ class DataCollectorClient:
             raise
 
     async def get_historical_data(
-        self,
-        symbol: str,
-        days: int = 30,
-        timeframe: str = "1d"
+        self, symbol: str, days: int = 30, timeframe: str = "1d"
     ) -> Optional[pl.DataFrame]:
         """
         Get historical market data for a symbol.
@@ -121,10 +120,7 @@ class DataCollectorClient:
         """
         try:
             endpoint = f"/market-data/historical/{symbol}"
-            params = {
-                "days": days,
-                "timeframe": timeframe
-            }
+            params = {"days": days, "timeframe": timeframe}
 
             response = await self._make_request("GET", endpoint, params=params)
 
@@ -136,7 +132,9 @@ class DataCollectorClient:
                     # Parse timestamps
                     for record in data:
                         if record.get("timestamp"):
-                            record["timestamp"] = datetime.fromisoformat(record["timestamp"].replace('Z', '+00:00'))
+                            record["timestamp"] = datetime.fromisoformat(
+                                record["timestamp"].replace("Z", "+00:00")
+                            )
 
                     return pl.DataFrame(data)
 
@@ -147,10 +145,7 @@ class DataCollectorClient:
             return None
 
     async def get_latest_data(
-        self,
-        symbol: str,
-        limit: int = 1,
-        timeframe: str = "1d"
+        self, symbol: str, limit: int = 1, timeframe: str = "1d"
     ) -> Optional[pl.DataFrame]:
         """
         Get latest market data for a symbol.
@@ -165,10 +160,7 @@ class DataCollectorClient:
         """
         try:
             endpoint = f"/market-data/latest/{symbol}"
-            params = {
-                "limit": limit,
-                "timeframe": timeframe
-            }
+            params = {"limit": limit, "timeframe": timeframe}
 
             response = await self._make_request("GET", endpoint, params=params)
 
@@ -179,7 +171,9 @@ class DataCollectorClient:
                     # Parse timestamps
                     for record in data:
                         if record.get("timestamp"):
-                            record["timestamp"] = datetime.fromisoformat(record["timestamp"].replace('Z', '+00:00'))
+                            record["timestamp"] = datetime.fromisoformat(
+                                record["timestamp"].replace("Z", "+00:00")
+                            )
 
                     return pl.DataFrame(data)
 
@@ -189,11 +183,7 @@ class DataCollectorClient:
             logger.error(f"Error getting latest data for {symbol}: {e}")
             return None
 
-    async def get_symbol_volatility(
-        self,
-        symbol: str,
-        days: int = 252
-    ) -> float:
+    async def get_symbol_volatility(self, symbol: str, days: int = 252) -> float:
         """
         Get volatility for a symbol.
 
@@ -220,10 +210,7 @@ class DataCollectorClient:
             return 0.25
 
     async def get_symbol_correlation(
-        self,
-        symbol1: str,
-        symbol2: str,
-        days: int = 252
+        self, symbol1: str, symbol2: str, days: int = 252
     ) -> float:
         """
         Get correlation between two symbols.
@@ -248,15 +235,12 @@ class DataCollectorClient:
             return 0.0  # Default correlation
 
         except Exception as e:
-            logger.error(f"Error getting correlation between {symbol1} and {symbol2}: {e}")
+            logger.error(
+                f"Error getting correlation between {symbol1} and {symbol2}: {e}"
+            )
             return 0.0
 
-    async def get_atr(
-        self,
-        symbol: str,
-        period: int = 14,
-        days: int = 30
-    ) -> float:
+    async def get_atr(self, symbol: str, period: int = 14, days: int = 30) -> float:
         """
         Get Average True Range for a symbol.
 
@@ -270,10 +254,7 @@ class DataCollectorClient:
         """
         try:
             endpoint = f"/market-data/atr/{symbol}"
-            params = {
-                "period": period,
-                "days": days
-            }
+            params = {"period": period, "days": days}
 
             response = await self._make_request("GET", endpoint, params=params)
 
@@ -292,7 +273,7 @@ class DataCollectorClient:
         timeframe: TimeFrame,
         start_date: Optional[date] = None,
         end_date: Optional[date] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> pl.DataFrame:
         """
         Load market data (compatible with DataStore interface).
@@ -327,7 +308,7 @@ class DataCollectorClient:
                 TimeFrame.ONE_HOUR: "1h",
                 TimeFrame.ONE_DAY: "1d",
                 TimeFrame.ONE_WEEK: "1w",
-                TimeFrame.ONE_MONTH: "1M"
+                TimeFrame.ONE_MONTH: "1M",
             }
 
             timeframe_str = timeframe_map.get(timeframe, "1d")
@@ -335,37 +316,47 @@ class DataCollectorClient:
             # Get data
             if limit and limit <= 100:
                 # Use latest data endpoint for small limits
-                df = await self.get_latest_data(ticker, limit=limit, timeframe=timeframe_str)
+                df = await self.get_latest_data(
+                    ticker, limit=limit, timeframe=timeframe_str
+                )
             else:
                 # Use historical data endpoint
-                df = await self.get_historical_data(ticker, days=days, timeframe=timeframe_str)
+                df = await self.get_historical_data(
+                    ticker, days=days, timeframe=timeframe_str
+                )
 
             if df is None:
                 # Return empty DataFrame with expected schema
-                return pl.DataFrame({
-                    "symbol": [],
-                    "timestamp": [],
-                    "timeframe": [],
-                    "open": [],
-                    "high": [],
-                    "low": [],
-                    "close": [],
-                    "volume": [],
-                    "asset_type": []
-                })
+                return pl.DataFrame(
+                    {
+                        "symbol": [],
+                        "timestamp": [],
+                        "timeframe": [],
+                        "open": [],
+                        "high": [],
+                        "low": [],
+                        "close": [],
+                        "volume": [],
+                        "asset_type": [],
+                    }
+                )
 
             # Add missing columns to match DataStore interface
-            df = df.with_columns([
-                pl.lit(ticker.upper()).alias("symbol"),
-                pl.lit(timeframe.value).alias("timeframe"),
-                pl.lit("STOCK").alias("asset_type")
-            ])
+            df = df.with_columns(
+                [
+                    pl.lit(ticker.upper()).alias("symbol"),
+                    pl.lit(timeframe.value).alias("timeframe"),
+                    pl.lit("STOCK").alias("asset_type"),
+                ]
+            )
 
             # Apply date filters if specified
             if start_date or end_date:
                 if "timestamp" in df.columns:
                     if start_date:
-                        start_datetime = datetime.combine(start_date, datetime.min.time())
+                        start_datetime = datetime.combine(
+                            start_date, datetime.min.time()
+                        )
                         df = df.filter(pl.col("timestamp") >= start_datetime)
                     if end_date:
                         end_datetime = datetime.combine(end_date, datetime.max.time())
@@ -380,23 +371,22 @@ class DataCollectorClient:
         except Exception as e:
             logger.error(f"Error loading market data for {ticker}: {e}")
             # Return empty DataFrame with expected schema
-            return pl.DataFrame({
-                "symbol": [],
-                "timestamp": [],
-                "timeframe": [],
-                "open": [],
-                "high": [],
-                "low": [],
-                "close": [],
-                "volume": [],
-                "asset_type": []
-            })
+            return pl.DataFrame(
+                {
+                    "symbol": [],
+                    "timestamp": [],
+                    "timeframe": [],
+                    "open": [],
+                    "high": [],
+                    "low": [],
+                    "close": [],
+                    "volume": [],
+                    "asset_type": [],
+                }
+            )
 
     async def get_latest_data_compatible(
-        self,
-        ticker: str,
-        timeframe: TimeFrame,
-        limit: int = 100
+        self, ticker: str, timeframe: TimeFrame, limit: int = 100
     ) -> pl.DataFrame:
         """
         Get latest data (compatible with DataStore interface).
@@ -451,7 +441,9 @@ class DataCollectorClient:
         """
         try:
             json_data = {"timeframe": timeframe}
-            response = await self._make_request("POST", "/market-data/update", json_data=json_data)
+            response = await self._make_request(
+                "POST", "/market-data/update", json_data=json_data
+            )
             return response
         except Exception as e:
             logger.error(f"Market data update failed: {e}")
@@ -476,7 +468,6 @@ class DataCollectorClient:
         if self._session and not self._session.closed:
             # Schedule cleanup for next event loop iteration
             asyncio.create_task(self.close())
-
 
     async def get_real_time_quote(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
@@ -507,7 +498,7 @@ class DataCollectorClient:
         interval: str = "5min",
         outputsize: int = 30,
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Get time series data via TwelveData relay.
@@ -524,10 +515,7 @@ class DataCollectorClient:
         """
         try:
             endpoint = f"/api/twelvedata/time-series/{symbol}"
-            params = {
-                "interval": interval,
-                "outputsize": outputsize
-            }
+            params = {"interval": interval, "outputsize": outputsize}
 
             if start_date:
                 params["start_date"] = start_date
@@ -545,7 +533,9 @@ class DataCollectorClient:
             logger.error(f"Error getting time series for {symbol}: {e}")
             return None
 
-    async def get_batch_quotes(self, symbols: List[str]) -> Dict[str, Optional[Dict[str, Any]]]:
+    async def get_batch_quotes(
+        self, symbols: List[str]
+    ) -> Dict[str, Optional[Dict[str, Any]]]:
         """
         Get batch quotes via TwelveData relay.
 
@@ -571,9 +561,7 @@ class DataCollectorClient:
             return {symbol: None for symbol in symbols}
 
     async def search_symbols(
-        self,
-        query: str,
-        exchange: Optional[str] = None
+        self, query: str, exchange: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Search symbols via TwelveData relay.
@@ -608,7 +596,7 @@ class DataCollectorClient:
         symbol: str,
         interval: str = "1day",
         time_period: int = 9,
-        series_type: str = "close"
+        series_type: str = "close",
     ) -> Optional[Dict[str, Any]]:
         """
         Get technical indicator data via TwelveData relay.
@@ -628,7 +616,7 @@ class DataCollectorClient:
             params = {
                 "interval": interval,
                 "time_period": time_period,
-                "series_type": series_type
+                "series_type": series_type,
             }
 
             response = await self._make_request("GET", endpoint, params=params)
@@ -659,9 +647,9 @@ class DataCollectorClient:
             for symbol in symbols:
                 quote_data = batch_quotes.get(symbol)
                 results[symbol] = (
-                    quote_data is not None and
-                    "error" not in quote_data and
-                    "price" in quote_data
+                    quote_data is not None
+                    and "error" not in quote_data
+                    and "price" in quote_data
                 )
 
             return results
@@ -676,7 +664,7 @@ async def get_historical_data_for_symbol(
     client: DataCollectorClient,
     symbol: str,
     timeframe: TimeFrame = TimeFrame.ONE_DAY,
-    days: int = 252
+    days: int = 252,
 ) -> Optional[pl.DataFrame]:
     """
     Utility function to get historical data for a symbol.
@@ -698,7 +686,7 @@ async def get_historical_data_for_symbol(
         TimeFrame.ONE_HOUR: "1h",
         TimeFrame.ONE_DAY: "1d",
         TimeFrame.ONE_WEEK: "1w",
-        TimeFrame.ONE_MONTH: "1M"
+        TimeFrame.ONE_MONTH: "1M",
     }
 
     timeframe_str = timeframe_map.get(timeframe, "1d")
@@ -720,9 +708,9 @@ async def calculate_returns_from_data(df: pl.DataFrame) -> Optional[pl.DataFrame
             return None
 
         # Calculate daily returns
-        returns_df = df.with_columns([
-            pl.col("close").pct_change().alias("returns")
-        ]).drop_nulls()
+        returns_df = df.with_columns(
+            [pl.col("close").pct_change().alias("returns")]
+        ).drop_nulls()
 
         return returns_df
 

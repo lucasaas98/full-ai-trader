@@ -24,16 +24,18 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import asyncpg
-from pydantic import BaseModel, Field
-from prometheus_client import Counter, Histogram, Gauge
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from prometheus_client import Counter, Gauge, Histogram
+from pydantic import BaseModel, Field
 
 # Add parent directory to path for shared modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from shared.config import get_config
 import redis
+
+from shared.config import get_config
+
 
 # Simple implementations for missing classes
 class DatabaseManager:
@@ -47,8 +49,9 @@ class DatabaseManager:
             port=config.database.port,
             database=config.database.database,
             user=config.database.username,
-            password=config.database.password
+            password=config.database.password,
         )
+
 
 class RedisManager:
     def __init__(self):
@@ -57,10 +60,9 @@ class RedisManager:
     async def initialize(self):
         config = get_config()
         self.client = redis.Redis(
-            host=config.redis.host,
-            port=config.redis.port,
-            db=config.redis.database
+            host=config.redis.host, port=config.redis.port, db=config.redis.database
         )
+
 
 class HealthChecker:
     def __init__(self, db_manager, redis_manager):
@@ -71,8 +73,10 @@ class HealthChecker:
         """Start health monitoring"""
         logger.info("Health checker started")
 
+
 class ConfigWrapper:
     """Wrapper to provide dict-like interface for config object"""
+
     def __init__(self, config):
         self._config = config
 
@@ -87,7 +91,7 @@ class ConfigWrapper:
         value = self.get(key, default)
         if isinstance(value, bool):
             return value
-        return str(value).lower() in ('true', '1', 'yes', 'on')
+        return str(value).lower() in ("true", "1", "yes", "on")
 
     def get_int(self, key, default=0):
         """Get integer config value"""
@@ -102,48 +106,50 @@ class ConfigWrapper:
         """Get project root path"""
         return Path(__file__).parent.parent.parent
 
+
 # Configure structured logging
 import structlog
+
 logger = structlog.get_logger(__name__)
 
 # Prometheus metrics
 backup_operations_total = Counter(
-    'backup_operations_total',
-    'Total number of backup operations',
-    ['backup_type', 'status']
+    "backup_operations_total",
+    "Total number of backup operations",
+    ["backup_type", "status"],
 )
 
 backup_duration_seconds = Histogram(
-    'backup_duration_seconds',
-    'Time spent on backup operations',
-    ['backup_type']
+    "backup_duration_seconds", "Time spent on backup operations", ["backup_type"]
 )
 
 backup_file_size_bytes = Gauge(
-    'backup_file_size_bytes',
-    'Size of backup files',
-    ['backup_type', 'environment']
+    "backup_file_size_bytes", "Size of backup files", ["backup_type", "environment"]
 )
 
 backup_success_timestamp = Gauge(
-    'backup_success_timestamp',
-    'Timestamp of last successful backup',
-    ['backup_type']
+    "backup_success_timestamp", "Timestamp of last successful backup", ["backup_type"]
 )
 
 
 class BackupRequest(BaseModel):
     """Backup request model"""
-    backup_type: str = Field(..., description="Type of backup (full, database, files, incremental)")
+
+    backup_type: str = Field(
+        ..., description="Type of backup (full, database, files, incremental)"
+    )
     environment: str = Field(default="development", description="Environment name")
     compression: str = Field(default="gzip", description="Compression method")
-    encryption_enabled: bool = Field(default=True, description="Enable backup encryption")
+    encryption_enabled: bool = Field(
+        default=True, description="Enable backup encryption"
+    )
     cloud_sync: bool = Field(default=False, description="Sync to cloud storage")
     retention_days: int = Field(default=30, description="Backup retention in days")
 
 
 class BackupStatus(BaseModel):
     """Backup status model"""
+
     backup_id: str
     backup_type: str
     status: str
@@ -223,7 +229,7 @@ class BackupService:
             id="daily_full_backup",
             name="Daily Full Backup",
             max_instances=1,
-            coalesce=True
+            coalesce=True,
         )
 
         # Hourly incremental backup
@@ -234,7 +240,7 @@ class BackupService:
             id="hourly_incremental_backup",
             name="Hourly Incremental Backup",
             max_instances=1,
-            coalesce=True
+            coalesce=True,
         )
 
         # Daily backup verification
@@ -243,7 +249,7 @@ class BackupService:
             CronTrigger(hour=3, minute=0),  # 3 AM daily
             id="daily_backup_verification",
             name="Daily Backup Verification",
-            max_instances=1
+            max_instances=1,
         )
 
         # Weekly cleanup
@@ -252,7 +258,7 @@ class BackupService:
             CronTrigger(day_of_week=0, hour=4, minute=0),  # Sunday 4 AM
             id="weekly_cleanup",
             name="Weekly Backup Cleanup",
-            max_instances=1
+            max_instances=1,
         )
 
         # Weekly restore testing
@@ -261,7 +267,7 @@ class BackupService:
             CronTrigger(day_of_week=6, hour=5, minute=0),  # Saturday 5 AM
             id="weekly_restore_test",
             name="Weekly Restore Test",
-            max_instances=1
+            max_instances=1,
         )
 
         self.scheduler.start()
@@ -277,14 +283,16 @@ class BackupService:
                 backup_type=backup_type,
                 environment=environment or "development",
                 cloud_sync=self.config.get_bool("CLOUD_SYNC", False),
-                retention_days=self.config.get_int("BACKUP_RETENTION_DAYS", 30)
+                retention_days=self.config.get_int("BACKUP_RETENTION_DAYS", 30),
             )
 
             await self.create_backup(backup_request)
 
         except Exception as e:
             logger.error(f"Scheduled backup failed [{backup_type}]: {str(e)}")
-            await self.send_backup_alert("error", f"Scheduled {backup_type} backup failed: {str(e)}")
+            await self.send_backup_alert(
+                "error", f"Scheduled {backup_type} backup failed: {str(e)}"
+            )
 
     async def create_backup(self, request: BackupRequest) -> BackupStatus:
         """Create a backup based on the request"""
@@ -294,7 +302,7 @@ class BackupService:
             backup_id=backup_id,
             backup_type=request.backup_type,
             status="running",
-            started_at=datetime.now(timezone.utc)
+            started_at=datetime.now(timezone.utc),
         )
 
         self.active_backups[backup_id] = backup_status
@@ -323,8 +331,7 @@ class BackupService:
 
             # Record metrics
             backup_operations_total.labels(
-                backup_type=request.backup_type,
-                status="success"
+                backup_type=request.backup_type, status="success"
             ).inc()
 
             backup_success_timestamp.labels(
@@ -346,7 +353,7 @@ class BackupService:
             # Send success notification
             await self.send_backup_alert(
                 "success",
-                f"{request.backup_type.title()} backup completed successfully (ID: {backup_id})"
+                f"{request.backup_type.title()} backup completed successfully (ID: {backup_id})",
             )
 
             return backup_status
@@ -359,8 +366,7 @@ class BackupService:
 
             # Record metrics
             backup_operations_total.labels(
-                backup_type=request.backup_type,
-                status="error"
+                backup_type=request.backup_type, status="error"
             ).inc()
 
             # Add to history
@@ -374,7 +380,7 @@ class BackupService:
             # Send error notification
             await self.send_backup_alert(
                 "error",
-                f"{request.backup_type.title()} backup failed (ID: {backup_id}): {str(e)}"
+                f"{request.backup_type.title()} backup failed (ID: {backup_id}): {str(e)}",
             )
 
             raise
@@ -392,7 +398,7 @@ class BackupService:
             self.backup_database(session_dir),
             self.backup_redis(session_dir),
             self.backup_files(session_dir),
-            self.backup_configuration(session_dir)
+            self.backup_configuration(session_dir),
         ]
 
         await asyncio.gather(*tasks)
@@ -427,7 +433,9 @@ class BackupService:
         last_backup_file = Path("./data/last_full_backup.timestamp")
 
         if not last_backup_file.exists():
-            logger.warning("No previous full backup found, creating full backup instead")
+            logger.warning(
+                "No previous full backup found, creating full backup instead"
+            )
             await self.create_full_backup(backup_id, request)
             return
 
@@ -435,7 +443,9 @@ class BackupService:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         # Backup only changed files
-        await self.backup_incremental_files(session_dir, last_backup_file.stat().st_mtime)
+        await self.backup_incremental_files(
+            session_dir, last_backup_file.stat().st_mtime
+        )
 
     async def create_config_backup(self, backup_id: str, request: BackupRequest):
         """Create configuration-only backup"""
@@ -450,21 +460,27 @@ class BackupService:
         """Backup PostgreSQL database"""
         logger.info("Backing up PostgreSQL database")
 
-        backup_file = session_dir / f"postgres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        backup_file = (
+            session_dir / f"postgres_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        )
 
         # Create database dump using subprocess
         cmd = [
             "pg_dump",
-            "-h", self.config.get("DB_HOST", "localhost"),
-            "-p", self.config.get("DB_PORT", "5432"),
-            "-U", self.config.get("DB_USER", "trader"),
-            "-d", self.config.get("DB_NAME", "trading_system"),
+            "-h",
+            self.config.get("DB_HOST", "localhost"),
+            "-p",
+            self.config.get("DB_PORT", "5432"),
+            "-U",
+            self.config.get("DB_USER", "trader"),
+            "-d",
+            self.config.get("DB_NAME", "trading_system"),
             "--verbose",
             "--no-owner",
             "--no-privileges",
             "--clean",
             "--if-exists",
-            "--create"
+            "--create",
         ]
 
         env = os.environ.copy()
@@ -475,7 +491,7 @@ class BackupService:
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=env
+            env=env,
         )
 
         stdout, stderr = await process.communicate()
@@ -490,16 +506,20 @@ class BackupService:
         file_size = backup_file.stat().st_size
         backup_file_size_bytes.labels(
             backup_type="database",
-            environment=self.config.get("ENVIRONMENT", "development")
+            environment=self.config.get("ENVIRONMENT", "development"),
         ).set(file_size)
 
-        logger.info("Database backup completed", file_size=file_size, file_path=str(backup_file))
+        logger.info(
+            "Database backup completed", file_size=file_size, file_path=str(backup_file)
+        )
 
     async def backup_redis(self, session_dir: Path):
         """Backup Redis data"""
         logger.info("Backing up Redis data")
 
-        backup_file = session_dir / f"redis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.rdb"
+        backup_file = (
+            session_dir / f"redis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.rdb"
+        )
 
         # Create Redis dump
         redis_host = self.config.get("REDIS_HOST", "localhost")
@@ -512,9 +532,7 @@ class BackupService:
         cmd.extend(["--rdb", str(backup_file)])
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -527,23 +545,25 @@ class BackupService:
             file_size = backup_file.stat().st_size
             backup_file_size_bytes.labels(
                 backup_type="redis",
-                environment=self.config.get("ENVIRONMENT", "development")
+                environment=self.config.get("ENVIRONMENT", "development"),
             ).set(file_size)
 
-            logger.info("Redis backup completed", file_size=file_size, file_path=str(backup_file))
+            logger.info(
+                "Redis backup completed",
+                file_size=file_size,
+                file_path=str(backup_file),
+            )
 
     async def backup_files(self, session_dir: Path):
         """Backup data files"""
         logger.info("Backing up data files")
 
-        backup_file = session_dir / f"files_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        backup_file = (
+            session_dir / f"files_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        )
 
         # Define paths to backup
-        backup_paths = [
-            "./data/parquet",
-            "./data/exports",
-            "./logs"
-        ]
+        backup_paths = ["./data/parquet", "./data/exports", "./logs"]
 
         # Create tar archive
         cmd = ["tar", "-czf", str(backup_file)]
@@ -561,7 +581,7 @@ class BackupService:
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=self.config.project_root
+            cwd=self.config.project_root,
         )
 
         stdout, stderr = await process.communicate()
@@ -573,20 +593,26 @@ class BackupService:
         file_size = backup_file.stat().st_size
         backup_file_size_bytes.labels(
             backup_type="files",
-            environment=self.config.get("ENVIRONMENT", "development")
+            environment=self.config.get("ENVIRONMENT", "development"),
         ).set(file_size)
 
-        logger.info("File backup completed", file_size=file_size, file_path=str(backup_file))
+        logger.info(
+            "File backup completed", file_size=file_size, file_path=str(backup_file)
+        )
 
     async def backup_configuration(self, session_dir: Path):
         """Backup configuration files"""
         logger.info("Backing up configuration files")
 
-        backup_file = session_dir / f"config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        backup_file = (
+            session_dir / f"config_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        )
 
         # Backup config files (excluding sensitive data)
         cmd = [
-            "tar", "-czf", str(backup_file),
+            "tar",
+            "-czf",
+            str(backup_file),
             "--exclude=*.env*",
             "--exclude=*password*",
             "--exclude=*secret*",
@@ -595,14 +621,14 @@ class BackupService:
             "docker-compose*.yml",
             "Dockerfile*",
             "requirements*.txt",
-            "scripts/"
+            "scripts/",
         ]
 
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=self.config.project_root
+            cwd=self.config.project_root,
         )
 
         stdout, stderr = await process.communicate()
@@ -616,21 +642,27 @@ class BackupService:
         """Create incremental file backup"""
         logger.info("Creating incremental file backup", since_timestamp=since_timestamp)
 
-        backup_file = session_dir / f"incremental_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        backup_file = (
+            session_dir
+            / f"incremental_{datetime.now().strftime('%Y%m%d_%H%M%S')}.tar.gz"
+        )
 
         # Find files changed since timestamp
         cmd = [
-            "find", "./data",
-            "-type", "f",
-            "-newermt", f"@{since_timestamp}",
-            "-print0"
+            "find",
+            "./data",
+            "-type",
+            "f",
+            "-newermt",
+            f"@{since_timestamp}",
+            "-print0",
         ]
 
         find_process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=self.config.project_root
+            cwd=self.config.project_root,
         )
 
         find_stdout, find_stderr = await find_process.communicate()
@@ -644,11 +676,16 @@ class BackupService:
 
         # Create tar from file list
         tar_process = await asyncio.create_subprocess_exec(
-            "tar", "-czf", str(backup_file), "--null", "-T", "-",
+            "tar",
+            "-czf",
+            str(backup_file),
+            "--null",
+            "-T",
+            "-",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=self.config.project_root
+            cwd=self.config.project_root,
         )
 
         tar_stdout, tar_stderr = await tar_process.communicate(input=find_stdout)
@@ -658,7 +695,9 @@ class BackupService:
 
         logger.info("Incremental backup completed", file_path=str(backup_file))
 
-    async def create_consolidated_archive(self, session_dir: Path, backup_id: str, request: BackupRequest):
+    async def create_consolidated_archive(
+        self, session_dir: Path, backup_id: str, request: BackupRequest
+    ):
         """Create consolidated backup archive"""
         logger.info("Creating consolidated backup archive", backup_id=backup_id)
 
@@ -668,15 +707,15 @@ class BackupService:
         cmd = ["tar", "-czf", str(consolidated_file), "-C", str(session_dir), "."]
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
 
         if process.returncode != 0:
-            raise RuntimeError(f"Consolidated archive creation failed: {stderr.decode()}")
+            raise RuntimeError(
+                f"Consolidated archive creation failed: {stderr.decode()}"
+            )
 
         # Apply encryption if enabled
         if request.encryption_enabled and self.encryption_key:
@@ -696,16 +735,21 @@ class BackupService:
         encrypted_file = backup_file.with_suffix(backup_file.suffix + ".enc")
 
         cmd = [
-            "gpg", "--batch", "--yes", "--passphrase", self.encryption_key,
-            "--symmetric", "--cipher-algo", "AES256",
-            "--output", str(encrypted_file),
-            str(backup_file)
+            "gpg",
+            "--batch",
+            "--yes",
+            "--passphrase",
+            self.encryption_key,
+            "--symmetric",
+            "--cipher-algo",
+            "AES256",
+            "--output",
+            str(encrypted_file),
+            str(backup_file),
         ]
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -724,20 +768,23 @@ class BackupService:
             logger.warning("Cloud sync requested but S3 bucket not configured")
             return
 
-        logger.info("Syncing backup to cloud storage", backup_id=backup_status.backup_id)
+        logger.info(
+            "Syncing backup to cloud storage", backup_id=backup_status.backup_id
+        )
 
         # Use AWS CLI for upload
         cmd = [
-            "aws", "s3", "cp",
+            "aws",
+            "s3",
+            "cp",
             backup_status.file_path,
             f"s3://{self.s3_bucket}/backups/{self.config.get('ENVIRONMENT')}/",
-            "--storage-class", "STANDARD_IA"
+            "--storage-class",
+            "STANDARD_IA",
         ]
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -772,12 +819,14 @@ class BackupService:
                 logger.info("Backup verification passed", file=backup_file.name)
             except Exception as e:
                 verification_results.append(f"✗ {backup_file.name}: {str(e)}")
-                logger.error("Backup verification failed", file=backup_file.name, error=str(e))
+                logger.error(
+                    "Backup verification failed", file=backup_file.name, error=str(e)
+                )
 
         # Send verification summary
         await self.send_backup_alert(
             "info",
-            f"Backup verification completed:\n" + "\n".join(verification_results)
+            f"Backup verification completed:\n" + "\n".join(verification_results),
         )
 
     async def verify_backup_integrity(self, backup_file: Path):
@@ -796,7 +845,7 @@ class BackupService:
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=backup_file.parent
+                cwd=backup_file.parent,
             )
 
             stdout, stderr = await process.communicate()
@@ -813,9 +862,7 @@ class BackupService:
             return  # Skip unknown formats
 
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
 
         stdout, stderr = await process.communicate()
@@ -836,13 +883,18 @@ class BackupService:
         total_size_freed = 0
 
         for backup_file in self.backup_root.rglob("*"):
-            if backup_file.is_file() and backup_file.stat().st_mtime < cutoff_date.timestamp():
+            if (
+                backup_file.is_file()
+                and backup_file.stat().st_mtime < cutoff_date.timestamp()
+            ):
                 file_size = backup_file.stat().st_size
                 backup_file.unlink()
 
                 # Also remove associated files
                 for suffix in [".meta", ".sha256", ".enc"]:
-                    associated_file = backup_file.with_suffix(backup_file.suffix + suffix)
+                    associated_file = backup_file.with_suffix(
+                        backup_file.suffix + suffix
+                    )
                     if associated_file.exists():
                         associated_file.unlink()
 
@@ -856,15 +908,17 @@ class BackupService:
             if backup_dir.is_dir() and not any(backup_dir.iterdir()):
                 backup_dir.rmdir()
 
-        logger.info("Backup cleanup completed",
-                   deleted_files=deleted_count,
-                   size_freed=total_size_freed)
+        logger.info(
+            "Backup cleanup completed",
+            deleted_files=deleted_count,
+            size_freed=total_size_freed,
+        )
 
         # Send cleanup summary
         await self.send_backup_alert(
             "info",
             f"Backup cleanup completed: {deleted_count} files deleted, "
-            f"{total_size_freed / (1024*1024):.1f} MB freed"
+            f"{total_size_freed / (1024*1024):.1f} MB freed",
         )
 
     async def run_restore_test(self):
@@ -887,16 +941,21 @@ class BackupService:
 
             # Run restore test script
             cmd = [
-                str(Path(__file__).parent.parent.parent / "scripts" / "backup" / "test_restore.sh"),
+                str(
+                    Path(__file__).parent.parent.parent
+                    / "scripts"
+                    / "backup"
+                    / "test_restore.sh"
+                ),
                 self.config.get("ENVIRONMENT", "development"),
-                "--backup-file", str(latest_backup),
-                "--timeout", "1800"
+                "--backup-file",
+                str(latest_backup),
+                "--timeout",
+                "1800",
             ]
 
             process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
 
             stdout, stderr = await process.communicate()

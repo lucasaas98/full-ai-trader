@@ -7,20 +7,23 @@ volume indicators, and pattern recognition.
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
 import polars as pl
-from dataclasses import dataclass
-from enum import Enum
 
-from .base_strategy import BaseStrategy, StrategyConfig, Signal, StrategyMode
 from shared.models import SignalType
+
+from .base_strategy import BaseStrategy, Signal, StrategyConfig, StrategyMode
 
 
 class TrendDirection(Enum):
     """Trend direction enumeration."""
+
     BULLISH = "bullish"
     BEARISH = "bearish"
     SIDEWAYS = "sideways"
@@ -28,6 +31,7 @@ class TrendDirection(Enum):
 
 class PatternType(Enum):
     """Chart pattern types."""
+
     BREAKOUT = "breakout"
     BREAKDOWN = "breakdown"
     DOUBLE_TOP = "double_top"
@@ -41,6 +45,7 @@ class PatternType(Enum):
 @dataclass
 class PatternSignal:
     """Chart pattern signal."""
+
     pattern: PatternType
     confidence: float
     target_price: Optional[float] = None
@@ -53,17 +58,17 @@ class TechnicalIndicators:
     @staticmethod
     def sma(data: pl.DataFrame, period: int, column: str = "close") -> pl.DataFrame:
         """Simple Moving Average."""
-        return data.with_columns([
-            pl.col(column).rolling_mean(window_size=period).alias(f"sma_{period}")
-        ])
+        return data.with_columns(
+            [pl.col(column).rolling_mean(window_size=period).alias(f"sma_{period}")]
+        )
 
     @staticmethod
     def ema(data: pl.DataFrame, period: int, column: str = "close") -> pl.DataFrame:
         """Exponential Moving Average."""
         alpha = 2.0 / (period + 1)
-        return data.with_columns([
-            pl.col(column).ewm_mean(alpha=alpha, adjust=False).alias(f"ema_{period}")
-        ])
+        return data.with_columns(
+            [pl.col(column).ewm_mean(alpha=alpha, adjust=False).alias(f"ema_{period}")]
+        )
 
     @staticmethod
     def wma(data: pl.DataFrame, period: int, column: str = "close") -> pl.DataFrame:
@@ -76,183 +81,334 @@ class TechnicalIndicators:
                 return None
             return np.dot(values[-period:], weights)
 
-        return data.with_columns([
-            pl.col(column).map_batches(
-                lambda s: s.rolling_map(weighted_mean, window_size=period)
-            ).alias(f"wma_{period}")
-        ])
+        return data.with_columns(
+            [
+                pl.col(column)
+                .map_batches(lambda s: s.rolling_map(weighted_mean, window_size=period))
+                .alias(f"wma_{period}")
+            ]
+        )
 
     @staticmethod
-    def rsi(data: pl.DataFrame, period: int = 14, column: str = "close") -> pl.DataFrame:
+    def rsi(
+        data: pl.DataFrame, period: int = 14, column: str = "close"
+    ) -> pl.DataFrame:
         """Relative Strength Index."""
-        return data.with_columns([
-            # Calculate price changes
-            pl.col(column).diff().alias("price_change")
-        ]).with_columns([
-            # Separate gains and losses
-            pl.when(pl.col("price_change") > 0)
-            .then(pl.col("price_change"))
-            .otherwise(0.0)
-            .alias("gains"),
-
-            pl.when(pl.col("price_change") < 0)
-            .then(-pl.col("price_change"))
-            .otherwise(0.0)
-            .alias("losses")
-        ]).with_columns([
-            # Calculate average gains and losses
-            pl.col("gains").ewm_mean(alpha=1.0/period, adjust=False).alias("avg_gains"),
-            pl.col("losses").ewm_mean(alpha=1.0/period, adjust=False).alias("avg_losses")
-        ]).with_columns([
-            # Calculate RSI
-            (100.0 - (100.0 / (1.0 + (pl.col("avg_gains") / pl.col("avg_losses")))))
-            .alias(f"rsi_{period}")
-        ])
+        return (
+            data.with_columns(
+                [
+                    # Calculate price changes
+                    pl.col(column)
+                    .diff()
+                    .alias("price_change")
+                ]
+            )
+            .with_columns(
+                [
+                    # Separate gains and losses
+                    pl.when(pl.col("price_change") > 0)
+                    .then(pl.col("price_change"))
+                    .otherwise(0.0)
+                    .alias("gains"),
+                    pl.when(pl.col("price_change") < 0)
+                    .then(-pl.col("price_change"))
+                    .otherwise(0.0)
+                    .alias("losses"),
+                ]
+            )
+            .with_columns(
+                [
+                    # Calculate average gains and losses
+                    pl.col("gains")
+                    .ewm_mean(alpha=1.0 / period, adjust=False)
+                    .alias("avg_gains"),
+                    pl.col("losses")
+                    .ewm_mean(alpha=1.0 / period, adjust=False)
+                    .alias("avg_losses"),
+                ]
+            )
+            .with_columns(
+                [
+                    # Calculate RSI
+                    (
+                        100.0
+                        - (100.0 / (1.0 + (pl.col("avg_gains") / pl.col("avg_losses"))))
+                    ).alias(f"rsi_{period}")
+                ]
+            )
+        )
 
     @staticmethod
-    def macd(data: pl.DataFrame, fast: int = 12, slow: int = 26,
-             signal: int = 9, column: str = "close") -> pl.DataFrame:
+    def macd(
+        data: pl.DataFrame,
+        fast: int = 12,
+        slow: int = 26,
+        signal: int = 9,
+        column: str = "close",
+    ) -> pl.DataFrame:
         """MACD (Moving Average Convergence Divergence)."""
-        return data.with_columns([
-            pl.col(column).ewm_mean(alpha=2.0/(fast+1), adjust=False).alias("ema_fast"),
-            pl.col(column).ewm_mean(alpha=2.0/(slow+1), adjust=False).alias("ema_slow")
-        ]).with_columns([
-            (pl.col("ema_fast") - pl.col("ema_slow")).alias("macd_line")
-        ]).with_columns([
-            pl.col("macd_line").ewm_mean(alpha=2.0/(signal+1), adjust=False).alias("macd_signal")
-        ]).with_columns([
-            (pl.col("macd_line") - pl.col("macd_signal")).alias("macd_histogram")
-        ])
+        return (
+            data.with_columns(
+                [
+                    pl.col(column)
+                    .ewm_mean(alpha=2.0 / (fast + 1), adjust=False)
+                    .alias("ema_fast"),
+                    pl.col(column)
+                    .ewm_mean(alpha=2.0 / (slow + 1), adjust=False)
+                    .alias("ema_slow"),
+                ]
+            )
+            .with_columns(
+                [(pl.col("ema_fast") - pl.col("ema_slow")).alias("macd_line")]
+            )
+            .with_columns(
+                [
+                    pl.col("macd_line")
+                    .ewm_mean(alpha=2.0 / (signal + 1), adjust=False)
+                    .alias("macd_signal")
+                ]
+            )
+            .with_columns(
+                [(pl.col("macd_line") - pl.col("macd_signal")).alias("macd_histogram")]
+            )
+        )
 
     @staticmethod
-    def bollinger_bands(data: pl.DataFrame, period: int = 20,
-                       std_dev: float = 2.0, column: str = "close") -> pl.DataFrame:
+    def bollinger_bands(
+        data: pl.DataFrame,
+        period: int = 20,
+        std_dev: float = 2.0,
+        column: str = "close",
+    ) -> pl.DataFrame:
         """Bollinger Bands."""
-        return data.with_columns([
-            pl.col(column).rolling_mean(window_size=period).alias("bb_middle"),
-            pl.col(column).rolling_std(window_size=period).alias("bb_std")
-        ]).with_columns([
-            (pl.col("bb_middle") + (pl.col("bb_std") * std_dev)).alias("bb_upper"),
-            (pl.col("bb_middle") - (pl.col("bb_std") * std_dev)).alias("bb_lower")
-        ]).with_columns([
-            # Bollinger Band Position (0-1, where 0.5 is middle)
-            ((pl.col(column) - pl.col("bb_lower")) /
-             (pl.col("bb_upper") - pl.col("bb_lower"))).alias("bb_position"),
-
-            # Bollinger Band Width (volatility measure)
-            ((pl.col("bb_upper") - pl.col("bb_lower")) / pl.col("bb_middle")).alias("bb_width")
-        ])
+        return (
+            data.with_columns(
+                [
+                    pl.col(column).rolling_mean(window_size=period).alias("bb_middle"),
+                    pl.col(column).rolling_std(window_size=period).alias("bb_std"),
+                ]
+            )
+            .with_columns(
+                [
+                    (pl.col("bb_middle") + (pl.col("bb_std") * std_dev)).alias(
+                        "bb_upper"
+                    ),
+                    (pl.col("bb_middle") - (pl.col("bb_std") * std_dev)).alias(
+                        "bb_lower"
+                    ),
+                ]
+            )
+            .with_columns(
+                [
+                    # Bollinger Band Position (0-1, where 0.5 is middle)
+                    (
+                        (pl.col(column) - pl.col("bb_lower"))
+                        / (pl.col("bb_upper") - pl.col("bb_lower"))
+                    ).alias("bb_position"),
+                    # Bollinger Band Width (volatility measure)
+                    (
+                        (pl.col("bb_upper") - pl.col("bb_lower")) / pl.col("bb_middle")
+                    ).alias("bb_width"),
+                ]
+            )
+        )
 
     @staticmethod
     def atr(data: pl.DataFrame, period: int = 14) -> pl.DataFrame:
         """Average True Range."""
-        return data.with_columns([
-            # True Range components
-            (pl.col("high") - pl.col("low")).alias("hl"),
-            (pl.col("high") - pl.col("close").shift(1)).abs().alias("hc"),
-            (pl.col("low") - pl.col("close").shift(1)).abs().alias("lc")
-        ]).with_columns([
-            # True Range (maximum of the three components)
-            pl.max_horizontal(["hl", "hc", "lc"]).alias("true_range")
-        ]).with_columns([
-            # Average True Range
-            pl.col("true_range").ewm_mean(alpha=1.0/period, adjust=False).alias(f"atr_{period}")
-        ])
+        return (
+            data.with_columns(
+                [
+                    # True Range components
+                    (pl.col("high") - pl.col("low")).alias("hl"),
+                    (pl.col("high") - pl.col("close").shift(1)).abs().alias("hc"),
+                    (pl.col("low") - pl.col("close").shift(1)).abs().alias("lc"),
+                ]
+            )
+            .with_columns(
+                [
+                    # True Range (maximum of the three components)
+                    pl.max_horizontal(["hl", "hc", "lc"]).alias("true_range")
+                ]
+            )
+            .with_columns(
+                [
+                    # Average True Range
+                    pl.col("true_range")
+                    .ewm_mean(alpha=1.0 / period, adjust=False)
+                    .alias(f"atr_{period}")
+                ]
+            )
+        )
 
     @staticmethod
     def obv(data: pl.DataFrame) -> pl.DataFrame:
         """On Balance Volume."""
-        return data.with_columns([
-            pl.col("close").diff().alias("price_change")
-        ]).with_columns([
-            pl.when(pl.col("price_change") > 0)
-            .then(pl.col("volume"))
-            .when(pl.col("price_change") < 0)
-            .then(-pl.col("volume"))
-            .otherwise(0)
-            .alias("obv_change")
-        ]).with_columns([
-            pl.col("obv_change").cum_sum().alias("obv")
-        ])
+        return (
+            data.with_columns([pl.col("close").diff().alias("price_change")])
+            .with_columns(
+                [
+                    pl.when(pl.col("price_change") > 0)
+                    .then(pl.col("volume"))
+                    .when(pl.col("price_change") < 0)
+                    .then(-pl.col("volume"))
+                    .otherwise(0)
+                    .alias("obv_change")
+                ]
+            )
+            .with_columns([pl.col("obv_change").cum_sum().alias("obv")])
+        )
 
     @staticmethod
     def vwap(data: pl.DataFrame) -> pl.DataFrame:
         """Volume Weighted Average Price."""
-        return data.with_columns([
-            # Typical price
-            ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).alias("typical_price")
-        ]).with_columns([
-            # Price * Volume
-            (pl.col("typical_price") * pl.col("volume")).alias("pv")
-        ]).with_columns([
-            # VWAP calculation
-            (pl.col("pv").cum_sum() / pl.col("volume").cum_sum()).alias("vwap")
-        ])
+        return (
+            data.with_columns(
+                [
+                    # Typical price
+                    ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).alias(
+                        "typical_price"
+                    )
+                ]
+            )
+            .with_columns(
+                [
+                    # Price * Volume
+                    (pl.col("typical_price") * pl.col("volume")).alias("pv")
+                ]
+            )
+            .with_columns(
+                [
+                    # VWAP calculation
+                    (pl.col("pv").cum_sum() / pl.col("volume").cum_sum()).alias("vwap")
+                ]
+            )
+        )
 
     @staticmethod
-    def stochastic(data: pl.DataFrame, k_period: int = 14,
-                  d_period: int = 3) -> pl.DataFrame:
+    def stochastic(
+        data: pl.DataFrame, k_period: int = 14, d_period: int = 3
+    ) -> pl.DataFrame:
         """Stochastic Oscillator."""
-        return data.with_columns([
-            pl.col("low").rolling_min(window_size=k_period).alias("lowest_low"),
-            pl.col("high").rolling_max(window_size=k_period).alias("highest_high")
-        ]).with_columns([
-            # %K calculation
-            (((pl.col("close") - pl.col("lowest_low")) /
-              (pl.col("highest_high") - pl.col("lowest_low"))) * 100.0)
-            .alias("stoch_k")
-        ]).with_columns([
-            # %D calculation (SMA of %K)
-            pl.col("stoch_k").rolling_mean(window_size=d_period).alias("stoch_d")
-        ])
+        return (
+            data.with_columns(
+                [
+                    pl.col("low").rolling_min(window_size=k_period).alias("lowest_low"),
+                    pl.col("high")
+                    .rolling_max(window_size=k_period)
+                    .alias("highest_high"),
+                ]
+            )
+            .with_columns(
+                [
+                    # %K calculation
+                    (
+                        (
+                            (pl.col("close") - pl.col("lowest_low"))
+                            / (pl.col("highest_high") - pl.col("lowest_low"))
+                        )
+                        * 100.0
+                    ).alias("stoch_k")
+                ]
+            )
+            .with_columns(
+                [
+                    # %D calculation (SMA of %K)
+                    pl.col("stoch_k")
+                    .rolling_mean(window_size=d_period)
+                    .alias("stoch_d")
+                ]
+            )
+        )
 
     @staticmethod
     def williams_r(data: pl.DataFrame, period: int = 14) -> pl.DataFrame:
         """Williams %R."""
-        return data.with_columns([
-            pl.col("high").rolling_max(window_size=period).alias("highest_high"),
-            pl.col("low").rolling_min(window_size=period).alias("lowest_low")
-        ]).with_columns([
-            # Williams %R calculation
-            (((pl.col("highest_high") - pl.col("close")) /
-              (pl.col("highest_high") - pl.col("lowest_low"))) * -100.0)
-            .alias(f"williams_r_{period}")
-        ])
+        return data.with_columns(
+            [
+                pl.col("high").rolling_max(window_size=period).alias("highest_high"),
+                pl.col("low").rolling_min(window_size=period).alias("lowest_low"),
+            ]
+        ).with_columns(
+            [
+                # Williams %R calculation
+                (
+                    (
+                        (pl.col("highest_high") - pl.col("close"))
+                        / (pl.col("highest_high") - pl.col("lowest_low"))
+                    )
+                    * -100.0
+                ).alias(f"williams_r_{period}")
+            ]
+        )
 
     @staticmethod
     def cci(data: pl.DataFrame, period: int = 20) -> pl.DataFrame:
         """Commodity Channel Index."""
-        return data.with_columns([
-            # Typical price
-            ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).alias("typical_price")
-        ]).with_columns([
-            # SMA of typical price
-            pl.col("typical_price").rolling_mean(window_size=period).alias("sma_tp")
-        ]).with_columns([
-            # Mean deviation
-            (pl.col("typical_price") - pl.col("sma_tp")).abs()
-            .rolling_mean(window_size=period).alias("mean_deviation")
-        ]).with_columns([
-            # CCI calculation
-            ((pl.col("typical_price") - pl.col("sma_tp")) /
-             (0.015 * pl.col("mean_deviation"))).alias(f"cci_{period}")
-        ])
+        return (
+            data.with_columns(
+                [
+                    # Typical price
+                    ((pl.col("high") + pl.col("low") + pl.col("close")) / 3.0).alias(
+                        "typical_price"
+                    )
+                ]
+            )
+            .with_columns(
+                [
+                    # SMA of typical price
+                    pl.col("typical_price")
+                    .rolling_mean(window_size=period)
+                    .alias("sma_tp")
+                ]
+            )
+            .with_columns(
+                [
+                    # Mean deviation
+                    (pl.col("typical_price") - pl.col("sma_tp"))
+                    .abs()
+                    .rolling_mean(window_size=period)
+                    .alias("mean_deviation")
+                ]
+            )
+            .with_columns(
+                [
+                    # CCI calculation
+                    (
+                        (pl.col("typical_price") - pl.col("sma_tp"))
+                        / (0.015 * pl.col("mean_deviation"))
+                    ).alias(f"cci_{period}")
+                ]
+            )
+        )
 
     @staticmethod
-    def momentum(data: pl.DataFrame, period: int = 10, column: str = "close") -> pl.DataFrame:
+    def momentum(
+        data: pl.DataFrame, period: int = 10, column: str = "close"
+    ) -> pl.DataFrame:
         """Price Momentum."""
-        return data.with_columns([
-            (pl.col(column) - pl.col(column).shift(period)).alias(f"momentum_{period}")
-        ])
+        return data.with_columns(
+            [
+                (pl.col(column) - pl.col(column).shift(period)).alias(
+                    f"momentum_{period}"
+                )
+            ]
+        )
 
     @staticmethod
-    def rate_of_change(data: pl.DataFrame, period: int = 10,
-                      column: str = "close") -> pl.DataFrame:
+    def rate_of_change(
+        data: pl.DataFrame, period: int = 10, column: str = "close"
+    ) -> pl.DataFrame:
         """Rate of Change."""
-        return data.with_columns([
-            ((pl.col(column) - pl.col(column).shift(period)) /
-             pl.col(column).shift(period) * 100.0).alias(f"roc_{period}")
-        ])
+        return data.with_columns(
+            [
+                (
+                    (pl.col(column) - pl.col(column).shift(period))
+                    / pl.col(column).shift(period)
+                    * 100.0
+                ).alias(f"roc_{period}")
+            ]
+        )
 
 
 class SupportResistanceLevels:
@@ -261,41 +417,57 @@ class SupportResistanceLevels:
     @staticmethod
     def find_pivot_points(data: pl.DataFrame, window: int = 5) -> pl.DataFrame:
         """Find pivot highs and lows."""
-        return data.with_columns([
-            # Pivot highs
-            pl.when(
-                (pl.col("high") == pl.col("high").rolling_max(window_size=window*2+1)) &
-                (pl.col("high") > pl.col("high").shift(1)) &
-                (pl.col("high") > pl.col("high").shift(-1))
-            ).then(pl.col("high")).otherwise(None).alias("pivot_high"),
-
-            # Pivot lows
-            pl.when(
-                (pl.col("low") == pl.col("low").rolling_min(window_size=window*2+1)) &
-                (pl.col("low") < pl.col("low").shift(1)) &
-                (pl.col("low") < pl.col("low").shift(-1))
-            ).then(pl.col("low")).otherwise(None).alias("pivot_low")
-        ])
+        return data.with_columns(
+            [
+                # Pivot highs
+                pl.when(
+                    (
+                        pl.col("high")
+                        == pl.col("high").rolling_max(window_size=window * 2 + 1)
+                    )
+                    & (pl.col("high") > pl.col("high").shift(1))
+                    & (pl.col("high") > pl.col("high").shift(-1))
+                )
+                .then(pl.col("high"))
+                .otherwise(None)
+                .alias("pivot_high"),
+                # Pivot lows
+                pl.when(
+                    (
+                        pl.col("low")
+                        == pl.col("low").rolling_min(window_size=window * 2 + 1)
+                    )
+                    & (pl.col("low") < pl.col("low").shift(1))
+                    & (pl.col("low") < pl.col("low").shift(-1))
+                )
+                .then(pl.col("low"))
+                .otherwise(None)
+                .alias("pivot_low"),
+            ]
+        )
 
     @staticmethod
-    def calculate_support_resistance(data: pl.DataFrame,
-                                   lookback: int = 100) -> Tuple[List[float], List[float]]:
+    def calculate_support_resistance(
+        data: pl.DataFrame, lookback: int = 100
+    ) -> Tuple[List[float], List[float]]:
         """Calculate support and resistance levels."""
         # Get pivot points
         pivots = SupportResistanceLevels.find_pivot_points(data.tail(lookback))
 
         # Extract non-null pivot highs and lows
-        resistance_levels = (pivots
-                           .select("pivot_high")
-                           .filter(pl.col("pivot_high").is_not_null())
-                           .to_series()
-                           .to_list())
+        resistance_levels = (
+            pivots.select("pivot_high")
+            .filter(pl.col("pivot_high").is_not_null())
+            .to_series()
+            .to_list()
+        )
 
-        support_levels = (pivots
-                        .select("pivot_low")
-                        .filter(pl.col("pivot_low").is_not_null())
-                        .to_series()
-                        .to_list())
+        support_levels = (
+            pivots.select("pivot_low")
+            .filter(pl.col("pivot_low").is_not_null())
+            .to_series()
+            .to_list()
+        )
 
         # Cluster nearby levels (within 1% of each other)
         resistance_levels = SupportResistanceLevels._cluster_levels(resistance_levels)
@@ -332,7 +504,9 @@ class PatternRecognition:
     """Chart pattern recognition using Polars."""
 
     @staticmethod
-    def detect_breakout(data: pl.DataFrame, window: int = 20) -> Optional[PatternSignal]:
+    def detect_breakout(
+        data: pl.DataFrame, window: int = 20
+    ) -> Optional[PatternSignal]:
         """Detect price breakouts above resistance."""
         # Get recent high and current price
         recent_data = data.tail(window)
@@ -344,8 +518,10 @@ class PatternRecognition:
         avg_volume = recent_data.select("volume").mean().item()
 
         # Check for breakout conditions
-        if (current_price > recent_high * 1.001 and  # 0.1% above recent high
-            recent_volume > avg_volume * 1.2):  # 20% above average volume
+        if (
+            current_price > recent_high * 1.001  # 0.1% above recent high
+            and recent_volume > avg_volume * 1.2
+        ):  # 20% above average volume
 
             confidence = min(90.0, 60.0 + (recent_volume / avg_volume - 1) * 30)
             target = current_price * 1.05  # 5% target
@@ -354,13 +530,15 @@ class PatternRecognition:
                 pattern=PatternType.BREAKOUT,
                 confidence=confidence,
                 target_price=target,
-                time_horizon=5
+                time_horizon=5,
             )
 
         return None
 
     @staticmethod
-    def detect_breakdown(data: pl.DataFrame, window: int = 20) -> Optional[PatternSignal]:
+    def detect_breakdown(
+        data: pl.DataFrame, window: int = 20
+    ) -> Optional[PatternSignal]:
         """Detect price breakdowns below support."""
         recent_data = data.tail(window)
         current_price = float(recent_data.select("close").tail(1).item())
@@ -370,8 +548,10 @@ class PatternRecognition:
         recent_volume = recent_data.select("volume").tail(5).mean().item()
         avg_volume = recent_data.select("volume").mean().item()
 
-        if (current_price < recent_low * 0.999 and  # 0.1% below recent low
-            recent_volume > avg_volume * 1.2):
+        if (
+            current_price < recent_low * 0.999  # 0.1% below recent low
+            and recent_volume > avg_volume * 1.2
+        ):
 
             confidence = min(90.0, 60.0 + (recent_volume / avg_volume - 1) * 30)
             target = current_price * 0.95  # 5% target down
@@ -380,20 +560,23 @@ class PatternRecognition:
                 pattern=PatternType.BREAKDOWN,
                 confidence=confidence,
                 target_price=target,
-                time_horizon=5
+                time_horizon=5,
             )
 
         return None
 
     @staticmethod
-    def detect_double_top(data: pl.DataFrame, window: int = 50) -> Optional[PatternSignal]:
+    def detect_double_top(
+        data: pl.DataFrame, window: int = 50
+    ) -> Optional[PatternSignal]:
         """Detect double top pattern."""
         # Find pivot points
         pivots = SupportResistanceLevels.find_pivot_points(data.tail(window))
-        highs = (pivots
-                .select(["timestamp", "pivot_high"])
-                .filter(pl.col("pivot_high").is_not_null())
-                .sort("timestamp"))
+        highs = (
+            pivots.select(["timestamp", "pivot_high"])
+            .filter(pl.col("pivot_high").is_not_null())
+            .sort("timestamp")
+        )
 
         if highs.height < 2:
             return None
@@ -416,19 +599,22 @@ class PatternRecognition:
                     pattern=PatternType.DOUBLE_TOP,
                     confidence=confidence,
                     target_price=target,
-                    time_horizon=10
+                    time_horizon=10,
                 )
 
         return None
 
     @staticmethod
-    def detect_double_bottom(data: pl.DataFrame, window: int = 50) -> Optional[PatternSignal]:
+    def detect_double_bottom(
+        data: pl.DataFrame, window: int = 50
+    ) -> Optional[PatternSignal]:
         """Detect double bottom pattern."""
         pivots = SupportResistanceLevels.find_pivot_points(data.tail(window))
-        lows = (pivots
-               .select(["timestamp", "pivot_low"])
-               .filter(pl.col("pivot_low").is_not_null())
-               .sort("timestamp"))
+        lows = (
+            pivots.select(["timestamp", "pivot_low"])
+            .filter(pl.col("pivot_low").is_not_null())
+            .sort("timestamp")
+        )
 
         if lows.height < 2:
             return None
@@ -451,7 +637,7 @@ class PatternRecognition:
                     pattern=PatternType.DOUBLE_BOTTOM,
                     confidence=confidence,
                     target_price=target,
-                    time_horizon=10
+                    time_horizon=10,
                 )
 
         return None
@@ -485,9 +671,9 @@ class TechnicalStrategy(BaseStrategy):
             "bb_std": 2.0,
             "atr_period": 14,
             "volume_threshold": 1.5,  # Volume surge threshold
-            "pattern_weight": 0.3,    # Weight for pattern signals
-            "momentum_weight": 0.4,   # Weight for momentum signals
-            "mean_reversion_weight": 0.3  # Weight for mean reversion signals
+            "pattern_weight": 0.3,  # Weight for pattern signals
+            "momentum_weight": 0.4,  # Weight for momentum signals
+            "mean_reversion_weight": 0.3,  # Weight for mean reversion signals
         }
 
         # Merge with user parameters
@@ -520,7 +706,7 @@ class TechnicalStrategy(BaseStrategy):
                 action=SignalType.HOLD,
                 confidence=0.0,
                 position_size=0.0,
-                reasoning="Invalid or insufficient data for technical analysis"
+                reasoning="Invalid or insufficient data for technical analysis",
             )
 
         # Calculate all indicators
@@ -537,9 +723,12 @@ class TechnicalStrategy(BaseStrategy):
 
         # Combine signals
         final_signal = self._combine_signals(
-            symbol, latest,
-            momentum_signal, mean_reversion_signal,
-            pattern_signal, volume_signal
+            symbol,
+            latest,
+            momentum_signal,
+            mean_reversion_signal,
+            pattern_signal,
+            volume_signal,
         )
 
         return final_signal
@@ -561,7 +750,7 @@ class TechnicalStrategy(BaseStrategy):
             result,
             self.params["macd_fast"],
             self.params["macd_slow"],
-            self.params["macd_signal"]
+            self.params["macd_signal"],
         )
         result = self.indicators.stochastic(result)
         result = self.indicators.williams_r(result)
@@ -569,9 +758,7 @@ class TechnicalStrategy(BaseStrategy):
 
         # Volatility and volume
         result = self.indicators.bollinger_bands(
-            result,
-            self.params["bb_period"],
-            self.params["bb_std"]
+            result, self.params["bb_period"], self.params["bb_std"]
         )
         result = self.indicators.atr(result, self.params["atr_period"])
         result = self.indicators.obv(result)
@@ -583,7 +770,9 @@ class TechnicalStrategy(BaseStrategy):
 
         return result
 
-    def _analyze_momentum(self, data: pl.DataFrame, latest: pl.DataFrame) -> Dict[str, Any]:
+    def _analyze_momentum(
+        self, data: pl.DataFrame, latest: pl.DataFrame
+    ) -> Dict[str, Any]:
         """Analyze momentum indicators."""
         try:
             # Get latest values
@@ -652,7 +841,7 @@ class TechnicalStrategy(BaseStrategy):
                 "action": action,
                 "confidence": abs(confidence),
                 "signals": signals,
-                "component": "momentum"
+                "component": "momentum",
             }
 
         except Exception as e:
@@ -661,10 +850,12 @@ class TechnicalStrategy(BaseStrategy):
                 "action": SignalType.HOLD,
                 "confidence": 0.0,
                 "signals": [],
-                "component": "momentum"
+                "component": "momentum",
             }
 
-    def _analyze_mean_reversion(self, data: pl.DataFrame, latest: pl.DataFrame) -> Dict[str, Any]:
+    def _analyze_mean_reversion(
+        self, data: pl.DataFrame, latest: pl.DataFrame
+    ) -> Dict[str, Any]:
         """Analyze mean reversion indicators."""
         try:
             # Get latest values
@@ -736,7 +927,7 @@ class TechnicalStrategy(BaseStrategy):
                 "action": action,
                 "confidence": abs(confidence),
                 "signals": signals,
-                "component": "mean_reversion"
+                "component": "mean_reversion",
             }
 
         except Exception as e:
@@ -745,7 +936,7 @@ class TechnicalStrategy(BaseStrategy):
                 "action": SignalType.HOLD,
                 "confidence": 0.0,
                 "signals": [],
-                "component": "mean_reversion"
+                "component": "mean_reversion",
             }
 
     def _analyze_patterns(self, data: pl.DataFrame) -> Dict[str, Any]:
@@ -796,7 +987,7 @@ class TechnicalStrategy(BaseStrategy):
                 "confidence": abs(confidence),
                 "signals": signals,
                 "patterns": detected_patterns,
-                "component": "patterns"
+                "component": "patterns",
             }
 
         except Exception as e:
@@ -806,10 +997,12 @@ class TechnicalStrategy(BaseStrategy):
                 "confidence": 0.0,
                 "signals": [],
                 "patterns": [],
-                "component": "patterns"
+                "component": "patterns",
             }
 
-    def _analyze_volume(self, data: pl.DataFrame, latest: pl.DataFrame) -> Dict[str, Any]:
+    def _analyze_volume(
+        self, data: pl.DataFrame, latest: pl.DataFrame
+    ) -> Dict[str, Any]:
         """Analyze volume indicators."""
         try:
             # Get recent volume data
@@ -866,7 +1059,7 @@ class TechnicalStrategy(BaseStrategy):
                 "signals": signals,
                 "volume_ratio": volume_ratio,
                 "obv_trend": obv_trend,
-                "component": "volume"
+                "component": "volume",
             }
 
         except Exception as e:
@@ -875,12 +1068,18 @@ class TechnicalStrategy(BaseStrategy):
                 "action": SignalType.HOLD,
                 "confidence": 0.0,
                 "signals": [],
-                "component": "volume"
+                "component": "volume",
             }
 
-    def _combine_signals(self, symbol: str, latest: pl.DataFrame,
-                        momentum_signal: Dict, mean_reversion_signal: Dict,
-                        pattern_signal: Dict, volume_signal: Dict) -> Signal:
+    def _combine_signals(
+        self,
+        symbol: str,
+        latest: pl.DataFrame,
+        momentum_signal: Dict,
+        mean_reversion_signal: Dict,
+        pattern_signal: Dict,
+        volume_signal: Dict,
+    ) -> Signal:
         """Combine all technical signals into final signal."""
         try:
             # Extract components
@@ -925,9 +1124,14 @@ class TechnicalStrategy(BaseStrategy):
             # Process each component
             components = [
                 (momentum_action, momentum_conf, momentum_weight, momentum_signal),
-                (mean_reversion_action, mean_reversion_conf, mean_reversion_weight, mean_reversion_signal),
+                (
+                    mean_reversion_action,
+                    mean_reversion_conf,
+                    mean_reversion_weight,
+                    mean_reversion_signal,
+                ),
                 (pattern_action, pattern_conf, pattern_weight, pattern_signal),
-                (volume_action, volume_conf, volume_weight, volume_signal)
+                (volume_action, volume_conf, volume_weight, volume_signal),
             ]
 
             for action, conf, weight, signal_data in components:
@@ -957,7 +1161,9 @@ class TechnicalStrategy(BaseStrategy):
             if sell_signals:
                 reasoning_parts.append(f"Bearish: {', '.join(sell_signals)}")
 
-            reasoning = " | ".join(reasoning_parts) if reasoning_parts else "Neutral signals"
+            reasoning = (
+                " | ".join(reasoning_parts) if reasoning_parts else "Neutral signals"
+            )
 
             # Get current price for entry price
             current_price = float(latest.select("close").item())
@@ -975,8 +1181,8 @@ class TechnicalStrategy(BaseStrategy):
                     "patterns": pattern_signal,
                     "volume": volume_signal,
                     "all_signals": all_signals,
-                    "weighted_confidence": total_confidence
-                }
+                    "weighted_confidence": total_confidence,
+                },
             )
 
         except Exception as e:
@@ -985,7 +1191,7 @@ class TechnicalStrategy(BaseStrategy):
                 action=SignalType.HOLD,
                 confidence=50.0,
                 position_size=0.0,
-                reasoning=f"Technical analysis error: {str(e)}"
+                reasoning=f"Technical analysis error: {str(e)}",
             )
 
 
@@ -1013,18 +1219,24 @@ class MarketRegimeDetector:
         volatility = MarketRegimeDetector._calculate_volatility(recent_data)
 
         # Calculate range-bound characteristics
-        range_bound_score = MarketRegimeDetector._calculate_range_bound_score(recent_data)
+        range_bound_score = MarketRegimeDetector._calculate_range_bound_score(
+            recent_data
+        )
 
         # Determine regime
         if trend_strength > 0.6:
-            regime = TrendDirection.BULLISH if trend_strength > 0 else TrendDirection.BEARISH
+            regime = (
+                TrendDirection.BULLISH if trend_strength > 0 else TrendDirection.BEARISH
+            )
         elif range_bound_score > 0.7:
             regime = TrendDirection.SIDEWAYS
         else:
             regime = TrendDirection.SIDEWAYS  # Default to sideways if unclear
 
         # Volatility classification
-        volatility_regime = "high" if volatility > 0.02 else "normal" if volatility > 0.01 else "low"
+        volatility_regime = (
+            "high" if volatility > 0.02 else "normal" if volatility > 0.01 else "low"
+        )
 
         return {
             "regime": regime,
@@ -1032,7 +1244,7 @@ class MarketRegimeDetector:
             "volatility": volatility,
             "volatility_regime": volatility_regime,
             "range_bound_score": range_bound_score,
-            "confidence": max(abs(trend_strength), range_bound_score)
+            "confidence": max(abs(trend_strength), range_bound_score),
         }
 
     @staticmethod
@@ -1058,12 +1270,13 @@ class MarketRegimeDetector:
     @staticmethod
     def _calculate_volatility(data: pl.DataFrame) -> float:
         """Calculate realized volatility."""
-        returns = (data
-                  .with_columns(pl.col("close").pct_change().alias("returns"))
-                  .select("returns")
-                  .drop_nulls()
-                  .to_series()
-                  .to_numpy())
+        returns = (
+            data.with_columns(pl.col("close").pct_change().alias("returns"))
+            .select("returns")
+            .drop_nulls()
+            .to_series()
+            .to_numpy()
+        )
 
         if len(returns) < 2:
             return 0.0
@@ -1083,16 +1296,16 @@ class MarketRegimeDetector:
         # Calculate how often price crosses the moving average
         recent_data = data_with_ma.tail(20)
 
-        crossings = (recent_data
-                    .with_columns([
-                        (pl.col("close") > pl.col("sma_20")).cast(pl.Int32).alias("above_ma")
-                    ])
-                    .with_columns([
-                        pl.col("above_ma").diff().abs().alias("crossing")
-                    ])
-                    .select("crossing")
-                    .sum()
-                    .item() or 0)
+        crossings = (
+            recent_data.with_columns(
+                [(pl.col("close") > pl.col("sma_20")).cast(pl.Int32).alias("above_ma")]
+            )
+            .with_columns([pl.col("above_ma").diff().abs().alias("crossing")])
+            .select("crossing")
+            .sum()
+            .item()
+            or 0
+        )
 
         # More crossings indicate range-bound behavior
         max_crossings = 10  # Theoretical maximum for 20 periods
@@ -1125,7 +1338,9 @@ class VolatilityAnalyzer:
             "realized_vol_60d": vol_60d,
             "vol_of_vol": vol_of_vol,
             "atr_vol": atr_vol,
-            "vol_regime": "high" if vol_20d > 0.25 else "normal" if vol_20d > 0.15 else "low"
+            "vol_regime": (
+                "high" if vol_20d > 0.25 else "normal" if vol_20d > 0.15 else "low"
+            ),
         }
 
     @staticmethod
@@ -1134,13 +1349,14 @@ class VolatilityAnalyzer:
         if data.height < period + 1:
             return 0.0
 
-        returns = (data
-                  .tail(period + 1)
-                  .with_columns(pl.col("close").pct_change().alias("returns"))
-                  .select("returns")
-                  .drop_nulls()
-                  .to_series()
-                  .to_numpy())
+        returns = (
+            data.tail(period + 1)
+            .with_columns(pl.col("close").pct_change().alias("returns"))
+            .select("returns")
+            .drop_nulls()
+            .to_series()
+            .to_numpy()
+        )
 
         if len(returns) < 2:
             return 0.0
@@ -1154,13 +1370,14 @@ class VolatilityAnalyzer:
             return 0.0
 
         # Calculate rolling volatility
-        vol_data = (data
-                   .with_columns(pl.col("close").pct_change().alias("returns"))
-                   .with_columns(
-                       pl.col("returns").rolling_std(window_size=window).alias("rolling_vol")
-                   )
-                   .select("rolling_vol")
-                   .drop_nulls())
+        vol_data = (
+            data.with_columns(pl.col("close").pct_change().alias("returns"))
+            .with_columns(
+                pl.col("returns").rolling_std(window_size=window).alias("rolling_vol")
+            )
+            .select("rolling_vol")
+            .drop_nulls()
+        )
 
         if vol_data.height < 5:
             return 0.0
@@ -1215,10 +1432,14 @@ class TechnicalAnalysisEngine:
             regime_info = self.regime_detector.detect_regime(analyzed_data)
 
             # Support/resistance levels
-            support_levels, resistance_levels = self.support_resistance.calculate_support_resistance(analyzed_data)
+            support_levels, resistance_levels = (
+                self.support_resistance.calculate_support_resistance(analyzed_data)
+            )
 
             # Volatility analysis
-            volatility_metrics = self.volatility_analyzer.calculate_volatility_metrics(analyzed_data)
+            volatility_metrics = self.volatility_analyzer.calculate_volatility_metrics(
+                analyzed_data
+            )
 
             # Pattern detection
             patterns = self._detect_all_patterns(analyzed_data)
@@ -1242,7 +1463,7 @@ class TechnicalAnalysisEngine:
                 "patterns": patterns,
                 "indicators": current_indicators,
                 "technical_score": technical_score,
-                "data_points": analyzed_data.height
+                "data_points": analyzed_data.height,
             }
 
         except Exception as e:
@@ -1251,7 +1472,7 @@ class TechnicalAnalysisEngine:
                 "symbol": symbol,
                 "timestamp": datetime.now(timezone.utc),
                 "error": str(e),
-                "technical_score": 50.0  # Neutral score on error
+                "technical_score": 50.0,  # Neutral score on error
             }
 
     def _calculate_comprehensive_indicators(self, data: pl.DataFrame) -> pl.DataFrame:
@@ -1294,7 +1515,7 @@ class TechnicalAnalysisEngine:
             self.pattern_recognition.detect_breakout,
             self.pattern_recognition.detect_breakdown,
             self.pattern_recognition.detect_double_top,
-            self.pattern_recognition.detect_double_bottom
+            self.pattern_recognition.detect_double_bottom,
         ]
 
         for method in pattern_methods:
@@ -1313,11 +1534,30 @@ class TechnicalAnalysisEngine:
 
         # List of indicators to extract
         indicator_columns = [
-            "sma_10", "sma_20", "sma_50", "ema_10", "ema_20", "ema_50",
-            "rsi_14", "macd_line", "macd_signal", "macd_histogram",
-            "bb_upper", "bb_middle", "bb_lower", "bb_position", "bb_width",
-            "atr_14", "obv", "vwap", "stoch_k", "stoch_d",
-            "williams_r_14", "cci_20", "momentum_10", "roc_10"
+            "sma_10",
+            "sma_20",
+            "sma_50",
+            "ema_10",
+            "ema_20",
+            "ema_50",
+            "rsi_14",
+            "macd_line",
+            "macd_signal",
+            "macd_histogram",
+            "bb_upper",
+            "bb_middle",
+            "bb_lower",
+            "bb_position",
+            "bb_width",
+            "atr_14",
+            "obv",
+            "vwap",
+            "stoch_k",
+            "stoch_d",
+            "williams_r_14",
+            "cci_20",
+            "momentum_10",
+            "roc_10",
         ]
 
         for col in indicator_columns:
@@ -1331,8 +1571,13 @@ class TechnicalAnalysisEngine:
 
         return indicators
 
-    def _calculate_technical_score(self, data: pl.DataFrame, latest: pl.DataFrame,
-                                 regime_info: Dict, patterns: List[PatternSignal]) -> float:
+    def _calculate_technical_score(
+        self,
+        data: pl.DataFrame,
+        latest: pl.DataFrame,
+        regime_info: Dict,
+        patterns: List[PatternSignal],
+    ) -> float:
         """Calculate overall technical score (0-100)."""
         try:
             score = 50.0  # Start with neutral
@@ -1458,7 +1703,7 @@ class TechnicalAnalysisEngine:
                 elif rsi >= 70:
                     score -= 20  # Overbought - bearish for mean reversion
                 elif 45 <= rsi <= 55:
-                    score += 5   # Neutral zone
+                    score += 5  # Neutral zone
 
             # Bollinger Bands position
             bb_position = latest.select("bb_position").item()

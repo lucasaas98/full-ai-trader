@@ -10,13 +10,12 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from aiohttp import web, web_response
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
-
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +62,12 @@ class DataCollectorHTTPServer:
         # Add data access endpoints for other services
         app.router.add_get("/market-data/historical/{symbol}", self.get_historical_data)
         app.router.add_get("/market-data/latest/{symbol}", self.get_latest_data)
-        app.router.add_get("/market-data/volatility/{symbol}", self.get_symbol_volatility)
-        app.router.add_get("/market-data/correlation/{symbol1}/{symbol2}", self.get_symbol_correlation)
+        app.router.add_get(
+            "/market-data/volatility/{symbol}", self.get_symbol_volatility
+        )
+        app.router.add_get(
+            "/market-data/correlation/{symbol1}/{symbol2}", self.get_symbol_correlation
+        )
         app.router.add_get("/market-data/atr/{symbol}", self.get_atr)
 
         # Add TwelveData API relay endpoints
@@ -72,7 +75,10 @@ class DataCollectorHTTPServer:
         app.router.add_get("/api/twelvedata/time-series/{symbol}", self.get_time_series)
         app.router.add_post("/api/twelvedata/batch-quotes", self.get_batch_quotes)
         app.router.add_get("/api/twelvedata/search/{query}", self.search_symbols)
-        app.router.add_get("/api/twelvedata/technical/{indicator}/{symbol}", self.get_technical_indicator)
+        app.router.add_get(
+            "/api/twelvedata/technical/{indicator}/{symbol}",
+            self.get_technical_indicator,
+        )
 
         # Add middleware for CORS and error handling
         app.middlewares.append(self.cors_handler)
@@ -114,9 +120,9 @@ class DataCollectorHTTPServer:
     async def cors_handler(self, request: Request, handler):
         """CORS middleware."""
         response = await handler(request)
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         return response
 
     @web.middleware
@@ -130,26 +136,28 @@ class DataCollectorHTTPServer:
                 {
                     "error": "Internal server error",
                     "message": str(e),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
-                status=500
+                status=500,
             )
 
     async def index(self, request: Request) -> Response:
         """Root endpoint with basic service information."""
-        return web.json_response({
-            "service": "data_collector",
-            "version": "1.0.0",
-            "status": "running",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "endpoints": {
-                "health": "/health",
-                "status": "/status",
-                "metrics": "/metrics",
-                "metrics_json": "/metrics/json",
-                "info": "/info"
+        return web.json_response(
+            {
+                "service": "data_collector",
+                "version": "1.0.0",
+                "status": "running",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "endpoints": {
+                    "health": "/health",
+                    "status": "/status",
+                    "metrics": "/metrics",
+                    "metrics_json": "/metrics/json",
+                    "info": "/info",
+                },
             }
-        })
+        )
 
     async def health_check(self, request: Request) -> Response:
         """Health check endpoint for service monitoring."""
@@ -159,9 +167,9 @@ class DataCollectorHTTPServer:
                     {
                         "status": "unhealthy",
                         "message": "Data service not available",
-                        "timestamp": datetime.now(timezone.utc).isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     },
-                    status=503
+                    status=503,
                 )
 
             # Get health information from data service
@@ -182,9 +190,9 @@ class DataCollectorHTTPServer:
                 {
                     "status": "error",
                     "message": f"Health check failed: {str(e)}",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 },
-                status=500
+                status=500,
             )
 
     async def status(self, request: Request) -> Response:
@@ -192,24 +200,24 @@ class DataCollectorHTTPServer:
         try:
             if not self.data_service:
                 return web.json_response(
-                    {"error": "Data service not available"},
-                    status=503
+                    {"error": "Data service not available"}, status=503
                 )
 
             # Get service status
             status = await self.data_service.get_service_status()
 
-            return web.json_response({
-                "service": "data_collector",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "data": status
-            })
+            return web.json_response(
+                {
+                    "service": "data_collector",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": status,
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Status check failed: {e}")
             return web.json_response(
-                {"error": f"Status check failed: {str(e)}"},
-                status=500
+                {"error": f"Status check failed: {str(e)}"}, status=500
             )
 
     async def prometheus_metrics(self, request: Request) -> Response:
@@ -219,7 +227,7 @@ class DataCollectorHTTPServer:
                 return web.Response(
                     text="# Data service not available\n",
                     content_type="text/plain; version=0.0.4",
-                    status=503
+                    status=503,
                 )
 
             # Update Prometheus metrics with current values
@@ -229,8 +237,8 @@ class DataCollectorHTTPServer:
             metrics_output = generate_latest()
 
             return web.Response(
-                text=metrics_output.decode('utf-8'),
-                content_type="text/plain; version=0.0.4"
+                text=metrics_output.decode("utf-8"),
+                content_type="text/plain; version=0.0.4",
             )
 
         except Exception as e:
@@ -238,7 +246,7 @@ class DataCollectorHTTPServer:
             return web.Response(
                 text=f"# Error collecting metrics: {str(e)}\n",
                 content_type="text/plain; version=0.0.4",
-                status=500
+                status=500,
             )
 
     async def metrics(self, request: Request) -> Response:
@@ -246,8 +254,7 @@ class DataCollectorHTTPServer:
         try:
             if not self.data_service:
                 return web.json_response(
-                    {"error": "Data service not available"},
-                    status=503
+                    {"error": "Data service not available"}, status=503
                 )
 
             # Get metrics from data service
@@ -260,8 +267,8 @@ class DataCollectorHTTPServer:
                     "active_tickers_count": status.get("active_tickers_count", 0),
                     "scheduled_jobs_count": len(status.get("scheduler_jobs", [])),
                     "is_running": status.get("is_running", False),
-                    "statistics": status.get("statistics", {})
-                }
+                    "statistics": status.get("statistics", {}),
+                },
             }
 
             return web.json_response(metrics)
@@ -269,8 +276,7 @@ class DataCollectorHTTPServer:
         except Exception as e:
             self.logger.error(f"Metrics collection failed: {e}")
             return web.json_response(
-                {"error": f"Metrics collection failed: {str(e)}"},
-                status=500
+                {"error": f"Metrics collection failed: {str(e)}"}, status=500
             )
 
     async def info(self, request: Request) -> Response:
@@ -280,30 +286,36 @@ class DataCollectorHTTPServer:
                 config_info = {"error": "Data service not available"}
             else:
                 # Get configuration information (sanitized)
-                config = self.data_service.config.dict() if hasattr(self.data_service, 'config') else {}
+                config = (
+                    self.data_service.config.dict()
+                    if hasattr(self.data_service, "config")
+                    else {}
+                )
 
                 # Remove sensitive information
                 config_info = {
-                    k: v for k, v in config.items()
-                    if k not in ['api_key', 'password', 'secret']
+                    k: v
+                    for k, v in config.items()
+                    if k not in ["api_key", "password", "secret"]
                 }
 
-            return web.json_response({
-                "service": "data_collector",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "configuration": config_info,
-                "server_info": {
-                    "host": self.host,
-                    "port": self.port,
-                    "started": datetime.now(timezone.utc).isoformat()
+            return web.json_response(
+                {
+                    "service": "data_collector",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "configuration": config_info,
+                    "server_info": {
+                        "host": self.host,
+                        "port": self.port,
+                        "started": datetime.now(timezone.utc).isoformat(),
+                    },
                 }
-            })
+            )
 
         except Exception as e:
             self.logger.error(f"Info request failed: {e}")
             return web.json_response(
-                {"error": f"Info request failed: {str(e)}"},
-                status=500
+                {"error": f"Info request failed: {str(e)}"}, status=500
             )
 
     async def _get_health_info(self) -> Dict[str, Any]:
@@ -313,7 +325,7 @@ class DataCollectorHTTPServer:
             "service": "data_collector",
             "status": "unknown",
             "components": {},
-            "errors": []
+            "errors": [],
         }
 
         try:
@@ -325,13 +337,18 @@ class DataCollectorHTTPServer:
             health_info["components"]["service"] = {
                 "status": "healthy" if is_running else "unhealthy",
                 "running": is_running,
-                "active_tickers": service_status.get("active_tickers_count", 0)
+                "active_tickers": service_status.get("active_tickers_count", 0),
             }
 
             # Check individual components if available
-            if hasattr(self.data_service, 'finviz_screener') and self.data_service.finviz_screener:
+            if (
+                hasattr(self.data_service, "finviz_screener")
+                and self.data_service.finviz_screener
+            ):
                 try:
-                    finviz_healthy = await self.data_service.finviz_screener.validate_connection()
+                    finviz_healthy = (
+                        await self.data_service.finviz_screener.validate_connection()
+                    )
                     health_info["components"]["finviz"] = {
                         "status": "healthy" if finviz_healthy else "degraded"
                     }
@@ -340,9 +357,14 @@ class DataCollectorHTTPServer:
                 except Exception:
                     health_info["components"]["finviz"] = {"status": "unknown"}
 
-            if hasattr(self.data_service, 'twelvedata_client') and self.data_service.twelvedata_client:
+            if (
+                hasattr(self.data_service, "twelvedata_client")
+                and self.data_service.twelvedata_client
+            ):
                 try:
-                    twelvedata_healthy = await self.data_service.twelvedata_client.test_connection()
+                    twelvedata_healthy = (
+                        await self.data_service.twelvedata_client.test_connection()
+                    )
                     health_info["components"]["twelvedata"] = {
                         "status": "healthy" if twelvedata_healthy else "degraded"
                     }
@@ -351,12 +373,19 @@ class DataCollectorHTTPServer:
                 except Exception:
                     health_info["components"]["twelvedata"] = {"status": "unknown"}
 
-            if hasattr(self.data_service, 'redis_client') and self.data_service.redis_client:
+            if (
+                hasattr(self.data_service, "redis_client")
+                and self.data_service.redis_client
+            ):
                 try:
                     redis_health = await self.data_service.redis_client.health_check()
                     health_info["components"]["redis"] = {
-                        "status": "healthy" if redis_health.get("connected", False) else "unhealthy",
-                        "connected": redis_health.get("connected", False)
+                        "status": (
+                            "healthy"
+                            if redis_health.get("connected", False)
+                            else "unhealthy"
+                        ),
+                        "connected": redis_health.get("connected", False),
                     }
                     if not redis_health.get("connected", False):
                         health_info["errors"].append("Redis connection failed")
@@ -366,7 +395,8 @@ class DataCollectorHTTPServer:
 
             # Determine overall health status
             component_statuses = [
-                comp.get("status") for comp in health_info["components"].values()
+                comp.get("status")
+                for comp in health_info["components"].values()
                 if isinstance(comp, dict) and "status" in comp
             ]
 
@@ -387,59 +417,54 @@ class DataCollectorHTTPServer:
         """Initialize Prometheus metrics."""
         # Service status metrics
         self.active_tickers_gauge = Gauge(
-            'data_collector_active_tickers_total',
-            'Number of active tickers being tracked'
+            "data_collector_active_tickers_total",
+            "Number of active tickers being tracked",
         )
 
         self.scheduled_jobs_gauge = Gauge(
-            'data_collector_scheduled_jobs_total',
-            'Number of scheduled jobs'
+            "data_collector_scheduled_jobs_total", "Number of scheduled jobs"
         )
 
         self.service_running_gauge = Gauge(
-            'data_collector_service_running',
-            'Whether the data collection service is running (1=running, 0=stopped)'
+            "data_collector_service_running",
+            "Whether the data collection service is running (1=running, 0=stopped)",
         )
 
         # Statistics metrics
         self.screener_runs_counter = Counter(
-            'data_collector_screener_runs_total',
-            'Total number of screener runs'
+            "data_collector_screener_runs_total", "Total number of screener runs"
         )
 
         self.data_updates_counter = Counter(
-            'data_collector_data_updates_total',
-            'Total number of data updates'
+            "data_collector_data_updates_total", "Total number of data updates"
         )
 
         self.records_saved_counter = Counter(
-            'data_collector_records_saved_total',
-            'Total number of records saved'
+            "data_collector_records_saved_total", "Total number of records saved"
         )
 
         self.errors_counter = Counter(
-            'data_collector_errors_total',
-            'Total number of errors encountered'
+            "data_collector_errors_total", "Total number of errors encountered"
         )
 
         # Component health metrics
         self.component_health_gauge = Gauge(
-            'data_collector_component_health',
-            'Health status of components (1=healthy, 0=unhealthy)',
-            ['component']
+            "data_collector_component_health",
+            "Health status of components (1=healthy, 0=unhealthy)",
+            ["component"],
         )
 
         # HTTP request metrics
         self.http_requests_counter = Counter(
-            'data_collector_http_requests_total',
-            'Total HTTP requests',
-            ['endpoint', 'method', 'status']
+            "data_collector_http_requests_total",
+            "Total HTTP requests",
+            ["endpoint", "method", "status"],
         )
 
         self.http_request_duration = Histogram(
-            'data_collector_http_request_duration_seconds',
-            'HTTP request duration in seconds',
-            ['endpoint', 'method']
+            "data_collector_http_request_duration_seconds",
+            "HTTP request duration in seconds",
+            ["endpoint", "method"],
         )
 
     async def _update_prometheus_metrics(self):
@@ -476,7 +501,9 @@ class DataCollectorHTTPServer:
             for component_name, component_info in components.items():
                 if isinstance(component_info, dict) and "status" in component_info:
                     health_value = 1 if component_info["status"] == "healthy" else 0
-                    self.component_health_gauge.labels(component=component_name).set(health_value)
+                    self.component_health_gauge.labels(component=component_name).set(
+                        health_value
+                    )
 
         except Exception as e:
             self.logger.error(f"Failed to update Prometheus metrics: {e}")
@@ -493,6 +520,7 @@ class DataCollectorHTTPServer:
 
             # Map timeframe string to TimeFrame enum
             from shared.models import TimeFrame
+
             timeframe_map = {
                 "1m": TimeFrame.ONE_MINUTE,
                 "5m": TimeFrame.FIVE_MINUTES,
@@ -505,26 +533,28 @@ class DataCollectorHTTPServer:
             timeframe = timeframe_map.get(timeframe_str, TimeFrame.FIVE_MINUTES)
 
             # Trigger the update
-            if hasattr(self.data_service, '_update_price_data'):
+            if hasattr(self.data_service, "_update_price_data"):
                 await self.data_service._update_price_data(timeframe)
 
-                return web.json_response({
-                    "status": "success",
-                    "message": f"Market data update triggered for {timeframe_str}",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "message": f"Market data update triggered for {timeframe_str}",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
             else:
                 return web.json_response(
-                    {"status": "error", "message": "Data collection service not available"},
-                    status=503
+                    {
+                        "status": "error",
+                        "message": "Data collection service not available",
+                    },
+                    status=503,
                 )
 
         except Exception as e:
             self.logger.error(f"Error triggering market data update: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def trigger_finviz_scan(self, request: web.Request) -> web.Response:
         """
@@ -532,26 +562,25 @@ class DataCollectorHTTPServer:
         """
         try:
             # Trigger the scan
-            if hasattr(self.data_service, '_run_finviz_scan'):
+            if hasattr(self.data_service, "_run_finviz_scan"):
                 await self.data_service._run_finviz_scan()
 
-                return web.json_response({
-                    "status": "success",
-                    "message": "FinViz scan triggered",
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "message": "FinViz scan triggered",
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
             else:
                 return web.json_response(
                     {"status": "error", "message": "FinViz screener not available"},
-                    status=503
+                    status=503,
                 )
 
         except Exception as e:
             self.logger.error(f"Error triggering FinViz scan: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_historical_data(self, request: web.Request) -> web.Response:
         """
@@ -562,12 +591,13 @@ class DataCollectorHTTPServer:
         - timeframe: Data timeframe (default: 1d)
         """
         try:
-            symbol = request.match_info['symbol']
-            days = int(request.query.get('days', 30))
-            timeframe_str = request.query.get('timeframe', '1d')
+            symbol = request.match_info["symbol"]
+            days = int(request.query.get("days", 30))
+            timeframe_str = request.query.get("timeframe", "1d")
 
             # Map timeframe string to TimeFrame enum
             from shared.models import TimeFrame
+
             timeframe_map = {
                 "1m": TimeFrame.ONE_MINUTE,
                 "5m": TimeFrame.FIVE_MINUTES,
@@ -579,14 +609,15 @@ class DataCollectorHTTPServer:
 
             timeframe = timeframe_map.get(timeframe_str, TimeFrame.ONE_DAY)
 
-            if not hasattr(self.data_service, 'data_store'):
+            if not hasattr(self.data_service, "data_store"):
                 return web.json_response(
                     {"status": "error", "message": "Data store not available"},
-                    status=503
+                    status=503,
                 )
 
             # Calculate date range
             from datetime import datetime, timedelta
+
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
@@ -595,43 +626,47 @@ class DataCollectorHTTPServer:
                 ticker=symbol,
                 timeframe=timeframe,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df is None or len(df) == 0:
-                return web.json_response({
-                    "status": "success",
-                    "data": [],
-                    "symbol": symbol,
-                    "days": days
-                })
+                return web.json_response(
+                    {"status": "success", "data": [], "symbol": symbol, "days": days}
+                )
 
             # Convert DataFrame to list of dictionaries
             data = []
             for row in df.iter_rows(named=True):
-                data.append({
-                    "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
-                    "open": float(row["open"]) if row["open"] is not None else None,
-                    "high": float(row["high"]) if row["high"] is not None else None,
-                    "low": float(row["low"]) if row["low"] is not None else None,
-                    "close": float(row["close"]) if row["close"] is not None else None,
-                    "volume": int(row["volume"]) if row["volume"] is not None else None
-                })
+                data.append(
+                    {
+                        "timestamp": (
+                            row["timestamp"].isoformat() if row["timestamp"] else None
+                        ),
+                        "open": float(row["open"]) if row["open"] is not None else None,
+                        "high": float(row["high"]) if row["high"] is not None else None,
+                        "low": float(row["low"]) if row["low"] is not None else None,
+                        "close": (
+                            float(row["close"]) if row["close"] is not None else None
+                        ),
+                        "volume": (
+                            int(row["volume"]) if row["volume"] is not None else None
+                        ),
+                    }
+                )
 
-            return web.json_response({
-                "status": "success",
-                "data": data,
-                "symbol": symbol,
-                "days": days,
-                "timeframe": timeframe_str
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "data": data,
+                    "symbol": symbol,
+                    "days": days,
+                    "timeframe": timeframe_str,
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting historical data for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_latest_data(self, request: web.Request) -> web.Response:
         """
@@ -642,12 +677,13 @@ class DataCollectorHTTPServer:
         - timeframe: Data timeframe (default: 1d)
         """
         try:
-            symbol = request.match_info['symbol']
-            limit = int(request.query.get('limit', 1))
-            timeframe_str = request.query.get('timeframe', '1d')
+            symbol = request.match_info["symbol"]
+            limit = int(request.query.get("limit", 1))
+            timeframe_str = request.query.get("timeframe", "1d")
 
             # Map timeframe string to TimeFrame enum
             from shared.models import TimeFrame
+
             timeframe_map = {
                 "1m": TimeFrame.ONE_MINUTE,
                 "5m": TimeFrame.FIVE_MINUTES,
@@ -659,53 +695,55 @@ class DataCollectorHTTPServer:
 
             timeframe = timeframe_map.get(timeframe_str, TimeFrame.ONE_DAY)
 
-            if not hasattr(self.data_service, 'data_store'):
+            if not hasattr(self.data_service, "data_store"):
                 return web.json_response(
                     {"status": "error", "message": "Data store not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get latest data
             df = await self.data_service.data_store.get_latest_data(
-                ticker=symbol,
-                timeframe=timeframe,
-                limit=limit
+                ticker=symbol, timeframe=timeframe, limit=limit
             )
 
             if df is None or len(df) == 0:
-                return web.json_response({
-                    "status": "success",
-                    "data": [],
-                    "symbol": symbol,
-                    "limit": limit
-                })
+                return web.json_response(
+                    {"status": "success", "data": [], "symbol": symbol, "limit": limit}
+                )
 
             # Convert DataFrame to list of dictionaries
             data = []
             for row in df.iter_rows(named=True):
-                data.append({
-                    "timestamp": row["timestamp"].isoformat() if row["timestamp"] else None,
-                    "open": float(row["open"]) if row["open"] is not None else None,
-                    "high": float(row["high"]) if row["high"] is not None else None,
-                    "low": float(row["low"]) if row["low"] is not None else None,
-                    "close": float(row["close"]) if row["close"] is not None else None,
-                    "volume": int(row["volume"]) if row["volume"] is not None else None
-                })
+                data.append(
+                    {
+                        "timestamp": (
+                            row["timestamp"].isoformat() if row["timestamp"] else None
+                        ),
+                        "open": float(row["open"]) if row["open"] is not None else None,
+                        "high": float(row["high"]) if row["high"] is not None else None,
+                        "low": float(row["low"]) if row["low"] is not None else None,
+                        "close": (
+                            float(row["close"]) if row["close"] is not None else None
+                        ),
+                        "volume": (
+                            int(row["volume"]) if row["volume"] is not None else None
+                        ),
+                    }
+                )
 
-            return web.json_response({
-                "status": "success",
-                "data": data,
-                "symbol": symbol,
-                "limit": limit,
-                "timeframe": timeframe_str
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "data": data,
+                    "symbol": symbol,
+                    "limit": limit,
+                    "timeframe": timeframe_str,
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting latest data for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_symbol_volatility(self, request: web.Request) -> web.Response:
         """
@@ -715,19 +753,21 @@ class DataCollectorHTTPServer:
         - days: Number of days for calculation (default: 252)
         """
         try:
-            symbol = request.match_info['symbol']
-            days = int(request.query.get('days', 252))
+            symbol = request.match_info["symbol"]
+            days = int(request.query.get("days", 252))
 
-            if not hasattr(self.data_service, 'data_store'):
+            if not hasattr(self.data_service, "data_store"):
                 return web.json_response(
                     {"status": "error", "message": "Data store not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get historical data
             from datetime import datetime, timedelta
-            from shared.models import TimeFrame
+
             import numpy as np
+
+            from shared.models import TimeFrame
 
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
@@ -736,53 +776,59 @@ class DataCollectorHTTPServer:
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df is None or len(df) < 20:
                 # Return default volatility
-                return web.json_response({
-                    "status": "success",
-                    "volatility": 0.25,
-                    "symbol": symbol,
-                    "days": days,
-                    "note": "Default volatility used due to insufficient data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "volatility": 0.25,
+                        "symbol": symbol,
+                        "days": days,
+                        "note": "Default volatility used due to insufficient data",
+                    }
+                )
 
             # Calculate returns and volatility
             import polars as pl
-            returns_df = df.with_columns([
-                pl.col("close").pct_change().alias("returns")
-            ]).drop_nulls()
+
+            returns_df = df.with_columns(
+                [pl.col("close").pct_change().alias("returns")]
+            ).drop_nulls()
 
             if len(returns_df) < 10:
-                return web.json_response({
-                    "status": "success",
-                    "volatility": 0.25,
-                    "symbol": symbol,
-                    "days": days,
-                    "note": "Default volatility used due to insufficient returns data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "volatility": 0.25,
+                        "symbol": symbol,
+                        "days": days,
+                        "note": "Default volatility used due to insufficient returns data",
+                    }
+                )
 
             returns_std = returns_df["returns"].std()
-            volatility = float(returns_std) * np.sqrt(252) if returns_std is not None else 0.25
+            volatility = (
+                float(returns_std) * np.sqrt(252) if returns_std is not None else 0.25
+            )
 
             # Clamp to reasonable bounds
             volatility = max(0.05, min(2.0, volatility))
 
-            return web.json_response({
-                "status": "success",
-                "volatility": volatility,
-                "symbol": symbol,
-                "days": days
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "volatility": volatility,
+                    "symbol": symbol,
+                    "days": days,
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Error calculating volatility for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_symbol_correlation(self, request: web.Request) -> web.Response:
         """
@@ -792,30 +838,34 @@ class DataCollectorHTTPServer:
         - days: Number of days for calculation (default: 252)
         """
         try:
-            symbol1 = request.match_info['symbol1']
-            symbol2 = request.match_info['symbol2']
-            days = int(request.query.get('days', 252))
+            symbol1 = request.match_info["symbol1"]
+            symbol2 = request.match_info["symbol2"]
+            days = int(request.query.get("days", 252))
 
             if symbol1 == symbol2:
-                return web.json_response({
-                    "status": "success",
-                    "correlation": 1.0,
-                    "symbol1": symbol1,
-                    "symbol2": symbol2,
-                    "days": days
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "correlation": 1.0,
+                        "symbol1": symbol1,
+                        "symbol2": symbol2,
+                        "days": days,
+                    }
+                )
 
-            if not hasattr(self.data_service, 'data_store'):
+            if not hasattr(self.data_service, "data_store"):
                 return web.json_response(
                     {"status": "error", "message": "Data store not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get historical data for both symbols
             from datetime import datetime, timedelta
-            from shared.models import TimeFrame
+
             import numpy as np
             import polars as pl
+
+            from shared.models import TimeFrame
 
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
@@ -824,86 +874,95 @@ class DataCollectorHTTPServer:
                 ticker=symbol1,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             df2 = await self.data_service.data_store.load_market_data(
                 ticker=symbol2,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df1 is None or df2 is None or len(df1) < 20 or len(df2) < 20:
                 # Return default correlation
-                return web.json_response({
-                    "status": "success",
-                    "correlation": 0.1,
-                    "symbol1": symbol1,
-                    "symbol2": symbol2,
-                    "days": days,
-                    "note": "Default correlation used due to insufficient data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "correlation": 0.1,
+                        "symbol1": symbol1,
+                        "symbol2": symbol2,
+                        "days": days,
+                        "note": "Default correlation used due to insufficient data",
+                    }
+                )
 
             # Calculate returns for both symbols
-            returns1 = df1.with_columns([
-                pl.col("close").pct_change().alias("returns")
-            ]).drop_nulls()
+            returns1 = df1.with_columns(
+                [pl.col("close").pct_change().alias("returns")]
+            ).drop_nulls()
 
-            returns2 = df2.with_columns([
-                pl.col("close").pct_change().alias("returns")
-            ]).drop_nulls()
+            returns2 = df2.with_columns(
+                [pl.col("close").pct_change().alias("returns")]
+            ).drop_nulls()
 
             if len(returns1) < 10 or len(returns2) < 10:
-                return web.json_response({
-                    "status": "success",
-                    "correlation": 0.1,
-                    "symbol1": symbol1,
-                    "symbol2": symbol2,
-                    "days": days,
-                    "note": "Default correlation used due to insufficient returns data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "correlation": 0.1,
+                        "symbol1": symbol1,
+                        "symbol2": symbol2,
+                        "days": days,
+                        "note": "Default correlation used due to insufficient returns data",
+                    }
+                )
 
             # Merge returns data on timestamp
             merged = returns1.select(["timestamp", "returns"]).join(
                 returns2.select(["timestamp", "returns"]),
                 on="timestamp",
                 how="inner",
-                suffix="_2"
+                suffix="_2",
             )
 
             if len(merged) < 10:
-                return web.json_response({
-                    "status": "success",
-                    "correlation": 0.1,
-                    "symbol1": symbol1,
-                    "symbol2": symbol2,
-                    "days": days,
-                    "note": "Default correlation used due to insufficient overlapping data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "correlation": 0.1,
+                        "symbol1": symbol1,
+                        "symbol2": symbol2,
+                        "days": days,
+                        "note": "Default correlation used due to insufficient overlapping data",
+                    }
+                )
 
             # Calculate correlation
             corr_matrix = merged.select(["returns", "returns_2"]).corr()
-            correlation = float(corr_matrix[0, 1]) if corr_matrix[0, 1] is not None else 0.1
+            correlation = (
+                float(corr_matrix[0, 1]) if corr_matrix[0, 1] is not None else 0.1
+            )
 
             # Clamp correlation to reasonable bounds
             correlation = max(-1.0, min(1.0, correlation))
 
-            return web.json_response({
-                "status": "success",
-                "correlation": correlation,
-                "symbol1": symbol1,
-                "symbol2": symbol2,
-                "days": days,
-                "data_points": len(merged)
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "correlation": correlation,
+                    "symbol1": symbol1,
+                    "symbol2": symbol2,
+                    "days": days,
+                    "data_points": len(merged),
+                }
+            )
 
         except Exception as e:
-            self.logger.error(f"Error calculating correlation between {symbol1} and {symbol2}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
+            self.logger.error(
+                f"Error calculating correlation between {symbol1} and {symbol2}: {e}"
             )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_atr(self, request: web.Request) -> web.Response:
         """
@@ -914,20 +973,22 @@ class DataCollectorHTTPServer:
         - days: Number of days of data to use (default: 30)
         """
         try:
-            symbol = request.match_info['symbol']
-            period = int(request.query.get('period', 14))
-            days = int(request.query.get('days', 30))
+            symbol = request.match_info["symbol"]
+            period = int(request.query.get("period", 14))
+            days = int(request.query.get("days", 30))
 
-            if not hasattr(self.data_service, 'data_store'):
+            if not hasattr(self.data_service, "data_store"):
                 return web.json_response(
                     {"status": "error", "message": "Data store not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get historical OHLC data
             from datetime import datetime, timedelta
-            from shared.models import TimeFrame
+
             import polars as pl
+
+            from shared.models import TimeFrame
 
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
@@ -936,41 +997,49 @@ class DataCollectorHTTPServer:
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
                 start_date=start_date,
-                end_date=end_date
+                end_date=end_date,
             )
 
             if df is None or len(df) < period:
                 # Return default ATR
-                return web.json_response({
-                    "status": "success",
-                    "atr": 0.02,
-                    "atr_percentage": 2.0,
-                    "symbol": symbol,
-                    "period": period,
-                    "days": days,
-                    "note": "Default ATR used due to insufficient data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "atr": 0.02,
+                        "atr_percentage": 2.0,
+                        "symbol": symbol,
+                        "period": period,
+                        "days": days,
+                        "note": "Default ATR used due to insufficient data",
+                    }
+                )
 
             # Calculate True Range
-            df_with_tr = df.with_columns([
-                # True Range = max(H-L, |H-C_prev|, |L-C_prev|)
-                pl.max_horizontal([
-                    pl.col("high") - pl.col("low"),
-                    (pl.col("high") - pl.col("close").shift(1)).abs(),
-                    (pl.col("low") - pl.col("close").shift(1)).abs()
-                ]).alias("true_range")
-            ]).drop_nulls()
+            df_with_tr = df.with_columns(
+                [
+                    # True Range = max(H-L, |H-C_prev|, |L-C_prev|)
+                    pl.max_horizontal(
+                        [
+                            pl.col("high") - pl.col("low"),
+                            (pl.col("high") - pl.col("close").shift(1)).abs(),
+                            (pl.col("low") - pl.col("close").shift(1)).abs(),
+                        ]
+                    ).alias("true_range")
+                ]
+            ).drop_nulls()
 
             if len(df_with_tr) < period:
-                return web.json_response({
-                    "status": "success",
-                    "atr": 0.02,
-                    "atr_percentage": 2.0,
-                    "symbol": symbol,
-                    "period": period,
-                    "days": days,
-                    "note": "Default ATR used due to insufficient true range data"
-                })
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "atr": 0.02,
+                        "atr_percentage": 2.0,
+                        "symbol": symbol,
+                        "period": period,
+                        "days": days,
+                        "note": "Default ATR used due to insufficient true range data",
+                    }
+                )
 
             # Calculate period-ATR
             atr_mean_val = df_with_tr["true_range"].tail(period).mean()
@@ -981,29 +1050,30 @@ class DataCollectorHTTPServer:
             current_price = float(latest_close) if latest_close is not None else 1.0
 
             # Convert to percentage
-            atr_percentage = (atr_value / current_price * 100) if current_price > 0 else 2.0
+            atr_percentage = (
+                (atr_value / current_price * 100) if current_price > 0 else 2.0
+            )
 
             # Clamp to reasonable bounds
             atr_percentage = max(0.5, min(10.0, atr_percentage))
             atr_decimal = atr_percentage / 100.0
 
-            return web.json_response({
-                "status": "success",
-                "atr": atr_decimal,
-                "atr_percentage": atr_percentage,
-                "symbol": symbol,
-                "period": period,
-                "days": days,
-                "current_price": current_price,
-                "data_points": len(df_with_tr)
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "atr": atr_decimal,
+                    "atr_percentage": atr_percentage,
+                    "symbol": symbol,
+                    "period": period,
+                    "days": days,
+                    "current_price": current_price,
+                    "data_points": len(df_with_tr),
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Error calculating ATR for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_real_time_quote(self, request: web.Request) -> web.Response:
         """
@@ -1013,36 +1083,34 @@ class DataCollectorHTTPServer:
         - format: Response format (default: JSON)
         """
         try:
-            symbol = request.match_info['symbol']
-            format_param = request.query.get('format', 'JSON')
+            symbol = request.match_info["symbol"]
+            format_param = request.query.get("format", "JSON")
 
-            if not hasattr(self.data_service, 'twelvedata_client'):
+            if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get quote from TwelveData
             quote_data = await self.data_service.twelvedata_client.get_quote(symbol)
 
             if quote_data is None:
-                return web.json_response({
-                    "status": "error",
-                    "message": f"No quote data available for {symbol}"
-                }, status=404)
+                return web.json_response(
+                    {
+                        "status": "error",
+                        "message": f"No quote data available for {symbol}",
+                    },
+                    status=404,
+                )
 
-            return web.json_response({
-                "status": "success",
-                "data": quote_data,
-                "symbol": symbol
-            })
+            return web.json_response(
+                {"status": "success", "data": quote_data, "symbol": symbol}
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting real-time quote for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_time_series(self, request: web.Request) -> web.Response:
         """
@@ -1055,16 +1123,16 @@ class DataCollectorHTTPServer:
         - end_date: End date (YYYY-MM-DD)
         """
         try:
-            symbol = request.match_info['symbol']
-            interval = request.query.get('interval', '5min')
-            outputsize = int(request.query.get('outputsize', 30))
-            start_date_str = request.query.get('start_date')
-            end_date_str = request.query.get('end_date')
+            symbol = request.match_info["symbol"]
+            interval = request.query.get("interval", "5min")
+            outputsize = int(request.query.get("outputsize", 30))
+            start_date_str = request.query.get("start_date")
+            end_date_str = request.query.get("end_date")
 
-            if not hasattr(self.data_service, 'twelvedata_client'):
+            if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
-                    status=503
+                    status=503,
                 )
 
             # Parse dates if provided
@@ -1072,13 +1140,16 @@ class DataCollectorHTTPServer:
             end_date = None
             if start_date_str:
                 from datetime import datetime
-                start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
+
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
             if end_date_str:
                 from datetime import datetime
-                end_date = datetime.strptime(end_date_str, '%Y-%m-%d')
+
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
 
             # Map interval to TimeFrame
             from shared.models import TimeFrame
+
             interval_map = {
                 "1min": TimeFrame.ONE_MINUTE,
                 "5min": TimeFrame.FIVE_MINUTES,
@@ -1087,52 +1158,55 @@ class DataCollectorHTTPServer:
                 "1h": TimeFrame.ONE_HOUR,
                 "1day": TimeFrame.ONE_DAY,
                 "1week": TimeFrame.ONE_WEEK,
-                "1month": TimeFrame.ONE_MONTH
+                "1month": TimeFrame.ONE_MONTH,
             }
 
             timeframe = interval_map.get(interval, TimeFrame.FIVE_MINUTES)
 
             # Get time series data
-            market_data_list = await self.data_service.twelvedata_client.get_time_series(
-                symbol=symbol,
-                timeframe=timeframe,
-                start_date=start_date,
-                end_date=end_date,
-                outputsize=outputsize
+            market_data_list = (
+                await self.data_service.twelvedata_client.get_time_series(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    start_date=start_date,
+                    end_date=end_date,
+                    outputsize=outputsize,
+                )
             )
 
             # Convert to API response format
             data = []
             for md in market_data_list:
-                data.append({
-                    "datetime": md.timestamp.isoformat(),
-                    "open": str(md.open),
-                    "high": str(md.high),
-                    "low": str(md.low),
-                    "close": str(md.close),
-                    "volume": str(md.volume)
-                })
+                data.append(
+                    {
+                        "datetime": md.timestamp.isoformat(),
+                        "open": str(md.open),
+                        "high": str(md.high),
+                        "low": str(md.low),
+                        "close": str(md.close),
+                        "volume": str(md.volume),
+                    }
+                )
 
-            return web.json_response({
-                "status": "success",
-                "meta": {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "currency": "USD",
-                    "exchange_timezone": "America/New_York",
-                    "exchange": "NASDAQ",
-                    "mic_code": "XNGS",
-                    "type": "Common Stock"
-                },
-                "values": data
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "meta": {
+                        "symbol": symbol,
+                        "interval": interval,
+                        "currency": "USD",
+                        "exchange_timezone": "America/New_York",
+                        "exchange": "NASDAQ",
+                        "mic_code": "XNGS",
+                        "type": "Common Stock",
+                    },
+                    "values": data,
+                }
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting time series for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_batch_quotes(self, request: web.Request) -> web.Response:
         """
@@ -1144,27 +1218,29 @@ class DataCollectorHTTPServer:
         try:
             if not request.body_exists:
                 return web.json_response(
-                    {"status": "error", "message": "Request body required"},
-                    status=400
+                    {"status": "error", "message": "Request body required"}, status=400
                 )
 
             data = await request.json()
-            symbols = data.get('symbols', [])
+            symbols = data.get("symbols", [])
 
             if not symbols:
                 return web.json_response(
-                    {"status": "error", "message": "Symbols list required"},
-                    status=400
+                    {"status": "error", "message": "Symbols list required"}, status=400
                 )
 
-            if not hasattr(self.data_service, 'twelvedata_client'):
+            if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
-                    status=503
+                    status=503,
                 )
 
             # Get batch real-time prices
-            batch_data = await self.data_service.twelvedata_client.get_batch_real_time_prices(symbols)
+            batch_data = (
+                await self.data_service.twelvedata_client.get_batch_real_time_prices(
+                    symbols
+                )
+            )
 
             # Convert to API response format
             quotes = {}
@@ -1178,26 +1254,18 @@ class DataCollectorHTTPServer:
                         "high": str(market_data.high),
                         "low": str(market_data.low),
                         "close": str(market_data.close),
-                        "volume": str(market_data.volume)
+                        "volume": str(market_data.volume),
                     }
                 else:
-                    quotes[symbol] = {
-                        "symbol": symbol,
-                        "error": "No data available"
-                    }
+                    quotes[symbol] = {"symbol": symbol, "error": "No data available"}
 
-            return web.json_response({
-                "status": "success",
-                "data": quotes,
-                "count": len(symbols)
-            })
+            return web.json_response(
+                {"status": "success", "data": quotes, "count": len(symbols)}
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting batch quotes: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def search_symbols(self, request: web.Request) -> web.Response:
         """
@@ -1207,33 +1275,27 @@ class DataCollectorHTTPServer:
         - exchange: Exchange filter (optional)
         """
         try:
-            query = request.match_info['query']
-            exchange = request.query.get('exchange')
+            query = request.match_info["query"]
+            exchange = request.query.get("exchange")
 
-            if not hasattr(self.data_service, 'twelvedata_client'):
+            if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
-                    status=503
+                    status=503,
                 )
 
             # Search instruments
             results = await self.data_service.twelvedata_client.search_instruments(
-                query=query,
-                exchange=exchange
+                query=query, exchange=exchange
             )
 
-            return web.json_response({
-                "status": "success",
-                "data": results,
-                "count": len(results)
-            })
+            return web.json_response(
+                {"status": "success", "data": results, "count": len(results)}
+            )
 
         except Exception as e:
             self.logger.error(f"Error searching symbols for '{query}': {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_technical_indicator(self, request: web.Request) -> web.Response:
         """
@@ -1245,20 +1307,21 @@ class DataCollectorHTTPServer:
         - series_type: Price series type (default: close)
         """
         try:
-            indicator = request.match_info['indicator']
-            symbol = request.match_info['symbol']
-            interval = request.query.get('interval', '1day')
-            time_period = int(request.query.get('time_period', 9))
-            series_type = request.query.get('series_type', 'close')
+            indicator = request.match_info["indicator"]
+            symbol = request.match_info["symbol"]
+            interval = request.query.get("interval", "1day")
+            time_period = int(request.query.get("time_period", 9))
+            series_type = request.query.get("series_type", "close")
 
-            if not hasattr(self.data_service, 'twelvedata_client'):
+            if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
-                    status=503
+                    status=503,
                 )
 
             # Map interval to TimeFrame
             from shared.models import TimeFrame
+
             interval_map = {
                 "1min": TimeFrame.ONE_MINUTE,
                 "5min": TimeFrame.FIVE_MINUTES,
@@ -1267,41 +1330,45 @@ class DataCollectorHTTPServer:
                 "1h": TimeFrame.ONE_HOUR,
                 "1day": TimeFrame.ONE_DAY,
                 "1week": TimeFrame.ONE_WEEK,
-                "1month": TimeFrame.ONE_MONTH
+                "1month": TimeFrame.ONE_MONTH,
             }
 
             timeframe = interval_map.get(interval, TimeFrame.ONE_DAY)
 
             # Get technical indicator data
-            indicator_data = await self.data_service.twelvedata_client.get_technical_indicators(
-                symbol=symbol,
-                indicator=indicator,
-                timeframe=timeframe,
-                time_period=time_period,
-                series_type=series_type
+            indicator_data = (
+                await self.data_service.twelvedata_client.get_technical_indicators(
+                    symbol=symbol,
+                    indicator=indicator,
+                    timeframe=timeframe,
+                    time_period=time_period,
+                    series_type=series_type,
+                )
             )
 
             if indicator_data is None:
-                return web.json_response({
-                    "status": "error",
-                    "message": f"No {indicator} data available for {symbol}"
-                }, status=404)
+                return web.json_response(
+                    {
+                        "status": "error",
+                        "message": f"No {indicator} data available for {symbol}",
+                    },
+                    status=404,
+                )
 
-            return web.json_response({
-                "status": "success",
-                "data": indicator_data,
-                "meta": {
-                    "symbol": symbol,
-                    "indicator": indicator,
-                    "interval": interval,
-                    "time_period": time_period,
-                    "series_type": series_type
+            return web.json_response(
+                {
+                    "status": "success",
+                    "data": indicator_data,
+                    "meta": {
+                        "symbol": symbol,
+                        "indicator": indicator,
+                        "interval": interval,
+                        "time_period": time_period,
+                        "series_type": series_type,
+                    },
                 }
-            })
+            )
 
         except Exception as e:
             self.logger.error(f"Error getting {indicator} for {symbol}: {e}")
-            return web.json_response(
-                {"status": "error", "message": str(e)},
-                status=500
-            )
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
