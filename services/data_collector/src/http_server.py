@@ -6,13 +6,11 @@ endpoints and basic service information for integration with the scheduler
 and other services in the trading system.
 """
 
-import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from aiohttp import web, web_response
+from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
