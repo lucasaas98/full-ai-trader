@@ -23,12 +23,12 @@ import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
-# Add the project root to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 import asyncpg
 import requests
 from dotenv import load_dotenv
+
+# Add the project root to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Load environment variables
 load_dotenv()

@@ -50,10 +50,10 @@ def demonstrate_basic_usage():
         api_rate_limits=api_limits, active_tickers=active_tickers, timeframes=timeframes
     )
 
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Active tickers: {active_tickers}")
     print(f"  API limits: {api_limits}")
-    print(f"  Market volatility: 1.0 (default - normal)")
+    print("  Market volatility: 1.0 (default - normal)")
     print()
 
     print("Calculated intervals:")
@@ -216,7 +216,7 @@ def demonstrate_scaling_behavior():
 
     ticker_scenarios = [10, 25, 50, 100, 200, 500]
 
-    print(f"Configuration: API limit 300 req/min, normal volatility")
+    print("Configuration: API limit 300 req/min, normal volatility")
     print()
     print(
         f"{'Tickers':<8} {'5min Interval':<15} {'1h Interval':<15} {'Req/Min (5m)':<12}"
@@ -243,7 +243,7 @@ def demonstrate_scaling_behavior():
         interval_1h = intervals[TimeFrame.ONE_HOUR]
 
         print(
-            f"{ticker_count:<8} {interval_5m}s ({interval_5m//60}m)    {interval_1h}s ({interval_1h//60}m)     {req_per_min}"
+            f"{ticker_count:<8} {interval_5m}s ({interval_5m // 60}m)    {interval_1h}s ({interval_1h // 60}m)     {req_per_min}"
         )
 
     print()
@@ -482,7 +482,7 @@ def demonstrate_batch_optimization():
         interval = intervals[TimeFrame.FIVE_MINUTES]
 
         print(
-            f"{tickers:>8} -> {batch_size:>8} -> {batches_needed:>8} -> {interval}s ({interval//60}m)"
+            f"{tickers:>8} -> {batch_size:>8} -> {batches_needed:>8} -> {interval}s ({interval // 60}m)"
         )
 
     print()
@@ -530,8 +530,8 @@ def benchmark_performance():
 
         print(f"{case['name']} ({case['tickers']} tickers):")
         print(f"  {case['iterations']} calculations in {total_time:.3f}s")
-        print(f"  Average time per calculation: {avg_time*1000:.2f}ms")
-        print(f"  Calculations per second: {case['iterations']/total_time:.0f}")
+        print(f"  Average time per calculation: {avg_time * 1000:.2f}ms")
+        print(f"  Calculations per second: {case['iterations'] / total_time:.0f}")
         print()
 
 

@@ -23,7 +23,6 @@ Features demonstrated:
 """
 
 import asyncio
-import concurrent.futures
 import logging
 import os
 import sys
@@ -31,7 +30,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -395,8 +393,8 @@ class TradingStrategy:
             recent_closes = [float(d.close) for d in historical_data[-20:]]
             sma_20 = sum(recent_closes) / len(recent_closes)
 
-            recent_highs = [float(d.high) for d in historical_data[-10:]]
-            recent_lows = [float(d.low) for d in historical_data[-10:]]
+            # recent_highs = [float(d.high) for d in historical_data[-10:]]  # Unused
+            # recent_lows = [float(d.low) for d in historical_data[-10:]]  # Unused
 
             # RSI calculation (simplified)
             price_changes = []
@@ -420,7 +418,7 @@ class TradingStrategy:
             # Generate signal based on strategy mode and screener type
             signal = None
             confidence = 50.0
-            reasoning = f"{screener_type} candidate"
+            # reasoning = f"{screener_type} candidate"  # Unused - reasoning is set in signal creation
 
             if screener_type == "breakouts":
                 # Breakout strategy (very relaxed)
@@ -442,7 +440,7 @@ class TradingStrategy:
                         action=SignalType.BUY,
                         price=current_price,
                         confidence=confidence,
-                        reasoning=f"Breakout: {volume_ratio:.1f}x volume, {float(current_price)/sma_20:.1%} above SMA20",
+                        reasoning=f"Breakout: {volume_ratio:.1f}x volume, {float(current_price) / sma_20:.1%} above SMA20",
                         stop_loss=current_price * Decimal(str(1 - self.stop_loss_pct)),
                         take_profit=current_price
                         * Decimal(str(1 + self.take_profit_pct)),
@@ -486,7 +484,7 @@ class TradingStrategy:
                         action=SignalType.BUY,
                         price=current_price,
                         confidence=confidence,
-                        reasoning=f"Value reversal: RSI {rsi:.1f}, {(sma_20-float(current_price))/sma_20:.1%} discount",
+                        reasoning=f"Value reversal: RSI {rsi:.1f}, {(sma_20 - float(current_price)) / sma_20:.1%} discount",
                         stop_loss=current_price
                         * Decimal(
                             str(1 - self.stop_loss_pct * 1.5)
@@ -634,10 +632,10 @@ class ComprehensiveBacktestEngine:
                 remaining = max(0, estimated_total - elapsed)
 
                 self.logger.info(
-                    f"Progress: {i+1}/{len(trading_periods)} ({(i+1)/len(trading_periods)*100:.1f}%), "
+                    f"Progress: {i + 1}/{len(trading_periods)} ({(i + 1) / len(trading_periods) * 100:.1f}%), "
                     f"Portfolio: ${portfolio_value:,.2f}, "
                     f"Speed: {periods_per_sec:.1f} periods/sec, "
-                    f"ETA: {remaining/60:.1f}min"
+                    f"ETA: {remaining / 60:.1f}min"
                 )
 
         # Close remaining positions
@@ -660,8 +658,8 @@ class ComprehensiveBacktestEngine:
         periods = []
 
         # Define market hours (9:30 AM to 4:00 PM ET)
-        market_start = 9.5 * 60  # 9:30 AM in minutes
-        market_end = 16 * 60  # 4:00 PM in minutes
+        # market_start = 9.5 * 60  # 9:30 AM in minutes (unused)
+        # market_end = 16 * 60  # 4:00 PM in minutes (unused)
 
         # Get timeframe interval in minutes
         if self.timeframe == TimeFrame.ONE_MINUTE:
@@ -753,9 +751,9 @@ class ComprehensiveBacktestEngine:
                     period_datetime, symbols
                 )
 
-                total_candidates = sum(
-                    len(candidates) for candidates in screener_results.values()
-                )
+                # total_candidates = sum(
+                #     len(candidates) for candidates in screener_results.values()
+                # )  # Unused variable
                 # if total_candidates > 0:
                 #     self.logger.info(f"📊 Screener found {total_candidates} candidates: {dict((k, len(v)) for k, v in screener_results.items())}")
 
@@ -1090,7 +1088,7 @@ class ComprehensiveBacktestEngine:
 
         successful_loads = len(self.data_cache)
         self.logger.info(
-            f"Pre-loaded data for {successful_loads}/{len(symbols)} symbols ({successful_loads/len(symbols)*100:.1f}%)"
+            f"Pre-loaded data for {successful_loads}/{len(symbols)} symbols ({successful_loads / len(symbols) * 100:.1f}%)"
         )
 
     async def _load_symbol_data(self, symbol: str, start_date, end_date) -> None:
@@ -1500,13 +1498,13 @@ def display_results(results: Dict[str, Any]) -> None:
     execution = results["execution"]
     timeframe = execution.get("timeframe", "daily")
     print(f"\nStrategy: {strategy['name']} ({strategy['mode']}) - {timeframe}")
-    print(f"Parameters:")
+    print("Parameters:")
     for key, value in strategy["parameters"].items():
         print(f"  {key}: {value}")
 
     # Performance summary
     perf = results["performance"]
-    print(f"\nPerformance Summary:")
+    print("\nPerformance Summary:")
     print(f"  Total Return: {format_percentage(perf['total_return'])}")
     print(f"  Annualized Return: {format_percentage(perf['annualized_return'])}")
     print(f"  Final Portfolio Value: {format_currency(perf['final_value'])}")
@@ -1515,7 +1513,7 @@ def display_results(results: Dict[str, Any]) -> None:
 
     # Trading statistics
     trading = results["trading"]
-    print(f"\nTrading Statistics:")
+    print("\nTrading Statistics:")
     print(f"  Total Trades: {trading['total_trades']}")
     print(f"  Winning Trades: {trading['winning_trades']}")
     print(f"  Losing Trades: {trading['losing_trades']}")
@@ -1527,14 +1525,14 @@ def display_results(results: Dict[str, Any]) -> None:
 
     # Signal analysis
     signals = results["signals"]
-    print(f"\nSignal Analysis:")
+    print("\nSignal Analysis:")
     print(f"  Signals Generated: {signals['generated']}")
     print(f"  Signals Executed: {signals['executed']}")
     print(f"  Execution Rate: {format_percentage(signals['execution_rate'])}")
 
     # Execution info
     execution = results["execution"]
-    print(f"\nExecution Info:")
+    print("\nExecution Info:")
     print(f"  Execution Time: {execution['time_seconds']:.2f} seconds")
     print(f"  Days Processed: {execution['days_processed']}")
     print(f"  Period: {execution['start_date'][:10]} to {execution['end_date'][:10]}")
@@ -1727,10 +1725,10 @@ async def run_multi_timeframe_comparison():
         )
 
         # Analysis insights
-        print(f"\nInsights:")
-        print(f"• Shorter timeframes typically generate more trades")
-        print(f"• Daily timeframes may have better risk-adjusted returns")
-        print(f"• Consider transaction costs impact on shorter timeframes")
+        print("\nInsights:")
+        print("• Shorter timeframes typically generate more trades")
+        print("• Daily timeframes may have better risk-adjusted returns")
+        print("• Consider transaction costs impact on shorter timeframes")
 
     return results
 
@@ -1824,7 +1822,7 @@ async def run_comprehensive_timeframe_analysis():
         )
 
         # Strategy analysis
-        print(f"\nStrategy Analysis:")
+        print("\nStrategy Analysis:")
         for strategy_name, timeframe_results in all_results.items():
             if timeframe_results:
                 avg_return = sum(
@@ -1851,7 +1849,7 @@ async def run_debug_signal_test():
     initial_capital = Decimal("10000")
 
     print(f"Period: {start_date.date()} to {end_date.date()}")
-    print(f"Testing with debug logging enabled...")
+    print("Testing with debug logging enabled...")
 
     # Test with relaxed day trading strategy
     strategy = TradingStrategy("Debug Day Trading", "day_trading")
@@ -1859,7 +1857,7 @@ async def run_debug_signal_test():
         start_date, end_date, initial_capital, TimeFrame.ONE_HOUR
     )
 
-    print(f"\nStrategy settings:")
+    print("\nStrategy settings:")
     print(f"  Min confidence: {strategy.min_confidence}%")
     print(f"  Stop loss: {strategy.stop_loss_pct:.1%}")
     print(f"  Take profit: {strategy.take_profit_pct:.1%}")
@@ -1867,9 +1865,9 @@ async def run_debug_signal_test():
     try:
         result = await engine.run_backtest(strategy, max_positions=3)
 
-        perf = result["performance"]
-        trading = result["trading"]
-        signals = result["signals"]
+        # perf = results["performance"]  # Unused
+        # trading = results["trading"]  # Unused
+        # signals = results["signals"]  # Unused
 
         # print(f"\nDEBUG RESULTS:")
         # print(f"  Signals Generated: {signals['generated']}")
@@ -1933,7 +1931,7 @@ async def run_quick_timeframe_test(
             print(f"   ✗ Failed: {e}")
 
     if results:
-        print(f"\n📊 QUICK COMPARISON:")
+        print("\n📊 QUICK COMPARISON:")
         print("-" * 50)
         for tf, result in results.items():
             perf = result["performance"]
@@ -1955,7 +1953,7 @@ async def run_single_strategy_demo():
     start_date = datetime(2025, 1, 1, tzinfo=timezone.utc)  # ~7 weeks
     initial_capital = Decimal("10000")
 
-    print(f"Testing Day Trading Strategy")
+    print("Testing Day Trading Strategy")
     print(f"Period: {start_date.date()} to {end_date.date()}")
     print(f"Initial Capital: {format_currency(float(initial_capital))}")
 
@@ -2056,7 +2054,7 @@ async def main():
         print("✓ Comprehensive performance metrics are calculated")
         print("✓ Risk management (stop losses, position sizing) is simulated")
 
-        print(f"\nNext Steps:")
+        print("\nNext Steps:")
         print("🔧 Connect to your real production strategies (HybridStrategy)")
         print("📊 Test with different time periods and parameters")
         print("🎯 Optimize screener criteria based on backtest results")

@@ -356,7 +356,7 @@ analyze: ## Run analysis on trading performance
 
 install-deps: ## Install Python dependencies locally (for development)
 	@echo "Creating virtual environment..."
-	@python -m venv venv
+	@python3 -m venv venv
 	@echo "Activating virtual environment..."
 	@venv/bin/activate
 	@echo "Installing Python dependencies..."

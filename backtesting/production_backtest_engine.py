@@ -13,8 +13,6 @@ Key Features:
 - Multi-strategy comparison capabilities
 """
 
-import asyncio
-import json
 import logging
 import os
 import sys
@@ -23,11 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-import pandas as pd
-import polars as pl
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add paths for strategy imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -49,7 +43,6 @@ try:
         PRODUCTION_STRATEGIES_AVAILABLE,
         ProductionSignal,
         ProductionStrategyAdapter,
-        ProductionStrategyFactory,
     )
     from production_strategy_adapter import StrategyMode as AdapterStrategyMode
 
@@ -515,7 +508,7 @@ class ProductionBacktestEngine:
         )
 
         # Initialize strategy
-        self.strategy: Optional[BaseStrategy] = None
+        self.strategy: Optional[Any] = None
 
         # Portfolio state
         self.cash = config.initial_capital
@@ -600,7 +593,7 @@ class ProductionBacktestEngine:
                 # Log progress periodically
                 if (i + 1) % 20 == 0 or i == len(trading_days) - 1:
                     self.logger.info(
-                        f"Progress: {i+1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}"
+                        f"Progress: {i + 1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}"
                     )
 
             # Close any remaining positions

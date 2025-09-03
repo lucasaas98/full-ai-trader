@@ -33,7 +33,6 @@ import csv
 import itertools
 import json
 import logging
-import os
 import statistics
 import sys
 import time
@@ -41,9 +40,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import pandas as pd
+from typing import List, Tuple
 
 # Add project paths
 script_dir = Path(__file__).parent
@@ -55,7 +52,6 @@ from production_backtest_engine import (
     BacktestMode,
     ProductionBacktestConfig,
     ProductionBacktestEngine,
-    ScreenerCriteria,
 )
 from production_strategy_adapter import ProductionStrategyAdapter, StrategyMode
 
@@ -250,7 +246,7 @@ class ParameterOptimizer:
                 fund_score = conf - 20
 
                 param_set = ParameterSet(
-                    name=f"Config_{i+1}",
+                    name=f"Config_{i + 1}",
                     stop_loss_pct=sl,
                     take_profit_pct=tp,
                     min_confidence=conf,
@@ -651,7 +647,7 @@ class ParameterOptimizer:
                         f"Trades: {result.total_trades}"
                     )
                 else:
-                    self.logger.warning(f"    Test failed")
+                    self.logger.warning("    Test failed")
 
             # Calculate summary for this parameter set
             summary = self._calculate_summary(param_set, period_results)
@@ -811,7 +807,7 @@ class ParameterOptimizer:
             }
             json.dump(json_data, f, indent=2, default=str)
 
-        print(f"\nResults saved:")
+        print("\nResults saved:")
         print(f"  Detailed: {detailed_file}")
         print(f"  Summary: {summary_file}")
         print(f"  JSON: {json_file}")
@@ -848,9 +844,9 @@ def display_optimization_results(
 ):
     """Display optimization results in a formatted table."""
 
-    print(f"\n{'='*100}")
+    print(f"\n{'=' * 100}")
     print(f"PARAMETER OPTIMIZATION RESULTS - {strategy_type.upper().replace('_', ' ')}")
-    print(f"{'='*100}")
+    print(f"{'=' * 100}")
 
     if not summaries:
         print("No results to display.")
@@ -880,9 +876,9 @@ def display_optimization_results(
     # Show best parameter details
     if summaries:
         best = summaries[0]
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"BEST PARAMETER CONFIGURATION: {best.parameter_set.name}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         param_dict = asdict(best.parameter_set)
         for key, value in param_dict.items():
@@ -895,7 +891,7 @@ def display_optimization_results(
                 else:
                     print(f"  {key.replace('_', ' ').title()}: {value}")
 
-        print(f"\nPerformance Summary:")
+        print("\nPerformance Summary:")
         print(f"  Average Return: {best.avg_return:.2%}")
         print(f"  Return Std Dev: {best.std_return:.2%}")
         print(f"  Average Max Drawdown: {best.avg_max_drawdown:.2%}")
@@ -1007,7 +1003,7 @@ async def optimize_single_strategy(
 
     print(f"Generated {len(test_periods)} test periods:")
     for i, (start, end) in enumerate(test_periods):
-        print(f"  Period {i+1}: {start.date()} to {end.date()}")
+        print(f"  Period {i + 1}: {start.date()} to {end.date()}")
 
     # Determine optimization level
     if args.quick:
@@ -1089,9 +1085,9 @@ async def main():
 
         # Final summary if multiple strategies
         if len(all_results) > 1:
-            print(f"\n{'='*100}")
+            print(f"\n{'=' * 100}")
             print("FINAL SUMMARY - BEST PARAMETERS FOR EACH STRATEGY")
-            print(f"{'='*100}")
+            print(f"{'=' * 100}")
 
             for strategy_type, summaries in all_results.items():
                 if summaries:
@@ -1103,10 +1099,10 @@ async def main():
                     print(f"   Win Rate: {best.avg_win_rate:.1%}")
                     print(f"   Consistency: {best.consistency_score:.3f}")
 
-        print(f"\n✅ Parameter optimization completed!")
-        print(f"📊 Results saved to: {args.output_dir}/")
+        print("\n✅ Parameter optimization completed!")
+        print("📊 Check the detailed results above")
         print(
-            f"🔧 Use the best parameters to update your production strategy configurations"
+            "🔧 Use the best parameters to update your production strategy configurations"
         )
 
         return 0

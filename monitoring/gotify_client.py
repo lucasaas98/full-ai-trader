@@ -3,8 +3,6 @@ import json
 import logging
 import os
 import ssl
-
-# Import shared models
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -232,8 +230,8 @@ class GotifyClient:
         message = f"""
         💰 Portfolio Overview:
         Total Value: ${total_value:,.2f}
-        Daily P&L: ${daily_pnl:,.2f} ({daily_pnl/total_value*100:.2f}%)
-        Total P&L: ${total_pnl:,.2f} ({total_pnl/(total_value-total_pnl)*100:.2f}%)
+        Daily P&L: ${daily_pnl:,.2f} ({daily_pnl / total_value * 100:.2f}%)
+        Total P&L: ${total_pnl:,.2f} ({total_pnl / (total_value - total_pnl) * 100:.2f}%)
         Current Drawdown: {drawdown:.2%}
         Open Positions: {positions_count}
 

@@ -28,17 +28,17 @@ import asyncio
 import csv
 import json
 import logging
-import os
 import sys
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 # Add project paths
 script_dir = Path(__file__).parent
 project_root = script_dir.parent
 sys.path.append(str(project_root / "backtesting"))
+
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Dict
 
 from backtest_models import TimeFrame
 from production_backtest_engine import (
@@ -48,7 +48,6 @@ from production_backtest_engine import (
     ProductionBacktestEngine,
     ScreenerCriteria,
     run_multi_strategy_comparison,
-    run_production_backtest,
 )
 
 
@@ -346,7 +345,7 @@ def display_results(results, quiet: bool = False) -> None:
 
     # Configuration summary
     config = results.config
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Strategy: {config.strategy_type}")
     print(f"  Period: {config.start_date.date()} to {config.end_date.date()}")
     print(f"  Initial Capital: {format_currency(float(config.initial_capital))}")
@@ -355,7 +354,7 @@ def display_results(results, quiet: bool = False) -> None:
     print(f"  Screener Enabled: {config.enable_screener_simulation}")
 
     # Performance Summary
-    print(f"\nPerformance Summary:")
+    print("\nPerformance Summary:")
     print(f"  Total Return: {format_percentage(results.total_return)}")
     print(f"  Annualized Return: {format_percentage(results.annualized_return)}")
     print(f"  Final Capital: {format_currency(float(results.final_capital))}")
@@ -363,14 +362,14 @@ def display_results(results, quiet: bool = False) -> None:
     print(f"  Current Drawdown: {format_percentage(results.current_drawdown)}")
 
     # Risk Metrics
-    print(f"\nRisk Metrics:")
+    print("\nRisk Metrics:")
     print(f"  Sharpe Ratio: {results.sharpe_ratio:.3f}")
     print(f"  Sortino Ratio: {results.sortino_ratio:.3f}")
     print(f"  Calmar Ratio: {results.calmar_ratio:.3f}")
     print(f"  Profit Factor: {results.profit_factor:.2f}")
 
     # Trading Statistics
-    print(f"\nTrading Statistics:")
+    print("\nTrading Statistics:")
     print(f"  Total Trades: {results.total_trades}")
     print(f"  Winning Trades: {results.winning_trades}")
     print(f"  Losing Trades: {results.losing_trades}")
@@ -384,7 +383,7 @@ def display_results(results, quiet: bool = False) -> None:
         print(f"  Avg Hold Time: {results.avg_hold_time_hours:.1f} hours")
 
     # Strategy Performance
-    print(f"\nStrategy Performance:")
+    print("\nStrategy Performance:")
     print(f"  Signals Generated: {results.total_signals_generated}")
     print(f"  Signals Executed: {results.signals_executed}")
     print(
@@ -393,12 +392,12 @@ def display_results(results, quiet: bool = False) -> None:
     print(f"  Avg Signal Confidence: {results.avg_signal_confidence:.1f}%")
 
     # Screener Statistics
-    print(f"\nScreener Statistics:")
+    print("\nScreener Statistics:")
     print(f"  Screener Alerts Simulated: {results.screener_alerts_simulated}")
     print(f"  Unique Symbols Traded: {results.unique_symbols_traded}")
 
     # Execution Info
-    print(f"\nExecution Info:")
+    print("\nExecution Info:")
     print(f"  Execution Time: {results.execution_time_seconds:.2f} seconds")
     print(f"  Strategy: {results.strategy_name}")
 
@@ -610,15 +609,15 @@ async def main():
         start_date, end_date = determine_date_range(args)
 
         if not args.quiet:
-            print(f"Production Strategy Backtesting")
-            print(f"===============================")
+            print("Production Strategy Backtesting")
+            print("===============================")
             print(f"Date Range: {start_date.date()} to {end_date.date()}")
             print(f"Period: {(end_date - start_date).days} days")
             print(f"Initial Capital: {format_currency(args.capital)}")
 
         # Run comparison or single strategy
         if args.compare_strategies:
-            print(f"\nRunning multi-strategy comparison...")
+            print("\nRunning multi-strategy comparison...")
 
             results_dict = await run_multi_strategy_comparison(
                 start_date=start_date,

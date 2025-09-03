@@ -1387,12 +1387,12 @@ class PortfolioMonitor:
         }
 
         # Mid cap symbols ($2B-$10B) - typically 4 character symbols
-        mid_cap_patterns = (
-            lambda s: len(s) == 4 and s.isupper() and not any(c.isdigit() for c in s)
-        )
+        def mid_cap_patterns(s):
+            return len(s) == 4 and s.isupper() and not any(c.isdigit() for c in s)
 
         # Small cap symbols (<$2B) - typically longer symbols or with numbers
-        small_cap_patterns = lambda s: len(s) >= 5 or any(c.isdigit() for c in s)
+        def small_cap_patterns(s):
+            return len(s) >= 5 or any(c.isdigit() for c in s)
 
         # Check if both are in same category
         if symbol1 in mega_cap and symbol2 in mega_cap:

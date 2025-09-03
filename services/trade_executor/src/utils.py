@@ -1659,7 +1659,7 @@ async def wait_for_market_open(max_wait_hours: int = 24):
         )  # Max 1 hour wait
 
         logger.info(
-            f"Market closed, waiting {wait_time/60:.1f} minutes until next check"
+            f"Market closed, waiting {wait_time / 60:.1f} minutes until next check"
         )
         await asyncio.sleep(wait_time)
 

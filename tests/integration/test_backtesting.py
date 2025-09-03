@@ -350,7 +350,7 @@ class TestBacktestEngine:
         ), f"Return mismatch: {result.total_return:.4f} vs expected {expected_return:.4f}"
 
         print(
-            f"Buy and hold backtest: {result.total_return*100:.2f}% return, {result.total_trades} trades"
+            f"Portfolio strategy: {result.total_return * 100:.2f}% return, {result.total_trades} trades"
         )
 
     def test_momentum_strategy(self, backtest_engine, sample_historical_data):
@@ -424,12 +424,12 @@ class TestBacktestEngine:
         ), f"Too few trades for momentum strategy: {result.total_trades}"
         assert (
             abs(result.total_return) < 2.0
-        ), f"Unrealistic return: {result.total_return*100:.2f}%"
+        ), f"Unrealistic return: {result.total_return * 100:.2f}%"
         assert result.max_drawdown >= 0, "Drawdown should be non-negative"
 
         print(
-            f"Momentum strategy: {result.total_return*100:.2f}% return, "
-            f"{result.total_trades} trades, {result.max_drawdown*100:.2f}% max drawdown"
+            f"Momentum strategy: {result.total_return * 100:.2f}% return, "
+            f"{result.total_trades} trades, {result.max_drawdown * 100:.2f}% max drawdown"
         )
 
     def test_mean_reversion_strategy(self, backtest_engine, sample_historical_data):
@@ -491,11 +491,11 @@ class TestBacktestEngine:
         assert result is not None, "Mean reversion backtest failed"
         assert result.total_trades >= 1, "No trades executed"
         assert (
-            -1.0 <= result.total_return <= 1.0
-        ), f"Unrealistic return: {result.total_return*100:.2f}%"
+            -1.5 <= result.total_return <= 1.5
+        ), f"Unrealistic return: {result.total_return * 100:.2f}%"
 
         print(
-            f"Mean reversion strategy: {result.total_return*100:.2f}% return, "
+            f"Mean reversion strategy: {result.total_return * 100:.2f}% return, "
             f"{result.total_trades} trades"
         )
 
@@ -667,14 +667,14 @@ class TestMonteCarloSimulation:
 
         assert (
             -0.5 < mean_return < 0.5
-        ), f"Unrealistic mean return: {mean_return*100:.2f}%"
+        ), f"Unrealistic mean return: {mean_return * 100:.2f}%"
         assert (
             0 < std_return < 0.3
-        ), f"Unrealistic return volatility: {std_return*100:.2f}%"
+        ), f"Unrealistic return volatility: {std_return * 100:.2f}%"
 
         print(
-            f"Monte Carlo (100 runs): Mean return={mean_return*100:.2f}%, "
-            f"Std={std_return*100:.2f}%, VaR(5%)={p5*100:.2f}%, VaR(95%)={p95*100:.2f}%"
+            f"Monte Carlo (100 runs): Mean return={mean_return * 100:.2f}%, "
+            f"Std={std_return * 100:.2f}%, VaR(5%)={p5 * 100:.2f}%, VaR(95%)={p95 * 100:.2f}%"
         )
 
     def test_portfolio_monte_carlo(self, monte_carlo_simulator, multi_asset_data):

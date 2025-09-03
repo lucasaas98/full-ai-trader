@@ -178,7 +178,7 @@ class FinVizScreener:
             try:
                 config = get_config()
                 self.api_key = config.finviz.api_key
-            except:
+            except Exception:
                 # Fallback to environment variable
                 self.api_key = os.getenv("FINVIZ_API_KEY")
 

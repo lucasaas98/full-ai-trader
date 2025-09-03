@@ -10,7 +10,6 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List
 
 # Add shared path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
@@ -22,7 +21,6 @@ from base_strategy import StrategyConfig, StrategyMode
 from hybrid_strategy import HybridMode, HybridStrategy
 from models import SignalType
 from multi_timeframe_analyzer import create_multi_timeframe_analyzer
-from multi_timeframe_data import create_multi_timeframe_fetcher
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -204,7 +202,7 @@ async def test_multi_timeframe_confirmation():
         # Run analysis
         signal = await strategy.analyze(symbol="AAPL", data=primary_data)
 
-        logger.info(f"Bullish test result:")
+        logger.info("Bullish test result:")
         logger.info(f"  Action: {signal.action}")
         logger.info(f"  Confidence: {signal.confidence:.1f}%")
         logger.info(f"  Position Size: {signal.position_size:.3f}")
@@ -231,7 +229,7 @@ async def test_multi_timeframe_confirmation():
 
         bearish_signal = await strategy.analyze(symbol="AAPL", data=bearish_data)
 
-        logger.info(f"Bearish test result:")
+        logger.info("Bearish test result:")
         logger.info(f"  Action: {bearish_signal.action}")
         logger.info(f"  Confidence: {bearish_signal.confidence:.1f}%")
         logger.info(f"  Position Size: {bearish_signal.position_size:.3f}")
@@ -245,7 +243,7 @@ async def test_multi_timeframe_confirmation():
 
         mixed_signal = await strategy.analyze(symbol="AAPL", data=mixed_data)
 
-        logger.info(f"Mixed test result:")
+        logger.info("Sideways test result:")
         logger.info(f"  Action: {mixed_signal.action}")
         logger.info(f"  Confidence: {mixed_signal.confidence:.1f}%")
         logger.info(f"  Position Size: {mixed_signal.position_size:.3f}")
@@ -293,7 +291,7 @@ async def test_analyzer_directly():
             multi_timeframe_data=multi_tf_data,
         )
 
-        logger.info(f"Direct analyzer test results:")
+        logger.info("Direct analyzer test results:")
         logger.info(f"  Primary signal: {confirmation.primary_signal}")
         logger.info(
             f"  Confirmation strength: {confirmation.confirmation_strength.value}"

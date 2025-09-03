@@ -25,7 +25,6 @@ from pydantic import BaseModel, Field
 # Add shared module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-# Import shared models
 from shared.models import FinVizData
 
 from .backtesting_engine import BacktestConfig, BacktestingEngine, BacktestMode
@@ -411,7 +410,7 @@ class StrategyEngineService:
             # Get FinViz data for hybrid strategies
             finviz_data = None
             if isinstance(strategy, HybridStrategy):
-                self.logger.debug(f"Fetching FinViz data for hybrid strategy backtest")
+                self.logger.debug("Fetching FinViz data for hybrid strategy backtest")
                 finviz_data = await self._get_finviz_data(request.symbol)
 
             # Parse backtest mode

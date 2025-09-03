@@ -1073,7 +1073,7 @@ class RiskManagerApp:
             # Initialize database if needed
             global database_manager
             if database_manager is None:
-                database_manager = DatabaseManager()
+                database_manager = RiskDatabaseManager()
                 await database_manager.initialize()
             self._initialized = True
 

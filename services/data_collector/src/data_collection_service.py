@@ -277,7 +277,7 @@ class DataCollectionService:
         if self.config.enable_finviz:
             if self.config.enable_smart_finviz_scheduling:
                 # Use smart scheduling that adjusts frequency based on market proximity
-                logger.info(f"Smart FinViz scheduling enabled:")
+                logger.info("Smart FinViz scheduling enabled:")
                 logger.info(f"  - Normal interval: {self.config.finviz_scan_interval}s")
                 logger.info(
                     f"  - Off-hours interval: {self.config.off_hours_scan_interval}s"
@@ -476,10 +476,10 @@ class DataCollectionService:
                         # Save individual screener data with enhanced error handling
                         if self.data_store:
                             try:
-                                saved_count = await self.data_store.save_screener_data(
+                                _ = await self.data_store.save_screener_data(
                                     result.data, strategy_name
                                 )
-                            except Exception as e:
+                            except Exception:
                                 # Continue processing even if save fails
                                 pass
                     else:

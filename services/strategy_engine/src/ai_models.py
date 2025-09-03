@@ -5,7 +5,6 @@ This module defines the data models and database schema for the AI strategy engi
 including decision tracking, performance metrics, and prompt management.
 """
 
-import json
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -28,7 +27,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
@@ -408,14 +407,12 @@ def create_performance_summary(
         )
 
     # Calculate metrics
-    period_start = session.query(func.min(AIDecisionRecord.timestamp)).scalar()
-    period_end = session.query(func.max(AIDecisionRecord.timestamp)).scalar()
+    period_start = min(d.timestamp for d in decisions) if decisions else datetime.now()
+    period_end = max(d.timestamp for d in decisions) if decisions else datetime.now()
     total_decisions = len(decisions)
 
     # Calculate accuracy (decisions with positive outcomes)
-    accurate_decisions = [
-        d for d in decisions if func.coalesce(d.actual_outcome, 0) > 0
-    ]
+    accurate_decisions = [d for d in decisions if (d.actual_outcome or 0) > 0]
     accuracy_rate = (
         len(accurate_decisions) / total_decisions if total_decisions > 0 else 0
     )
@@ -427,10 +424,10 @@ def create_performance_summary(
     win_rate = len(winning_trades) / len(executions) if executions else 0
 
     # Calculate total P&L
-    total_pnl = session.query(func.sum(AITradeExecution.realized_pnl)).scalar() or 0
+    total_pnl = sum(e.realized_pnl for e in executions if e.realized_pnl) or 0
 
     # Calculate API costs
-    total_api_cost = session.query(func.sum(AIDecisionRecord.total_cost)).scalar() or 0
+    total_api_cost = sum(d.total_cost for d in decisions if d.total_cost) or 0
 
     # Cost per profitable trade
     cost_per_profitable_trade = (
@@ -445,7 +442,7 @@ def create_performance_summary(
                 if model not in model_performance:
                     model_performance[model] = {"count": 0, "success": 0}
                 model_performance[model]["count"] += 1
-                if func.coalesce(decision.actual_outcome, 0) > 0:
+                if (decision.actual_outcome or 0) > 0:
                     model_performance[model]["success"] += 1
 
     model_rankings = {

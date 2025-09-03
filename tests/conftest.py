@@ -5,6 +5,9 @@ import shutil
 # Import shared modules
 import sys
 import tempfile
+
+sys.path.append("/app/shared")
+
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -16,7 +19,6 @@ import pandas as pd
 import pytest
 import redis
 
-sys.path.append("/app/shared")
 from shared.models import (
     OrderRequest,
     OrderSide,

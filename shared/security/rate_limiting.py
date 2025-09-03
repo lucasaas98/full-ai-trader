@@ -26,7 +26,7 @@ import redis.asyncio as redis
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
+from .jwt_utils import extract_user_id_from_request_header
 
 # Explicit type alias for clarity
 TypeAny = Any
@@ -873,7 +873,7 @@ class RateLimitMonitor:
         """Analyze rate limiting effectiveness"""
         try:
             # Get statistics from the last hour
-            current_time = time.time()
+            _ = time.time()
 
             stats = {
                 "blocked_requests": 0,

@@ -19,24 +19,19 @@ import logging
 
 # Import system components
 import sys
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import numpy as np
-import pandas as pd
 
 sys.path.append(str(Path(__file__).parent))
 
-from backtesting.backtest_engine import BacktestConfig, BacktestEngine
-from services.risk_manager.src.risk_manager import RiskManager
-from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+
+from backtesting.backtest_engine import BacktestConfig
 from shared.config import get_config
-from shared.models import SignalType, TradeSignal
 
 
 class ParameterType(Enum):
@@ -133,7 +128,7 @@ class ParameterOptimizer:
 
     def __init__(self, config_path: Optional[str] = None):
         """Initialize parameter optimizer."""
-        self.config = get_config()
+        _ = get_config()  # Load config but don't assign to unused variable
         self.logger = logging.getLogger(__name__)
         self.results: List[OptimizationResult] = []
 
@@ -445,7 +440,7 @@ class ParameterOptimizer:
 
         results = []
         for i, params in enumerate(param_combinations):
-            self.logger.info(f"Testing combination {i+1}/{len(param_combinations)}")
+            self.logger.info(f"Testing combination {i + 1}/{len(param_combinations)}")
 
             start_time = datetime.now()
             backtest_results = await self._run_backtest(params, symbols)
@@ -478,7 +473,7 @@ class ParameterOptimizer:
             # Generate random parameters
             params = self._generate_random_parameters()
 
-            self.logger.info(f"Testing random combination {i+1}/{max_iterations}")
+            self.logger.info(f"Testing random combination {i + 1}/{max_iterations}")
 
             start_time = datetime.now()
             backtest_results = await self._run_backtest(params, symbols)
@@ -530,7 +525,7 @@ class ParameterOptimizer:
             self.optimization_config["backtest_period"]["end_date"], "%Y-%m-%d"
         )
 
-        backtest_config = BacktestConfig(
+        _ = BacktestConfig(
             start_date=start_date,
             end_date=end_date,
             initial_capital=self.optimization_config["initial_capital"],
@@ -541,19 +536,20 @@ class ParameterOptimizer:
         )
 
         # Create strategy configuration with test parameters
-        strategy_config = StrategyConfig(
-            name="test_strategy",
-            mode=StrategyMode.SWING_TRADING,
-            lookback_period=int(parameters.get("lookback_period", 50)),
-            min_confidence=parameters.get("min_confidence", 60.0),
-            max_position_size=parameters.get("max_position_size", 0.05),
-            default_stop_loss_pct=parameters.get("stop_loss_percentage", 0.02),
-            default_take_profit_pct=parameters.get("take_profit_percentage", 0.04),
-            risk_reward_ratio=parameters.get("risk_reward_ratio", 2.0),
-        )
+        # Create strategy configuration with test parameters (commented out as unused)
+        # strategy_config = StrategyConfig(
+        #     name="test_strategy",
+        #     mode=StrategyMode.SWING_TRADING,
+        #     lookback_period=int(parameters.get("lookback_period", 50)),
+        #     min_confidence=parameters.get("min_confidence", 60.0),
+        #     max_position_size=parameters.get("max_position_size", 0.05),
+        #     default_stop_loss_pct=parameters.get("stop_loss_percentage", 0.02),
+        #     default_take_profit_pct=parameters.get("take_profit_percentage", 0.04),
+        #     risk_reward_ratio=parameters.get("risk_reward_ratio", 2.0),
+        # )
 
         # Run backtest (simplified - would integrate with actual backtest engine)
-        backtest_engine = BacktestEngine(backtest_config)
+        # backtest_engine = BacktestEngine(backtest_config)  # Unused variable
 
         # Simulate backtest results
         total_return = np.random.normal(0.08, 0.15)  # 8% mean, 15% volatility
@@ -617,28 +613,28 @@ class ParameterOptimizer:
 
     def _generate_html_report(self) -> str:
         """Generate HTML report content."""
-        html = """
+        html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Trading System Parameter Optimization Report</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 40px; }
-                .header { background-color: #f0f0f0; padding: 20px; border-radius: 5px; }
-                .summary { margin: 20px 0; }
-                .results { margin: 20px 0; }
-                table { border-collapse: collapse; width: 100%; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f2f2f2; }
-                .best-result { background-color: #d4edda; }
-                .worst-result { background-color: #f8d7da; }
+                body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                .header {{ background-color: #f0f0f0; padding: 20px; border-radius: 5px; }}
+                .summary {{ margin: 20px 0; }}
+                .results {{ margin: 20px 0; }}
+                table {{ border-collapse: collapse; width: 100%; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; }}
+                .best-result {{ background-color: #d4edda; }}
+                .worst-result {{ background-color: #f8d7da; }}
             </style>
         </head>
         <body>
             <div class="header">
                 <h1>Trading System Parameter Optimization Report</h1>
-                <p>Generated on: {}</p>
-                <p>Total combinations tested: {}</p>
+                <p>Generated on: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+                <p>Total combinations tested: {len(self.results)}</p>
             </div>
 
             <div class="summary">
@@ -654,9 +650,7 @@ class ParameterOptimizer:
                         <th>Win Rate</th>
                         <th>Key Parameters</th>
                     </tr>
-        """.format(
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"), len(self.results)
-        )
+        """
 
         # Add top 5 results
         for i, result in enumerate(self.results[:5]):
@@ -669,13 +663,13 @@ class ParameterOptimizer:
 
             html += f"""
                     <tr class="{css_class}">
-                        <td>{i+1}</td>
+                        <td>{i + 1}</td>
                         <td>{result.scenario_name}</td>
                         <td>{result.score:.4f}</td>
                         <td>{result.metrics.get('total_return', 0):.2%}</td>
                         <td>{result.metrics.get('sharpe_ratio', 0):.2f}</td>
                         <td>{result.metrics.get('max_drawdown', 0):.2%}</td>
-                        <td>{result.metrics.get('win_rate', 0):.2%}</td>
+                        <td>{result.metrics.get('win_rate', 0) * 100:.2f}%</td>
                         <td>{json.dumps(key_params, indent=2)}</td>
                     </tr>
             """
@@ -785,13 +779,14 @@ def main():
         html_path = optimizer.generate_report(f"{args.output}.html")
         json_path = optimizer.export_results(f"{args.output}.json")
 
-        print(f"\nOptimization Complete!")
+        print("\nOptimization Complete!")
         print(f"HTML Report: {html_path}")
         print(f"JSON Results: {json_path}")
         print(
             f"\nBest Result: {results[0].scenario_name} (Score: {results[0].score:.4f})"
         )
-        print(f"Parameters: {json.dumps(results[0].parameters, indent=2)}")
+        print("Parameters:")
+        print(json.dumps(results[0].parameters, indent=2))
 
     # Run the optimization
     asyncio.run(run_optimization())

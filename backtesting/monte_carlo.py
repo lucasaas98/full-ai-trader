@@ -1,8 +1,6 @@
 import logging
 import multiprocessing as mp
 import os
-
-# Import shared models
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
@@ -15,13 +13,7 @@ from scipy import stats
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Forward declaration for type hints
-from typing import TYPE_CHECKING
-
-from shared.models import BacktestResult, MarketData, TimeFrame
-
-if TYPE_CHECKING:
-    from .backtest_engine import DataSource
+from shared.models import BacktestResult
 
 
 @dataclass
@@ -499,7 +491,7 @@ Risk Metrics:
 Portfolio Value Percentiles:
 """
         for conf_level, value in results.percentiles.items():
-            report += f"- {conf_level*100:>5.1f}%: ${value:>10,.2f}\n"
+            report += f"- {conf_level * 100:>5.1f}%: ${value:>10,.2f}\n"
 
         return report
 
@@ -534,7 +526,7 @@ class WalkForwardAnalysis:
 
         for i, (train_start, train_end, test_start, test_end) in enumerate(windows):
             self.logger.info(
-                f"Processing window {i+1}/{len(windows)}: {train_start.date()} - {test_end.date()}"
+                f"Processing window {i + 1}/{len(windows)}: {train_start.date()} - {test_end.date()}"
             )
 
             # Optimize strategy parameters on training data

@@ -24,8 +24,6 @@ from prometheus_client import Counter, Gauge, generate_latest
 # Add parent directories to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-# Configure logging
-import os
 from pathlib import Path
 
 from shared.config import get_config
@@ -813,9 +811,9 @@ async def close_position(symbol: str, percentage: float = 1.0):
         f"Close position endpoint accessed for symbol: {symbol}, percentage: {percentage}"
     )
     try:
-        logger.debug(f"Initiating position close for {symbol} at {percentage*100}%")
+        logger.debug(f"Initiating position close for {symbol} at {percentage * 100}%")
         result = await app.state.service.execution_engine.force_position_close(
-            symbol, f"API close request - {percentage*100}%"
+            symbol, f"API close request - {percentage * 100}%"
         )
         logger.debug(f"Position close result for {symbol}: {result}")
         return result

@@ -10,14 +10,16 @@ import asyncio
 import logging
 import signal
 import sys
-from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+# Add the parent directory to Python path for imports
+# Add project root to path for shared imports
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
-
-# Add the parent directory to Python path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
 from shared.config import get_config
 from shared.models import TimeFrame

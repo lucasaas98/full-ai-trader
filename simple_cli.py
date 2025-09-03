@@ -254,10 +254,10 @@ def format_strategies(strategies: Dict[str, Any]) -> None:
         print(f"🎯 {strategy['name']} ({strategy['mode']})")
         info = strategy.get("info", {})
         print(
-            f"   Confidence: {info.get('min_confidence', 0)}% | Position Size: {info.get('max_position_size', 0)*100:.0f}%"
+            f"   Confidence: {info.get('min_confidence', 0)}% | Position Size: {info.get('max_position_size', 0) * 100:.0f}%"
         )
         print(
-            f"   Stop Loss: {info.get('stop_loss_pct', 0)*100:.1f}% | Take Profit: {info.get('take_profit_pct', 0)*100:.1f}%"
+            f"   Stop Loss: {info.get('stop_loss_pct', 0) * 100:.1f}% | Take Profit: {info.get('take_profit_pct', 0) * 100:.1f}%"
         )
     print()
 
@@ -343,10 +343,10 @@ def main():
         )
 
         if result["status"] == "success":
-            print(f"✅ Trade signal submitted successfully!")
+            print("✅ Trade signal submitted successfully!")
             print(f"   Signal ID: {result['signal_id']}")
         elif result["status"] == "timeout":
-            print(f"⏳ Trade signal submitted but response timed out")
+            print("⏳ Trade signal submitted but response timed out")
             print(f"   Signal ID: {result['signal_id']}")
             print("   Check orders to see if it was processed")
         else:

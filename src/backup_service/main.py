@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import asyncpg
+import redis
+import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from prometheus_client import Counter, Gauge, Histogram
@@ -31,8 +33,6 @@ from pydantic import BaseModel, Field
 
 # Add parent directory to path for shared modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
-
-import redis
 
 from shared.config import get_config
 
@@ -106,9 +106,6 @@ class ConfigWrapper:
         """Get project root path"""
         return Path(__file__).parent.parent.parent
 
-
-# Configure structured logging
-import structlog
 
 logger = structlog.get_logger(__name__)
 
@@ -826,12 +823,12 @@ class BackupService:
         # Send verification summary
         await self.send_backup_alert(
             "info",
-            f"Backup verification completed:\n" + "\n".join(verification_results),
+            "Backup verification completed:\n" + "\n".join(verification_results),
         )
 
     async def verify_backup_integrity(self, backup_file: Path):
         """Verify integrity of a backup file"""
-        logger.info("Verifying backup integrity", file=backup_file.name)
+        logger.info("Verifying backup integrity for %s", backup_file.name)
 
         # Check file exists and is readable
         if not backup_file.exists():
@@ -918,7 +915,7 @@ class BackupService:
         await self.send_backup_alert(
             "info",
             f"Backup cleanup completed: {deleted_count} files deleted, "
-            f"{total_size_freed / (1024*1024):.1f} MB freed",
+            f"{total_size_freed / (1024 * 1024):.1f} MB freed",
         )
 
     async def run_restore_test(self):
@@ -961,7 +958,7 @@ class BackupService:
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
-                logger.info(f"Restore test completed successfully")
+                logger.info("Restore test completed successfully")
                 return True
             else:
                 logger.error(f"Restore test failed: {stderr.decode()}")

@@ -96,7 +96,9 @@ class MaintenanceSystemTester:
         large_log = log_dir / "large_test.log"
         with open(large_log, "w") as f:
             for i in range(10000):
-                f.write(f"2024-01-{i%30+1:02d} 12:00:00 - INFO - Test log entry {i}\n")
+                f.write(
+                    f"2024-01-{i % 30 + 1:02d} 12:00:00 - INFO - Test log entry {i}\n"
+                )
 
         # Old log file for compression testing
         old_log = log_dir / "old_test.log"
@@ -684,7 +686,7 @@ class MaintenanceSystemTester:
         logger.info(f"Total Tests: {total_count}")
         logger.info(f"Passed: {passed_count} (✅)")
         logger.info(f"Failed: {failed_count} (❌)")
-        logger.info(f"Success Rate: {(passed_count/total_count*100):.1f}%")
+        logger.info(f"Success Rate: {(passed_count / total_count * 100):.1f}%")
         logger.info(f"Total Duration: {total_duration:.2f}s")
 
         if self.failed_tests:

@@ -5,7 +5,6 @@ Tests different screener configurations to see what results are returned.
 """
 
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime, timezone
@@ -23,7 +22,6 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 from services.data_collector.src.finviz_screener import (
     FinVizScreener,
     FinVizScreenerParams,
-    FinVizScreenerResult,
 )
 
 # Set the API key from environment
@@ -248,7 +246,7 @@ async def test_all_screener_types():
                 if result.data:
                     print(f"    Top ticker: {result.data[0].ticker}")
             else:
-                print(f"  ✗ No results")
+                print("  ✗ No results")
 
             # Small delay between requests
             await asyncio.sleep(1)

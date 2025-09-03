@@ -183,7 +183,7 @@ async def show_selective_status():
                     confidence_boost = parameters.get("mtf_confidence_boost", "N/A")
                     min_timeframes = parameters.get("mtf_min_timeframes", "N/A")
                     required_strength = parameters.get("mtf_required_strength", "N/A")
-                    print(f"   Config:")
+                    print("   Config:")
                     print(f"     • Min timeframes: {min_timeframes}")
                     print(f"     • Confidence boost: {confidence_boost}")
                     print(f"     • Required strength: {required_strength}")

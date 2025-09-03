@@ -389,7 +389,7 @@ class MaintenanceManager:
                                 )
                                 if health_response.status_code != 200:
                                     break
-                            except:
+                            except Exception:
                                 break  # Service is down
 
                         logger.info(f"Service {service_name} shutdown completed")

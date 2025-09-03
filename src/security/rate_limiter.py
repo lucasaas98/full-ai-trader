@@ -18,14 +18,12 @@ Features:
 - Circuit breaker integration
 """
 
-import asyncio
-import hashlib
 import json
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import structlog
 from prometheus_client import Counter, Gauge, Histogram
@@ -513,7 +511,7 @@ class RateLimiter:
 
         # Check each applicable rule
         for rule in applicable_rules:
-            start_time = time.time()
+            _ = time.time()
 
             try:
                 with self.rate_limit_duration.labels(

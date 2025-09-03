@@ -39,7 +39,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
@@ -927,5 +927,5 @@ def _cached_weekday_check(date_str: str) -> bool:
     try:
         check_date = datetime.fromisoformat(date_str).date()
         return check_date.weekday() < 5
-    except:
+    except Exception:
         return False

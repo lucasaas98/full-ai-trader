@@ -326,12 +326,12 @@ def calculate_backtest_metrics(
         else Decimal("0")
     )
 
-    largest_win = max(
-        (t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0")
-    )
-    largest_loss = min(
-        (t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0")
-    )
+    # largest_win = max(
+    #     (t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0")
+    # )  # Unused variable
+    # largest_loss = min(
+    #     (t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0")
+    # )  # Unused variable
 
     # Calculate maximum drawdown
     max_equity = backtester.initial_capital

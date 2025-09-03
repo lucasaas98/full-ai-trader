@@ -25,6 +25,7 @@ from services.strategy_engine.src.ai_integration import AIStrategyIntegration
 from services.strategy_engine.src.ai_models import (
     AIDecisionRecord,
     AIPerformanceMetrics,
+    AITradeExecution,
     create_performance_summary,
 )
 from services.strategy_engine.src.ai_strategy import (
@@ -45,6 +46,7 @@ from services.strategy_engine.src.base_strategy import (
     StrategyConfig,
     StrategyMode,
 )
+from shared.models import SignalType
 
 
 class TestAnthropicClient:
@@ -533,8 +535,6 @@ class TestAIIntegration:
                     }
 
                 # Should reject new position
-                from shared.models import SignalType
-
                 signal = Signal(
                     action=SignalType.BUY, confidence=80, position_size=0.05
                 )

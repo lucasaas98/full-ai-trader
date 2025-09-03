@@ -16,22 +16,22 @@ import asyncio
 import datetime as dt
 import json
 import logging
-from datetime import timezone
-from typing import Any, Dict, List, Optional, cast
-
-# Explicit type aliases for clarity
-TypeAny = Any
-TimeDelta = dt.timedelta
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
+from datetime import timezone
 from enum import Enum
+from typing import Any, Dict, List, Optional, cast
 
 import asyncpg
 import redis.asyncio as redis
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
+from .jwt_utils import extract_user_id_from_request_header
+
+# Explicit type aliases for clarity
+TypeAny = Any
+TimeDelta = dt.timedelta
 
 logger = logging.getLogger(__name__)
 

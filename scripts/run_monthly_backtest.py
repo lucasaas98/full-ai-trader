@@ -27,12 +27,8 @@ import asyncio
 import csv
 import json
 import logging
-import os
 import sys
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 from pathlib import Path
-from typing import List, Optional
 
 # Add project paths
 script_dir = Path(__file__).parent
@@ -42,12 +38,13 @@ sys.path.append(str(project_root / "services" / "data_collector" / "src"))
 sys.path.append(str(project_root / "services" / "strategy_engine" / "src"))
 sys.path.append(str(project_root / "shared"))
 
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+
 from real_backtest_engine import (
     BacktestMode,
     RealBacktestConfig,
     RealBacktestEngine,
-    run_monthly_backtest,
-    run_previous_month_backtest,
 )
 
 from shared.models import TimeFrame
@@ -275,7 +272,7 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
     print("=" * 80)
 
     # Configuration summary
-    print(f"\nConfiguration:")
+    print("\nConfiguration:")
     print(f"  Period: {config.start_date.date()} to {config.end_date.date()}")
     print(f"  Initial Capital: {format_currency(float(config.initial_capital))}")
     print(f"  Timeframe: {config.timeframe.value}")
@@ -284,7 +281,7 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
         f"  Symbols: {config.symbols_to_trade if config.symbols_to_trade else 'Screener-based'}"
     )
 
-    print(f"\nPerformance Summary:")
+    print("\nPerformance Summary:")
     print(f"  Total Return: {format_percentage(results.total_return)}")
     print(f"  Annualized Return: {format_percentage(results.annualized_return)}")
     print(
@@ -292,12 +289,12 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
     )
     print(f"  Max Drawdown: {format_percentage(results.max_drawdown)}")
 
-    print(f"\nRisk Metrics:")
+    print("\nRisk Metrics:")
     print(f"  Sharpe Ratio: {results.sharpe_ratio:.3f}")
     print(f"  Sortino Ratio: {results.sortino_ratio:.3f}")
     print(f"  Calmar Ratio: {results.calmar_ratio:.3f}")
 
-    print(f"\nTrading Statistics:")
+    print("\nTrading Statistics:")
     print(f"  Total Trades: {results.total_trades}")
     print(f"  Winning Trades: {results.winning_trades}")
     print(f"  Losing Trades: {results.losing_trades}")
@@ -310,7 +307,7 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
         print(f"  Largest Win: {format_currency(results.largest_win)}")
         print(f"  Largest Loss: {format_currency(results.largest_loss)}")
 
-    print(f"\nAI Strategy Metrics:")
+    print("\nAI Strategy Metrics:")
     print(f"  Total AI Calls: {results.total_ai_calls}")
     print(f"  Signals Generated: {results.signals_generated}")
     print(f"  Signals Executed: {results.signals_executed}")
@@ -319,7 +316,7 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
     )
     print(f"  Average Confidence: {results.average_confidence:.1f}%")
 
-    print(f"\nExecution Metrics:")
+    print("\nExecution Details:")
     print(f"  Total Commissions: {format_currency(float(results.total_commissions))}")
     print(f"  Total Slippage: {format_currency(float(results.total_slippage))}")
     print(f"  Execution Time: {results.execution_time_seconds:.2f} seconds")

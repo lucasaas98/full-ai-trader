@@ -1,7 +1,5 @@
 import logging
 import os
-
-# Import shared models
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -13,7 +11,6 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Import data store for concrete implementation
 from services.data_collector.src.data_store import DataStore
 from shared.models import (
     BacktestResult,
@@ -1082,16 +1079,13 @@ class BacktestEngine:
         ]
 
         # Calculate benchmark returns
-        benchmark_returns = []
         if self.config.benchmark_symbol in benchmark_data:
-            benchmark_prices = [
-                d.close for d in benchmark_data[self.config.benchmark_symbol]
-            ]
-            benchmark_returns = [
-                (benchmark_prices[i] - benchmark_prices[i - 1])
-                / benchmark_prices[i - 1]
-                for i in range(1, len(benchmark_prices))
-            ]
+            pass
+            # benchmark_returns = [
+            #     (benchmark_prices[i] - benchmark_prices[i - 1])
+            #     / benchmark_prices[i - 1]
+            #     for i in range(1, len(benchmark_prices))
+            # ]
 
         # Basic metrics
         total_return = (
@@ -1290,7 +1284,7 @@ class WalkForwardAnalysis:
         results = []
 
         for i, (train_start, train_end, test_start, test_end) in enumerate(windows):
-            self.logger.info(f"Processing window {i+1}/{len(windows)}")
+            self.logger.info(f"Processing window {i + 1}/{len(windows)}")
 
             # Create backtest config for this window
             config = BacktestConfig(
@@ -1393,7 +1387,7 @@ async def example_backtest():
         result = await engine.run_backtest(strategy, symbols, data_source)
 
         # Display results
-        print(f"\n=== Backtest Results ===")
+        print("\n=== Backtest Results ===")
         print(f"Strategy: {result.strategy_name}")
         print(f"Period: {result.start_date.date()} to {result.end_date.date()}")
         print(f"Initial Capital: ${result.initial_capital:,.2f}")
@@ -1413,7 +1407,7 @@ async def example_backtest():
 
         # Show some portfolio snapshots
         if engine.portfolio_history:
-            print(f"\n=== Portfolio Evolution ===")
+            print("\n=== Portfolio Evolution ===")
             for i in [0, len(engine.portfolio_history) // 2, -1]:
                 snapshot = engine.portfolio_history[i]
                 print(f"Date: {snapshot.timestamp.date()}")
@@ -1457,7 +1451,7 @@ async def example_walk_forward_analysis():
             strategy, symbols, data_source, start_date, end_date
         )
 
-        print(f"\n=== Walk-Forward Analysis Results ===")
+        print("\n=== Walk-Forward Analysis Results ===")
         print(f"Strategy: {strategy.get_strategy_name()}")
         print(f"Average Return: {results['average_return']:.2%}")
         print(f"Average Sharpe: {results['average_sharpe']:.2f}")

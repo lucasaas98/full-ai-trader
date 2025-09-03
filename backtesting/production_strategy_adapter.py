@@ -6,15 +6,14 @@ that works around import issues with the full production strategy modules.
 It implements the core logic and parameters from the actual production strategies.
 """
 
-import asyncio
 import logging
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from backtest_models import MarketData, SignalType, TimeFrame
+from backtest_models import MarketData, SignalType
 
 logger = logging.getLogger(__name__)
 
@@ -454,7 +453,7 @@ class ProductionStrategyAdapter:
                 scores.append(consistency_score)
 
             # Market context scoring
-            portfolio_value = market_context.get("portfolio_value", 100000)
+            # portfolio_value = market_context.get("portfolio_value", 100000)  # Unused for now
             positions_count = market_context.get("positions_count", 0)
 
             # Prefer diversification

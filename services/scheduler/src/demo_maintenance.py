@@ -966,7 +966,7 @@ class MaintenanceSystemDemo:
                         alert_type = alert.get("type", "unknown")
                         timestamp = alert.get("timestamp", "")[:19]
                         console.print(f"  🚨 {timestamp}: {alert_type}")
-                    except:
+                    except Exception:
                         continue
             else:
                 console.print("\n[green]✅ No active alerts[/green]")
@@ -1326,7 +1326,7 @@ class MaintenanceSystemDemo:
         summary_table.add_row("Total Tasks", str(total_tasks))
         summary_table.add_row("Successful", str(successful_tasks))
         summary_table.add_row(
-            "Success Rate", f"{(successful_tasks/total_tasks*100):.1f}%"
+            "Success Rate", f"{(successful_tasks / total_tasks * 100):.1f}%"
         )
         summary_table.add_row("Total Duration", self._format_duration(total_duration))
         summary_table.add_row("Space Freed", self._format_bytes(total_bytes_freed))
@@ -1377,9 +1377,9 @@ class MaintenanceSystemDemo:
         if seconds < 60:
             return f"{seconds:.1f}s"
         elif seconds < 3600:
-            return f"{seconds/60:.1f}m"
+            return f"{seconds / 60:.1f}m"
         else:
-            return f"{seconds/3600:.1f}h"
+            return f"{seconds / 3600:.1f}h"
 
     def _format_bytes(self, bytes_value: Union[int, float]) -> str:
         """Format bytes in human readable format."""
@@ -1497,7 +1497,7 @@ class MaintenanceSystemDemo:
             f"""
 [bold]Demo Statistics:[/bold]
 • Steps Completed: {successful_steps}/{total_steps}
-• Success Rate: {(successful_steps/total_steps*100):.1f}%
+• Success Rate: {(successful_steps / total_steps * 100):.1f}%
 • Total Duration: {self._format_duration(total_duration)}
 • Total Space Freed: {self._format_bytes(total_bytes_freed)}
 • Files Processed: {total_files_processed}

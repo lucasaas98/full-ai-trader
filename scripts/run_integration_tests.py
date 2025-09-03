@@ -10,7 +10,6 @@ This script manages the complete lifecycle of integration tests including:
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -19,7 +18,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 # Set up project path
 project_root = Path(__file__).parent.parent

@@ -10,8 +10,8 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List
 
 import aiohttp
 
@@ -99,7 +99,7 @@ class OllamaClient:
                 )
 
         except asyncio.TimeoutError:
-            logger.error(f"Ollama request timed out after 120 seconds")
+            logger.error("Ollama request timed out after 120 seconds")
             raise Exception("Ollama request timed out")
         except aiohttp.ClientError as e:
             logger.error(f"Ollama client error: {e}")

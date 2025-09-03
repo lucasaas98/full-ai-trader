@@ -860,7 +860,6 @@ class DataCollectorHTTPServer:
             # Get historical data for both symbols
             from datetime import datetime, timedelta
 
-            import numpy as np
             import polars as pl
 
             from shared.models import TimeFrame
@@ -1082,7 +1081,7 @@ class DataCollectorHTTPServer:
         """
         try:
             symbol = request.match_info["symbol"]
-            format_param = request.query.get("format", "JSON")
+            _ = request.query.get("format", "JSON")
 
             if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(

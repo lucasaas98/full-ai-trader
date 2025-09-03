@@ -15,10 +15,10 @@ import redis.asyncio as redis
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram, start_http_server
 from prometheus_client.core import CollectorRegistry
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from shared.config import Config
 from shared.models import PortfolioState
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from .gotify_client import GotifyClient
 

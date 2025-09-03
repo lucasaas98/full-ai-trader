@@ -11,19 +11,23 @@ import json
 import logging
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+import polars as pl
 import yaml
+from anthropic import AsyncAnthropic
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../data_collector/src"))
 
-from anthropic import AsyncAnthropic
 from base_strategy import BaseStrategy, Signal, StrategyConfig
 from data_collector.src.redis_client import RedisClient
 from data_collector.src.twelvedata_client import TwelveDataClient
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from shared.models import SignalType
 
@@ -994,10 +998,6 @@ class AIStrategyEngine(BaseStrategy):
     async def _get_finviz_data(self, symbol: str) -> Optional[Dict[str, Any]]:
         """Fetch FinViz data from Redis cache."""
         try:
-            if not REDIS_AVAILABLE:
-                logger.debug("Redis not available, skipping FinViz data")
-                return None
-
             redis_client = RedisClient()
             await redis_client.connect()
 
@@ -1023,27 +1023,26 @@ class AIStrategyEngine(BaseStrategy):
         try:
             market_data = {}
 
-            if TWELVEDATA_AVAILABLE:
-                client = TwelveDataClient()
+            client = TwelveDataClient()
 
-                # Get key market indicators
-                symbols = [
-                    "SPY",
-                    "QQQ",
-                    "VIX",
-                    "DXY",
-                ]  # S&P 500, NASDAQ, VIX, Dollar Index
+            # Get key market indicators
+            symbols = [
+                "SPY",
+                "QQQ",
+                "VIX",
+                "DXY",
+            ]  # S&P 500, NASDAQ, VIX, Dollar Index
 
-                for symbol in symbols:
-                    try:
-                        quote_data = await client.get_real_time_price(symbol)
-                        if quote_data:
-                            market_data[symbol] = {
-                                "price": quote_data.get("price", 0),
-                                "change_percent": quote_data.get("percent_change", 0),
-                            }
-                    except Exception as e:
-                        logger.warning(f"Could not fetch {symbol} data: {e}")
+            for symbol in symbols:
+                try:
+                    quote_data = await client.get_real_time_price(symbol)
+                    if quote_data:
+                        market_data[symbol] = {
+                            "price": quote_data.get("price", 0),
+                            "change_percent": quote_data.get("percent_change", 0),
+                        }
+                except Exception as e:
+                    logger.warning(f"Could not fetch {symbol} data: {e}")
 
             return market_data
 
@@ -1056,44 +1055,43 @@ class AIStrategyEngine(BaseStrategy):
         try:
             market_data = {}
 
-            if TWELVEDATA_AVAILABLE:
-                client = TwelveDataClient()
+            client = TwelveDataClient()
 
-                # Get major indices and volatility measures
-                symbols = {
-                    "SPY": "S&P 500 ETF",
-                    "QQQ": "NASDAQ ETF",
-                    "VIX": "Volatility Index",
-                    "TLT": "Long-term Treasury",
-                    "GLD": "Gold ETF",
-                }
+            # Get major indices and volatility measures
+            symbols = {
+                "SPY": "S&P 500 ETF",
+                "QQQ": "NASDAQ ETF",
+                "VIX": "Volatility Index",
+                "TLT": "Long-term Treasury",
+                "GLD": "Gold ETF",
+            }
 
-                for symbol, description in symbols.items():
-                    try:
-                        quote_data = await client.get_real_time_price(symbol)
-                        if quote_data:
-                            market_data[symbol] = {
-                                "price": float(quote_data.get("price", 0)),
-                                "change_percent": float(
-                                    quote_data.get("percent_change", 0)
-                                ),
-                                "description": description,
-                            }
-                        else:
-                            # Fallback data if real data not available
-                            market_data[symbol] = {
-                                "price": 400.0 if symbol == "SPY" else 300.0,
-                                "change_percent": 0.0,
-                                "description": description,
-                            }
-                    except Exception as e:
-                        logger.warning(f"Could not fetch {symbol} data: {e}")
-                        # Set neutral fallback
+            for symbol, description in symbols.items():
+                try:
+                    quote_data = await client.get_real_time_price(symbol)
+                    if quote_data:
+                        market_data[symbol] = {
+                            "price": float(quote_data.get("price", 0)),
+                            "change_percent": float(
+                                quote_data.get("percent_change", 0)
+                            ),
+                            "description": description,
+                        }
+                    else:
+                        # Fallback data if real data not available
                         market_data[symbol] = {
                             "price": 400.0 if symbol == "SPY" else 300.0,
                             "change_percent": 0.0,
                             "description": description,
                         }
+                except Exception as e:
+                    logger.warning(f"Could not fetch {symbol} data: {e}")
+                    # Set neutral fallback
+                    market_data[symbol] = {
+                        "price": 400.0 if symbol == "SPY" else 300.0,
+                        "change_percent": 0.0,
+                        "description": description,
+                    }
 
             return market_data
 
