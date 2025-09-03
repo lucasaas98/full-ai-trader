@@ -203,7 +203,7 @@ test-coverage: ## Run tests with coverage report
 
 lint: ## Run linting checks
 	@echo "Running linting checks..."
-	@flake8 . --exclude=.venv --ignore=E501,W503
+	@flake8 . --exclude=venv --ignore=E501,W503
 	@mypy .
 	@echo "✓ Linting checks completed"
 
