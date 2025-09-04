@@ -21,8 +21,8 @@ sys.path.append(
     os.path.join(os.path.dirname(__file__), "../services/strategy_engine/src")
 )
 
-from backtest_models import Signal, SignalType
-from ollama_client import OllamaClient, OllamaResponse
+from backtest_models import Signal, SignalType  # noqa: E402
+from ollama_client import OllamaClient, OllamaResponse  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

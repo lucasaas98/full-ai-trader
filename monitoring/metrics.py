@@ -20,7 +20,7 @@ from shared.models import PortfolioState
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from .gotify_client import GotifyClient
+from .gotify_client import GotifyClient  # noqa: E402
 
 
 class TradingSystemMetrics:

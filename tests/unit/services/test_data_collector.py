@@ -1,9 +1,7 @@
 import asyncio
 import json
-import os
 
 # Add parent directory to path for imports
-import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock, patch
@@ -436,7 +434,7 @@ class TestDataCollectorApp:
 
         with patch.object(service, "fetch_twelve_data") as mock_fetch, patch.object(
             service, "store_market_data"
-        ) as mock_store, patch.object(service, "publish_to_redis") as mock_publish:
+        ), patch.object(service, "publish_to_redis"):
 
             mock_fetch.return_value = [Mock(spec=MarketData)]
 
@@ -459,7 +457,7 @@ class TestDataCollectorApp:
             service, "fetch_twelve_data", side_effect=mock_fetch_side_effect
         ), patch.object(service, "store_market_data") as mock_store, patch.object(
             service, "publish_to_redis"
-        ) as mock_publish:
+        ):
 
             await service.collect_data_for_symbols(symbols, TimeFrame.ONE_HOUR)
 
@@ -939,9 +937,7 @@ class TestErrorHandling:
         with patch.object(
             service, "fetch_twelve_data", side_effect=mock_fetch_with_retry
         ):
-            result = await service.collect_data_for_symbols(
-                ["AAPL"], TimeFrame.ONE_HOUR
-            )
+            await service.collect_data_for_symbols(["AAPL"], TimeFrame.ONE_HOUR)
 
             # Should have retried and succeeded
             assert call_count == 2
@@ -1575,8 +1571,8 @@ class TestDataFlow:
         # Verify consistency checks
         assert len(fifteen_min_result) == 4
         assert len(one_hour_result) == 1
-        assert fifteen_validation["valid"] == True
-        assert one_hour_validation["valid"] == True
+        assert fifteen_validation["valid"] is True
+        assert one_hour_validation["valid"] is True
 
         # Verify OHLCV consistency
         fifteen_high = max(md.high for md in fifteen_min_result)
@@ -2273,7 +2269,6 @@ class TestPerformance:
         import time
 
         # Create a large dataset scenario
-        large_batch_size = 50
         tickers_per_batch = 20
         data_points_per_ticker = 100
 

@@ -7,7 +7,7 @@ for the trading system's security infrastructure.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Optional
 
 import jwt
 from pydantic import BaseModel, Field

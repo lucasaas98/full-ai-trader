@@ -13,7 +13,6 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -227,7 +226,7 @@ class TestRunner:
         Returns:
             Exit code (0 for success)
         """
-        print(f"\n" + "=" * 80)
+        print("\n" + "=" * 80)
         print(f"Running Specific Test: {test_name}")
         print("=" * 80)
 

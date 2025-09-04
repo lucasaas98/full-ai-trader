@@ -1,16 +1,8 @@
 import asyncio
-import json
-import os
-
-# Import only the models and avoid problematic service imports
 import sys
-import tempfile
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pandas as pd
-import polars as pl
 import pytest
 
 sys.path.append("/app/shared")

@@ -1595,7 +1595,7 @@ def dashboard(
                         try:
                             updated_data = await get_dashboard_data()
                             live.update(render_dashboard(updated_data))
-                        except Exception as e:
+                        except Exception:
                             # Continue with last known data on error
                             pass
 

@@ -5,19 +5,15 @@ This module contains comprehensive tests for the AI-powered trading strategy,
 including unit tests, integration tests, and performance tests.
 """
 
-import asyncio
-import json
 import os
-
-# Import modules to test
 import sys
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import polars as pl
 import pytest
+import yaml
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -416,7 +412,7 @@ class TestAIStrategyEngine:
     def test_decision_to_signal(self, strategy_config):
         """Test conversion of AI decision to trading signal."""
         with patch("builtins.open", mock_open(read_data=yaml.dump({"prompts": {}}))):
-            strategy = AIStrategyEngine(strategy_config)
+            AIStrategyEngine(strategy_config)
 
             decision = AIDecision(
                 action="BUY",
@@ -622,8 +618,6 @@ def mock_open(read_data=""):
     m.__exit__ = MagicMock(return_value=None)
     return m
 
-
-import yaml
 
 # Run tests
 if __name__ == "__main__":

@@ -6,15 +6,11 @@ in the AI strategy implementation.
 """
 
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import polars as pl
 import pytest
 
@@ -36,16 +32,13 @@ from services.strategy_engine.src.ai_strategy import (
     ConsensusEngine,
     CostTracker,
     DataContextBuilder,
-    MarketContext,
     RateLimiter,
     ResponseCache,
 )
 from services.strategy_engine.src.base_strategy import (
-    Signal,
     StrategyConfig,
     StrategyMode,
 )
-from shared.models import SignalType
 
 
 class TestAPIErrors:
@@ -179,7 +172,7 @@ class TestDataErrors:
 
         # Should handle NaN values gracefully
         try:
-            context = DataContextBuilder.build_master_context(
+            DataContextBuilder.build_master_context(
                 ticker="TEST", data=df_with_nan, finviz_data=None, market_data=None
             )
             # Should either succeed or raise a clear error
@@ -295,9 +288,7 @@ class TestIntegrationErrors:
             mock_engine.side_effect = Exception("Database connection failed")
 
             with pytest.raises(Exception) as exc_info:
-                integration = AIStrategyIntegration(
-                    AsyncMock(), "postgresql://invalid", {}
-                )
+                AIStrategyIntegration(AsyncMock(), "postgresql://invalid", {})
 
             assert "Database connection failed" in str(exc_info.value)
 
@@ -530,7 +521,7 @@ class TestEdgeCases:
 
         with pytest.raises(ValueError) as exc_info:
             with patch("builtins.open", mock_open(read_data="{}")):
-                strategy = AIStrategyEngine(config)
+                AIStrategyEngine(config)
 
         assert "API key is required" in str(exc_info.value)
 

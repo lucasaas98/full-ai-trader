@@ -880,7 +880,7 @@ def setup_signal_handlers():
 
 async def graceful_system_shutdown():
     """Perform graceful system shutdown"""
-    global maintenance_manager
+    global maintenance_manager  # noqa: F824
 
     if maintenance_manager:
         await maintenance_manager.emergency_shutdown(

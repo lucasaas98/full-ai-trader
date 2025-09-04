@@ -13,14 +13,14 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # Add paths for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-import redis.asyncio as redis
-from base_strategy import StrategyMode
-from multi_timeframe_analyzer import create_multi_timeframe_analyzer
+import redis.asyncio as redis  # noqa: E402
+from base_strategy import StrategyMode  # noqa: E402
+from multi_timeframe_analyzer import create_multi_timeframe_analyzer  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

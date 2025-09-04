@@ -9,13 +9,11 @@ better than the original simple implementation.
 
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from services.data_collector.src.scheduler_service import calculate_optimal_intervals
-from shared.models import TimeFrame
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def test_extreme_rate_limiting_scenarios():
@@ -269,7 +267,7 @@ def test_scaling_behavior_extremes():
         req_per_min = round(60 / interval * batches_needed, 1)
 
         print(
-            f"{description:<18} {ticker_count:<8} {interval}s ({interval//60}m)   {batch_size:<12} {req_per_min:<10}"
+            f"{description:<18} {ticker_count:<8} {interval}s ({interval // 60}m)   {batch_size:<12} {req_per_min:<10}"
         )
 
     print("\n✓ Algorithm efficiently scales batch sizes and intervals")
@@ -559,7 +557,7 @@ def demonstrate_key_features():
     api_limit = dangerous_config["api_rate_limits"]["risky_api"]
 
     print(f"API limit: {api_limit} req/min")
-    print(f"Calculated interval: {interval}s ({interval//60}m)")
+    print(f"Calculated interval: {interval}s ({interval // 60}m)")
     print(f"Actual request rate: {actual_req_rate} req/min")
     print(
         f"Safety margin: {round((api_limit - actual_req_rate) / api_limit * 100, 1)}%"
@@ -675,7 +673,9 @@ def run_comprehensive_test():
     min_api_limit = min(comprehensive_config["api_rate_limits"].values())
 
     for timeframe, interval in intervals.items():
-        priority = comprehensive_config["priority_weights"][timeframe]
+        priority = comprehensive_config["priority_weights"].get(
+            timeframe, 1.0
+        )  # Default to 1.0 if not found
 
         # Calculate request rate
         batch_size = min(25, max(5, comprehensive_config["active_tickers"] // 20))

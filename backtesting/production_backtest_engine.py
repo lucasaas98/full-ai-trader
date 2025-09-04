@@ -34,8 +34,8 @@ for path in [strategy_path, data_collector_path, shared_path, project_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from backtest_models import MarketData, SignalType, TimeFrame
-from simple_data_store import SimpleDataStore
+from backtest_models import MarketData, SignalType, TimeFrame  # noqa: E402
+from simple_data_store import SimpleDataStore  # noqa: E402
 
 try:
     # Use the production strategy adapter

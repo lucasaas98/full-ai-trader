@@ -11,8 +11,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from services.data_collector.src.data_store import DataStore
-from shared.models import (
+from services.data_collector.src.data_store import DataStore  # noqa: E402
+from shared.models import (  # noqa: E402
     BacktestResult,
     MarketData,
     OrderSide,

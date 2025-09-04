@@ -16,13 +16,14 @@ The enhanced algorithm considers:
 
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from services.data_collector.src.scheduler_service import calculate_optimal_intervals
-from shared.models import TimeFrame
+from services.data_collector.src.scheduler_service import (  # noqa: E402
+    calculate_optimal_intervals,
+)
+from shared.models import TimeFrame  # noqa: E402
 
 
 def demonstrate_basic_usage():
@@ -515,7 +516,7 @@ def benchmark_performance():
         start_time = time.perf_counter()
 
         for _ in range(case["iterations"]):
-            intervals = calculate_optimal_intervals(
+            calculate_optimal_intervals(
                 api_rate_limits=api_limits,
                 active_tickers=case["tickers"],
                 timeframes=timeframes,

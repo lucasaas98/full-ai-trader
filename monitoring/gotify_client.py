@@ -13,8 +13,8 @@ import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.config import Config
-from shared.models import Notification, RiskEvent, RiskSeverity
+from shared.config import Config  # noqa: E402
+from shared.models import Notification, RiskEvent, RiskSeverity  # noqa: E402
 
 # Import shared database manager for data collection
 try:

@@ -25,21 +25,31 @@ from pydantic import BaseModel, Field
 # Add shared module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-from shared.models import FinVizData
+from shared.models import FinVizData  # noqa: E402
 
-from .backtesting_engine import BacktestConfig, BacktestingEngine, BacktestMode
-from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode
-from .fundamental_analysis import FundamentalAnalysisEngine, FundamentalStrategy
-from .hybrid_strategy import (
+from .backtesting_engine import (  # noqa: E402
+    BacktestConfig,
+    BacktestingEngine,
+    BacktestMode,
+)
+from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode  # noqa: E402
+from .fundamental_analysis import (  # noqa: E402
+    FundamentalAnalysisEngine,
+    FundamentalStrategy,
+)
+from .hybrid_strategy import (  # noqa: E402
     HybridMode,
     HybridSignal,
     HybridSignalGenerator,
     HybridStrategy,
     HybridStrategyFactory,
 )
-from .market_regime import MarketRegimeDetector, RegimeAwareStrategyManager
-from .redis_integration import RedisStrategyEngine
-from .technical_analysis import TechnicalAnalysisEngine, TechnicalStrategy
+from .market_regime import (  # noqa: E402
+    MarketRegimeDetector,
+    RegimeAwareStrategyManager,
+)
+from .redis_integration import RedisStrategyEngine  # noqa: E402
+from .technical_analysis import TechnicalAnalysisEngine, TechnicalStrategy  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

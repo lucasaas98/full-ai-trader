@@ -23,12 +23,12 @@ sys.path.append("/app/services/risk_manager/src")
 sys.path.append("/app/services/scheduler/src")
 
 # Mock model classes for testing
-from enum import Enum
-from typing import Optional
-from uuid import UUID
+from enum import Enum  # noqa: E402
+from typing import Optional  # noqa: E402
+from uuid import UUID  # noqa: E402
 
-from shared.market_hours import MarketSession
-from shared.models import (
+from shared.market_hours import MarketSession  # noqa: E402
+from shared.models import (  # noqa: E402
     MarketData,
     OrderSide,
     OrderStatus,
@@ -711,7 +711,7 @@ class TestEndToEndTradeFlow:
         # Generate market data for all symbols
         market_data_batch = []
         for i, symbol in enumerate(symbols):
-            base_price = Decimal(f"{100 + i*50}.00")
+            base_price = Decimal(f"{100 + i * 50}.00")
             data = MarketData(
                 symbol=symbol,
                 timestamp=datetime.now(timezone.utc),
@@ -2483,7 +2483,6 @@ class TestComplexScenarioIntegration:
         with patch("risk_manager.RiskManager") as mock_risk:
             risk_manager = mock_risk.return_value
 
-            all_approved = True
             assessments = []
 
             for signal in optimization_signals:

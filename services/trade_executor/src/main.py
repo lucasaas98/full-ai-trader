@@ -24,12 +24,12 @@ from prometheus_client import Counter, Gauge, generate_latest
 # Add parent directories to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
-from pathlib import Path
+from pathlib import Path  # noqa: E402
 
-from shared.config import get_config
-from shared.models import TradeSignal
+from shared.config import get_config  # noqa: E402
+from shared.models import TradeSignal  # noqa: E402
 
-from .execution_engine import ExecutionEngine
+from .execution_engine import ExecutionEngine  # noqa: E402
 
 # from .alpaca_client import AlpacaClient  # Removed unused import
 
@@ -474,7 +474,7 @@ class TradeExecutorService:
                 logger.debug("WebSocket message sent successfully")
             except Exception as e:
                 logger.warning(f"Failed to send WebSocket message: {e}")
-                logger.debug(f"Removing failed WebSocket connection")
+                logger.debug("Removing failed WebSocket connection")
                 # Remove failed connection
                 self._websocket_connections.discard(websocket)
 

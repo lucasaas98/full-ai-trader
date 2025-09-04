@@ -8,7 +8,6 @@ ensuring accuracy and proper handling of edge cases.
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
 import numpy as np
 import polars as pl
@@ -148,10 +147,6 @@ class TestTechnicalIndicators:
         assert "macd_line" in result.columns
         assert "macd_signal" in result.columns
         assert "macd_histogram" in result.columns
-
-        macd_line = result.select("macd_line").to_series()
-        macd_signal = result.select("macd_signal").to_series()
-        macd_histogram = result.select("macd_histogram").to_series()
 
         # Histogram should be difference between MACD and signal
         valid_data = result.filter(
@@ -323,14 +318,14 @@ class TestTechnicalIndicators:
 
         # Zero or negative period should return empty results or handle gracefully
         try:
-            result_zero = TechnicalIndicators.sma(sample_price_data, period=0)
+            TechnicalIndicators.sma(sample_price_data, period=0)
             # If it doesn't raise an exception, it should handle gracefully
         except (ValueError, Exception):
             # It's also acceptable to raise an exception
             pass
 
         try:
-            result_negative = TechnicalIndicators.sma(sample_price_data, period=-5)
+            TechnicalIndicators.sma(sample_price_data, period=-5)
             # If it doesn't raise an exception, it should handle gracefully
         except (ValueError, Exception):
             # It's also acceptable to raise an exception

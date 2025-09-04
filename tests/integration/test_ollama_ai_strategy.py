@@ -5,14 +5,9 @@ Tests the complete flow of receiving trading signals and processing them
 through the AI strategy engine using local Ollama models with real market data.
 """
 
-import asyncio
 import os
-import tempfile
 from datetime import datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pandas as pd
@@ -342,10 +337,10 @@ Consider the signal strength and current market conditions."""
                         end_time = datetime.now()
                         processing_time = (end_time - start_time).total_seconds()
 
-                        print(f"\n=== AI Analysis Results ===")
+                        print("\n=== AI Analysis Results ===")
                         print(f"Processing Time: {processing_time:.2f} seconds")
                         print(f"Response: {response.content}")
-                        print(f"Cost: $0.00 (Local Ollama)")
+                        print("Cost: $0.00 (Local Ollama)")
 
                         # Try to parse JSON response
                         import json
@@ -358,7 +353,7 @@ Consider the signal strength and current market conditions."""
                                 json_str = response.content[json_start:json_end]
                                 decision_data = json.loads(json_str)
 
-                                print(f"\n=== Parsed Decision ===")
+                                print("\n=== Parsed Decision ===")
                                 print(
                                     f"Decision: {decision_data.get('decision', 'UNKNOWN')}"
                                 )
@@ -375,15 +370,15 @@ Consider the signal strength and current market conditions."""
 
                                 if decision_type == "BUY" and confidence > 60:
                                     print(
-                                        f"\n✅ TRADE APPROVED: High confidence BUY signal"
+                                        "\n✅ TRADE APPROVED: High confidence BUY signal"
                                     )
                                 elif decision_type == "SELL" and confidence > 60:
                                     print(
-                                        f"\n⚠️ SELL SIGNAL: High confidence SELL signal"
+                                        "\n⚠️ SELL SIGNAL: High confidence SELL signal"
                                     )
                                 else:
                                     print(
-                                        f"\n⏸️ NO TRADE: Low confidence or HOLD decision"
+                                        "\n⏸️ NO TRADE: Low confidence or HOLD decision"
                                     )
 
                         except json.JSONDecodeError:
@@ -422,7 +417,7 @@ Should you execute this trade? Provide BUY/SELL/HOLD recommendation with reasoni
                 mock_prompt, max_tokens=200, temperature=0.2
             )
 
-            print(f"\n=== Mock Scenario Results ===")
+            print("\n=== Mock Scenario Results ===")
             print(f"AI Response: {response.content}")
             print(f"Response Time: {response.response_time:.2f}s")
 

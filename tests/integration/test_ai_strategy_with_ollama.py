@@ -5,33 +5,30 @@ This test suite validates that the AI strategy engine can use Ollama as a backen
 while maintaining compatibility with the existing prompt system and production data flows.
 """
 
-import asyncio
 import json
 import os
 from datetime import datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-import pandas as pd
 import pytest
 
+from backtesting.ollama_ai_strategy_adapter import OllamaClient
 from services.data_collector.src.data_store import DataStore, DataStoreConfig
 
 # Import AI strategy components
 from services.strategy_engine.src.ai_strategy import (
-    AIDecision,
     AIModel,
     AIResponse,
     AIStrategyEngine,
-    AnthropicClient,
     ConsensusEngine,
     DataContextBuilder,
     MarketContext,
 )
 from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
-from services.strategy_engine.src.ollama_client import OllamaClient, OllamaResponse
+
+# Removed unused import
 
 
 class OllamaAnthropicAdapter:
@@ -418,7 +415,7 @@ class TestAIStrategyWithOllama:
         assert decision.reasoning is not None
         assert decision.total_cost == 0.0  # Ollama is free
 
-        print(f"\n=== AI Analysis Results ===")
+        print("\n=== AI Analysis Results ===")
         print(f"Decision: {decision.decision}")
         print(f"Confidence: {decision.confidence}%")
         print(f"Reasoning: {decision.reasoning}")
@@ -546,6 +543,9 @@ class TestAIStrategyWithOllama:
             ollama_strategy.ai_performance["total_decisions"]
             > initial_performance["total_decisions"]
         )
+
+        # Verify decision is valid
+        assert decision.decision in ["BUY", "SELL", "HOLD"]
         assert ollama_strategy.ai_performance["backend"] == "ollama"
         assert ollama_strategy.ai_performance["total_cost"] == 0.0
 
@@ -616,17 +616,17 @@ class TestAIStrategyWithOllama:
         processing_time = (end_time - start_time).total_seconds()
 
         # Report results
-        print(f"\n=== AI Decision Results ===")
+        print("\n=== AI Decision Results ===")
         print(f"🎯 Decision: {decision.decision}")
         print(f"🎯 Confidence: {decision.confidence}%")
         print(f"💭 Reasoning: {decision.reasoning}")
         print(f"⏱️  Processing time: {processing_time:.2f}s")
-        print(f"💰 Cost: $0.00 (Local Ollama)")
+        print("💰 Cost: $0.00 (Local Ollama)")
         print(f"🔧 Models used: {', '.join(decision.models_used)}")
 
         # Simulate trade decision logic
         if decision.decision == "BUY" and decision.confidence > 70:
-            print(f"✅ EXECUTE TRADE: High confidence BUY signal")
+            print("✅ EXECUTE TRADE: High confidence BUY signal")
             if decision.entry_price:
                 print(f"📍 Entry: ${decision.entry_price}")
             if decision.stop_loss:
@@ -634,9 +634,9 @@ class TestAIStrategyWithOllama:
             if decision.take_profit:
                 print(f"🎯 Take Profit: ${decision.take_profit}")
         elif decision.decision == "SELL" and decision.confidence > 70:
-            print(f"⚠️  SELL SIGNAL: High confidence SELL")
+            print("⚠️  SELL SIGNAL: High confidence SELL")
         else:
-            print(f"⏸️  NO TRADE: Confidence too low or HOLD decision")
+            print("⏸️  NO TRADE: Confidence too low or HOLD decision")
 
         # Final assertions
         assert decision is not None
@@ -644,7 +644,7 @@ class TestAIStrategyWithOllama:
         assert 0 <= decision.confidence <= 100
         assert processing_time > 0
 
-        print(f"\n✅ Workflow completed successfully")
+        print("\n✅ Workflow completed successfully")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,8 @@ from starlette.datastructures import Headers
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-from shared.security.audit import AuditLogger, AuditMiddleware
+
+from shared.security.audit import AuditMiddleware
 from shared.security.jwt_utils import JWTConfig, JWTManager
 from shared.security.rate_limiting import RateLimiter, RateLimitRule, RateLimitScope
 
@@ -277,8 +278,7 @@ class TestRateLimitingJWTIntegration:
         mock_redis.get.return_value = None
 
         # Test with user 1
-        token1 = jwt_manager.create_access_token(user_id="user_1")
-        key1 = f"api_calls:USER:user_1"
+        key1 = "api_calls:USER:user_1"
 
         # Reset call count for user 1
         call_count = 0
@@ -287,8 +287,7 @@ class TestRateLimitingJWTIntegration:
         assert status1.remaining == 4
 
         # Test with user 2 (should have separate limit)
-        token2 = jwt_manager.create_access_token(user_id="user_2")
-        key2 = f"api_calls:USER:user_2"
+        key2 = "api_calls:USER:user_2"
 
         # Reset call count for user 2
         call_count = 0
@@ -469,7 +468,7 @@ class TestIntegrationErrorScenarios:
     def test_redis_connection_error_with_jwt(self, jwt_manager, mock_redis):
         """Test JWT functionality when Redis is unavailable."""
         # Create valid token
-        token = jwt_manager.create_access_token(user_id="redis_test_user")
+        jwt_manager.create_access_token(user_id="redis_test_user")
 
         # Mock Redis to raise connection error
         mock_redis.incr.side_effect = Exception("Redis connection failed")
@@ -485,7 +484,7 @@ class TestIntegrationErrorScenarios:
         # Test should handle Redis error gracefully
         async def test_rate_limit():
             try:
-                key = f"test_rule:USER:redis_test_user"
+                key = "test_rule:USER:redis_test_user"
                 passed, status = await rate_limiter.check_rate_limit(key, rule)
                 # Should fail gracefully rather than crash
                 return True

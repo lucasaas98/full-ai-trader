@@ -23,15 +23,15 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent))
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, field  # noqa: E402
+from datetime import datetime  # noqa: E402
+from enum import Enum  # noqa: E402
+from typing import Any, Dict, List, Optional  # noqa: E402
 
-import numpy as np
+import numpy as np  # noqa: E402
 
-from backtesting.backtest_engine import BacktestConfig
-from shared.config import get_config
+from backtesting.backtest_engine import BacktestConfig  # noqa: E402
+from shared.config import get_config  # noqa: E402
 
 
 class ParameterType(Enum):

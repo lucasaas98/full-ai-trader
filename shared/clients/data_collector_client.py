@@ -8,9 +8,8 @@ microservices architecture.
 
 import asyncio
 import logging
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date, datetime
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 import polars as pl

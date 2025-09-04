@@ -8,18 +8,18 @@ import tempfile
 
 sys.path.append("/app/shared")
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from pathlib import Path
-from typing import List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from decimal import Decimal  # noqa: E402
+from pathlib import Path  # noqa: E402
+from typing import List, Optional  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
-import numpy as np
-import pandas as pd
-import pytest
-import redis
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+import redis  # noqa: E402
 
-from shared.models import (
+from shared.models import (  # noqa: E402
     OrderRequest,
     OrderSide,
     OrderType,

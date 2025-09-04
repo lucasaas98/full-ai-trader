@@ -3,7 +3,9 @@ Comprehensive backtesting integration tests.
 Tests the backtesting framework, Monte Carlo simulations, and performance analysis.
 """
 
+import os
 import statistics
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -12,11 +14,6 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 import pytest
-
-pass  # Removed unused unittest.mock imports
-
-import os
-import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
@@ -524,7 +521,7 @@ class TestBacktestEngine:
                         confidence=0.8,
                         strategy="portfolio_rebalancing",
                         timestamp=current["timestamp"],
-                        reasoning=f"Portfolio rebalancing to {target_weight*100:.1f}% weight",
+                        reasoning=f"Portfolio rebalancing to {target_weight * 100:.1f}% weight",
                     )
                     signals.append(signal)
 
@@ -546,7 +543,7 @@ class TestBacktestEngine:
         assert result.final_value > 0, "Portfolio value is zero"
 
         print(
-            f"Portfolio strategy: {result.total_return*100:.2f}% return across {len(multi_asset_data)} assets"
+            f"Portfolio strategy: {result.total_return * 100:.2f}% return across {len(multi_asset_data)} assets"
         )
 
     def test_backtest_performance_metrics(
@@ -602,7 +599,7 @@ class TestBacktestEngine:
 
         print(
             f"Performance metrics test: Sharpe={result.sharpe_ratio:.2f}, "
-            f"Sortino={result.sortino_ratio:.2f}, Max DD={result.max_drawdown*100:.2f}%"
+            f"Sortino={result.sortino_ratio:.2f}, Max DD={result.max_drawdown * 100:.2f}%"
         )
 
 
@@ -731,10 +728,10 @@ class TestMonteCarloSimulation:
 
         assert (
             -0.3 < mean_portfolio_return < 0.3
-        ), f"Unrealistic portfolio return: {mean_portfolio_return*100:.2f}%"
+        ), f"Unrealistic portfolio return: {mean_portfolio_return * 100:.2f}%"
 
         print(
-            f"Portfolio Monte Carlo: Mean return={mean_portfolio_return*100:.2f}%, "
+            f"Portfolio Monte Carlo: Mean return={mean_portfolio_return * 100:.2f}%, "
             f"Mean Sharpe={mean_sharpe:.2f}"
         )
 
@@ -800,7 +797,7 @@ class TestMonteCarloSimulation:
         assert var_1 <= var_5, "VaR 1% should be more negative than VaR 5%"
         assert var_5 < 0, "VaR 5% should be negative (loss)"
 
-        print(f"Risk analysis: VaR(5%)={var_5*100:.2f}%, VaR(1%)={var_1*100:.2f}%")
+        print(f"Risk analysis: VaR(5%)={var_5 * 100:.2f}%, VaR(1%)={var_1 * 100:.2f}%")
 
     def test_walk_forward_analysis(self, backtest_engine, sample_historical_data):
         """Test walk-forward analysis functionality."""
@@ -868,11 +865,11 @@ class TestMonteCarloSimulation:
 
         assert (
             return_std < 0.2
-        ), f"Strategy too unstable across periods: {return_std*100:.2f}% std"
+        ), f"Strategy too unstable across periods: {return_std * 100:.2f}% std"
 
         print(
             f"Walk-forward analysis: {len(walk_forward_results)} periods, "
-            f"return std={return_std*100:.2f}%"
+            f"return std={return_std * 100:.2f}%"
         )
 
 
@@ -1064,10 +1061,10 @@ class TestBacktestingInfrastructure:
         # Results should be similar but not identical (due to data differences)
         assert (
             return_std < 0.1
-        ), f"Results too different across sources: {return_std*100:.2f}% std"
+        ), f"Results too different across sources: {return_std * 100:.2f}% std"
 
         print(
-            f"Multi-source backtest: {return_std*100:.2f}% return variance across sources"
+            f"Multi-source backtest: {return_std * 100:.2f}% return variance across sources"
         )
 
 
@@ -1131,7 +1128,7 @@ class TestAdvancedBacktesting:
         assert result.total_trades >= 1, "No trades in multi-timeframe strategy"
 
         print(
-            f"Multi-timeframe strategy: {result.total_return*100:.2f}% return, "
+            f"Multi-timeframe strategy: {result.total_return * 100:.2f}% return, "
             f"{result.total_trades} trades"
         )
 
@@ -1210,7 +1207,7 @@ class TestAdvancedBacktesting:
         print("Strategy comparison:")
         for name, result in strategy_results.items():
             print(
-                f"  {name}: {result.total_return*100:.2f}% return, "
+                f"  {name}: {result.total_return * 100:.2f}% return, "
                 f"Sharpe {result.sharpe_ratio:.2f}"
             )
 

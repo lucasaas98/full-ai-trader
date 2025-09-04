@@ -38,16 +38,16 @@ sys.path.append(str(project_root / "services" / "data_collector" / "src"))
 sys.path.append(str(project_root / "services" / "strategy_engine" / "src"))
 sys.path.append(str(project_root / "shared"))
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from decimal import Decimal  # noqa: E402
 
-from real_backtest_engine import (
+from real_backtest_engine import (  # noqa: E402
     BacktestMode,
     RealBacktestConfig,
     RealBacktestEngine,
 )
 
-from shared.models import TimeFrame
+from shared.models import TimeFrame  # noqa: E402
 
 
 def setup_logging(debug: bool = False) -> None:

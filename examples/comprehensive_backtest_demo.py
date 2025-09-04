@@ -38,8 +38,8 @@ script_dir = Path(__file__).parent
 project_root = script_dir.parent
 sys.path.append(str(project_root / "backtesting"))
 
-from backtest_models import MarketData, SignalType, TimeFrame
-from simple_data_store import SimpleDataStore
+from backtest_models import MarketData, SignalType, TimeFrame  # noqa: E402
+from simple_data_store import SimpleDataStore  # noqa: E402
 
 # Configure logging
 logging.basicConfig(

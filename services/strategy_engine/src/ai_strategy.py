@@ -25,11 +25,11 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../data_collector/src"))
 
-from base_strategy import BaseStrategy, Signal, StrategyConfig
-from data_collector.src.redis_client import RedisClient
-from data_collector.src.twelvedata_client import TwelveDataClient
+from base_strategy import BaseStrategy, Signal, StrategyConfig  # noqa: E402
+from data_collector.src.redis_client import RedisClient  # noqa: E402
+from data_collector.src.twelvedata_client import TwelveDataClient  # noqa: E402
 
-from shared.models import SignalType
+from shared.models import SignalType  # noqa: E402
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -587,7 +587,7 @@ class DataContextBuilder:
                 candle_type = f"strong {candle_type}"
 
             descriptions.append(
-                f"Candle {i+1}: {candle_type} (O:{open_price:.2f} H:{high:.2f} L:{low:.2f} C:{close_price:.2f})"
+                f"Candle {i + 1}: {candle_type} (O:{open_price:.2f} H:{high:.2f} L:{low:.2f} C:{close_price:.2f})"
             )
 
         return "; ".join(descriptions)

@@ -752,14 +752,14 @@ class TestDatabaseOperations:
 
         assert (
             success_rate > 0.95
-        ), f"Concurrent access success rate too low: {success_rate*100:.1f}%"
+        ), f"Concurrent access success rate too low: {success_rate * 100:.1f}%"
         assert (
             operations_per_second > 50
         ), f"Concurrent operation rate too low: {operations_per_second:.2f}/sec"
 
         print(
             f"Concurrent database test: {operations_per_second:.2f} ops/sec, "
-            f"{success_rate*100:.1f}% success rate"
+            f"{success_rate * 100:.1f}% success rate"
         )
 
     def test_transaction_consistency(self, database_tester):
@@ -1457,13 +1457,13 @@ class TestDatabaseIntegration:
 
         assert (
             success_rate > 0.95
-        ), f"Database success rate too low: {success_rate*100:.1f}%"
+        ), f"Database success rate too low: {success_rate * 100:.1f}%"
         assert (
             operations_per_second > 100
         ), f"Database throughput too low: {operations_per_second:.2f} ops/sec"
 
         print(
-            f"Database load test: {operations_per_second:.2f} ops/sec, {success_rate*100:.1f}% success rate"
+            f"Database load test: {operations_per_second:.2f} ops/sec, {success_rate * 100:.1f}% success rate"
         )
 
 
@@ -2140,7 +2140,7 @@ class TestIntegrationPerformance:
             # Allow 10% variance in throughput
             assert (
                 accuracy >= 0.9
-            ), f"Throughput too low for {target}/s: {actual:.2f}/s ({accuracy*100:.1f}%)"
+            ), f"Throughput too low for {target}/s: {actual:.2f}/s ({accuracy * 100:.1f}%)"
 
         # Verify messages received
         final_messages = redis_tester.get_messages(timeout=5.0)
@@ -2150,7 +2150,7 @@ class TestIntegrationPerformance:
         message_loss_rate = 1 - (len(final_messages) / total_expected)
         assert (
             message_loss_rate < 0.05
-        ), f"Message loss rate too high: {message_loss_rate*100:.1f}%"
+        ), f"Message loss rate too high: {message_loss_rate * 100:.1f}%"
 
         print(
             f"Throughput scalability test completed: {len(final_messages)}/{total_expected} messages received"

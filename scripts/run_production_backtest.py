@@ -36,12 +36,12 @@ script_dir = Path(__file__).parent
 project_root = script_dir.parent
 sys.path.append(str(project_root / "backtesting"))
 
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from typing import Any, Dict
+from datetime import datetime, timedelta, timezone  # noqa: E402
+from decimal import Decimal  # noqa: E402
+from typing import Any, Dict  # noqa: E402
 
-from backtest_models import TimeFrame
-from production_backtest_engine import (
+from backtest_models import TimeFrame  # noqa: E402
+from production_backtest_engine import (  # noqa: E402
     PRODUCTION_STRATEGIES_AVAILABLE,
     BacktestMode,
     ProductionBacktestConfig,

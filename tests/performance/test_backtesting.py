@@ -1,6 +1,8 @@
+import sys
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import List
 from uuid import uuid4
 
@@ -8,17 +10,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
-warnings.filterwarnings("ignore")
-
-# Import shared modules
-import sys
-
 sys.path.append("/app/shared")
 sys.path.append("/app/backtesting")
 
-from decimal import Decimal
-
 from shared.models import OrderSide, SignalType, Trade, TradeSignal
+
+warnings.filterwarnings("ignore")
 
 
 @dataclass
@@ -58,7 +55,6 @@ class SimpleBacktestEngine:
         self, signals: List[TradeSignal], price_data: pd.DataFrame
     ) -> PerformanceMetrics:
         """Run a simple backtest with given signals and price data"""
-        portfolio_value = self.initial_capital
         cash = self.initial_capital
         positions = {}
         trades = []

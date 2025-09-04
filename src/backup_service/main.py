@@ -34,7 +34,7 @@ from pydantic import BaseModel, Field
 # Add parent directory to path for shared modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from shared.config import get_config
+from shared.config import get_config  # noqa: E402
 
 
 # Simple implementations for missing classes

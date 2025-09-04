@@ -13,7 +13,7 @@ from scipy import stats
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.models import BacktestResult
+from shared.models import BacktestResult  # noqa: E402
 
 
 @dataclass

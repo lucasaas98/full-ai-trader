@@ -12,11 +12,9 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import polars as pl
-
-from shared.models import TimeFrame
 
 from .base_strategy import StrategyMode
 
