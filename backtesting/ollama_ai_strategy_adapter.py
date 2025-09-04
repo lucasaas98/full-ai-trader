@@ -6,26 +6,23 @@ into the existing backtesting framework, allowing real AI-powered backtests
 using local models instead of expensive cloud APIs.
 """
 
-import asyncio
 import json
 import logging
 import os
-
-# Import Ollama client
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
 
 # Import backtesting models
-from backtest_models import Signal, SignalType
-
 sys.path.append(
     os.path.join(os.path.dirname(__file__), "../services/strategy_engine/src")
 )
-from ollama_client import OllamaClient, OllamaResponse
+
+from backtest_models import Signal, SignalType  # noqa: E402
+from ollama_client import OllamaClient, OllamaResponse  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -421,14 +418,14 @@ Focus on high-probability setups and proper risk management.
 
                 if close_price > open_price:
                     descriptions.append(
-                        f"Day {i+1}: Green candle (+{((close_price-open_price)/open_price)*100:.1f}%)"
+                        f"Day {i + 1}: Green candle (+{((close_price - open_price) / open_price) * 100:.1f}%)"
                     )
                 elif close_price < open_price:
                     descriptions.append(
-                        f"Day {i+1}: Red candle ({((close_price-open_price)/open_price)*100:.1f}%)"
+                        f"Day {i + 1}: Red candle ({((close_price - open_price) / open_price) * 100:.1f}%)"
                     )
                 else:
-                    descriptions.append(f"Day {i+1}: Doji candle")
+                    descriptions.append(f"Day {i + 1}: Doji candle")
 
             return "; ".join(descriptions)
 

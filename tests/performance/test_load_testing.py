@@ -432,7 +432,7 @@ class TradingSystemLoadTests:
                             }
                         },
                     ) as response:
-                        execution_result = await response.json()
+                        await response.json()
                         execution_time = time.time() - execution_start
 
                 total_time = time.time() - flow_start
@@ -471,11 +471,6 @@ class TradingSystemLoadTests:
         # Analyze end-to-end performance
         successful_flows = [
             r for r in flow_results if isinstance(r, dict) and r.get("success", False)
-        ]
-        failed_flows = [
-            r
-            for r in flow_results
-            if isinstance(r, dict) and not r.get("success", True)
         ]
 
         assert len(successful_flows) > 40  # At least 80% success rate
@@ -573,7 +568,6 @@ class DatabaseLoadTests:
 
         # Analyze database performance
         successful_ops = [r for r in db_results if r["success"]]
-        failed_ops = [r for r in db_results if not r["success"]]
 
         assert len(successful_ops) > 475  # At least 95% success rate
 
@@ -824,14 +818,13 @@ class MemoryLeakTests:
                     await mock_ws.send(json.dumps({"type": "heartbeat"}))
 
                     # Receive data
-                    data = await mock_ws.recv()
-                    message = json.loads(data)
+                    await mock_ws.recv()
                     message_count += 1
 
                     # Brief processing delay
                     await asyncio.sleep(0.001)
 
-                except Exception as e:
+                except Exception:
                     # Connection issues should be handled gracefully
                     break
 

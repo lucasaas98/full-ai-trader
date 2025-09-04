@@ -4,7 +4,6 @@ Integration tests for Ollama AI with production prompts.
 This test bypasses complex imports by testing the core components directly.
 """
 
-import asyncio
 import json
 import os
 from datetime import datetime
@@ -378,7 +377,7 @@ class TestOllamaWithPrompts:
         assert decision["cost"] == 0.0
         assert decision["processing_time"] > 0
 
-        print(f"\n=== AI Decision ===")
+        print("\n=== AI Decision ===")
         print(f"Decision: {decision['decision']}")
         print(f"Confidence: {decision['confidence']}%")
         print(f"Reasoning: {decision['reasoning']}")
@@ -511,7 +510,7 @@ class TestOllamaWithPrompts:
         if not parquet_files:
             pytest.skip("No parquet files found")
 
-        print(f"\n=== Production Data Integration ===")
+        print("\n=== Production Data Integration ===")
         print(f"Found {len(parquet_files)} data files")
 
         # Read first available file
@@ -581,7 +580,7 @@ class TestOllamaWithPrompts:
         print(f"Average processing time: {avg_processing_time:.2f}s")
         print(f"Average confidence: {avg_confidence:.1f}%")
         print(f"Decisions per second: {decisions_per_second:.2f}")
-        print(f"Total cost: $0.00 (Local Ollama)")
+        print("Total cost: $0.00 (Local Ollama)")
 
         # Assertions
         assert total_decisions > 0

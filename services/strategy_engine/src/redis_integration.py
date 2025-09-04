@@ -599,9 +599,7 @@ class RedisMarketDataHandler:
             )
 
             # Extract symbols for strategy processing
-            symbols = [
-                stock.get("symbol") for stock in stocks_data if stock.get("symbol")
-            ]
+            _ = [stock.get("symbol") for stock in stocks_data if stock.get("symbol")]
 
             # Notify all registered screener callbacks
             callbacks = self._finviz_callbacks.get("screener", [])
@@ -844,7 +842,7 @@ class RedisStrategyEngine:
     ) -> None:
         """Handle screener data update for hybrid strategies."""
         try:
-            screener_type = screener_data.get("screener_type", "unknown")
+            _ = screener_data.get("screener_type", "unknown")
             stocks_data = screener_data.get("data", [])
 
             if not stocks_data:

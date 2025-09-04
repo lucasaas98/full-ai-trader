@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
+from enum import Enum
 
 import httpx
 import pytest
@@ -16,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared")
 # Models available but not used in this test file
 pass  # Removed unused config import
 
+
 # Mock missing model classes
-from enum import Enum
 
 
 class SignalType(str, Enum):
@@ -461,7 +462,6 @@ class TestServiceCommunication:
     ):
         """Test service resilience when dependencies temporarily fail"""
         # Simulate Redis being temporarily unavailable
-        original_redis_host = "redis"
 
         # Test data collector resilience
         async with httpx.AsyncClient() as client:
@@ -498,8 +498,6 @@ class TestServiceCommunication:
                 )
 
                 if response.status_code == 200:
-                    positions_data = response.json()
-
                     # Data timestamps should be reasonably recent and consistent
                     collector_time = datetime.fromisoformat(
                         collector_data["timestamp"].replace("Z", "+00:00")
@@ -512,7 +510,6 @@ class TestServiceCommunication:
     @pytest.mark.asyncio
     async def test_concurrent_service_requests(self, service_urls):
         """Test handling of concurrent requests across services"""
-        symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
 
         async def test_service_endpoint(service_name, endpoint):
             try:
@@ -768,7 +765,6 @@ class TestServiceCommunication:
                 )
 
                 if response.status_code == 200:
-                    strategy_data = response.json()
 
                     # Check if risk manager has portfolio data
                     response = await client.get(

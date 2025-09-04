@@ -12,7 +12,6 @@ production credentials and safe for testing. It checks:
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple

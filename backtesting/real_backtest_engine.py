@@ -7,34 +7,24 @@ and without delays. It's designed to test the real trading system as it would op
 in production using historical parquet data.
 """
 
-import asyncio
-import json
 import logging
 import os
-
-# Import system components
 import sys
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
-import pandas as pd
-import polars as pl
 
 # Use standalone models to avoid config dependencies
 from backtest_models import (
     BacktestPosition,
     BacktestResults,
     BacktestTrade,
-    FinVizData,
     MarketData,
     Signal,
     SignalType,
-    TechnicalIndicators,
     TimeFrame,
 )
 
@@ -331,7 +321,7 @@ class RealBacktestEngine:
 
                 if self.config.mode == BacktestMode.DEBUG:
                     self.logger.debug(
-                        f"Day {i+1}/{len(trading_days)}: Portfolio value = ${portfolio_value:,.2f}"
+                        f"Day {i + 1}/{len(trading_days)}: Portfolio value = ${portfolio_value:,.2f}"
                     )
 
             # Close all remaining positions at end of backtest
@@ -395,14 +385,14 @@ class RealBacktestEngine:
 
             # Show trade summary if we have completed trades
             if self.trades:
-                self.logger.info(f"=== TRADE SUMMARY ===")
+                self.logger.info("=== TRADE SUMMARY ===")
                 total_pnl = sum(trade.pnl for trade in self.trades)
                 winning_trades = [t for t in self.trades if t.pnl > 0]
                 losing_trades = [t for t in self.trades if t.pnl < 0]
 
                 self.logger.info(f"Completed trades: {len(self.trades)}")
                 self.logger.info(
-                    f"Winning trades: {len(winning_trades)} ({len(winning_trades)/len(self.trades)*100:.1f}%)"
+                    f"Winning trades: {len(winning_trades)} ({len(winning_trades) / len(self.trades) * 100:.1f}%)"
                 )
                 self.logger.info(f"Total P&L: ${total_pnl:.2f}")
 
@@ -412,14 +402,14 @@ class RealBacktestEngine:
 
                 if losing_trades:
                     avg_loss = sum(t.pnl for t in losing_trades) / len(losing_trades)
-                    self.logger.info(f"Average loss: ${avg_loss:.2f}")
+                    self.logger.info("Average loss: $%.2f", avg_loss)
 
-                self.logger.info(f"=== END TRADE SUMMARY ===")
+                self.logger.info("=== END TRADE SUMMARY ===")
 
             return results
 
         except Exception as e:
-            self.logger.error(f"Backtest failed: {e}")
+            self.logger.error("Backtest failed: %s", e)
             raise
         finally:
             await self.cleanup()
@@ -465,7 +455,7 @@ class RealBacktestEngine:
             ):
                 portfolio_value = await self._calculate_portfolio_value(date)
                 self.logger.info(
-                    f"Progress: {day_index+1}/{total_days} days, Portfolio: ${portfolio_value:,.2f}"
+                    f"Progress: {day_index + 1}/{total_days} days, Portfolio: ${portfolio_value:,.2f}"
                 )
 
         except Exception as e:

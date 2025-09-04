@@ -6,13 +6,11 @@ endpoints and basic service information for integration with the scheduler
 and other services in the trading system.
 """
 
-import asyncio
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from aiohttp import web, web_response
+from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
@@ -862,7 +860,6 @@ class DataCollectorHTTPServer:
             # Get historical data for both symbols
             from datetime import datetime, timedelta
 
-            import numpy as np
             import polars as pl
 
             from shared.models import TimeFrame
@@ -1084,7 +1081,7 @@ class DataCollectorHTTPServer:
         """
         try:
             symbol = request.match_info["symbol"]
-            format_param = request.query.get("format", "JSON")
+            _ = request.query.get("format", "JSON")
 
             if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(

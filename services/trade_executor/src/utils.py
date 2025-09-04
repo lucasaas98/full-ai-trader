@@ -498,7 +498,7 @@ class MarketDataUtils:
     @staticmethod
     def is_market_hours() -> bool:
         """Check if current time is within market hours."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         import pytz
 
@@ -767,7 +767,7 @@ class TimeUtils:
     def get_next_market_open() -> datetime:
         """Get next market open time."""
         # import pytz  # Commented out unused import
-        from datetime import time, timezone
+        from datetime import time
 
         ny_tz = TimeUtils.get_market_timezone()
         now = datetime.now(ny_tz)
@@ -1659,7 +1659,7 @@ async def wait_for_market_open(max_wait_hours: int = 24):
         )  # Max 1 hour wait
 
         logger.info(
-            f"Market closed, waiting {wait_time/60:.1f} minutes until next check"
+            f"Market closed, waiting {wait_time / 60:.1f} minutes until next check"
         )
         await asyncio.sleep(wait_time)
 

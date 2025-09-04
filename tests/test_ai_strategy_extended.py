@@ -6,19 +6,15 @@ including edge cases, error handling, and integration scenarios.
 """
 
 import asyncio
-import json
 import os
-
-# Import modules to test
 import sys
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import polars as pl
 import pytest
+import yaml
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,11 +22,6 @@ from services.strategy_engine.src.ai_integration import AIStrategyIntegration
 from services.strategy_engine.src.ai_models import (
     AIContext,
     AIDecisionRecord,
-    AIPerformanceMetrics,
-    ConsensusResult,
-    MarketRegimeState,
-    PerformanceReport,
-    PromptContext,
     create_performance_summary,
     decision_to_dict,
 )
@@ -39,7 +30,6 @@ from services.strategy_engine.src.ai_strategy import (
     AIModel,
     AIResponse,
     AIStrategyEngine,
-    AnthropicClient,
     ConsensusEngine,
     CostTracker,
     DataContextBuilder,
@@ -239,7 +229,6 @@ class TestRateLimiter:
         # Make rapid requests for same model
         timings = []
         for _ in range(3):
-            start = datetime.now()
             await limiter.acquire(AIModel.HAIKU)
             timings.append(datetime.now())
 
@@ -776,7 +765,7 @@ class TestAIIntegrationAdvanced:
                     "TEST"
                 ].with_columns(pl.lit(94.0).alias("close"))
 
-                with patch.object(integration, "_publish_exit_signal") as mock_exit:
+                with patch.object(integration, "_publish_exit_signal"):
                     await integration._position_monitor()
 
                     # Should trigger stop loss exit
@@ -816,8 +805,6 @@ def mock_open(read_data=""):
     m.__exit__ = MagicMock(return_value=None)
     return m
 
-
-import yaml
 
 # Pytest configuration
 

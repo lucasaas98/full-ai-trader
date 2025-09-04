@@ -18,9 +18,6 @@ import pytest
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-# Import JWT utilities
-from shared.security.jwt_utils import JWTManager, get_default_jwt_manager
-
 
 # Mock security classes since modules don't exist
 class SecurityManager:
@@ -488,8 +485,8 @@ class TestDataProtection:
             sanitized = security_manager.sanitize_input(payload)
             assert "<script" not in sanitized.lower(), f"XSS not sanitized: {payload}"
             assert (
-                "javascript:" not in sanitized.lower()
-            ), f"XSS not sanitized: {payload}"
+                "javascript:"
+            ) not in sanitized.lower(), f"XSS not sanitized: {payload}"
             assert "onerror" not in sanitized.lower(), f"XSS not sanitized: {payload}"
 
     def test_pii_data_masking(self, security_manager):
@@ -818,8 +815,10 @@ class TestVulnerabilityPrevention:
                 "<script>" not in sanitized_output.lower()
             ), f"Script tag not escaped: {xss_attempt}"
             assert (
-                "javascript:" not in sanitized_output.lower()
-            ), f"JavaScript protocol not escaped: {xss_attempt}"
+                "javascript:"
+            ) not in sanitized_output.lower(), (
+                f"JavaScript protocol not escaped: {xss_attempt}"
+            )
             assert (
                 "onerror=" not in sanitized_output.lower()
             ), f"Event handler not escaped: {xss_attempt}"
@@ -842,8 +841,8 @@ class TestVulnerabilityPrevention:
                 "../" not in safe_path
             ), f"Path traversal not prevented: {path_attempt}"
             assert (
-                "..\\" not in safe_path
-            ), f"Windows path traversal not prevented: {path_attempt}"
+                "..\\"
+            ) not in safe_path, f"Windows path traversal not prevented: {path_attempt}"
             assert not safe_path.startswith(
                 "/"
             ), f"Absolute path not prevented: {path_attempt}"
@@ -1584,20 +1583,20 @@ class TestSecurityStressTesting:
         total_successes = sum(results)
         total_attempts = concurrent_users * attempts_per_user
         success_rate = total_successes / (
-            concurrent_users * (attempts_per_user // 3)
-        )  # Only valid attempts
+            concurrent_users * (attempts_per_user // 3)  # Only valid attempts
+        )
 
         # Verify system handled load
         assert (
             success_rate > 0.9
-        ), f"Authentication success rate too low under load: {success_rate*100:.1f}%"
+        ), f"Authentication success rate too low under load: {success_rate * 100:.1f}%"
         assert total_attempts > 0, f"No authentication attempts made: {total_attempts}"
         assert (
             duration < 60
         ), f"Authentication stress test took too long: {duration:.2f}s"
 
         print(
-            f"Authentication stress test: {success_rate*100:.1f}% success rate in {duration:.2f}s"
+            f"Authentication stress test: {success_rate * 100:.1f}% success rate in {duration:.2f}s"
         )
 
     async def test_rate_limiting_under_load(self, security_manager):
@@ -1633,9 +1632,9 @@ class TestSecurityStressTesting:
         # Rate limiting should kick in
         assert (
             block_rate > 0.5
-        ), f"Rate limiting not effective: {block_rate*100:.1f}% blocked"
+        ), f"Rate limiting not effective: {block_rate * 100:.1f}% blocked"
 
-        print(f"Rate limiting test: {block_rate*100:.1f}% requests blocked")
+        print(f"Rate limiting test: {block_rate * 100:.1f}% requests blocked")
 
 
 # Exception class for security tests

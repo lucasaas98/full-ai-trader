@@ -389,7 +389,7 @@ class MaintenanceManager:
                                 )
                                 if health_response.status_code != 200:
                                     break
-                            except:
+                            except Exception:
                                 break  # Service is down
 
                         logger.info(f"Service {service_name} shutdown completed")
@@ -880,7 +880,7 @@ def setup_signal_handlers():
 
 async def graceful_system_shutdown():
     """Perform graceful system shutdown"""
-    global maintenance_manager
+    global maintenance_manager  # noqa: F824
 
     if maintenance_manager:
         await maintenance_manager.emergency_shutdown(

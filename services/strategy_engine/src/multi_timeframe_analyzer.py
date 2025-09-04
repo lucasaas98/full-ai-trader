@@ -7,16 +7,13 @@ before confirming entries, significantly improving signal quality and reducing
 false signals.
 """
 
-import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import polars as pl
-
-from shared.models import TimeFrame
 
 from .base_strategy import BaseStrategy, Signal, SignalType, StrategyMode
 

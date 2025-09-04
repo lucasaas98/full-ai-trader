@@ -187,7 +187,7 @@ class AsyncFileHandler(logging.Handler):
                 # Get log entry with timeout
                 try:
                     log_entry = self.log_queue.get(timeout=1.0)
-                except:
+                except Exception:
                     continue
 
                 # Write to file

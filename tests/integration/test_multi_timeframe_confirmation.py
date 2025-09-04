@@ -3,8 +3,6 @@ Multi-Timeframe Confirmation Integration Tests.
 Tests the multi-timeframe confirmation system with the strategy engine.
 """
 
-import asyncio
-import json
 import os
 import sys
 import time
@@ -830,7 +828,7 @@ class TestMultiTimeFrameConfirmation:
         # Check for confluence factors
         assert isinstance(confirmation.key_confluence_factors, list)
         # Should detect volume confirmation if present across multiple timeframes
-        volume_confluence = any(
+        _ = any(
             "volume" in factor.lower() for factor in confirmation.key_confluence_factors
         )
 

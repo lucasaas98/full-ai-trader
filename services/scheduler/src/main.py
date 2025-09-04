@@ -21,20 +21,20 @@ from pydantic import ValidationError
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from shared.config import Config, get_config
-from shared.market_hours import MarketHoursService
-from shared.utils import setup_logging
+from shared.config import Config, get_config  # noqa: E402
+from shared.market_hours import MarketHoursService  # noqa: E402
+from shared.utils import setup_logging  # noqa: E402
 
-from .api import create_app
-from .maintenance import MaintenanceManager, MaintenanceScheduler
-from .monitor import SystemMonitor
-from .orchestrator import (
+from .api import create_app  # noqa: E402
+from .maintenance import MaintenanceManager, MaintenanceScheduler  # noqa: E402
+from .monitor import SystemMonitor  # noqa: E402
+from .orchestrator import (  # noqa: E402
     HealthCheck,
     ServiceConfiguration,
     ServiceDependency,
     ServiceOrchestrator,
 )
-from .scheduler import TradingScheduler
+from .scheduler import TradingScheduler  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

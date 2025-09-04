@@ -29,7 +29,7 @@ from circuitbreaker import circuit
 
 # Add the project root to the Python path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from shared.market_hours import MarketHoursService
+from shared.market_hours import MarketHoursService  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ _scheduler_instance = None
 
 async def execute_scheduled_task(task_id: str):
     """Global function for executing scheduled tasks without scheduler serialization issues."""
-    global _scheduler_instance
+    global _scheduler_instance  # noqa: F824
     if _scheduler_instance is None:
         logger.error("No scheduler instance available for task execution")
         return

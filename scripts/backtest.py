@@ -21,7 +21,7 @@ from uuid import uuid4
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.models import (
+from shared.models import (  # noqa: E402
     BacktestResult,
     MarketData,
     OrderSide,
@@ -31,7 +31,7 @@ from shared.models import (
     Trade,
     TradeSignal,
 )
-from shared.utils import format_currency, format_percentage
+from shared.utils import format_currency, format_percentage  # noqa: E402
 
 
 class SimpleBacktester:
@@ -326,12 +326,12 @@ def calculate_backtest_metrics(
         else Decimal("0")
     )
 
-    largest_win = max(
-        (t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0")
-    )
-    largest_loss = min(
-        (t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0")
-    )
+    # largest_win = max(
+    #     (t.pnl for t in winning_trades if t.pnl is not None), default=Decimal("0")
+    # )  # Unused variable
+    # largest_loss = min(
+    #     (t.pnl for t in losing_trades if t.pnl is not None), default=Decimal("0")
+    # )  # Unused variable
 
     # Calculate maximum drawdown
     max_equity = backtester.initial_capital

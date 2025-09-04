@@ -112,7 +112,7 @@ def create_sample_portfolio_history() -> List[Dict]:
         current_value = base_value * (1 + daily_return)
         base_value = current_value
 
-        history.append({"date": f"2024-01-{i+1:02d}", "total_equity": current_value})
+        history.append({"date": f"2024-01-{i + 1:02d}", "total_equity": current_value})
 
     return history
 
@@ -319,7 +319,7 @@ async def demonstrate_comprehensive_report(
     # Performance metrics
     performance = report.get("performance_metrics", {})
     if performance and "error" not in performance:
-        print(f"\nRisk-Adjusted Performance:")
+        print("\nRisk-Adjusted Performance:")
         print(f"  Sharpe Ratio: {performance.get('sharpe_ratio', 0):.3f}")
         print(f"  Sortino Ratio: {performance.get('sortino_ratio', 0):.3f}")
 
@@ -327,7 +327,7 @@ async def demonstrate_comprehensive_report(
     try:
         with open("risk_report_sample.json", "w") as f:
             json.dump(report, f, indent=2, default=str)
-        print(f"\nFull report saved to: risk_report_sample.json")
+        print("\nFull report saved to: risk_report_sample.json")
     except Exception as e:
         print(f"\nCould not save report: {e}")
 
@@ -348,7 +348,7 @@ async def main():
     # Create sample portfolio
     portfolio = create_sample_portfolio()
 
-    print(f"\nSample Portfolio Overview:")
+    print("\nSample Portfolio Overview:")
     print(f"Total Value: ${portfolio.total_equity:,.2f}")
     print(f"Cash: ${portfolio.cash_balance:,.2f}")
     print(f"Positions: {len([p for p in portfolio.positions if p.quantity != 0])}")

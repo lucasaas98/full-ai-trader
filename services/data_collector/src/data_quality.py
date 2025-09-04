@@ -674,7 +674,7 @@ class DataQualityValidator:
                             severity=AnomalySeverity.MEDIUM,
                             timestamp=timestamp,
                             timeframe=TimeFrame(sorted_data["timeframe"][i]),
-                            description=f"Volume spike: {volume:,} ({volume/avg_volume:.1f}x average)",
+                            description=f"Volume spike: {volume:,} ({volume / avg_volume:.1f}x average)",
                             details={
                                 "volume": volume,
                                 "average_volume": avg_volume,

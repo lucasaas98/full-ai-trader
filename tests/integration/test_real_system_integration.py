@@ -11,11 +11,8 @@ import logging
 import os
 import sys
 import time
-from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, Mock
 
 import asyncpg
 import pytest
@@ -25,24 +22,17 @@ import redis.asyncio as redis
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.config import Config, get_config
-from shared.database_manager import SharedDatabaseManager as DatabaseManager
-from shared.models import (
+from shared.config import get_config  # noqa: E402
+from shared.models import (  # noqa: E402
     AssetType,
     MarketData,
-    OrderRequest,
-    OrderResponse,
-    OrderSide,
-    OrderStatus,
-    OrderType,
     TimeFrame,
 )
-from tests.integration.mock_services.mock_data_collector import (
+from tests.integration.mock_services.mock_data_collector import (  # noqa: E402
     MockDataCollector,
     MockDataCollectorConfig,
 )
-from tests.integration.mock_services.service_orchestrator import (
-    ServiceOrchestrator,
+from tests.integration.mock_services.service_orchestrator import (  # noqa: E402
     create_service_orchestrator,
 )
 
@@ -450,7 +440,7 @@ class TestRealSystemIntegration:
 
             logger.info("✅ Trading simulation test passed")
 
-        except Exception as e:
+        except Exception:
             await pubsub.close()
             raise
 

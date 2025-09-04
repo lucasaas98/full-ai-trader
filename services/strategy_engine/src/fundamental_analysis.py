@@ -770,7 +770,9 @@ class FundamentalStrategy(BaseStrategy):
                 metrics.market_cap is not None
                 and metrics.market_cap < self.params["min_market_cap"]
             ):
-                reasons.append(f"Market cap too small: ${metrics.market_cap/1e9:.1f}B")
+                reasons.append(
+                    f"Market cap too small: ${metrics.market_cap / 1e9:.1f}B"
+                )
 
             # P/E ratio screening
             if (

@@ -12,9 +12,8 @@ import logging
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-import pandas as pd
 import polars as pl
 import redis.asyncio as redis
 from pydantic import BaseModel, Field
@@ -23,8 +22,8 @@ from pydantic import BaseModel, Field
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.config import get_config
-from shared.models import AssetType, FinVizData, MarketData, TimeFrame
+from shared.config import get_config  # noqa: E402
+from shared.models import AssetType, FinVizData, MarketData, TimeFrame  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

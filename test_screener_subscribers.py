@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import redis.asyncio as redis
 
@@ -224,7 +224,7 @@ class ScreenerUpdateTester:
             results["tests_passed"] += 1
 
             # Test 2: Publish screener update
-            published_data = await self.publish_test_screener_update("test_momentum")
+            _ = await self.publish_test_screener_update("test_momentum")
             await asyncio.sleep(2)  # Wait for message propagation
 
             results["details"].append("✅ Published test screener update")

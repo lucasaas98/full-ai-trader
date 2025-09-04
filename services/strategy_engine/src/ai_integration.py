@@ -6,10 +6,8 @@ including Redis pub/sub, database persistence, and real-time decision making.
 """
 
 import asyncio
-import json
 import logging
 import os
-from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional
 
@@ -18,15 +16,13 @@ import redis.asyncio as redis
 from ai_models import (
     AIDecisionRecord,
     AIPerformanceMetrics,
-    AITradeExecution,
     MarketRegimeState,
     create_performance_summary,
     init_database,
 )
-from ai_strategy import AIDecision, AIStrategyEngine, MarketContext
+from ai_strategy import AIDecision, AIStrategyEngine
 from base_strategy import Signal, StrategyConfig
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +220,7 @@ class AIStrategyIntegration:
                 return
 
             # Get FinViz data if available
-            finviz_data = self.finviz_data_buffer.get(ticker)
+            _ = self.finviz_data_buffer.get(ticker)
 
             # Run AI analysis
             signal = await self.ai_strategy.analyze(ticker, price_data)
@@ -486,7 +482,7 @@ class AIStrategyIntegration:
                 return None
 
             # Create position context
-            position_context = {
+            _ = {
                 "entry_price": position["entry_price"],
                 "current_price": position["current_price"],
                 "unrealized_pnl": position["unrealized_pnl"],
@@ -494,7 +490,6 @@ class AIStrategyIntegration:
                     datetime.now() - position["entry_time"]
                 ).total_seconds()
                 / 3600,
-                "original_target": position.get("take_profit"),
             }
 
             # Query AI for exit decision

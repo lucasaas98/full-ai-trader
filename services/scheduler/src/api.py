@@ -17,7 +17,7 @@ import uvicorn
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from prometheus_client import Counter, Gauge, Histogram, generate_latest
+from prometheus_client import Counter, Gauge, generate_latest
 from pydantic import BaseModel, Field
 
 from shared.config import get_config
@@ -220,15 +220,9 @@ def init_prometheus_metrics():
 
 async def update_prometheus_metrics():
     """Update Prometheus metrics with current values."""
-    global tasks_count_gauge, services_count_gauge, service_health_gauge
 
     try:
-        if (
-            scheduler_instance
-            and tasks_count_gauge
-            and services_count_gauge
-            and service_health_gauge
-        ):
+        if scheduler_instance:
             tasks_count_gauge.set(len(scheduler_instance.tasks))
             services_count_gauge.set(len(scheduler_instance.services))
 
@@ -655,7 +649,7 @@ async def get_historical_metrics(
                 )
                 parsed_data["timestamp"] = timestamp
                 historical_data.append(parsed_data)
-            except:
+            except Exception:
                 continue
 
         return {"metrics": historical_data}
@@ -711,7 +705,7 @@ async def get_alerts(
                     alert_data.decode() if isinstance(alert_data, bytes) else alert_data
                 )
                 alerts.append(alert)
-            except:
+            except Exception:
                 continue
 
         return {"alerts": alerts}
@@ -1136,7 +1130,7 @@ async def get_maintenance_dashboard(
                         item.decode() if isinstance(item, bytes) else item
                     )
                     alerts.append(alert)
-                except:
+                except Exception:
                     continue
             dashboard_data["alerts"] = alerts
 

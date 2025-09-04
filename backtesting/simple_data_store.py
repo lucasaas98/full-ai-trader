@@ -9,12 +9,11 @@ data from parquet files.
 import asyncio
 import logging
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
 import polars as pl
-from backtest_models import FinVizData, MarketData, TimeFrame
+from backtest_models import TimeFrame
 
 logger = logging.getLogger(__name__)
 

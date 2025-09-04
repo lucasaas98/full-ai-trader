@@ -1382,7 +1382,7 @@ class AlpacaClient:
             try:
                 quote = await self.get_latest_quote("SPY")
                 market_data_available = quote is not None
-            except:
+            except Exception:
                 market_data_available = False
 
             return {

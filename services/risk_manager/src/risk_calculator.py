@@ -1923,7 +1923,7 @@ class RiskCalculator:
             max_position_weight = concentration.get("max_position_weight", 0)
             if max_position_weight > 0.2:
                 warnings.append(
-                    f"High concentration risk: largest position is {max_position_weight*100:.1f}% of portfolio"
+                    f"High concentration risk: largest position is {max_position_weight * 100:.1f}% of portfolio"
                 )
                 recommendations.append(
                     "Consider reducing largest positions to improve diversification"
@@ -1952,7 +1952,7 @@ class RiskCalculator:
             )
             if portfolio_vol > 0.25:
                 warnings.append(
-                    f"High portfolio volatility: {portfolio_vol*100:.1f}% annualized"
+                    f"High portfolio volatility: {portfolio_vol * 100:.1f}% annualized"
                 )
                 recommendations.append(
                     "Consider adding defensive positions or reducing overall leverage"
@@ -1996,7 +1996,7 @@ class RiskCalculator:
                     else "Unknown"
                 )
                 warnings.append(
-                    f"High sector concentration: {max_sector_exposure*100:.1f}% in {max_sector}"
+                    f"High sector concentration: {max_sector_exposure * 100:.1f}% in {max_sector}"
                 )
                 recommendations.append(
                     "Consider diversifying across sectors to reduce concentration risk"

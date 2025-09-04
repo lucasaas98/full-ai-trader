@@ -333,7 +333,7 @@ class OperationalDashboard:
                             if response.status_code == 200
                             else HealthStatus.UNHEALTHY
                         )
-                except:
+                except Exception:
                     pass
 
                 # Fallback to container status
@@ -432,7 +432,7 @@ class OperationalDashboard:
                 )
                 if result.returncode == 0:
                     active_positions = int(result.stdout.strip() or 0)
-            except:
+            except Exception:
                 pass
 
             try:
@@ -460,7 +460,7 @@ class OperationalDashboard:
                 )
                 if result.returncode == 0:
                     daily_trades = int(result.stdout.strip() or 0)
-            except:
+            except Exception:
                 pass
 
             try:
@@ -488,7 +488,7 @@ class OperationalDashboard:
                 )
                 if result.returncode == 0:
                     daily_pnl = float(result.stdout.strip() or 0)
-            except:
+            except Exception:
                 pass
 
             # Try to get system status from maintenance service
@@ -501,7 +501,7 @@ class OperationalDashboard:
                         if status_data.get("maintenance_mode")
                         else "operational"
                     )
-            except:
+            except Exception:
                 system_status = "unknown"
 
             return TradingMetrics(
@@ -756,7 +756,7 @@ Strategy Performance:
                     content += "[yellow]🔧 System in maintenance mode[/yellow]\n"
                 else:
                     content += "[green]✅ System operational[/green]\n"
-        except:
+        except Exception:
             content += "[dim]❓ Maintenance status unknown[/dim]\n"
 
         return Panel(content, title="Operations", border_style="purple")
@@ -848,7 +848,7 @@ Strategy Performance:
         """Run interactive dashboard with live updates"""
         layout = self.create_main_layout()
 
-        with Live(layout, refresh_per_second=1, screen=True) as live:
+        with Live(layout, refresh_per_second=1, screen=True) as _:
             while True:
                 try:
                     # Update dashboard
@@ -1066,7 +1066,7 @@ Strategy Performance:
                         console.print("[yellow]🔧 Maintenance mode activated[/yellow]")
                     else:
                         console.print("[red]❌ Failed to enter maintenance mode[/red]")
-                except:
+                except Exception:
                     console.print("[red]❌ Maintenance service not available[/red]")
 
             elif operation == "exit_maintenance":
@@ -1078,7 +1078,7 @@ Strategy Performance:
                         console.print("[green]✅ Maintenance mode deactivated[/green]")
                     else:
                         console.print("[red]❌ Failed to exit maintenance mode[/red]")
-                except:
+                except Exception:
                     console.print("[red]❌ Maintenance service not available[/red]")
 
         except Exception as e:

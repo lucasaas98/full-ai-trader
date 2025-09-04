@@ -23,7 +23,6 @@ from shared.models import (
     AssetType,
     FinVizData,
     MarketData,
-    TechnicalIndicators,
     TimeFrame,
 )
 
@@ -485,7 +484,7 @@ class DataStore:
             df = self._finviz_data_to_dataframe(data)
 
             if df is None or df.is_empty():
-                logger.warning(f"DataFrame is empty after conversion")
+                logger.warning("DataFrame is empty after conversion")
                 return 0
 
             # Group by date
@@ -531,7 +530,7 @@ class DataStore:
             df = self._technical_indicators_to_dataframe(indicators_list)
 
             if df is None or df.is_empty():
-                logger.warning(f"DataFrame is empty after conversion")
+                logger.warning("DataFrame is empty after conversion")
                 return 0
 
             # Add timeframe if not present

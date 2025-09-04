@@ -8,30 +8,30 @@ of services and provides a unified interface for testing.
 
 import asyncio
 import logging
-import multiprocessing as mp
-import signal
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from services.risk_manager.src.main import RiskManagerApp
-from services.scheduler.src.main import SchedulerApp
+from services.risk_manager.src.main import RiskManagerApp  # noqa: E402
+from services.scheduler.src.main import SchedulerApp  # noqa: E402
 
 # Import service modules
-from services.strategy_engine.src.main import StrategyEngineApp
-from services.trade_executor.src.main import TradeExecutorApp
-from shared.config import Config, get_config
-from shared.models import TimeFrame
+from services.strategy_engine.src.main import StrategyEngineApp  # noqa: E402
+from services.trade_executor.src.main import TradeExecutorApp  # noqa: E402
+from shared.config import Config, get_config  # noqa: E402
 
-from .mock_data_collector import MockDataCollector, MockDataCollectorConfig
+from .mock_data_collector import (  # noqa: E402
+    MockDataCollector,
+    MockDataCollectorConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +444,6 @@ class ServiceOrchestrator:
 
         try:
             # Reset simulation to market open
-            from datetime import date, timedelta
 
             today = date.today()
             await self.mock_data_collector.reset_simulation_date(today)

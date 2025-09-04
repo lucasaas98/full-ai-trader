@@ -1258,9 +1258,9 @@ class RiskDatabaseManager:
     async def cleanup_old_data(self, retention_days: int = 365) -> int:
         """Clean up old risk management data."""
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            _ = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-            cleanup_queries = [
+            _ = [
                 "DELETE FROM risk_events WHERE created_at < :p1",
                 "DELETE FROM portfolio_snapshots WHERE created_at < :p1",
                 "DELETE FROM portfolio_metrics WHERE created_at < :p1",

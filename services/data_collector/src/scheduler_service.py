@@ -27,6 +27,9 @@ from pydantic import BaseModel, Field
 
 from shared.models import TimeFrame
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 # Import Alpaca market hours functionality with fallback
 try:
     from shared.market_hours import (

@@ -286,7 +286,7 @@ class SystemMonitor:
                                 await self._process_service_metrics(
                                     service_name, service_metrics, timestamp
                                 )
-                        except:
+                        except Exception:
                             pass  # Metrics endpoint might not exist
 
                 except asyncio.TimeoutError:
@@ -498,7 +498,7 @@ class SystemMonitor:
                 try:
                     await self.redis.ping()
                     await self._record_metric("redis_healthy", 1, timestamp)
-                except:
+                except Exception:
                     await self._record_metric("redis_healthy", 0, timestamp)
                     await self._create_alert(
                         "redis_connection",
@@ -804,7 +804,7 @@ class SystemMonitor:
                 try:
                     await self.redis.ping()
                     return True
-                except:
+                except Exception:
                     return False
 
         except Exception as e:

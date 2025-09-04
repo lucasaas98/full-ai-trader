@@ -6,13 +6,12 @@ allowing seamless switching between cloud-based (Anthropic) and local (Ollama)
 AI models for testing and production use.
 """
 
-import asyncio
 import json
 import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -23,14 +22,11 @@ from .ai_strategy import (
     AnthropicClient,
     BaseStrategy,
     ConsensusEngine,
-    CostTracker,
     DataContextBuilder,
     MarketContext,
-    RateLimiter,
-    ResponseCache,
     StrategyConfig,
 )
-from .ollama_client import OllamaAIStrategy, OllamaClient, OllamaResponse
+from .ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +106,7 @@ class HybridAIClient:
             try:
                 test_response = await self.query("Hello", max_tokens=10)
                 return len(test_response.content) > 0
-            except:
+            except Exception:
                 return False
 
     async def close(self):

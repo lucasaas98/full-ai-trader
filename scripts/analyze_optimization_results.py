@@ -31,17 +31,13 @@ Examples:
 
 import argparse
 import json
-import statistics
 import warnings
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-import scipy.stats as stats
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
@@ -518,7 +514,7 @@ class OptimizationAnalyzer:
                             else:
                                 f.write(f"  {display_name}: {value:.2f}\n")
 
-                    f.write(f"\nExpected Performance:\n")
+                    f.write("\nExpected Performance:\n")
                     f.write(f"  Average Return: {best.get('avg_return', 0):.2%}\n")
                     f.write(
                         f"  Average Max Drawdown: {best.get('avg_max_drawdown', 0):.2%}\n"
@@ -531,7 +527,7 @@ class OptimizationAnalyzer:
                 # Parameter sensitivity analysis
                 sensitivity = self.analyze_parameter_sensitivity(strategy)
                 if sensitivity:
-                    f.write(f"\nPARAMETER SENSITIVITY ANALYSIS:\n")
+                    f.write("\nPARAMETER SENSITIVITY ANALYSIS:\n")
                     f.write("-" * 35 + "\n")
 
                     for param, analysis in sensitivity.items():
@@ -544,7 +540,7 @@ class OptimizationAnalyzer:
                         f.write(f"    Performance Impact Range: {impact:.4f}\n")
 
                         if correlations:
-                            f.write(f"    Correlations:\n")
+                            f.write("    Correlations:\n")
                             for metric, corr in correlations.items():
                                 f.write(f"      {metric}: {corr:.3f}\n")
                         f.write("\n")
@@ -705,7 +701,7 @@ def main():
 
         # Strategy comparison
         if args.compare and len(analyzer.results_data) > 1:
-            print(f"\n⚖️  Comparing strategies...")
+            print("\n⚖️  Comparing strategies...")
             comparison = analyzer.compare_strategies()
             if comparison and "category_winners" in comparison:
                 winners = comparison["category_winners"]
@@ -717,7 +713,7 @@ def main():
 
         # Generate plots
         if args.plots:
-            print(f"\n📈 Generating plots...")
+            print("\n📈 Generating plots...")
             try:
                 analyzer.generate_plots(args.plot_dir)
                 print("  ✅ Plots generated successfully")
@@ -725,10 +721,10 @@ def main():
                 print(f"  ⚠️  Plot generation failed: {e}")
 
         # Generate report
-        print(f"\n📝 Generating analysis report...")
+        print("\n📝 Generating analysis report...")
         analyzer.generate_report(args.output_report)
 
-        print(f"\n✅ Analysis completed!")
+        print("\n✅ Analysis completed!")
         print(f"📄 Report: {args.output_report}")
         if args.plots:
             print(f"📊 Plots: {args.plot_dir}/")

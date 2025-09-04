@@ -29,7 +29,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Add parent directories to Python path for shared imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from shared.config import Config
+from shared.config import Config  # noqa: E402
 
 
 # Simplified logging setup

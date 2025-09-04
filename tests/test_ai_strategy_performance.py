@@ -7,14 +7,12 @@ and system behavior under load.
 
 import asyncio
 import gc
-import json
 import os
 import sys
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import polars as pl
@@ -38,10 +36,7 @@ from services.strategy_engine.src.ai_strategy import (
     AIStrategyEngine,
     AnthropicClient,
     ConsensusEngine,
-    CostTracker,
     DataContextBuilder,
-    MarketContext,
-    RateLimiter,
     ResponseCache,
 )
 from services.strategy_engine.src.base_strategy import (

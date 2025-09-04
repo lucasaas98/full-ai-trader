@@ -6,11 +6,9 @@ They test the actual service integration and business logic flows.
 """
 
 import asyncio
-import os
-import tempfile
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -41,7 +39,7 @@ class TestDataCollectionServiceIntegration:
     @pytest.fixture
     async def mock_data_store(self, tmp_path):
         """Create mock data store with temporary directory"""
-        config = {
+        _ = {
             "base_path": str(tmp_path),
             "compression": "snappy",
             "batch_size": 100,
@@ -220,7 +218,7 @@ class TestDataStoreIntegration:
         from shared.models import MarketData, TimeFrame
 
         # Create test market data
-        market_data = [
+        _ = [
             MarketData(
                 symbol="AAPL",
                 timestamp=datetime(2024, 1, 1, 10, 0, tzinfo=timezone.utc),
@@ -309,7 +307,7 @@ class TestDataStoreIntegration:
 
         # Create old data that should be deleted
         old_timestamp = datetime.now(timezone.utc) - timedelta(days=40)
-        old_data = MarketData(
+        _ = MarketData(
             symbol="OLD",
             timestamp=old_timestamp,
             timeframe=TimeFrame.ONE_MINUTE,
@@ -323,7 +321,7 @@ class TestDataStoreIntegration:
 
         # Create recent data that should be kept
         recent_timestamp = datetime.now(timezone.utc) - timedelta(days=10)
-        recent_data = MarketData(
+        _ = MarketData(
             symbol="NEW",
             timestamp=recent_timestamp,
             timeframe=TimeFrame.ONE_MINUTE,

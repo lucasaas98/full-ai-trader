@@ -15,7 +15,7 @@ import pandas as pd
 
 sys.path.append("/app/shared")
 # Models imported but not used in this module - available for test data generation
-from typing import Tuple
+from typing import Tuple  # noqa: E402
 
 
 def _safe_index_to_int(index_value) -> int:

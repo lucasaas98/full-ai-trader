@@ -5,8 +5,6 @@ This module provides a lightweight database manager using only asyncpg
 for services that need database access without SQLAlchemy dependencies.
 """
 
-import asyncio
-import json
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone

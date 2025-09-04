@@ -1639,7 +1639,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                         response = await client.get(service_url, timeout=5.0)
                         if response.status_code != 200:
                             failed_services += 1
-                except:
+                except Exception:
                     failed_services += 1
 
             if failed_services == 0:

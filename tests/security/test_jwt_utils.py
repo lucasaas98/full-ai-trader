@@ -8,11 +8,12 @@ including expiration, invalid tokens, and user extraction functionality.
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import jwt
 import pytest
 
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 from shared.security.jwt_utils import (
@@ -198,7 +199,6 @@ class TestJWTManager:
     def test_decode_expired_token(self, jwt_manager):
         """Test decoding expired JWT token."""
         # Create token with past expiration
-        past_time = datetime.now(timezone.utc) - timedelta(hours=1)
         token = jwt_manager.create_access_token(
             user_id="test_user", expires_delta=timedelta(seconds=-3600)  # Expired
         )
@@ -601,7 +601,7 @@ class TestJWTEnvironmentIntegration:
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_jwt_secret_fallback(self):
         """Test fallback when JWT secret is missing."""
-        with patch("shared.security.jwt_utils.logger") as mock_logger:
+        with patch("shared.security.jwt_utils.logger"):
             # Test with empty JWT secret environment
             manager = JWTManager()
 
