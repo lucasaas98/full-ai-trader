@@ -822,7 +822,7 @@ class RedisStrategyEngine:
                             ),
                         )
                 else:
-                    signal_result = await strategy.analyze(symbol, historical_data) # type: ignore
+                    signal_result = await strategy.analyze(symbol, historical_data)  # type: ignore
                     # Convert Signal to HybridSignal if needed
                     if isinstance(signal_result, HybridSignal):
                         # It's already a HybridSignal
