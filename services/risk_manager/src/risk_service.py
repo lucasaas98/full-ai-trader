@@ -7,8 +7,14 @@ components into a cohesive system for portfolio protection and risk monitoring.
 
 import asyncio
 import logging
+from asyncio import Task
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
+
+from shared.config import get_config
 from shared.models import (
     DailyRiskReport,
     OrderRequest,
@@ -94,12 +100,12 @@ class RiskService:
 
         # Service state
         self.is_initialized = False
-        self.last_portfolio_update = None
+        self.last_portfolio_update: Optional[datetime] = None
         self.monitoring_active = False
 
         # Background tasks
-        self.monitoring_task = None
-        self.alert_processing_task = None
+        self.monitoring_task: Optional[Task[Any]] = None
+        self.alert_processing_task: Optional[Task[Any]] = None
 
     async def initialize(self) -> bool:
         """Initialize all service components."""
@@ -645,17 +651,28 @@ class RiskService:
                     [p for p in portfolio.positions if p.quantity != 0]
                 ),
                 "risk_budget_used": sum(
-                    rb.get("risk_contribution", 0)
+                    self._safe_float_convert(rb.get("risk_contribution", 0))
                     for rb in risk_budget.values()
-                    if isinstance(rb, dict)
+                    if isinstance(rb, dict) and rb.get("risk_contribution") is not None
                 ),
             }
 
             return risk_budget
-
         except Exception as e:
             logger.error(f"Error calculating risk budget: {e}")
             return {}
+
+    def _safe_float_convert(self, value: Any) -> float:
+        """Safely convert a value to float."""
+        try:
+            if isinstance(value, (int, float)):
+                return float(value)
+            elif isinstance(value, str):
+                return float(value)
+            else:
+                return 0.0
+        except (ValueError, TypeError):
+            return 0.0
 
     async def perform_stress_test(self, scenarios: Optional[List[Dict]] = None) -> Dict:
         """Perform comprehensive stress testing."""

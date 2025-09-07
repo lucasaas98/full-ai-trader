@@ -96,7 +96,9 @@ class MaintenanceSystemTester:
         large_log = log_dir / "large_test.log"
         with open(large_log, "w") as f:
             for i in range(10000):
-                f.write(f"2024-01-{i%30+1:02d} 12:00:00 - INFO - Test log entry {i}\n")
+                f.write(
+                    f"2024-01-{i % 30 + 1:02d} 12:00:00 - INFO - Test log entry {i}\n"
+                )
 
         # Old log file for compression testing
         old_log = log_dir / "old_test.log"
@@ -234,7 +236,7 @@ class MaintenanceSystemTester:
             logger.error(f"Failed to initialize maintenance system: {e}")
             raise
 
-    async def run_all_tests(self) -> Dict[str, bool]:
+    async def run_all_tests(self) -> Dict[str, Dict[str, Any]]:
         """Run all maintenance system tests."""
         logger.info("Starting comprehensive maintenance system tests...")
 
@@ -265,7 +267,14 @@ class MaintenanceSystemTester:
             test_start = time.time()  # Initialize before try block
             try:
                 if self.maintenance_manager is None:
-                    return {test_name: False for test_name, _ in test_suite}
+                    return {
+                        test_name: {
+                            "passed": False,
+                            "duration": 0.0,
+                            "error": "Maintenance manager not initialized",
+                        }
+                        for test_name, _ in test_suite
+                    }
                 result = await test_func()
                 test_duration = time.time() - test_start
 
@@ -684,7 +693,7 @@ class MaintenanceSystemTester:
         logger.info(f"Total Tests: {total_count}")
         logger.info(f"Passed: {passed_count} (✅)")
         logger.info(f"Failed: {failed_count} (❌)")
-        logger.info(f"Success Rate: {(passed_count/total_count*100):.1f}%")
+        logger.info(f"Success Rate: {(passed_count / total_count * 100):.1f}%")
         logger.info(f"Total Duration: {total_duration:.2f}s")
 
         if self.failed_tests:

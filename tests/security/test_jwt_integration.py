@@ -8,17 +8,18 @@ that was implemented to replace placeholder code in audit.py and rate_limiting.p
 import asyncio
 import os
 import sys
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import Request
 from starlette.datastructures import Headers
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
-
-from shared.security.audit import AuditLogger, AuditMiddleware
+from shared.security.audit import AuditMiddleware
 from shared.security.jwt_utils import JWTConfig, JWTManager
 from shared.security.rate_limiting import RateLimiter, RateLimitRule, RateLimitScope
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 
 @pytest.fixture
@@ -231,7 +232,10 @@ class TestRateLimitingJWTIntegration:
 
         # Create rate limit rule
         rule = RateLimitRule(
-            name="user_limit", limit=100, window_seconds=3600, scope=RateLimitScope.USER
+            name="user_limit",
+            limit=100,
+            window_seconds=3600,
+            scope=RateLimitScope.PER_USER,
         )
 
         # Create rate limiter
@@ -254,7 +258,7 @@ class TestRateLimitingJWTIntegration:
         """Test rate limiting behavior with different JWT users."""
         # Create rate limit rule
         rule = RateLimitRule(
-            name="api_calls", limit=5, window_seconds=60, scope=RateLimitScope.USER
+            name="user_limit", limit=2, window_seconds=60, scope=RateLimitScope.PER_USER
         )
 
         # Create rate limiter
@@ -276,8 +280,7 @@ class TestRateLimitingJWTIntegration:
         mock_redis.get.return_value = None
 
         # Test with user 1
-        token1 = jwt_manager.create_access_token(user_id="user_1")
-        key1 = f"api_calls:USER:user_1"
+        key1 = "api_calls:USER:user_1"
 
         # Reset call count for user 1
         call_count = 0
@@ -286,8 +289,7 @@ class TestRateLimitingJWTIntegration:
         assert status1.remaining == 4
 
         # Test with user 2 (should have separate limit)
-        token2 = jwt_manager.create_access_token(user_id="user_2")
-        key2 = f"api_calls:USER:user_2"
+        key2 = "api_calls:USER:user_2"
 
         # Reset call count for user 2
         call_count = 0
@@ -321,7 +323,10 @@ class TestJWTSecurityScenarios:
         mock_request.headers = Headers({"authorization": f"Bearer {expired_token}"})
 
         # Create audit middleware
-        middleware = AuditMiddleware(mock_audit_logger, "test_service")
+        from unittest.mock import MagicMock
+
+        mock_app = MagicMock()
+        middleware = AuditMiddleware(mock_app, mock_audit_logger, "test_service")
 
         # Extract user ID
         user_id = middleware._extract_user_id(mock_request)
@@ -468,7 +473,7 @@ class TestIntegrationErrorScenarios:
     def test_redis_connection_error_with_jwt(self, jwt_manager, mock_redis):
         """Test JWT functionality when Redis is unavailable."""
         # Create valid token
-        token = jwt_manager.create_access_token(user_id="redis_test_user")
+        jwt_manager.create_access_token(user_id="redis_test_user")
 
         # Mock Redis to raise connection error
         mock_redis.incr.side_effect = Exception("Redis connection failed")
@@ -478,13 +483,16 @@ class TestIntegrationErrorScenarios:
 
         # Create rule
         rule = RateLimitRule(
-            name="test_rule", limit=100, window_seconds=60, scope=RateLimitScope.USER
+            name="user_limit",
+            limit=10,
+            window_seconds=60,
+            scope=RateLimitScope.PER_USER,
         )
 
         # Test should handle Redis error gracefully
         async def test_rate_limit():
             try:
-                key = f"test_rule:USER:redis_test_user"
+                key = "test_rule:USER:redis_test_user"
                 passed, status = await rate_limiter.check_rate_limit(key, rule)
                 # Should fail gracefully rather than crash
                 return True
@@ -705,7 +713,10 @@ class TestEndToEndJWTFlow:
         mock_audit_logger = AsyncMock()
 
         # 4. Create audit middleware
-        audit_middleware = AuditMiddleware(mock_audit_logger, "trading_api")
+        from unittest.mock import MagicMock
+
+        mock_app = MagicMock()
+        audit_middleware = AuditMiddleware(mock_app, mock_audit_logger, "trading_api")
 
         # 5. Mock the actual API call
         mock_response = MagicMock()
@@ -733,7 +744,10 @@ class TestEndToEndJWTFlow:
 
     def test_fallback_chain_functionality(self, mock_request, mock_audit_logger):
         """Test the complete fallback chain for user identification."""
-        middleware = AuditMiddleware(mock_audit_logger, "test_service")
+        from unittest.mock import MagicMock
+
+        mock_app = MagicMock()
+        middleware = AuditMiddleware(mock_app, mock_audit_logger, "test_service")
 
         # Test 1: No authorization header
         mock_request.headers = Headers({})

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from .config import Config
 
@@ -279,7 +279,7 @@ def flatten_dict(
     Returns:
         Flattened dictionary
     """
-    items = []
+    items: List[Tuple[str, Any]] = []
     for k, v in d.items():
         new_key = f"{parent_key}{sep}{k}" if parent_key else k
         if isinstance(v, dict):
@@ -519,7 +519,7 @@ class RateLimiter:
         """
         self.max_requests = max_requests
         self.time_window = time_window
-        self.requests = []
+        self.requests: List[float] = []
 
     def is_allowed(self) -> bool:
         """
@@ -724,7 +724,7 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.timeout = timeout
         self.failure_count = 0
-        self.last_failure_time = None
+        self.last_failure_time: Optional[float] = None
         self.state = "closed"  # closed, open, half-open
 
     def call(self, func, *args, **kwargs):

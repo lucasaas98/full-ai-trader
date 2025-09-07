@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import redis.asyncio as redis
 
@@ -345,7 +345,7 @@ class ConfigurationManager:
         self, d: Dict[str, Any], parent_key: str = "", sep: str = "."
     ) -> Dict[str, Any]:
         """Flatten nested dictionary."""
-        items = []
+        items: List[Tuple[str, Any]] = []
         for k, v in d.items():
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
@@ -736,7 +736,7 @@ class ConfigurationManager:
         test = self.ab_tests[test_name]
 
         # Get metrics for each variant
-        results = {
+        results: Dict[str, Any] = {
             "test_name": test_name,
             "start_time": test.start_time.isoformat(),
             "end_time": test.end_time.isoformat() if test.end_time else None,
@@ -746,7 +746,7 @@ class ConfigurationManager:
         }
 
         # Count assignments per variant
-        variant_counts = {}
+        variant_counts: Dict[str, int] = {}
         for variant in test.current_assignment.values():
             variant_counts[variant] = variant_counts.get(variant, 0) + 1
 
@@ -875,7 +875,11 @@ class ConfigurationManager:
 
     async def validate_current_config(self) -> Dict[str, Any]:
         """Validate the current configuration."""
-        validation_results = {"valid": True, "errors": [], "warnings": []}
+        validation_results: Dict[str, Any] = {
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+        }
 
         try:
             # Validate critical configuration values

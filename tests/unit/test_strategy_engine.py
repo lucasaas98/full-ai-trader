@@ -1,12 +1,11 @@
 import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from services.strategy_engine.src.base_strategy import BaseStrategy
 from shared.models import Position, SignalType, TradeSignal
 
 # Technical analysis is handled within the base strategy
@@ -180,13 +179,15 @@ def strategy_engine():
 def momentum_strategy():
     """Create a test momentum strategy."""
     from services.strategy_engine.src.base_strategy import (
-        BaseStrategy,
+        BaseStrategy as BaseStrategyClass,
+    )
+    from services.strategy_engine.src.base_strategy import (
         Signal,
         StrategyConfig,
         StrategyMode,
     )
 
-    class TestMomentumStrategy(BaseStrategy):
+    class TestMomentumStrategy(BaseStrategyClass):
         def __init__(self, config):
             super().__init__(config)
 
@@ -603,7 +604,7 @@ class TestSignalProcessor:
 
             async def aggregate_signals(self, signals):
                 """Aggregate signals from multiple strategies"""
-                aggregated = {}
+                aggregated: dict[str, list] = {}
                 for signal in signals:
                     if signal.symbol not in aggregated:
                         aggregated[signal.symbol] = []

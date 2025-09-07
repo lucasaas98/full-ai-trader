@@ -173,14 +173,14 @@ class FinVizScreener:
 
         # Get API key from config or environment
         if api_key:
-            self.api_key = api_key
+            self.api_key: str = api_key
         else:
             try:
                 config = get_config()
-                self.api_key = config.finviz.api_key
-            except:
+                self.api_key = config.finviz.api_key or ""
+            except Exception:
                 # Fallback to environment variable
-                self.api_key = os.getenv("FINVIZ_API_KEY")
+                self.api_key = os.getenv("FINVIZ_API_KEY") or ""
 
         if not self.api_key:
             logger.warning(
@@ -713,7 +713,7 @@ class FinVizScreener:
 
         return await self.fetch_screener_data(params, limit)
 
-    def get_last_scan_time(self) -> datetime:
+    def get_last_scan_time(self) -> Optional[datetime]:
         """Get timestamp of last successful scan."""
         if (
             hasattr(self._rate_limiter, "last_call")

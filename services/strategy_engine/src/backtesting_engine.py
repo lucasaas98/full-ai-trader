@@ -11,7 +11,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import Enum
 from itertools import product
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -161,7 +161,7 @@ class BacktestingEngine:
 
         # Performance tracking
         self._trade_id_counter = 0
-        self._cache = {}
+        self._cache: Dict[str, Any] = {}
 
     async def backtest_strategy(
         self,
@@ -264,7 +264,7 @@ class BacktestingEngine:
         try:
             # Initialize state
             portfolio = self._initialize_portfolio()
-            current_positions = {}
+            current_positions: Dict[str, Any] = {}
 
             # Sliding window for signal generation
             window_size = strategy.config.lookback_period
@@ -284,7 +284,24 @@ class BacktestingEngine:
                             result.symbol, window_data, finviz_data
                         )
                     else:
-                        signal = await strategy.analyze(result.symbol, window_data)
+                        signal_result = await strategy.analyze(
+                            result.symbol, window_data
+                        )
+                        # Convert Signal to HybridSignal if needed
+                        if hasattr(signal_result, "signal_type"):
+                            signal = signal_result  # type: ignore[assignment]
+                        else:
+                            from hybrid_strategy import HybridSignal
+
+                            signal = HybridSignal(
+                                action=signal_result.action,
+                                confidence=signal_result.confidence,
+                                position_size=getattr(
+                                    signal_result, "position_size", 0.1
+                                ),
+                                reasoning=getattr(signal_result, "reasoning", ""),
+                                timestamp=signal_result.timestamp,
+                            )
 
                     # Skip if confidence too low
                     if signal.confidence < strategy.config.min_confidence:
@@ -420,7 +437,7 @@ class BacktestingEngine:
                 return
 
             # Initialize combined results
-            all_trades = []
+            all_trades: List[Any] = []
             all_snapshots = []
             optimization_results = []
 
@@ -515,7 +532,9 @@ class BacktestingEngine:
                 test_params = dict(zip(param_ranges.keys(), combination))
 
                 # Create test strategy
-                test_strategy = self._create_test_strategy(strategy, test_params)
+                test_strategy: Union[BaseStrategy, HybridStrategy] = (
+                    self._create_test_strategy(strategy, test_params)
+                )
 
                 # Quick backtest
                 quick_result = await self._quick_backtest(
@@ -563,7 +582,7 @@ class BacktestingEngine:
 
     def _create_test_strategy(
         self, base_strategy: BaseStrategy, test_params: Dict[str, Any]
-    ) -> BaseStrategy:
+    ) -> Union[BaseStrategy, HybridStrategy]:
         """Create a test strategy with modified parameters."""
         try:
             # Clone strategy configuration
@@ -574,10 +593,10 @@ class BacktestingEngine:
             # Create new strategy instance
             if isinstance(base_strategy, HybridStrategy):
                 test_strategy = HybridStrategy(test_config, base_strategy.hybrid_mode)
+                return test_strategy
             else:
-                test_strategy = base_strategy.__class__(test_config)
-
-            return test_strategy
+                new_test_strategy: BaseStrategy = base_strategy.__class__(test_config)
+                return new_test_strategy
 
         except Exception as e:
             self.logger.error(f"Error creating test strategy: {e}")
@@ -612,7 +631,8 @@ class BacktestingEngine:
                             symbol, window_data, finviz_data
                         )
                     else:
-                        signal = await strategy.analyze(symbol, window_data)
+                        signal_result = await strategy.analyze(symbol, window_data)
+                        signal = signal_result  # type: ignore
                 except Exception:
                     continue
 
@@ -1562,7 +1582,9 @@ class BacktestingEngine:
 
                 try:
                     # Create test strategy
-                    test_strategy = self._create_test_strategy(strategy, test_params)
+                    test_strategy: Union[BaseStrategy, HybridStrategy] = (
+                        self._create_test_strategy(strategy, test_params)
+                    )
 
                     # Quick backtest on training data
                     train_result = await self._quick_backtest(
@@ -1595,7 +1617,9 @@ class BacktestingEngine:
 
             # Validate best parameters on test data
             if best_params:
-                validation_strategy = self._create_test_strategy(strategy, best_params)
+                validation_strategy: Union[BaseStrategy, HybridStrategy] = (
+                    self._create_test_strategy(strategy, best_params)
+                )
                 validation_result = await self._quick_backtest(
                     validation_strategy, symbol, test_data, finviz_data
                 )
@@ -1610,7 +1634,9 @@ class BacktestingEngine:
                 "best_score": best_score,
                 "validation_score": validation_score,
                 "optimization_results": sorted(
-                    optimization_results, key=lambda x: x["score"], reverse=True
+                    optimization_results,
+                    key=lambda x: self._safe_float_convert(x.get("score", 0)),
+                    reverse=True,
                 )[:10],
                 "total_combinations_tested": len(param_combinations),
             }
@@ -1667,7 +1693,9 @@ class BacktestingEngine:
 
                 for combination in param_combinations:
                     test_params = dict(zip(param_ranges.keys(), combination))
-                    test_strategy = self._create_test_strategy(strategy, test_params)
+                    test_strategy: Union[BaseStrategy, HybridStrategy] = (
+                        self._create_test_strategy(strategy, test_params)
+                    )
                     result = await self._quick_backtest(
                         test_strategy, symbol, train_data, finviz_data
                     )
@@ -1682,11 +1710,11 @@ class BacktestingEngine:
 
                 # Test on out-of-sample data
                 if period_best_params:
-                    test_strategy = self._create_test_strategy(
-                        strategy, period_best_params
+                    oos_test_strategy: Union[BaseStrategy, HybridStrategy] = (
+                        self._create_test_strategy(strategy, period_best_params)
                     )
                     oos_result = await self._quick_backtest(
-                        test_strategy, symbol, test_data, finviz_data
+                        oos_test_strategy, symbol, test_data, finviz_data
                     )
 
                     if oos_result:
@@ -1711,9 +1739,14 @@ class BacktestingEngine:
 
             # Calculate aggregate metrics
             if walk_forward_results:
-                oos_scores = [r["out_of_sample_score"] for r in walk_forward_results]
-                avg_oos_score = np.mean(oos_scores)
-                stability = 1.0 - (np.std(oos_scores) / (abs(avg_oos_score) + 1e-6))
+                oos_scores = [
+                    self._safe_float_convert(r.get("out_of_sample_score", 0))
+                    for r in walk_forward_results
+                ]
+                avg_oos_score = float(np.mean(oos_scores))
+                stability = float(
+                    1.0 - (np.std(oos_scores) / (abs(avg_oos_score) + 1e-6))
+                )
             else:
                 avg_oos_score = 0.0
                 stability = 0.0
@@ -1728,8 +1761,20 @@ class BacktestingEngine:
             }
 
         except Exception as e:
-            self.logger.error(f"Walk-forward optimization error: {e}")
-            return {"error": str(e), "best_parameters": {}}
+            self.logger.error(f"Walk-forward optimization failed: {e}")
+            return {"best_parameters": {}, "best_score": 0.0}
+
+    def _safe_float_convert(self, value: Any) -> float:
+        """Safely convert a value to float."""
+        try:
+            if isinstance(value, (int, float)):
+                return float(value)
+            elif isinstance(value, str):
+                return float(value)
+            else:
+                return 0.0
+        except (ValueError, TypeError):
+            return 0.0
 
     def _score_optimization_result(
         self, result: Dict[str, Any], objective: str

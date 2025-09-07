@@ -39,7 +39,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from enum import Enum
 from functools import lru_cache
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional
 
 import aiohttp
 
@@ -57,16 +57,16 @@ except ImportError:
     logger.warning("alpaca-py not available, using HTTP requests for market hours")
     ALPACA_AVAILABLE = False
     # Create mock types
-    Calendar = Dict[str, Any]
-    Clock = Dict[str, Any]
-    APIError = Exception
+    Calendar = None  # type: ignore
+    Clock = None  # type: ignore
+    APIError = None  # type: ignore
 
 try:
     import pytz
 
     PYTZ_AVAILABLE = True
 except ImportError:
-    pytz = None
+    pytz = None  # type: ignore
     PYTZ_AVAILABLE = False
     logger.warning("pytz not available, using basic timezone handling")
 
@@ -165,7 +165,9 @@ class MarketHoursService:
         if PYTZ_AVAILABLE:
             self.timezone = pytz.timezone(timezone_name)
         else:
-            self.timezone = timezone.utc
+            from datetime import timezone
+
+            self.timezone = timezone.utc  # type: ignore
             logger.warning(f"pytz not available, using UTC instead of {timezone_name}")
 
         # Get config for Alpaca credentials
@@ -181,11 +183,14 @@ class MarketHoursService:
         self.trading_client: Optional[TradingClient] = None
         if ALPACA_AVAILABLE and self.config and hasattr(self.config, "alpaca"):
             try:
+                paper_trading = bool(
+                    self.config.alpaca.base_url
+                    and "paper" in self.config.alpaca.base_url
+                )
                 self.trading_client = TradingClient(
                     api_key=self.config.alpaca.api_key,
                     secret_key=self.config.alpaca.secret_key,
-                    paper=self.config.alpaca.base_url
-                    and "paper" in self.config.alpaca.base_url,
+                    paper=paper_trading,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize Alpaca client: {e}")
@@ -284,20 +289,35 @@ class MarketHoursService:
                 today = datetime.now(timezone.utc).date()
                 calendar_request = GetCalendarRequest(start=today, end=today)
                 calendar_data = self.trading_client.get_calendar(calendar_request)
-                if calendar_data:
+                if (
+                    calendar_data
+                    and isinstance(calendar_data, list)
+                    and len(calendar_data) > 0
+                ):
                     calendar_info = calendar_data[0]
             except Exception as e:
                 logger.debug(f"Could not get calendar info: {e}")
 
+            if isinstance(clock, dict):
+                is_open = clock.get("is_open", False)
+                timestamp = clock.get("timestamp")
+                next_open = clock.get("next_open")
+                next_close = clock.get("next_close")
+            else:
+                is_open = getattr(clock, "is_open", False)
+                timestamp = getattr(clock, "timestamp", None)
+                next_open = getattr(clock, "next_open", None)
+                next_close = getattr(clock, "next_close", None)
+
             return MarketStatus(
-                is_open=clock.is_open,
+                is_open=is_open,
                 current_session=(
-                    MarketSession.REGULAR if clock.is_open else MarketSession.CLOSED
+                    MarketSession.REGULAR if is_open else MarketSession.CLOSED
                 ),
-                timestamp=clock.timestamp,
-                next_open=clock.next_open,
-                next_close=clock.next_close,
-                market_date=clock.timestamp.date() if clock.timestamp else None,
+                timestamp=timestamp or datetime.now(),
+                next_open=next_open,
+                next_close=next_close,
+                market_date=timestamp.date() if timestamp else None,
                 is_trading_day=bool(calendar_info),
                 early_close=False,  # Would need additional logic to determine this
             )
@@ -546,6 +566,9 @@ class MarketHoursService:
             self._session = aiohttp.ClientSession()
 
         try:
+            if not self.config:
+                return False
+
             headers = {
                 "APCA-API-KEY-ID": self.config.alpaca.api_key,
                 "APCA-API-SECRET-KEY": self.config.alpaca.secret_key,
@@ -927,5 +950,5 @@ def _cached_weekday_check(date_str: str) -> bool:
     try:
         check_date = datetime.fromisoformat(date_str).date()
         return check_date.weekday() < 5
-    except:
+    except Exception:
         return False

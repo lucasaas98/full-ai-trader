@@ -31,17 +31,13 @@ Examples:
 
 import argparse
 import json
-import statistics
 import warnings
-from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
-import scipy.stats as stats
 import seaborn as sns
 
 warnings.filterwarnings("ignore")
@@ -59,7 +55,9 @@ class OptimizationAnalyzer:
         self.detailed_data = {}  # strategy -> detailed results DataFrame
         self.summary_data = {}  # strategy -> summary DataFrame
 
-    def load_results(self, file_path: str = None, directory: str = None) -> None:
+    def load_results(
+        self, file_path: Optional[str] = None, directory: Optional[str] = None
+    ) -> None:
         """Load optimization results from files."""
 
         files_to_load = []
@@ -78,9 +76,9 @@ class OptimizationAnalyzer:
 
         print(f"Loading {len(files_to_load)} result files...")
 
-        for file_path in files_to_load:
+        for file_path_obj in files_to_load:
             try:
-                with open(file_path, "r") as f:
+                with open(file_path_obj, "r") as f:
                     data = json.load(f)
 
                 strategy_type = data.get("strategy_type")
@@ -90,14 +88,14 @@ class OptimizationAnalyzer:
 
                     # Also try to load corresponding detailed CSV
                     csv_pattern = f"optimization_detailed_{strategy_type}_*.csv"
-                    csv_files = list(file_path.parent.glob(csv_pattern))
+                    csv_files = list(file_path_obj.parent.glob(csv_pattern))
                     if csv_files:
                         detailed_df = pd.read_csv(csv_files[0])
                         self.detailed_data[strategy_type] = detailed_df
 
                     # Load summary CSV
                     summary_pattern = f"optimization_summary_{strategy_type}_*.csv"
-                    summary_files = list(file_path.parent.glob(summary_pattern))
+                    summary_files = list(file_path_obj.parent.glob(summary_pattern))
                     if summary_files:
                         summary_df = pd.read_csv(summary_files[0])
                         self.summary_data[strategy_type] = summary_df
@@ -162,12 +160,27 @@ class OptimizationAnalyzer:
 
         if "risk_adjusted_score" in df.columns:
             best_idx = df["risk_adjusted_score"].idxmax()
-            return df.loc[best_idx, param]
+            param_value = df.loc[best_idx, param]
+            if pd.notna(param_value):
+                try:
+                    return float(str(param_value))
+                except (ValueError, TypeError):
+                    return 0.0
+            else:
+                return 0.0
         elif "avg_return" in df.columns:
             best_idx = df["avg_return"].idxmax()
-            return df.loc[best_idx, param]
+            param_value = df.loc[best_idx, param]
+            if pd.notna(param_value):
+                try:
+                    return float(str(param_value))
+                except (ValueError, TypeError):
+                    return 0.0
+            else:
+                return 0.0
         else:
-            return df[param].mean()
+            mean_value = df[param].mean()
+            return float(mean_value) if pd.notna(mean_value) else 0.0
 
     def analyze_market_conditions(self, strategy: str) -> Dict[str, Any]:
         """Analyze performance across different market conditions."""
@@ -231,7 +244,7 @@ class OptimizationAnalyzer:
     def generate_recommendations(self, strategy: str) -> Dict[str, Any]:
         """Generate parameter recommendations based on analysis."""
 
-        recommendations = {}
+        recommendations: Dict[str, Any] = {}
 
         if strategy not in self.summary_data:
             return recommendations
@@ -289,7 +302,7 @@ class OptimizationAnalyzer:
         if len(self.results_data) < 2:
             return {}
 
-        comparison = {}
+        comparison: Dict[str, Any] = {}
         strategy_summaries = {}
 
         # Collect best performance for each strategy
@@ -518,7 +531,7 @@ class OptimizationAnalyzer:
                             else:
                                 f.write(f"  {display_name}: {value:.2f}\n")
 
-                    f.write(f"\nExpected Performance:\n")
+                    f.write("\nExpected Performance:\n")
                     f.write(f"  Average Return: {best.get('avg_return', 0):.2%}\n")
                     f.write(
                         f"  Average Max Drawdown: {best.get('avg_max_drawdown', 0):.2%}\n"
@@ -531,7 +544,7 @@ class OptimizationAnalyzer:
                 # Parameter sensitivity analysis
                 sensitivity = self.analyze_parameter_sensitivity(strategy)
                 if sensitivity:
-                    f.write(f"\nPARAMETER SENSITIVITY ANALYSIS:\n")
+                    f.write("\nPARAMETER SENSITIVITY ANALYSIS:\n")
                     f.write("-" * 35 + "\n")
 
                     for param, analysis in sensitivity.items():
@@ -544,7 +557,7 @@ class OptimizationAnalyzer:
                         f.write(f"    Performance Impact Range: {impact:.4f}\n")
 
                         if correlations:
-                            f.write(f"    Correlations:\n")
+                            f.write("    Correlations:\n")
                             for metric, corr in correlations.items():
                                 f.write(f"      {metric}: {corr:.3f}\n")
                         f.write("\n")
@@ -705,7 +718,7 @@ def main():
 
         # Strategy comparison
         if args.compare and len(analyzer.results_data) > 1:
-            print(f"\n⚖️  Comparing strategies...")
+            print("\n⚖️  Comparing strategies...")
             comparison = analyzer.compare_strategies()
             if comparison and "category_winners" in comparison:
                 winners = comparison["category_winners"]
@@ -717,7 +730,7 @@ def main():
 
         # Generate plots
         if args.plots:
-            print(f"\n📈 Generating plots...")
+            print("\n📈 Generating plots...")
             try:
                 analyzer.generate_plots(args.plot_dir)
                 print("  ✅ Plots generated successfully")
@@ -725,10 +738,10 @@ def main():
                 print(f"  ⚠️  Plot generation failed: {e}")
 
         # Generate report
-        print(f"\n📝 Generating analysis report...")
+        print("\n📝 Generating analysis report...")
         analyzer.generate_report(args.output_report)
 
-        print(f"\n✅ Analysis completed!")
+        print("\n✅ Analysis completed!")
         print(f"📄 Report: {args.output_report}")
         if args.plots:
             print(f"📊 Plots: {args.plot_dir}/")

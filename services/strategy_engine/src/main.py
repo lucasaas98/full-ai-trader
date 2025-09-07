@@ -25,22 +25,31 @@ from pydantic import BaseModel, Field
 # Add shared module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-# Import shared models
-from shared.models import FinVizData
+from shared.models import FinVizData  # noqa: E402
 
-from .backtesting_engine import BacktestConfig, BacktestingEngine, BacktestMode
-from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode
-from .fundamental_analysis import FundamentalAnalysisEngine, FundamentalStrategy
-from .hybrid_strategy import (
+from .backtesting_engine import (  # noqa: E402
+    BacktestConfig,
+    BacktestingEngine,
+    BacktestMode,
+)
+from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode  # noqa: E402
+from .fundamental_analysis import (  # noqa: E402
+    FundamentalAnalysisEngine,
+    FundamentalStrategy,
+)
+from .hybrid_strategy import (  # noqa: E402
     HybridMode,
     HybridSignal,
     HybridSignalGenerator,
     HybridStrategy,
     HybridStrategyFactory,
 )
-from .market_regime import MarketRegimeDetector, RegimeAwareStrategyManager
-from .redis_integration import RedisStrategyEngine
-from .technical_analysis import TechnicalAnalysisEngine, TechnicalStrategy
+from .market_regime import (  # noqa: E402
+    MarketRegimeDetector,
+    RegimeAwareStrategyManager,
+)
+from .redis_integration import RedisStrategyEngine  # noqa: E402
+from .technical_analysis import TechnicalAnalysisEngine, TechnicalStrategy  # noqa: E402
 
 # Configure logging
 logging.basicConfig(
@@ -108,6 +117,7 @@ class StrategyEngineService:
     def __init__(self):
         """Initialize strategy engine service."""
         self.logger = logging.getLogger("strategy_engine_service")
+        self.logger.debug("Initializing StrategyEngineService instance")
 
         # Core components
         self.redis_engine: Optional[RedisStrategyEngine] = None
@@ -146,15 +156,21 @@ class StrategyEngineService:
         """Initialize all service components."""
         try:
             self.logger.info("Initializing Strategy Engine Service")
+            self.logger.debug(f"Service configuration: {self.config}")
 
             # Initialize Redis integration
             if self.config["enable_real_time"]:
-                self.redis_engine = RedisStrategyEngine(self.config["redis_url"])
+                self.logger.debug(
+                    f"Initializing Redis engine with URL: {self.config['redis_url']}"
+                )
+                self.redis_engine = RedisStrategyEngine(str(self.config["redis_url"]))
                 if not await self.redis_engine.initialize():
                     self.logger.error("Failed to initialize Redis engine")
                     return False
+                self.logger.debug("Redis engine initialized successfully")
 
             # Initialize backtesting engine
+            self.logger.debug("Initializing backtesting engine")
             backtest_config = BacktestConfig(
                 initial_capital=100000.0,
                 commission_per_trade=1.0,
@@ -162,11 +178,15 @@ class StrategyEngineService:
                 slippage_percentage=0.0005,
             )
             self.backtesting_engine = BacktestingEngine(backtest_config)
+            self.logger.debug("Backtesting engine initialized successfully")
 
             # Initialize regime manager
+            self.logger.debug("Initializing regime manager")
             self.regime_manager = RegimeAwareStrategyManager()
+            self.logger.debug("Regime manager initialized successfully")
 
             # Load any persisted strategies
+            self.logger.debug("Loading persisted strategies")
             await self._load_persisted_strategies()
 
             self.logger.info("Strategy Engine Service initialized successfully")
@@ -179,6 +199,9 @@ class StrategyEngineService:
     async def create_strategy(self, request: StrategyCreateRequest) -> Dict[str, Any]:
         """Create and register a new trading strategy."""
         try:
+            self.logger.debug(
+                f"Creating strategy: {request.name} of type {request.strategy_type}"
+            )
             # Validate strategy type
             if request.strategy_type not in ["technical", "fundamental", "hybrid"]:
                 raise ValueError(f"Invalid strategy type: {request.strategy_type}")
@@ -186,7 +209,9 @@ class StrategyEngineService:
             # Parse mode
             try:
                 mode = StrategyMode(request.mode)
+                self.logger.debug(f"Using trading mode: {mode.value}")
             except ValueError:
+                self.logger.error(f"Invalid trading mode: {request.mode}")
                 raise ValueError(f"Invalid trading mode: {request.mode}")
 
             # Create strategy configuration
@@ -200,26 +225,35 @@ class StrategyEngineService:
             )
 
             # Create strategy based on type
+            self.logger.debug(
+                f"Creating {request.strategy_type} strategy with config: {config.__dict__}"
+            )
             if request.strategy_type == "technical":
                 strategy = TechnicalStrategy(config)
             elif request.strategy_type == "fundamental":
-                strategy = FundamentalStrategy(config)
+                strategy = FundamentalStrategy(config)  # type: ignore
             elif request.strategy_type == "hybrid":
                 hybrid_mode = HybridMode(
                     request.parameters.get("hybrid_mode", "swing_trading")
                 )
-                strategy = HybridStrategy(config, hybrid_mode)
+                self.logger.debug(f"Using hybrid mode: {hybrid_mode.value}")
+                strategy = HybridStrategy(config, hybrid_mode)  # type: ignore
             else:
                 raise ValueError(f"Unsupported strategy type: {request.strategy_type}")
 
             # Initialize strategy
+            self.logger.debug(f"Initializing strategy: {request.name}")
             strategy.initialize()
 
             # Register strategy
+            self.logger.debug(f"Registering strategy: {request.name}")
             self.active_strategies[request.name] = strategy
 
             # Register with Redis engine if available
             if self.redis_engine:
+                self.logger.debug(
+                    f"Registering strategy {request.name} with Redis for symbols: {request.symbols}"
+                )
                 await self.redis_engine.register_strategy(strategy, request.symbols)
 
             self.logger.info(f"Created and registered strategy: {request.name}")
@@ -239,31 +273,54 @@ class StrategyEngineService:
     async def generate_signal(self, request: SignalGenerationRequest) -> Dict[str, Any]:
         """Generate trading signal for a specific strategy and symbol."""
         try:
+            self.logger.debug(
+                f"Generating signal for {request.symbol} using strategy {request.strategy_name}"
+            )
             # Get strategy
             if request.strategy_name not in self.active_strategies:
                 raise ValueError(f"Strategy not found: {request.strategy_name}")
 
             strategy = self.active_strategies[request.strategy_name]
+            self.logger.debug(f"Using strategy type: {strategy.__class__.__name__}")
 
             # Get market data (this would typically come from database)
+            self.logger.debug(
+                f"Fetching market data for {request.symbol} with lookback period {strategy.config.lookback_period}"
+            )
             market_data = await self._get_market_data(
                 request.symbol, strategy.config.lookback_period
             )
             if market_data is None:
                 raise ValueError(f"No market data available for {request.symbol}")
+            self.logger.debug(
+                f"Retrieved {market_data.height} data points for {request.symbol}"
+            )
 
             # Get fundamental data for hybrid strategies
             finviz_data = None
             if isinstance(strategy, HybridStrategy):
+                self.logger.debug(
+                    f"Fetching FinViz data for hybrid strategy and symbol {request.symbol}"
+                )
                 finviz_data = await self._get_finviz_data(request.symbol)
 
             # Generate signal
+            self.logger.debug(
+                f"Analyzing {request.symbol} with strategy {request.strategy_name}"
+            )
             if isinstance(strategy, HybridStrategy):
                 signal = await strategy.analyze(
                     request.symbol, market_data, finviz_data
                 )
             else:
-                signal = await strategy.analyze(request.symbol, market_data)
+                signal = await strategy.analyze(request.symbol, market_data)  # type: ignore
+
+            if signal:
+                self.logger.debug(
+                    f"Generated signal for {request.symbol}: action={signal.action}, confidence={signal.confidence}"
+                )
+            else:
+                self.logger.debug(f"No signal generated for {request.symbol}")
 
             # Format signal for output
             signal_generator = HybridSignalGenerator()
@@ -304,8 +361,15 @@ class StrategyEngineService:
                 and self.redis_engine.publisher
                 and signal.confidence >= strategy.config.min_confidence
             ):
+                self.logger.debug(
+                    f"Publishing signal for {request.symbol} to Redis (confidence: {signal.confidence})"
+                )
                 await self.redis_engine.publisher.publish_signal(
                     request.symbol, hybrid_signal, strategy.name
+                )
+            elif signal.confidence < strategy.config.min_confidence:
+                self.logger.debug(
+                    f"Signal confidence {signal.confidence} below threshold {strategy.config.min_confidence}, not publishing"
                 )
 
             return {
@@ -321,36 +385,53 @@ class StrategyEngineService:
     async def run_backtest(self, request: BacktestRequest) -> Dict[str, Any]:
         """Run backtest for a strategy."""
         try:
+            self.logger.debug(
+                f"Starting backtest for strategy {request.strategy_name} on {request.symbol}"
+            )
             # Get strategy
             if request.strategy_name not in self.active_strategies:
                 raise ValueError(f"Strategy not found: {request.strategy_name}")
 
             strategy = self.active_strategies[request.strategy_name]
+            self.logger.debug(f"Running backtest for strategy: {request.strategy_name}")
+            self.logger.debug(
+                f"Backtest period: {request.start_date} to {request.end_date}"
+            )
 
             # Parse dates
             start_date = datetime.fromisoformat(request.start_date)
             end_date = datetime.fromisoformat(request.end_date)
+            self.logger.debug(f"Optimization period: {start_date} to {end_date}")
+            self.logger.debug(f"Parsed dates - start: {start_date}, end: {end_date}")
 
             # Get historical data
+            self.logger.debug(f"Fetching historical data for {request.symbol}")
             historical_data = await self._get_historical_data(
                 request.symbol, start_date, end_date
             )
             if historical_data is None:
                 raise ValueError(f"No historical data available for {request.symbol}")
+            self.logger.debug(
+                f"Retrieved historical data with {historical_data.height} points"
+            )
 
             # Get FinViz data for hybrid strategies
             finviz_data = None
             if isinstance(strategy, HybridStrategy):
+                self.logger.debug("Fetching FinViz data for hybrid strategy backtest")
                 finviz_data = await self._get_finviz_data(request.symbol)
 
             # Parse backtest mode
             try:
                 mode = BacktestMode(request.mode)
+                self.logger.debug(f"Using backtest mode: {mode.value}")
             except ValueError:
                 mode = BacktestMode.SIMPLE
+                self.logger.debug(f"Invalid mode {request.mode}, defaulting to SIMPLE")
 
             # Run backtest
             if self.backtesting_engine:
+                self.logger.debug("Running backtest with backtesting engine")
                 result = await self.backtesting_engine.backtest_strategy(
                     strategy,
                     request.symbol,
@@ -360,8 +441,10 @@ class StrategyEngineService:
                     finviz_data,
                     mode,
                 )
+                self.logger.debug("Backtest execution completed")
 
                 # Generate report
+                self.logger.debug("Generating backtest report")
                 report = self.backtesting_engine.generate_backtest_report(result)
             else:
                 raise HTTPException(
@@ -371,6 +454,9 @@ class StrategyEngineService:
             # Store result in Redis if available
             result_id = f"{request.strategy_name}_{request.symbol}_{int(datetime.now(timezone.utc).timestamp())}"
             if self.redis_engine and self.redis_engine.redis:
+                self.logger.debug(
+                    f"Storing backtest result in Redis with ID: {result_id}"
+                )
                 await self.redis_engine.redis.setex(
                     f"backtest_result:{result_id}",
                     86400 * 7,  # 7 days
@@ -391,6 +477,9 @@ class StrategyEngineService:
     ) -> Dict[str, Any]:
         """Optimize strategy parameters."""
         try:
+            self.logger.debug(
+                f"Starting parameter optimization for strategy {request.strategy_name}"
+            )
             # Get strategy
             if request.strategy_name not in self.active_strategies:
                 raise ValueError(f"Strategy not found: {request.strategy_name}")
@@ -422,6 +511,7 @@ class StrategyEngineService:
 
             # Run optimization
             if self.backtesting_engine:
+                self.logger.debug("Running parameter optimization")
                 optimization_result = (
                     await self.backtesting_engine.optimize_strategy_parameters(
                         strategy,
@@ -431,6 +521,7 @@ class StrategyEngineService:
                         finviz_data,
                     )
                 )
+                self.logger.debug("Parameter optimization completed")
             else:
                 raise HTTPException(
                     status_code=500, detail="Backtesting engine not available"
@@ -439,10 +530,15 @@ class StrategyEngineService:
             # Update strategy with best parameters if found
             best_params = optimization_result.get("best_parameters", {})
             if best_params:
+                self.logger.debug(
+                    f"Updating strategy with best parameters: {best_params}"
+                )
                 strategy.update_config(best_params)
                 self.logger.info(
                     f"Updated {request.strategy_name} with optimized parameters"
                 )
+            else:
+                self.logger.debug("No parameter improvements found during optimization")
 
             return {
                 "status": "success",
@@ -457,17 +553,25 @@ class StrategyEngineService:
     async def get_market_regime(self, symbol: str) -> Dict[str, Any]:
         """Get current market regime for a symbol."""
         try:
+            self.logger.debug(f"Analyzing market regime for {symbol}")
             # Get recent market data
             market_data = await self._get_market_data(symbol, 100)
             if market_data is None:
                 raise ValueError(f"No market data available for {symbol}")
+            self.logger.debug(
+                f"Retrieved {market_data.height} data points for regime analysis"
+            )
 
             # Detect regime
             regime_detector = MarketRegimeDetector()
             regime_state = regime_detector.detect_regime(market_data)
+            self.logger.debug(
+                f"Detected regime for {symbol}: {regime_state.primary_regime.value} (confidence: {regime_state.confidence})"
+            )
 
             # Publish regime update if Redis is available
             if self.redis_engine and self.redis_engine.publisher:
+                self.logger.debug(f"Publishing regime update for {symbol} to Redis")
                 await self.redis_engine.publisher.publish_regime_update(
                     symbol, regime_state.__dict__
                 )
@@ -498,6 +602,9 @@ class StrategyEngineService:
         try:
             from pathlib import Path
 
+            self.logger.debug(
+                f"Loading market data for {symbol}, requesting {periods} periods"
+            )
             # Direct file access approach - assume default data path
             base_path = Path("/app/data/parquet/market_data") / symbol
 
@@ -507,6 +614,8 @@ class StrategyEngineService:
                 )
                 return None
 
+            self.logger.debug(f"Market data directory found at {base_path}")
+
             # Collect data from available timeframes (prefer daily, then hourly, then minutes)
             timeframes_to_try = ["1day", "1h", "15min", "5min", "1min"]
             combined_data = []
@@ -514,9 +623,13 @@ class StrategyEngineService:
             for tf in timeframes_to_try:
                 tf_path = base_path / tf
                 if tf_path.exists():
+                    self.logger.debug(f"Found timeframe directory: {tf_path}")
                     # Load recent parquet files (last 6 months for better indicators)
                     parquet_files = list(tf_path.glob("*.parquet"))
                     parquet_files.sort()  # Sort by filename (date)
+                    self.logger.debug(
+                        f"Found {len(parquet_files)} parquet files for {tf}"
+                    )
 
                     # Take the most recent files (up to 60 files for 2 months of daily data)
                     recent_files = (
@@ -542,17 +655,24 @@ class StrategyEngineService:
                 self.logger.warning(f"No readable market data found for {symbol}")
                 return None
 
+            self.logger.debug(f"Combined {len(combined_data)} data files for {symbol}")
+
             # Combine all dataframes
             full_data = pl.concat(combined_data)
+            self.logger.debug(f"Raw combined data shape: {full_data.shape}")
 
             # Sort by timestamp and take most recent periods
             full_data = full_data.sort("timestamp").tail(periods)
+            self.logger.debug(f"Final data shape after filtering: {full_data.shape}")
 
             self.logger.info(f"Loaded {full_data.height} data points for {symbol}")
+            self.logger.debug(
+                f"Data date range: {str(full_data['timestamp'].min())} to {str(full_data['timestamp'].max())}"
+            )
             return full_data
 
         except Exception as e:
-            self.logger.error(f"Error getting market data for {symbol}: {e}")
+            self.logger.error(f"Error getting market data for {symbol}: {str(e)}")
             return None
 
     async def _get_historical_data(
@@ -560,6 +680,9 @@ class StrategyEngineService:
     ) -> Optional[pl.DataFrame]:
         """Get historical data for backtesting (placeholder)."""
         try:
+            self.logger.debug(
+                f"Attempting to retrieve historical data for {symbol} from {start_date} to {end_date}"
+            )
             # Placeholder - would query database with date range
             self.logger.warning(
                 f"Historical data retrieval not implemented for {symbol}"
@@ -573,6 +696,7 @@ class StrategyEngineService:
     async def _get_finviz_data(self, symbol: str) -> Optional[FinVizData]:
         """Get FinViz fundamental data (placeholder)."""
         try:
+            self.logger.debug(f"Attempting to retrieve FinViz data for {symbol}")
             # Placeholder - would query database or FinViz API
             self.logger.warning(f"FinViz data retrieval not implemented for {symbol}")
             return None
@@ -584,11 +708,17 @@ class StrategyEngineService:
     async def _load_persisted_strategies(self) -> None:
         """Load any persisted strategies from previous runs."""
         try:
+            self.logger.debug("Loading persisted strategies")
             if not self.redis_engine:
+                self.logger.debug(
+                    "No Redis engine available, creating default strategies only"
+                )
+                await self._create_default_strategies()
                 return
 
             # This would load saved strategy configurations
             # For now, create some default strategies
+            self.logger.debug("Creating default strategies")
             await self._create_default_strategies()
 
         except Exception as e:
@@ -597,6 +727,7 @@ class StrategyEngineService:
     async def _create_default_strategies(self) -> None:
         """Create default strategies for demonstration."""
         try:
+            self.logger.debug("Creating default hybrid strategies")
             # Create default hybrid strategies
             day_trader = HybridStrategyFactory.create_day_trading_strategy(
                 "default_day_trader"
@@ -607,6 +738,7 @@ class StrategyEngineService:
             position_trader = HybridStrategyFactory.create_position_trading_strategy(
                 "default_position_trader"
             )
+            self.logger.debug("Default strategies created successfully")
 
             # Initialize strategies
             strategies = [day_trader, swing_trader, position_trader]
@@ -629,16 +761,22 @@ class StrategyEngineService:
     ) -> Dict[str, Any]:
         """Generate End-of-Day trading report."""
         try:
+            self.logger.debug("Starting EOD report generation")
             if request is None:
                 request = EODReportRequest(date=None)
+                self.logger.debug("Using default EOD report request")
 
             # Parse report date
             if request.date:
                 report_date = datetime.fromisoformat(request.date).replace(
                     tzinfo=timezone.utc
                 )
+                self.logger.debug(f"Using requested report date: {request.date}")
             else:
                 report_date = datetime.now(timezone.utc)
+                self.logger.debug(
+                    f"Using current date for report: {report_date.date()}"
+                )
 
             # start_of_day = report_date.replace(hour=0, minute=0, second=0, microsecond=0)  # Not used in current implementation
 
@@ -651,6 +789,9 @@ class StrategyEngineService:
 
             for strategy_name, strategy in self.active_strategies.items():
                 try:
+                    self.logger.debug(
+                        f"Collecting performance data for strategy: {strategy_name}"
+                    )
                     # Get strategy info
                     strategy_info = strategy.get_strategy_info()
 
@@ -661,12 +802,18 @@ class StrategyEngineService:
                     # Try to get signal metrics from Redis if available
                     if self.redis_engine and self.redis_engine.redis:
                         try:
+                            self.logger.debug(
+                                f"Retrieving signal metrics from Redis for {strategy_name}"
+                            )
                             # Get signal count for today
                             signal_key = f"signals:{strategy_name}:{report_date.strftime('%Y-%m-%d')}"
                             signals_today = (
                                 await self.redis_engine.redis.get(signal_key) or 0
                             )
                             signals_today = int(signals_today)
+                            self.logger.debug(
+                                f"Found {signals_today} signals for {strategy_name}"
+                            )
 
                             # Get high confidence signal count
                             hc_signal_key = f"high_confidence_signals:{strategy_name}:{report_date.strftime('%Y-%m-%d')}"
@@ -674,6 +821,9 @@ class StrategyEngineService:
                                 await self.redis_engine.redis.get(hc_signal_key) or 0
                             )
                             high_confidence_signals = int(high_confidence_signals)
+                            self.logger.debug(
+                                f"Found {high_confidence_signals} high confidence signals for {strategy_name}"
+                            )
                         except Exception as redis_error:
                             self.logger.warning(
                                 f"Could not retrieve signal metrics from Redis: {redis_error}"
@@ -704,6 +854,7 @@ class StrategyEngineService:
                     }
 
             # Collect market analysis summary
+            self.logger.debug("Starting market analysis summary collection")
             symbols_analyzed = []
             technical_analysis_summary = {}
 
@@ -716,17 +867,25 @@ class StrategyEngineService:
             # Fallback to default symbols if none found
             if not tracked_symbols:
                 tracked_symbols = {"AAPL", "MSFT", "GOOGL", "TSLA", "SPY", "QQQ"}
+                self.logger.debug("Using default symbol set for analysis")
 
             # Perform analysis on a subset of symbols for the report
             analysis_symbols = list(tracked_symbols)[
                 :10
             ]  # Limit to 10 symbols for performance
+            self.logger.debug(
+                f"Analyzing {len(analysis_symbols)} symbols for report: {analysis_symbols}"
+            )
 
             for symbol in analysis_symbols:
                 try:
+                    self.logger.debug(f"Performing technical analysis for {symbol}")
                     market_data = await self._get_market_data(symbol, 50)
                     if market_data is not None and not market_data.is_empty():
                         # Perform quick technical analysis
+                        self.logger.debug(
+                            f"Running technical analysis on {market_data.height} data points for {symbol}"
+                        )
                         tech_analysis = self.technical_engine.full_analysis(
                             symbol, market_data
                         )
@@ -746,18 +905,21 @@ class StrategyEngineService:
                     self.logger.warning(
                         f"Analysis failed for {symbol}: {analysis_error}"
                     )
+                    self.logger.debug(f"Skipping {symbol} due to analysis error")
                     continue
 
             # Generate summary statistics
+            self.logger.debug("Calculating summary statistics")
             avg_technical_score = 0.0
             if technical_analysis_summary:
                 avg_technical_score = sum(
                     data["technical_score"]
                     for data in technical_analysis_summary.values()
                 ) / len(technical_analysis_summary)
+                self.logger.debug(f"Average technical score: {avg_technical_score}")
 
             # Create EOD report
-            eod_report = {
+            eod_report: Dict[str, Any] = {
                 "report_type": "end_of_day",
                 "date": report_date.strftime("%Y-%m-%d"),
                 "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
@@ -800,6 +962,9 @@ class StrategyEngineService:
             if self.redis_engine and self.redis_engine.redis:
                 try:
                     report_key = f"eod_report:{report_date.strftime('%Y-%m-%d')}"
+                    self.logger.debug(
+                        f"Storing EOD report in Redis with key: {report_key}"
+                    )
                     await self.redis_engine.redis.setex(
                         report_key,
                         86400 * 7,  # Keep for 7 days
@@ -873,7 +1038,7 @@ class StrategyEngineService:
         self, report_date: datetime
     ) -> List[Dict[str, Any]]:
         """Get detailed signal information for a specific date."""
-        detailed_signals = []
+        detailed_signals: List[Dict[str, Any]] = []
 
         if not self.redis_engine or not self.redis_engine.redis:
             return detailed_signals
@@ -901,6 +1066,7 @@ class StrategyEngineService:
     async def start_real_time_processing(self) -> None:
         """Start real-time signal processing."""
         try:
+            self.logger.debug("Attempting to start real-time processing")
             if not self.redis_engine:
                 self.logger.warning(
                     "Redis engine not available - real-time processing disabled"
@@ -914,6 +1080,9 @@ class StrategyEngineService:
                 # For now, use default symbols
                 all_symbols.update(["AAPL", "MSFT", "GOOGL", "TSLA", "SPY"])
 
+            self.logger.debug(
+                f"Starting real-time processing for {len(all_symbols)} symbols: {list(all_symbols)}"
+            )
             # Start real-time processing
             await self.redis_engine.start_real_time_processing(list(all_symbols))
 
@@ -926,14 +1095,17 @@ class StrategyEngineService:
         """Shutdown the service gracefully."""
         try:
             self.logger.info("Shutting down Strategy Engine Service")
+            self.logger.debug("Starting graceful shutdown sequence")
 
             # Shutdown Redis engine
             if self.redis_engine:
+                self.logger.debug("Shutting down Redis engine")
                 await self.redis_engine.shutdown()
 
             # Save strategy states
             for strategy in self.active_strategies.values():
                 if hasattr(strategy, "save_state"):
+                    self.logger.debug(f"Saving state for strategy: {strategy.name}")
                     strategy.save_state()
                     # Would save to persistent storage here
 
@@ -951,14 +1123,19 @@ service = StrategyEngineService()
 async def lifespan(app: FastAPI):
     """Manage application lifespan."""
     # Startup
+    logger.debug("Starting FastAPI application lifespan")
     await service.initialize()
     if service.config["enable_real_time"]:
+        logger.debug("Starting real-time processing task")
         asyncio.create_task(service.start_real_time_processing())
 
+    logger.debug("FastAPI application startup complete")
     yield
 
     # Shutdown
+    logger.debug("Starting FastAPI application shutdown")
     await service.shutdown()
+    logger.debug("FastAPI application shutdown complete")
 
 
 # Create FastAPI app
@@ -1014,6 +1191,7 @@ def _initialize_metrics():
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    logger.debug("Health check endpoint called")
     return {
         "status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
@@ -1026,8 +1204,10 @@ async def health_check():
 async def list_strategies():
     """List all active strategies."""
     try:
+        logger.debug("Listing all active strategies")
         strategies = []
         for name, strategy in service.active_strategies.items():
+            logger.debug(f"Including strategy in list: {name}")
             strategies.append(
                 {
                     "name": name,
@@ -1037,6 +1217,7 @@ async def list_strategies():
                 }
             )
 
+        logger.debug(f"Returning {len(strategies)} strategies")
         return {
             "status": "success",
             "strategies": strategies,
@@ -1076,6 +1257,7 @@ async def optimize_parameters(request: ParameterOptimizationRequest):
 async def analyze_market_data():
     """Analyze market data and calculate technical indicators for all tracked symbols."""
     try:
+        logger.debug("Starting market data analysis endpoint")
         # Get tracked symbols from active strategies or default list
         symbols = set()
 
@@ -1121,6 +1303,7 @@ async def analyze_market_data():
 
         for symbol in symbols:
             try:
+                logger.debug(f"Analyzing market data for symbol: {symbol}")
                 # Get market data for the symbol
                 market_data = await service._get_market_data(symbol, periods=200)
 
@@ -1200,6 +1383,7 @@ async def analyze_market_data():
         saved_count = 0
         if indicators_to_save:
             try:
+                logger.debug(f"Saving {len(indicators_to_save)} technical indicators")
                 # Direct file saving approach
                 from datetime import date
                 from pathlib import Path
@@ -1208,7 +1392,7 @@ async def analyze_market_data():
                 base_path.mkdir(parents=True, exist_ok=True)
 
                 # Group indicators by symbol and save
-                grouped_indicators = {}
+                grouped_indicators: dict[str, Any] = {}
                 for indicator in indicators_to_save:
                     symbol = indicator["symbol"]
                     if symbol not in grouped_indicators:
@@ -1258,6 +1442,7 @@ async def get_market_regime(symbol: str):
 async def get_strategy_details(strategy_name: str):
     """Get detailed information about a strategy."""
     try:
+        logger.debug(f"Getting details for strategy: {strategy_name}")
         if strategy_name not in service.active_strategies:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
@@ -1286,11 +1471,13 @@ async def get_strategy_details(strategy_name: str):
 async def delete_strategy(strategy_name: str):
     """Delete a strategy."""
     try:
+        logger.debug(f"Deleting strategy: {strategy_name}")
         if strategy_name not in service.active_strategies:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
         # Remove from active strategies
         del service.active_strategies[strategy_name]
+        logger.debug(f"Strategy {strategy_name} removed from active strategies")
 
         # TODO: Unregister from Redis engine
 
@@ -1307,6 +1494,7 @@ async def delete_strategy(strategy_name: str):
 async def get_signal_history(symbol: str, limit: int = 50):
     """Get signal history for a symbol."""
     try:
+        logger.debug(f"Getting signal history for {symbol}, limit: {limit}")
         if not service.redis_engine:
             raise HTTPException(status_code=503, detail="Redis not available")
 
@@ -1330,6 +1518,7 @@ async def get_signal_history(symbol: str, limit: int = 50):
 async def get_prometheus_metrics():
     """Prometheus metrics endpoint."""
     try:
+        logger.debug("Generating Prometheus metrics")
         # Initialize metrics if not already done
         _initialize_metrics()
 
@@ -1394,6 +1583,7 @@ async def get_system_metrics():
 async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
     """Update strategy parameters."""
     try:
+        logger.debug(f"Updating strategy {strategy_name} with parameters: {parameters}")
         if strategy_name not in service.active_strategies:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
@@ -1421,6 +1611,7 @@ async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
 async def generate_eod_report(request: Optional[EODReportRequest] = None):
     """Generate End-of-Day trading report."""
     try:
+        logger.debug("EOD report generation requested")
         report = await service.generate_eod_report(request)
 
         # Update Prometheus metrics if available
@@ -1444,14 +1635,17 @@ async def generate_eod_report(request: Optional[EODReportRequest] = None):
 async def get_latest_eod_report():
     """Get the most recent EOD report."""
     try:
+        logger.debug("Getting latest EOD report")
         # Try to get from Redis first
         if service.redis_engine and service.redis_engine.redis:
             today = datetime.now(timezone.utc).date()
             report_key = f"eod_report:{today.isoformat()}"
+            logger.debug(f"Looking for cached EOD report with key: {report_key}")
 
             try:
                 stored_report = await service.redis_engine.redis.get(report_key)
                 if stored_report:
+                    logger.debug("Found cached EOD report")
                     report_data = json.loads(stored_report)
                     return {
                         "status": "success",
@@ -1476,6 +1670,7 @@ async def get_latest_eod_report():
 async def get_service_status():
     """Get detailed service status."""
     try:
+        logger.debug("Getting service status")
         status = {
             "service": "strategy_engine",
             "status": "running",
@@ -1498,13 +1693,17 @@ async def get_service_status():
         # Add Redis status if available
         if service.redis_engine:
             try:
+                logger.debug("Checking Redis connection status")
                 if service.redis_engine and service.redis_engine.redis:
                     await service.redis_engine.redis.ping()
                     status["redis_status"] = "connected"
+                    logger.debug("Redis connection confirmed")
                 else:
                     status["redis_status"] = "disconnected"
-            except Exception:
+                    logger.debug("Redis engine exists but no connection")
+            except Exception as redis_error:
                 status["redis_status"] = "disconnected"
+                logger.debug(f"Redis connection check failed: {redis_error}")
 
         return status
 
@@ -1521,36 +1720,49 @@ class StrategyEngineApp:
         self.service = service
         self.app = app
         self._initialized = False
+        self.logger = logging.getLogger("strategy_engine_app")
+        self.logger.debug("StrategyEngineApp instance created")
 
     async def initialize(self):
         """Initialize the application."""
         if not self._initialized:
+            self.logger.debug("Initializing StrategyEngineApp")
             await self.service.initialize()
             self._initialized = True
+            self.logger.debug("StrategyEngineApp initialization complete")
 
     async def start(self):
         """Start the Strategy Engine service."""
+        self.logger.debug("Starting StrategyEngineApp")
         await self.initialize()
         if self.service.config.get("enable_real_time", False):
+            self.logger.debug("Real-time processing enabled, starting background task")
             asyncio.create_task(self.service.start_real_time_processing())
+        self.logger.debug("StrategyEngineApp start complete")
 
     async def stop(self):
         """Stop the Strategy Engine service."""
+        self.logger.debug("Stopping StrategyEngineApp")
         await self.service.shutdown()
         self._initialized = False
+        self.logger.debug("StrategyEngineApp stopped")
 
     def get_service(self):
         """Get the underlying service instance."""
+        self.logger.debug("Returning service instance")
         return self.service
 
     def get_app(self):
         """Get the FastAPI application instance."""
+        self.logger.debug("Returning FastAPI app instance")
         return self.app
 
 
 if __name__ == "__main__":
     # Development server
     port = int(os.environ.get("SERVICE_PORT", 9102))
+    logger.debug(f"Starting development server on port {port}")
+    logger.info(f"Strategy Engine Service starting on port {port}")
     uvicorn.run(
         "src.main:app", host="0.0.0.0", port=port, reload=False, log_level="info"
     )

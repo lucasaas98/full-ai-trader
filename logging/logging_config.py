@@ -5,7 +5,7 @@ import sys
 import traceback
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import structlog
@@ -603,8 +603,8 @@ class LogAnalyzer:
         if not error_log_path.exists():
             return {"error": "Error log file not found"}
 
-        error_counts = {}
-        recent_errors = []
+        error_counts: Dict[str, int] = {}
+        recent_errors: List[Dict[str, Any]] = []
 
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
 
@@ -663,7 +663,7 @@ class LogAnalyzer:
         if not audit_log_path.exists():
             return {"error": "Trade audit log file not found"}
 
-        trade_stats = {
+        trade_stats: Dict[str, Any] = {
             "total_trades": 0,
             "by_symbol": {},
             "by_strategy": {},
@@ -753,7 +753,7 @@ class LogAnalyzer:
         if not performance_log_path.exists():
             return {"error": "Performance log file not found"}
 
-        performance_data = {
+        performance_data: Dict[str, Any] = {
             "daily_returns": [],
             "sharpe_ratios": [],
             "drawdowns": [],
@@ -828,10 +828,10 @@ class LogAnalyzer:
             trends["portfolio_trend"] = (
                 "increasing" if values[-1] > values[0] else "decreasing"
             )
-            trends["portfolio_volatility"] = (
-                np.std(performance_data["daily_returns"])
+            trends["portfolio_volatility"] = str(
+                float(np.std(performance_data["daily_returns"]))
                 if performance_data["daily_returns"]
-                else 0
+                else 0.0
             )
 
         return {

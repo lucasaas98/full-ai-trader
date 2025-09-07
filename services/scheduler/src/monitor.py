@@ -113,7 +113,7 @@ class SystemMonitor:
         }
 
         # Performance tracking
-        self.performance_history = defaultdict(list)
+        self.performance_history: Dict[str, List[Any]] = defaultdict(list)
         self.last_performance_check = datetime.now()
 
     async def start_monitoring(self):
@@ -286,7 +286,7 @@ class SystemMonitor:
                                 await self._process_service_metrics(
                                     service_name, service_metrics, timestamp
                                 )
-                        except:
+                        except Exception:
                             pass  # Metrics endpoint might not exist
 
                 except asyncio.TimeoutError:
@@ -498,7 +498,7 @@ class SystemMonitor:
                 try:
                     await self.redis.ping()
                     await self._record_metric("redis_healthy", 1, timestamp)
-                except:
+                except Exception:
                     await self._record_metric("redis_healthy", 0, timestamp)
                     await self._create_alert(
                         "redis_connection",
@@ -804,7 +804,7 @@ class SystemMonitor:
                 try:
                     await self.redis.ping()
                     return True
-                except:
+                except Exception:
                     return False
 
         except Exception as e:
@@ -922,7 +922,14 @@ class SystemMonitor:
             )
 
         # Sort by timestamp (newest first)
-        alerts.sort(key=lambda x: x["timestamp"], reverse=True)
+        alerts.sort(
+            key=lambda x: (
+                timestamp.timestamp()
+                if (timestamp := x.get("timestamp")) and isinstance(timestamp, datetime)
+                else 0
+            ),
+            reverse=True,
+        )
         return alerts
 
     async def clear_alerts(self, severity: Optional[AlertSeverity] = None):

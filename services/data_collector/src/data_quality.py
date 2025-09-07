@@ -134,7 +134,7 @@ class MarketEventDetector:
         Returns:
             List of split anomalies detected
         """
-        anomalies = []
+        anomalies: List[DataAnomaly] = []
 
         if len(data) < 2:
             return anomalies
@@ -195,7 +195,7 @@ class MarketEventDetector:
         Returns:
             List of dividend anomalies detected
         """
-        anomalies = []
+        anomalies: List[DataAnomaly] = []
 
         if len(data) < 2:
             return anomalies
@@ -243,17 +243,17 @@ class MarketEventDetector:
 
         return anomalies
 
-    def detect_earnings_impact(self, data: pl.DataFrame) -> List[DataAnomaly]:
+    def detect_volatility_spikes(self, data: pl.DataFrame) -> List[DataAnomaly]:
         """
-        Detect potential earnings-related price movements.
+        Detect unusual volatility spikes.
 
         Args:
             data: DataFrame with OHLCV data
 
         Returns:
-            List of earnings-related anomalies
+            List of volatility anomalies
         """
-        anomalies = []
+        anomalies: List[DataAnomaly] = []
 
         if len(data) < 2:
             return anomalies
@@ -354,7 +354,7 @@ class DataQualityValidator:
         if self.config.enable_market_event_detection:
             anomalies.extend(self.event_detector.detect_stock_split(df))
             anomalies.extend(self.event_detector.detect_dividend_events(df))
-            anomalies.extend(self.event_detector.detect_earnings_impact(df))
+            # anomalies.extend(self.event_detector.detect_earnings_impact(df))  # Method not implemented yet
 
         # Clean data based on findings
         cleaned_data = await self._clean_data(data, anomalies)
@@ -512,7 +512,7 @@ class DataQualityValidator:
 
     async def _detect_data_gaps(self, df: pl.DataFrame) -> List[DataAnomaly]:
         """Detect missing data gaps."""
-        anomalies = []
+        anomalies: List[DataAnomaly] = []
 
         if len(df) < 2:
             return anomalies
@@ -674,7 +674,7 @@ class DataQualityValidator:
                             severity=AnomalySeverity.MEDIUM,
                             timestamp=timestamp,
                             timeframe=TimeFrame(sorted_data["timeframe"][i]),
-                            description=f"Volume spike: {volume:,} ({volume/avg_volume:.1f}x average)",
+                            description=f"Volume spike: {volume:,} ({volume / avg_volume:.1f}x average)",
                             details={
                                 "volume": volume,
                                 "average_volume": avg_volume,

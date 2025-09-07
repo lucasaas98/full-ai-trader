@@ -1,0 +1,59 @@
+ci:
+    - .github/**
+    - Dockerfile*
+    - docker-compose.yml
+    - docker-compose.prod.yml
+    - docker-compose.integration.yml
+    - docker-compose.test.yml
+    - pyproject.toml
+    - pyrightconfig.json
+    - requirements.ci.txt
+    - monitoring/**
+
+data-collector:
+    - services/data-collector/**
+
+export-service:
+    - services/export-service/**
+
+maintenance_service:
+    - services/maintenance_service/**
+
+notification_service:
+    - services/notification_service/**
+
+risk_manager:
+    - services/risk_manager/**
+
+scheduler:
+    - services/scheduler/**
+
+strategy-engine:
+    - services/strategy-engine/**
+
+trade-executor:
+    - services/trade-executor/**
+
+shared:
+    - shared/**
+
+backtesting:
+    - backtesting/**
+    - backtest_results/**
+    - optimization_results/**
+
+scripts:
+    - scripts/**
+
+tests:
+    - tests/**
+
+docs:
+    - README.md
+    - docs/**
+    - examples/**
+
+deps:
+    - requirements.txt
+    - requirements.ci.txt
+    - ./**/requirements.txt

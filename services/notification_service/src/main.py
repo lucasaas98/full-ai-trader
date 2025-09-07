@@ -22,9 +22,9 @@ from redis.asyncio.client import PubSub
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from monitoring.gotify_client import NotificationManager
-from shared.config import Config, get_config
-from shared.models import Notification
+from monitoring.gotify_client import NotificationManager  # noqa: E402
+from shared.config import Config, get_config  # noqa: E402
+from shared.models import Notification  # noqa: E402
 
 # Setup logging
 logging.basicConfig(

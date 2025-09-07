@@ -80,7 +80,7 @@ class OrderManager:
         self._redis = None
         self._active_orders: Dict[UUID, OrderResponse] = {}
         self._bracket_orders: Dict[UUID, Dict[str, OrderResponse]] = {}
-        self._retry_queue = asyncio.Queue()
+        self._retry_queue: asyncio.Queue[Any] = asyncio.Queue()
         self._running = False
 
     async def initialize(self):
@@ -464,7 +464,7 @@ class OrderManager:
                     await self._store_order(order_request, order_response, signal.id)
 
                     logger.info(
-                        f"TWAP slice {i+1}/{num_slices} placed: {current_slice_size} @ {limit_price}"
+                        f"VWAP slice {i + 1}/{num_slices} placed: {current_slice_size} @ {limit_price}"
                     )
 
                     # Wait before next slice (except for last one)
@@ -472,7 +472,7 @@ class OrderManager:
                         await asyncio.sleep(slice_interval.total_seconds())
 
                 except Exception as e:
-                    logger.error(f"TWAP slice {i+1} failed: {e}")
+                    logger.error(f"TWAP slice {i + 1} failed: {e}")
                     # Continue with remaining slices
                     continue
 
@@ -562,14 +562,14 @@ class OrderManager:
 
                     total_executed += slice_size
                     logger.info(
-                        f"VWAP slice {i+1} placed: {slice_size} @ {limit_price}"
+                        f"VWAP slice {i + 1} placed: {slice_size} @ {limit_price}"
                     )
 
                     # Wait between slices
                     await asyncio.sleep(duration_minutes * 60 / len(volume_profile))
 
                 except Exception as e:
-                    logger.error(f"VWAP slice {i+1} failed: {e}")
+                    logger.error(f"VWAP slice {i + 1} failed: {e}")
                     continue
 
             return {

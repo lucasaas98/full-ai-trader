@@ -23,7 +23,7 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 
 import httpx
 import pandas as pd
@@ -95,8 +95,8 @@ class MaintenanceMonitor:
 
     def __init__(self, redis_client: Union[redis.Redis, Any]):
         self.redis = redis_client
-        self.metrics = {}
-        self.alerts = []
+        self.metrics: Dict[str, Any] = {}
+        self.alerts: List[Dict[str, Any]] = []
         self._is_async_redis = hasattr(redis_client, "__aenter__") or str(
             type(redis_client).__name__
         ).startswith("AsyncRedis")
@@ -219,7 +219,7 @@ class MaintenanceMonitor:
                     {
                         "type": "maintenance_slow",
                         "task": result.task_name,
-                        "duration": result.duration,
+                        "duration": str(result.duration),
                         "timestamp": datetime.now().isoformat(),
                     }
                 )
@@ -231,9 +231,9 @@ class MaintenanceMonitor:
             ):  # Less than 1MB
                 alerts.append(
                     {
-                        "type": "maintenance_low_impact",
+                        "type": "maintenance_inefficient",
                         "task": result.task_name,
-                        "bytes_freed": result.bytes_freed,
+                        "bytes_freed": str(result.bytes_freed),
                         "timestamp": datetime.now().isoformat(),
                     }
                 )
@@ -319,9 +319,9 @@ class MaintenanceManager:
     def __init__(self, config: Any, redis_client: Union[redis.Redis, Any]):
         self.config = config
         self.redis = redis_client
-        self.maintenance_tasks = {}
+        self.maintenance_tasks: Dict[str, Any] = {}
         self.is_running = False
-        self.current_task = None
+        self.current_task: Optional[str] = None
         self.maintenance_config = MaintenanceConfig()
         self.monitor = MaintenanceMonitor(redis_client)
         self._is_async_redis = hasattr(redis_client, "__aenter__") or str(
@@ -1181,35 +1181,56 @@ class BackupTask(BaseMaintenanceTask):
             }
 
             # Get current positions
+            # Get positions
             position_keys = await self.redis.keys("positions:*")
-            for key in position_keys:
-                position_data = await self.redis.get(key)
-                if position_data:
-                    symbol = key.decode().split(":")[-1]
-                    trading_data["positions"][symbol] = json.loads(position_data)
+            if isinstance(position_keys, list):
+                for key in position_keys:
+                    position_data = await self.redis.get(key)
+                    if position_data:
+                        if isinstance(key, bytes):
+                            symbol = key.decode().split(":")[-1]
+                        else:
+                            symbol = str(key).split(":")[-1]
+                        positions_dict = cast(Dict[str, Any], trading_data["positions"])
+                        positions_dict[symbol] = json.loads(position_data)
 
             # Get pending orders
             order_keys = await self.redis.keys("orders:pending:*")
-            for key in order_keys:
-                order_data = await self.redis.get(key)
-                if order_data:
-                    order_id = key.decode().split(":")[-1]
-                    trading_data["orders"][order_id] = json.loads(order_data)
+            if isinstance(order_keys, list):
+                for key in order_keys:
+                    order_data = await self.redis.get(key)
+                    if order_data:
+                        order_id = (
+                            key.decode().split(":")[-1]
+                            if isinstance(key, bytes)
+                            else str(key).split(":")[-1]
+                        )
+                        orders_dict = cast(Dict[str, Any], trading_data["orders"])
+                        orders_dict[order_id] = json.loads(order_data)
 
             # Get portfolio metrics
             portfolio_keys = await self.redis.keys("portfolio:*")
-            for key in portfolio_keys:
-                metric_data = await self.redis.get(key)
-                if metric_data:
-                    metric_name = key.decode().split(":")[-1]
-                    try:
-                        trading_data["portfolio_metrics"][metric_name] = json.loads(
-                            metric_data
+            if isinstance(portfolio_keys, list):
+                for key in portfolio_keys:
+                    metric_data = await self.redis.get(key)
+                    if metric_data:
+                        if isinstance(key, bytes):
+                            metric_name = key.decode().split(":")[-1]
+                        else:
+                            metric_name = str(key).split(":")[-1]
+                        portfolio_metrics_dict = cast(
+                            Dict[str, Any], trading_data["portfolio_metrics"]
                         )
-                    except json.JSONDecodeError:
-                        trading_data["portfolio_metrics"][
-                            metric_name
-                        ] = metric_data.decode()
+                        try:
+                            portfolio_metrics_dict[metric_name] = json.loads(
+                                metric_data
+                            )
+                        except json.JSONDecodeError:
+                            portfolio_metrics_dict[metric_name] = (
+                                metric_data.decode()
+                                if isinstance(metric_data, bytes)
+                                else str(metric_data)
+                            )
 
             # Get recent trades (last 24 hours)
             trade_keys = await self.redis.keys("trades:completed:*")
@@ -1639,7 +1660,7 @@ class SystemHealthCheckTask(BaseMaintenanceTask):
                         response = await client.get(service_url, timeout=5.0)
                         if response.status_code != 200:
                             failed_services += 1
-                except:
+                except Exception:
                     failed_services += 1
 
             if failed_services == 0:
@@ -1754,7 +1775,7 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
         """Consolidate files for a specific symbol."""
         try:
             # Group files by month
-            monthly_groups = {}
+            monthly_groups: Dict[str, List[Path]] = {}
             for file_path in files:
                 month_key = file_path.stem[:7]  # YYYY-MM
                 if month_key not in monthly_groups:
@@ -2595,7 +2616,7 @@ class MaintenanceScheduler:
 
     def __init__(self, maintenance_manager: Union[MaintenanceManager, Any]):
         self.maintenance_manager = maintenance_manager
-        self.scheduled_tasks = {}
+        self.scheduled_tasks: Dict[str, Dict[str, Any]] = {}
         self.is_running = False
         self.maintenance_config = MaintenanceConfig()
 
@@ -2783,7 +2804,10 @@ class MaintenanceScheduler:
                 metrics = (
                     await self.maintenance_manager.monitor.get_maintenance_metrics()
                 )
-                stats["task_metrics"] = metrics
+                if isinstance(metrics, dict):
+                    stats.update(metrics)
+                else:
+                    pass  # No metrics to add
 
             return stats
 
@@ -2860,7 +2884,7 @@ class MaintenanceReportGenerator:
         """Generate daily maintenance report."""
         try:
             today = datetime.now().date()
-            report = {
+            report: Dict[str, Any] = {
                 "date": today.isoformat(),
                 "report_type": "daily",
                 "generated_at": datetime.now().isoformat(),
@@ -2911,11 +2935,19 @@ class MaintenanceReportGenerator:
                         "last_run": None,
                     }
 
-                task_summary[task_name]["runs"] += 1
+                task_summary[task_name]["runs"] = (
+                    task_summary[task_name].get("runs") or 0
+                ) + 1
                 if result["success"]:
-                    task_summary[task_name]["successes"] += 1
-                task_summary[task_name]["total_duration"] += result["duration"]
-                task_summary[task_name]["total_bytes_freed"] += result["bytes_freed"]
+                    task_summary[task_name]["successes"] = (
+                        task_summary[task_name].get("successes") or 0
+                    ) + 1
+                task_summary[task_name]["total_duration"] = (
+                    task_summary[task_name].get("total_duration") or 0
+                ) + (result.get("duration", 0) or 0)
+                task_summary[task_name]["total_bytes_freed"] = (
+                    task_summary[task_name].get("total_bytes_freed") or 0
+                ) + (result.get("bytes_freed", 0) or 0)
                 task_summary[task_name]["last_run"] = result["timestamp"]
 
             report["task_results"] = task_summary
@@ -2941,7 +2973,7 @@ class MaintenanceReportGenerator:
         """Generate weekly maintenance report."""
         try:
             week_start = datetime.now().date() - timedelta(days=7)
-            report = {
+            report: Dict[str, Any] = {
                 "week_start": week_start.isoformat(),
                 "week_end": datetime.now().date().isoformat(),
                 "report_type": "weekly",
@@ -3128,7 +3160,7 @@ class MaintenanceReportGenerator:
     ) -> Dict[str, Any]:
         """Calculate weekly maintenance trends."""
         try:
-            trends = {
+            trends: Dict[str, Any] = {
                 "task_frequency": {},
                 "success_rate_trend": [],
                 "performance_trend": [],
@@ -3730,11 +3762,11 @@ class IntelligentMaintenanceTask(BaseMaintenanceTask):
     ) -> Dict[str, Any]:
         """Generate an optimization plan based on analysis."""
         try:
-            plan = {
+            plan: Dict[str, Any] = {
                 "immediate_actions": [],
                 "scheduled_actions": [],
                 "monitoring_adjustments": [],
-                "configuration_changes": [],
+                "configuration_changes": {},
             }
 
             for rec in recommendations:

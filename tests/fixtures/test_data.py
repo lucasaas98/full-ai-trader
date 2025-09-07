@@ -15,7 +15,16 @@ import pandas as pd
 
 sys.path.append("/app/shared")
 # Models imported but not used in this module - available for test data generation
-from typing import Tuple
+from typing import Tuple  # noqa: E402
+
+
+def _safe_float_convert(value) -> float:
+    """Safely convert pandas/numpy values to float."""
+    if pd.isna(value):
+        return 0.0
+    if hasattr(value, "item"):
+        return float(value.item())
+    return float(value)
 
 
 def _safe_index_to_int(index_value) -> int:
@@ -435,10 +444,15 @@ class TestDataGenerator:
 
         # Crash day - significant drop
         data.loc[crash_idx, "open"] = data.loc[max(0, crash_idx - 1), "close"]
-        data.loc[crash_idx, "high"] = data.loc[crash_idx, "open"] * 0.98
-        data.loc[crash_idx, "low"] = data.loc[crash_idx, "open"] * crash_factor
-        data.loc[crash_idx, "close"] = data.loc[crash_idx, "low"] * 1.02
-        data.loc[crash_idx, "volume"] *= 10  # Panic selling volume
+        open_val = data.loc[crash_idx, "open"]
+        volume_val = data.loc[crash_idx, "volume"]
+        data.loc[crash_idx, "high"] = _safe_float_convert(open_val) * 0.98
+        data.loc[crash_idx, "low"] = _safe_float_convert(open_val) * crash_factor
+        low_val = data.loc[crash_idx, "low"]
+        data.loc[crash_idx, "close"] = _safe_float_convert(low_val) * 1.02
+        data.loc[crash_idx, "volume"] = (
+            _safe_float_convert(volume_val) * 10
+        )  # Panic selling volume
 
         # Recovery period with increased volatility
         recovery_end = min(int(crash_idx + recovery_days), len(data) - 1)
@@ -448,9 +462,18 @@ class TestDataGenerator:
             volatility_multiplier = 3.0 * (1 - recovery_progress) + 1.0
 
             # Apply to price ranges
-            data.loc[i, "high"] *= 1 + 0.02 * volatility_multiplier
-            data.loc[i, "low"] *= 1 - 0.02 * volatility_multiplier
-            data.loc[i, "volume"] *= 2.0 * (1 - recovery_progress) + 1.0
+            high_val = data.loc[i, "high"]
+            low_val = data.loc[i, "low"]
+            volume_val = data.loc[i, "volume"]
+            data.loc[i, "high"] = _safe_float_convert(high_val) * (
+                1 + 0.02 * volatility_multiplier
+            )
+            data.loc[i, "low"] = _safe_float_convert(low_val) * (
+                1 - 0.02 * volatility_multiplier
+            )
+            data.loc[i, "volume"] = _safe_float_convert(volume_val) * (
+                2.0 * (1 - recovery_progress) + 1.0
+            )
 
         return data
 
@@ -736,9 +759,17 @@ class TestDataGenerator:
         if "volatility_spike" in scenario:
             vol_multiplier = scenario["volatility_spike"]
             for i in range(int(start_idx), int(end_idx) + 1):
-                daily_range = data.loc[i, "high"] - data.loc[i, "low"]
-                expanded_range = daily_range * vol_multiplier
-                mid_price = (data.loc[i, "high"] + data.loc[i, "low"]) / 2
+                high_val = data.loc[i, "high"]
+                low_val = data.loc[i, "low"]
+                high_float = _safe_float_convert(high_val)
+                low_float = _safe_float_convert(low_val)
+                daily_range = high_float - low_float
+                expanded_range = (
+                    daily_range * float(vol_multiplier)
+                    if isinstance(vol_multiplier, (int, float))
+                    else daily_range
+                )
+                mid_price = (high_float + low_float) / 2
 
                 data.loc[i, "high"] = mid_price + expanded_range / 2
                 data.loc[i, "low"] = mid_price - expanded_range / 2
@@ -764,8 +795,14 @@ class TestDataGenerator:
 
                 if abs(recent_returns) > 0.01:  # Significant momentum
                     momentum_factor = 1 + (recent_returns * 0.5)  # Amplify movement
-                    data.loc[i, "close"] *= momentum_factor
-                    data.loc[i, "volume"] *= 1 + abs(recent_returns) * 10
+                    close_val = data.loc[i, "close"]
+                    data.loc[i, "close"] = (
+                        _safe_float_convert(close_val) * momentum_factor
+                    )
+                    volume_val = data.loc[i, "volume"]
+                    data.loc[i, "volume"] = _safe_float_convert(volume_val) * (
+                        1 + abs(recent_returns) * 2
+                    )
 
         elif pattern_type == "mean_reversion":
             # Add mean reversion patterns
@@ -775,18 +812,20 @@ class TestDataGenerator:
                 # Calculate simple moving average manually to avoid type issues
                 recent_prices = close_values[i - 20 : i]
                 sma_value = sum(recent_prices) / len(recent_prices)
-                current_price = float(data.loc[i, "close"])
+                close_val = data.loc[i, "close"]
+                current_price = _safe_float_convert(close_val)
                 deviation = (current_price - sma_value) / sma_value
 
                 if abs(deviation) > 0.05:  # 5% deviation from mean
                     reversion_factor = 1 - (deviation * 0.3)  # Partial reversion
-                    data.loc[i, "close"] *= reversion_factor
+                    data.loc[i, "close"] = current_price * reversion_factor
 
         elif pattern_type == "arbitrage":
             # Add small price inefficiencies that can be arbitraged
             for i in range(1, len(data)):
                 if i % 100 == 0:  # Periodic inefficiencies
                     noise_factor = 1 + np.random.uniform(-0.002, 0.002)
-                    data.loc[i, "close"] *= noise_factor
+                    close_val = data.loc[i, "close"]
+                    data.loc[i, "close"] = _safe_float_convert(close_val) * noise_factor
 
         return data

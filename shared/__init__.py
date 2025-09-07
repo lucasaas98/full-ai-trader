@@ -5,6 +5,9 @@ This package provides common data models, configuration, and utilities
 that are used across all services in the trading system.
 """
 
+from datetime import date, datetime
+from typing import Optional
+
 from .config import Config
 from .models import (
     MarketData,
@@ -22,7 +25,7 @@ from .utils import get_logger, setup_logging
 try:
     from .market_hours import (
         MarketDay,
-        MarketHours,
+        MarketHoursService,
         MarketSession,
         MarketStatus,
         get_market_status,
@@ -34,28 +37,47 @@ try:
     )
 except ImportError:
     # Market hours functionality not available
-    MarketHours = None
-    MarketStatus = None
-    MarketSession = None
-    MarketDay = None
-    is_market_open = None
-    get_market_status = None
-    get_next_market_open = None
-    get_next_market_close = None
-    is_market_open_sync = None
-    is_trading_day = None
+    MarketHoursService = None  # type: ignore
+    MarketStatus = None  # type: ignore
+    MarketSession = None  # type: ignore
+    MarketDay = None  # type: ignore
+
+    async def is_market_open(timestamp: datetime | None = None) -> bool:
+        return False
+
+    async def get_market_status() -> MarketStatus:
+        return None  # type: ignore
+
+    async def get_next_market_open() -> Optional[datetime]:
+        return None
+
+    async def get_next_market_close() -> Optional[datetime]:
+        return None
+
+    def is_market_open_sync(timestamp: datetime | None = None) -> bool:
+        return False
+
+    async def is_trading_day(check_date: date | None = None) -> bool:
+        return False
+
 
 # Import database managers if dependencies are available
-try:
-    from .database_manager import SharedDatabaseManager
-except ImportError:
-    SharedDatabaseManager = None
+from typing import TYPE_CHECKING
 
-# Import simple database manager (requires only asyncpg)
-try:
+if TYPE_CHECKING:
+    from .database_manager import SharedDatabaseManager
     from .simple_db_manager import SimpleDatabaseManager
-except ImportError:
-    SimpleDatabaseManager = None
+else:
+    try:
+        from .database_manager import SharedDatabaseManager
+    except ImportError:
+        SharedDatabaseManager = None
+
+    # Simple database manager fallback
+    try:
+        from .simple_db_manager import SimpleDatabaseManager
+    except ImportError:
+        SimpleDatabaseManager = None
 
 __version__ = "1.0.0"
 
@@ -80,10 +102,10 @@ if SimpleDatabaseManager is not None:
     __all__.append("SimpleDatabaseManager")
 
 # Add market hours functionality to exports if available
-if MarketHours is not None:
+if MarketHoursService is not None:
     __all__.extend(
         [
-            "MarketHours",
+            "MarketHoursService",
             "MarketStatus",
             "MarketSession",
             "MarketDay",

@@ -203,9 +203,8 @@ test-coverage: ## Run tests with coverage report
 
 lint: ## Run linting checks
 	@echo "Running linting checks..."
-	@flake8 .
-	@black --check .
-	@isort --check-only .
+	@flake8 . --exclude=venv --ignore=E501,W503,E203
+	@mypy . --install-types --ignore-missing-imports --check-untyped-defs
 	@echo "✓ Linting checks completed"
 
 format: ## Format code
@@ -214,10 +213,11 @@ format: ## Format code
 	@isort .
 	@echo "✓ Code formatted"
 
-type-check: ## Run type checking
-	@echo "Running type checks..."
-	@mypy .
-	@echo "✓ Type checking completed"
+format-check:
+	@echo "Running format checks..."
+	@black --check .
+	@isort --check-only .
+	@echo "✓ Format checking completed"
 
 # =============================================================================
 # DATABASE OPERATIONS
@@ -355,13 +355,23 @@ analyze: ## Run analysis on trading performance
 # =============================================================================
 
 install-deps: ## Install Python dependencies locally (for development)
+	@echo "Creating virtual environment..."
+	@python3 -m venv venv
+	@echo "Activating virtual environment..."
+	@venv/bin/activate
 	@echo "Installing Python dependencies..."
+	@pip install -r requirements.txt
+	@pip install -r requirements.ci.txt
 	@pip install -r services/data_collector/requirements.txt
-	@pip install -r services/strategy_engine/requirements.txt
+	@pip install -r services/export_service/requirements.txt
+	@pip install -r services/maintenance_service/requirements.txt
+	@pip install -r services/notification_service/requirements.txt
 	@pip install -r services/risk_manager/requirements.txt
-	@pip install -r services/trade_executor/requirements.txt
 	@pip install -r services/scheduler/requirements.txt
+	@pip install -r services/strategy_engine/requirements.txt
+	@pip install -r services/trade_executor/requirements.txt
 	@echo "✓ Dependencies installed"
+
 
 install-dev-deps: ## Install development dependencies
 	@echo "Installing development dependencies..."

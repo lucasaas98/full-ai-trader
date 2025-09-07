@@ -17,10 +17,11 @@ Usage:
 
 import asyncio
 import logging
-import os
 import sys
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 # Add project paths
 project_root = Path(__file__).parent.parent
@@ -65,9 +66,9 @@ async def run_optimization_example():
     strategies_to_optimize = ["day_trading", "swing_trading"]
     optimization_level = "standard"  # standard, quick, or detailed
     num_periods = 6  # Number of 30-day test periods
-    initial_capital = 100000  # Starting capital for each test
+    initial_capital = Decimal("100000")  # Starting capital for each test
 
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Strategies: {', '.join(strategies_to_optimize)}")
     print(f"  Optimization Level: {optimization_level}")
     print(f"  Test Periods: {num_periods} x 30 days")
@@ -85,11 +86,11 @@ async def run_optimization_example():
     print()
 
     # Step 2: Run optimization for each strategy
-    optimization_results = {}
+    optimization_results: dict[str, Any] = {}
 
     for strategy_type in strategies_to_optimize:
         print(
-            f"🎯 Step 2.{len(optimization_results)+1}: Optimizing {strategy_type.replace('_', ' ').title()} Strategy"
+            f"🎯 Step 2.{len(optimization_results) + 1}: Optimizing {strategy_type.replace('_', ' ').title()} Strategy"
         )
         print("-" * 60)
 
@@ -155,7 +156,8 @@ async def run_optimization_example():
 
             comparison_data = []
             for strategy_type, results in optimization_results.items():
-                best = results["best_config"]
+                results_dict = dict(results)
+                best = results_dict["best_config"]
                 comparison_data.append(
                     {
                         "Strategy": strategy_type.replace("_", " ").title(),
@@ -186,8 +188,9 @@ async def run_optimization_example():
             print(f"🔍 DETAILED ANALYSIS: {strategy_type.replace('_', ' ').title()}")
             print("=" * 50)
 
-            summaries = results["summaries"]
-            best = results["best_config"]
+            results_dict = dict(results)
+            summaries = results_dict["summaries"]
+            best = results_dict["best_config"]
 
             # Parameter recommendations
             print("📋 RECOMMENDED PARAMETER CONFIGURATION:")
@@ -260,7 +263,7 @@ async def run_optimization_example():
         print("=" * 25)
 
         for strategy_type, results in optimization_results.items():
-            best = results["best_config"]
+            best = dict(results)["best_config"]
 
             print(
                 f"\n{strategy_type.replace('_', ' ').title()} Strategy Implementation:"
@@ -295,7 +298,7 @@ async def run_optimization_example():
             print(f"6. Risk Level: {risk_level}")
             print(f"7. Recommendation: {recommendation}")
 
-        print(f"\n🔄 MONITORING & ADJUSTMENT:")
+        print("\n🔄 MONITORING & ADJUSTMENT:")
         print("=" * 30)
         print("1. Monitor live performance against backtest expectations")
         print("2. Re-run optimization monthly with fresh data")
@@ -303,7 +306,7 @@ async def run_optimization_example():
         print("4. Track parameter drift and performance degradation")
         print("5. Maintain position sizing discipline")
 
-        print(f"\n⚠️  IMPORTANT CONSIDERATIONS:")
+        print("\n⚠️  IMPORTANT CONSIDERATIONS:")
         print("=" * 30)
         print("1. Past performance does not guarantee future results")
         print("2. Market conditions change - parameters may need adjustment")
@@ -320,7 +323,7 @@ async def run_optimization_example():
         print("4. Using fewer test periods initially")
 
     # Step 5: Save comprehensive analysis
-    print(f"\n💾 Step 5: Saving Analysis Results")
+    print("\n💾 Step 5: Saving Analysis Results")
     print("-" * 35)
 
     try:
@@ -348,7 +351,7 @@ async def run_optimization_example():
         print(f"⚠️  Advanced analysis skipped: {e}")
 
     # Final summary
-    print(f"\n✨ OPTIMIZATION EXAMPLE COMPLETED")
+    print("\n✨ OPTIMIZATION EXAMPLE COMPLETED")
     print("=" * 40)
     print("Results and recommendations have been generated!")
     print()

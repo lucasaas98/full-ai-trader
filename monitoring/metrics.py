@@ -15,12 +15,12 @@ import redis.asyncio as redis
 from prometheus_client import REGISTRY, Counter, Gauge, Histogram, start_http_server
 from prometheus_client.core import CollectorRegistry
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from shared.config import Config
 from shared.models import PortfolioState
 
-from .gotify_client import GotifyClient
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from .gotify_client import GotifyClient  # noqa: E402
 
 
 class TradingSystemMetrics:
@@ -906,7 +906,7 @@ class MetricsCollector:
         self.metrics.position_count.set(position_count)
 
         if portfolio_state.total_equity > 0:
-            max_concentration = 0
+            max_concentration = 0.0
             for position in portfolio_state.positions:
                 concentration = float(position.market_value) / float(
                     portfolio_state.total_equity
@@ -944,16 +944,20 @@ class MetricsCollector:
                     duration,
                 )
             elif metric_name == "database_query":
-                success = labels.get("success", True)
-                if isinstance(success, str):
-                    success = success.lower() == "true"
+                success_value = labels.get("success", True)
+                if isinstance(success_value, str):
+                    success = success_value.lower() == "true"
+                else:
+                    success = bool(success_value)
                 self.record_database_operation(
                     labels["query_type"], duration, success, labels.get("error_type")
                 )
             elif metric_name == "redis_operation":
-                success = labels.get("success", True)
-                if isinstance(success, str):
-                    success = success.lower() == "true"
+                success_value = labels.get("success", True)
+                if isinstance(success_value, str):
+                    success = success_value.lower() == "true"
+                else:
+                    success = bool(success_value)
                 self.record_redis_operation(labels["operation"], duration, success)
 
 

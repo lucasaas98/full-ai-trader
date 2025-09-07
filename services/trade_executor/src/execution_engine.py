@@ -630,7 +630,40 @@ class ExecutionEngine:
             Execution result
         """
         try:
-            return await self.order_manager.process_signal(signal)
+            # Convert dict signal to TradeSignal
+            from decimal import Decimal
+
+            from shared.models import SignalType, TradeSignal
+
+            trade_signal = TradeSignal(
+                symbol=signal["symbol"],
+                signal_type=SignalType(signal["action"]),
+                confidence=float(signal.get("confidence", 0.8)),
+                quantity=int(signal["quantity"]) if signal.get("quantity") else None,
+                price=(
+                    Decimal(str(signal.get("price", 0)))
+                    if signal.get("price")
+                    else None
+                ),
+                stop_loss=(
+                    Decimal(str(signal.get("stop_loss", 0)))
+                    if signal.get("stop_loss")
+                    else None
+                ),
+                take_profit=(
+                    Decimal(str(signal.get("take_profit", 0)))
+                    if signal.get("take_profit")
+                    else None
+                ),
+                strategy_name=signal.get("strategy", "unknown"),
+                metadata={
+                    "order_type": "MARKET",
+                    "reasoning": signal.get("reasoning", ""),
+                    **signal.get("metadata", {}),
+                },
+            )
+
+            return await self.order_manager.process_signal(trade_signal)
         except Exception as e:
             logger.error(f"Signal execution failed: {e}")
             raise
@@ -648,7 +681,7 @@ class ExecutionEngine:
 
             # Add symbols to internal tracking
             if not hasattr(self, "_watchlist"):
-                self._watchlist = set()
+                self._watchlist: set[str] = set()
 
             new_symbols = set(symbols) - self._watchlist
             if new_symbols:

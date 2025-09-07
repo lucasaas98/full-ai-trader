@@ -13,8 +13,6 @@ Key Features:
 - Multi-strategy comparison capabilities
 """
 
-import asyncio
-import json
 import logging
 import os
 import sys
@@ -23,11 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-
-import pandas as pd
-import polars as pl
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add paths for strategy imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -40,8 +34,8 @@ for path in [strategy_path, data_collector_path, shared_path, project_root]:
     if path not in sys.path:
         sys.path.insert(0, path)
 
-from backtest_models import MarketData, SignalType, TimeFrame
-from simple_data_store import SimpleDataStore
+from backtest_models import MarketData, SignalType, TimeFrame  # noqa: E402
+from simple_data_store import SimpleDataStore  # noqa: E402
 
 try:
     # Use the production strategy adapter
@@ -49,7 +43,6 @@ try:
         PRODUCTION_STRATEGIES_AVAILABLE,
         ProductionSignal,
         ProductionStrategyAdapter,
-        ProductionStrategyFactory,
     )
     from production_strategy_adapter import StrategyMode as AdapterStrategyMode
 
@@ -266,7 +259,11 @@ class HistoricalScreenerSimulator:
         self, date: datetime, symbols: List[str]
     ) -> Dict[str, List[str]]:
         """Simulate screener results for a specific date."""
-        screener_results = {"breakouts": [], "momentum": [], "value_stocks": []}
+        screener_results: Dict[str, List[str]] = {
+            "breakouts": [],
+            "momentum": [],
+            "value_stocks": [],
+        }
 
         # Load market data for all symbols for this date and previous days for analysis
         symbol_data = await self._load_symbol_data_for_screening(date, symbols)
@@ -515,7 +512,7 @@ class ProductionBacktestEngine:
         )
 
         # Initialize strategy
-        self.strategy: Optional[BaseStrategy] = None
+        self.strategy: Optional[Any] = None
 
         # Portfolio state
         self.cash = config.initial_capital
@@ -600,7 +597,7 @@ class ProductionBacktestEngine:
                 # Log progress periodically
                 if (i + 1) % 20 == 0 or i == len(trading_days) - 1:
                     self.logger.info(
-                        f"Progress: {i+1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}"
+                        f"Progress: {i + 1}/{len(trading_days)} days, Portfolio: ${portfolio_value:,.2f}"
                     )
 
             # Close any remaining positions
@@ -824,6 +821,9 @@ class ProductionBacktestEngine:
                 self.strategy_stats["total_analysis_calls"] += 1
 
                 # Call strategy's analyze method
+                if self.strategy is None:
+                    continue
+
                 analysis_result = await self.strategy.analyze_symbol(
                     symbol=symbol,
                     current_data=current_data,
@@ -1179,10 +1179,20 @@ class ProductionBacktestEngine:
                 else Decimal("0")
             )
 
-            gross_profit = sum(t.net_pnl for t in winning_trades)
-            gross_loss = abs(sum(t.net_pnl for t in losing_trades))
+            gross_profit = (
+                sum(t.net_pnl for t in winning_trades)
+                if winning_trades
+                else Decimal("0")
+            )
+            gross_loss = (
+                Decimal(str(abs(sum(t.net_pnl for t in losing_trades))))
+                if losing_trades
+                else Decimal("0")
+            )
             profit_factor = (
-                float(gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+                float(str(gross_profit)) / float(str(gross_loss))
+                if gross_loss > Decimal("0")
+                else float("inf")
             )
 
             largest_win = max((t.net_pnl for t in winning_trades), default=Decimal("0"))
@@ -1229,8 +1239,8 @@ class ProductionBacktestEngine:
                 winning_trades=len(winning_trades),
                 losing_trades=len(losing_trades),
                 win_rate=win_rate,
-                avg_win_amount=avg_win,
-                avg_loss_amount=avg_loss,
+                avg_win_amount=Decimal(str(avg_win)),
+                avg_loss_amount=Decimal(str(avg_loss)),
                 largest_win=largest_win,
                 largest_loss=largest_loss,
                 avg_hold_time_hours=(
@@ -1249,11 +1259,15 @@ class ProductionBacktestEngine:
                 var_95=Decimal("0"),  # Would need more sophisticated calculation
                 max_concurrent_positions=max(len(self.positions), 1),
                 avg_position_size=(
-                    sum(
-                        abs(t.entry_price * Decimal(str(abs(t.quantity))))
-                        for t in self.trades
+                    Decimal(
+                        str(
+                            sum(
+                                abs(t.entry_price * Decimal(str(abs(t.quantity))))
+                                for t in self.trades
+                            )
+                            / len(self.trades)
+                        )
                     )
-                    / len(self.trades)
                     if self.trades
                     else Decimal("0")
                 ),

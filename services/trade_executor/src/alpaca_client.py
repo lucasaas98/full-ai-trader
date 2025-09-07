@@ -9,7 +9,7 @@ Uses the modern alpaca-py library instead of the deprecated alpaca_trade_api.
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 import aiohttp
@@ -60,7 +60,7 @@ try:
     ALPACA_AVAILABLE = True
 except ImportError:
     # Create mock classes for development/testing
-    class TradingClient:
+    class MockTradingClient:
         def __init__(self, *args, **kwargs):
             pass
 
@@ -100,30 +100,30 @@ except ImportError:
         def cancel_orders(self):
             return None
 
-    class StockHistoricalDataClient:
+    class MockStockHistoricalDataClient:
         def __init__(self, *args, **kwargs):
             pass
 
-        def get_stock_latest_quote(self, *args, **kwargs):
+        def get_stock_bars(self, request):
             return None
 
         def get_stock_latest_trade(self, *args, **kwargs):
             return None
 
-        def get_stock_bars(self, *args, **kwargs):
+        def get_stock_latest_quote(self, *args, **kwargs):
             return None
 
-    class StockDataStream:
+    class MockStockDataStream:
         def __init__(self, *args, **kwargs):
             pass
 
-        async def subscribe_quotes(self, *args, **kwargs):
+        async def subscribe_bars(self, *args, **kwargs):
             pass
 
         async def subscribe_trades(self, *args, **kwargs):
             pass
 
-        async def subscribe_bars(self, *args, **kwargs):
+        async def subscribe_quotes(self, *args, **kwargs):
             pass
 
         async def subscribe_trade_updates(self, *args, **kwargs):
@@ -135,7 +135,7 @@ except ImportError:
         async def stop(self):
             pass
 
-    class AlpacaOrder:
+    class MockAlpacaOrder:
         def __init__(self):
             self.id = "mock_order"
             self.symbol = "MOCK"
@@ -145,49 +145,47 @@ except ImportError:
             self.qty = 0
             self.filled_qty = 0
             self.limit_price = None
-            self.filled_avg_price = None
-            self.submitted_at = None
-            self.filled_at = None
+            self.stop_price = None
+            self.trail_price = None
+            self.trail_percent = None
+            self.created_at = None
+            self.updated_at = None
             self.canceled_at = None
 
-    class AlpacaPosition:
+    class MockAlpacaPosition:
         def __init__(self):
             self.symbol = "MOCK"
             self.qty = 0
-            self.avg_entry_price = 0
+            self.side = "long"
             self.market_value = 0
-            self.unrealized_pl = 0
             self.cost_basis = 0
 
-    class TradeAccount:
+    class MockTradeAccount:
         def __init__(self):
             self.id = "mock_account"
-            self.buying_power = 0
-            self.portfolio_value = 0
-            self.daytrade_count = 0
-            self.pattern_day_trader = False
+            self.currency = "USD"
             self.equity = 0
             self.cash = 0
 
-    class TimeFrame:
+    class MockTimeFrame:
         Day = "1Day"
         Hour = "1Hour"
         Minute = "1Min"
 
-    class APIError(Exception):
+    class MockAPIError(Exception):
         pass
 
-    class AlpacaOrderSide:
+    class MockAlpacaOrderSide:
         BUY = "buy"
         SELL = "sell"
 
-    class AlpacaOrderType:
+    class MockAlpacaOrderType:
         MARKET = "market"
         LIMIT = "limit"
         STOP = "stop"
         STOP_LIMIT = "stop_limit"
 
-    class AlpacaOrderStatus:
+    class MockAlpacaOrderStatus:
         NEW = "new"
         PARTIALLY_FILLED = "partially_filled"
         FILLED = "filled"
@@ -197,13 +195,13 @@ except ImportError:
         REPLACED = "replaced"
         PENDING_CANCEL = "pending_cancel"
         PENDING_REPLACE = "pending_replace"
-        REJECTED = "rejected"
-        SUSPENDED = "suspended"
-        PENDING_NEW = "pending_new"
-        CALCULATED = "calculated"
         ACCEPTED = "accepted"
+        PENDING_NEW = "pending_new"
         ACCEPTED_FOR_BIDDING = "accepted_for_bidding"
         STOPPED = "stopped"
+        REJECTED = "rejected"
+        SUSPENDED = "suspended"
+        CALCULATED = "calculated"
 
     class TimeInForce:
         DAY = "day"
@@ -212,7 +210,19 @@ except ImportError:
         FOK = "fok"
 
     # Set aliases for consistency
-    AlpacaTimeInForce = TimeInForce
+    TradingClient = MockTradingClient  # type: ignore
+    StockHistoricalDataClient = MockStockHistoricalDataClient  # type: ignore
+    StockDataStream = MockStockDataStream  # type: ignore
+
+    AlpacaOrder = MockAlpacaOrder  # type: ignore
+    AlpacaPosition = MockAlpacaPosition  # type: ignore
+    TradeAccount = MockTradeAccount  # type: ignore
+    TimeFrame = MockTimeFrame  # type: ignore
+    APIError = MockAPIError  # type: ignore
+    AlpacaOrderSide = MockAlpacaOrderSide  # type: ignore
+    AlpacaOrderType = MockAlpacaOrderType  # type: ignore
+    AlpacaOrderStatus = MockAlpacaOrderStatus  # type: ignore
+    AlpacaTimeInForce = TimeInForce  # type: ignore
 
     class MarketOrderRequest:
         def __init__(self, **kwargs):
@@ -238,22 +248,26 @@ except ImportError:
         def __init__(self, **kwargs):
             pass
 
-    class StockBarsRequest:
+    class MockStockBarsRequest:
         def __init__(self, **kwargs):
             pass
 
-    class StockLatestQuoteRequest:
+    class MockStockLatestQuoteRequest:
         def __init__(self, **kwargs):
             pass
 
-    # Set aliases for consistency
-    AlpacaMarketOrderRequest = MarketOrderRequest
-    AlpacaLimitOrderRequest = LimitOrderRequest
-    AlpacaStopOrderRequest = StopOrderRequest
-    AlpacaStopLimitOrderRequest = StopLimitOrderRequest
-    AlpacaGetOrdersRequest = GetOrdersRequest
-    AlpacaClosePositionRequest = ClosePositionRequest
-    AlpacaTimeInForce = TimeInForce
+    # Assign aliases
+    StockBarsRequest = MockStockBarsRequest  # type: ignore
+    StockLatestQuoteRequest = MockStockLatestQuoteRequest  # type: ignore
+
+    # Mock aliases for consistency when Alpaca is not available
+    AlpacaMarketOrderRequest = MarketOrderRequest  # type: ignore
+    AlpacaLimitOrderRequest = LimitOrderRequest  # type: ignore
+    AlpacaStopOrderRequest = StopOrderRequest  # type: ignore
+    AlpacaStopLimitOrderRequest = StopLimitOrderRequest  # type: ignore
+    AlpacaGetOrdersRequest = GetOrdersRequest  # type: ignore
+    AlpacaClosePositionRequest = ClosePositionRequest  # type: ignore
+    AlpacaTimeInForce = TimeInForce  # type: ignore
 
     ALPACA_AVAILABLE = False
 
@@ -637,7 +651,9 @@ class AlpacaClient:
             ),
             symbol=(
                 alpaca_order.symbol
-                if alpaca_order and hasattr(alpaca_order, "symbol")
+                if alpaca_order
+                and hasattr(alpaca_order, "symbol")
+                and alpaca_order.symbol is not None
                 else original_request.symbol
             ),
             side=(
@@ -654,7 +670,9 @@ class AlpacaClient:
             ),
             quantity=(
                 int(float(alpaca_order.qty))
-                if alpaca_order and hasattr(alpaca_order, "qty")
+                if alpaca_order
+                and hasattr(alpaca_order, "qty")
+                and alpaca_order.qty is not None
                 else original_request.quantity
             ),
             filled_quantity=(
@@ -775,23 +793,25 @@ class AlpacaClient:
             # Create bracket order request
             if entry_price:
                 # Limit entry order
-                order_request = LimitOrderRequest(
-                    symbol=symbol,
-                    qty=quantity,
-                    side=alpaca_side,
-                    time_in_force=tif,
-                    limit_price=float(entry_price),
-                    order_class="bracket",
-                    take_profit=(
-                        {"limit_price": float(take_profit_price)}
-                        if take_profit_price
-                        else None
-                    ),
-                    stop_loss=(
-                        {"stop_price": float(stop_loss_price)}
-                        if stop_loss_price
-                        else None
-                    ),
+                order_request: Union[LimitOrderRequest, MarketOrderRequest] = (
+                    LimitOrderRequest(
+                        symbol=symbol,
+                        qty=quantity,
+                        side=alpaca_side,
+                        time_in_force=tif,
+                        limit_price=float(entry_price),
+                        order_class="bracket",
+                        take_profit=(
+                            {"limit_price": float(take_profit_price)}
+                            if take_profit_price
+                            else None
+                        ),
+                        stop_loss=(
+                            {"stop_price": float(stop_loss_price)}
+                            if stop_loss_price
+                            else None
+                        ),
+                    )
                 )
             else:
                 # Market entry order
@@ -1265,7 +1285,7 @@ class AlpacaClient:
                 )
             else:
                 request = StockBarsRequest(
-                    symbol_or_symbols=symbol, timeframe="1Hour", limit=1
+                    symbol_or_symbols=symbol, timeframe=TimeFrame.Hour, limit=1
                 )
             bars_data = self._data_client.get_stock_bars(request)
 
@@ -1375,14 +1395,14 @@ class AlpacaClient:
             start_time = datetime.now(timezone.utc)
 
             # Test basic API connectivity
-            account = await self.get_account(use_cache=False)
+            account = await self.get_account(use_cache=True)
             api_latency = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Test market data
             try:
                 quote = await self.get_latest_quote("SPY")
                 market_data_available = quote is not None
-            except:
+            except Exception:
                 market_data_available = False
 
             return {
@@ -1556,9 +1576,13 @@ class AlpacaClient:
             Number of day trades
         """
         try:
-            account = await self.get_account()
+            if not self._trading_client:
+                return 0
+            account = self._trading_client.get_account()
             if account and hasattr(account, "daytrade_count"):
-                return account.daytrade_count
+                return (
+                    account.daytrade_count if account.daytrade_count is not None else 0
+                )
             return 0
         except Exception as e:
             logger.error(f"Failed to get day trades count: {e}")
@@ -1572,9 +1596,15 @@ class AlpacaClient:
             True if pattern day trader, False otherwise
         """
         try:
-            account = await self.get_account()
+            if not self._trading_client:
+                return False
+            account = self._trading_client.get_account()
             if account and hasattr(account, "pattern_day_trader"):
-                return account.pattern_day_trader
+                return bool(
+                    account.pattern_day_trader
+                    if account.pattern_day_trader is not None
+                    else False
+                )
             return False
         except Exception as e:
             logger.error(f"Failed to check pattern day trader status: {e}")

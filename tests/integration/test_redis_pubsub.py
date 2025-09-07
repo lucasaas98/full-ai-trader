@@ -60,7 +60,7 @@ class RedisPubSubTester:
             host=redis_host, port=redis_port, db=redis_db, decode_responses=True
         )
         self.subscriber = None
-        self.received_messages = queue.Queue()
+        self.received_messages: queue.Queue = queue.Queue()
         self.subscription_active = False
 
     def start_subscriber(self, channels: List[str]):
@@ -156,8 +156,8 @@ class DatabaseTester:
 
     def __init__(self, db_config: Dict[str, str]):
         self.db_config = db_config
-        self.connection = None
-        self.cursor = None
+        self.connection: Optional[Any] = None
+        self.cursor: Optional[Any] = None
 
     def connect(self):
         """Connect to the database."""
@@ -169,8 +169,9 @@ class DatabaseTester:
                 user=self.db_config["user"],
                 password=self.db_config["password"],
             )
-            self.connection.autocommit = True
-            self.cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+            if self.connection:
+                self.connection.autocommit = True
+                self.cursor = self.connection.cursor(cursor_factory=RealDictCursor)
         except Exception as e:
             raise Exception(f"Failed to connect to database: {e}")
 
@@ -181,7 +182,9 @@ class DatabaseTester:
         if self.connection:
             self.connection.close()
 
-    def execute_query(self, query: str, params: Optional[tuple] = None) -> List[Dict]:
+    def execute_query(
+        self, query: str, params: Optional[tuple] = None
+    ) -> Dict[str, Any]:
         """Execute a query and return results."""
         if not self.cursor:
             raise Exception("Not connected to database")
@@ -198,7 +201,7 @@ class DatabaseTester:
                 "duration_ms": duration_ms,
                 "row_count": len(results),
             }
-            return result_dict["results"]
+            return result_dict
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             error_dict = {
@@ -207,7 +210,7 @@ class DatabaseTester:
                 "duration_ms": duration_ms,
                 "error": str(e),
             }
-            return error_dict["results"]
+            return error_dict
 
     def insert_market_data(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """Insert market data and measure performance."""
@@ -317,7 +320,7 @@ def database_tester():
     """Create database tester."""
     db_config = {
         "host": "localhost",
-        "port": 5432,
+        "port": "5432",
         "database": os.getenv("DB_NAME", "test_trading_system"),
         "user": os.getenv("DB_USER", "trader"),
         "password": os.getenv("DB_PASSWORD", "password"),
@@ -688,7 +691,7 @@ class TestDatabaseOperations:
             """Worker function for concurrent database access."""
             worker_db_config = {
                 "host": "localhost",
-                "port": 5432,
+                "port": "5432",
                 "database": os.getenv("DB_NAME", "test_trading_system"),
                 "user": os.getenv("DB_USER", "trader"),
                 "password": os.getenv("DB_PASSWORD", "password"),
@@ -722,7 +725,7 @@ class TestDatabaseOperations:
         import threading
 
         worker_count = 10
-        worker_results = []
+        worker_results: list[list] = []
         threads = []
 
         start_time = time.time()
@@ -743,7 +746,11 @@ class TestDatabaseOperations:
         # Analyze results
         total_operations = sum(len(worker_result) for worker_result in worker_results)
         successful_operations = sum(
-            sum(1 for op in worker_result if op["success"])
+            sum(
+                1
+                for op in worker_result
+                if isinstance(op, dict) and op.get("success", False)
+            )
             for worker_result in worker_results
         )
 
@@ -752,14 +759,14 @@ class TestDatabaseOperations:
 
         assert (
             success_rate > 0.95
-        ), f"Concurrent access success rate too low: {success_rate*100:.1f}%"
+        ), f"Concurrent access success rate too low: {success_rate * 100:.1f}%"
         assert (
             operations_per_second > 50
         ), f"Concurrent operation rate too low: {operations_per_second:.2f}/sec"
 
         print(
             f"Concurrent database test: {operations_per_second:.2f} ops/sec, "
-            f"{success_rate*100:.1f}% success rate"
+            f"{success_rate * 100:.1f}% success rate"
         )
 
     def test_transaction_consistency(self, database_tester):
@@ -937,11 +944,14 @@ class TestServiceCommunication:
             "action": execution_data["action"],
             "quantity": execution_data["quantity"],
             "price": execution_data["price"],
-            "value": execution_data["quantity"] * execution_data["price"],
+            "value": float(str(execution_data["quantity"]))
+            * float(str(execution_data["price"])),
             "strategy_id": trading_signal["strategy"],
             "order_id": execution_data["order_id"],
             "execution_time": datetime.fromisoformat(
-                execution_data["execution_time"].replace("Z", "+00:00")
+                str(execution_data["execution_time"]).replace("Z", "+00:00")
+                if isinstance(execution_data["execution_time"], str)
+                else str(execution_data["execution_time"]).replace("Z", "+00:00")
             ),
             "status": execution_data["status"],
             "fees": 1.0,
@@ -1127,7 +1137,8 @@ class TestEndToEndTradingFlow:
             "action": trading_signal["action"],
             "quantity": trading_signal["quantity"],
             "price": market_data["price"],
-            "value": trading_signal["quantity"] * market_data["price"],
+            "value": float(str(trading_signal["quantity"]))
+            * float(str(market_data["price"])),
             "status": "FILLED",
             "execution_time": datetime.now(timezone.utc).isoformat(),
             "fees": 1.50,
@@ -1177,10 +1188,10 @@ class TestEndToEndTradingFlow:
             "strategy_id": trading_signal["strategy"],
             "order_id": trade_execution["order_id"],
             "execution_time": datetime.fromisoformat(
-                trade_execution["execution_time"].replace("Z", "+00:00")
+                str(trade_execution["execution_time"]).replace("Z", "+00:00")
             ),
             "status": trade_execution["status"],
-            "fees": trade_execution["fees"],
+            "fees": float(str(trade_execution["fees"])),
         }
 
         db_result = database_tester.insert_trade(db_trade_data)
@@ -1321,8 +1332,8 @@ class TestDatabaseIntegration:
         # Run concurrent workers
         import threading
 
-        write_results = []
-        read_results = []
+        write_results: list[dict] = []
+        read_results: list[dict] = []
         threads = []
 
         # Start writer threads
@@ -1377,7 +1388,7 @@ class TestDatabaseIntegration:
             "action": "BUY",
             "quantity": 50,
             "price": market_data["price"],
-            "value": 50 * market_data["price"],
+            "value": 50 * float(str(market_data["price"])),
             "strategy_id": "consistency_test",
             "order_id": str(uuid.uuid4()),
             "execution_time": datetime.now(timezone.utc),
@@ -1457,13 +1468,13 @@ class TestDatabaseIntegration:
 
         assert (
             success_rate > 0.95
-        ), f"Database success rate too low: {success_rate*100:.1f}%"
+        ), f"Database success rate too low: {success_rate * 100:.1f}%"
         assert (
             operations_per_second > 100
         ), f"Database throughput too low: {operations_per_second:.2f} ops/sec"
 
         print(
-            f"Database load test: {operations_per_second:.2f} ops/sec, {success_rate*100:.1f}% success rate"
+            f"Database load test: {operations_per_second:.2f} ops/sec, {success_rate * 100:.1f}% success rate"
         )
 
 
@@ -1509,9 +1520,9 @@ class TestDataPipeline:
                 "processed": True,
                 "processing_time": datetime.now(timezone.utc).isoformat(),
                 "technical_indicators": {
-                    "sma_20": data["price"] * 0.98,
+                    "sma_20": float(str(data["price"])) * 0.98,
                     "rsi": 65.5,
-                    "volume_avg": data["volume"] * 1.1,
+                    "volume_avg": float(str(data["volume"])) * 1.1,
                 },
             }
 
@@ -2140,7 +2151,7 @@ class TestIntegrationPerformance:
             # Allow 10% variance in throughput
             assert (
                 accuracy >= 0.9
-            ), f"Throughput too low for {target}/s: {actual:.2f}/s ({accuracy*100:.1f}%)"
+            ), f"Throughput too low for {target}/s: {actual:.2f}/s ({accuracy * 100:.1f}%)"
 
         # Verify messages received
         final_messages = redis_tester.get_messages(timeout=5.0)
@@ -2150,7 +2161,7 @@ class TestIntegrationPerformance:
         message_loss_rate = 1 - (len(final_messages) / total_expected)
         assert (
             message_loss_rate < 0.05
-        ), f"Message loss rate too high: {message_loss_rate*100:.1f}%"
+        ), f"Message loss rate too high: {message_loss_rate * 100:.1f}%"
 
         print(
             f"Throughput scalability test completed: {len(final_messages)}/{total_expected} messages received"

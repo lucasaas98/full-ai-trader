@@ -290,7 +290,9 @@ class RetryManager:
         """Check if circuit breaker is open."""
         try:
             if self.redis:
-                circuit_data = await self.redis.hgetall(f"circuit:{key}")
+                circuit_data = self.redis.hgetall(f"circuit:{key}")
+                if hasattr(circuit_data, "__await__"):
+                    circuit_data = await circuit_data
             else:
                 return False
             if not circuit_data:
@@ -316,11 +318,19 @@ class RetryManager:
     async def _record_circuit_failure(self, key: str):
         """Record failure in circuit breaker."""
         try:
-            await self.redis.hincrby(f"circuit:{key}", "failures", 1)
-            await self.redis.hset(
+            result = self.redis.hincrby(f"circuit:{key}", "failures", 1)
+            if hasattr(result, "__await__"):
+                await result
+            hset_result = self.redis.hset(
                 f"circuit:{key}", "last_failure", datetime.now(timezone.utc).isoformat()
             )
-            await self.redis.expire(f"circuit:{key}", 3600)  # Expire after 1 hour
+            if hasattr(hset_result, "__await__"):
+                await hset_result
+            expire_result = self.redis.expire(
+                f"circuit:{key}", 3600
+            )  # Expire after 1 hour
+            if hasattr(expire_result, "__await__"):
+                await expire_result
 
         except Exception as e:
             logger.error(f"Error recording circuit failure {key}: {e}")
@@ -328,7 +338,9 @@ class RetryManager:
     async def _reset_circuit_breaker(self, key: str):
         """Reset circuit breaker on success."""
         try:
-            await self.redis.delete(f"circuit:{key}")
+            delete_result = self.redis.delete(f"circuit:{key}")
+            if hasattr(delete_result, "__await__"):
+                await delete_result
 
         except Exception as e:
             logger.error(f"Error resetting circuit breaker {key}: {e}")
@@ -344,10 +356,16 @@ class RetryManager:
                 "retry_count": context.get("attempts", 0),
             }
 
-            await self.redis.lpush("execution_dlq", json.dumps(dlq_entry, default=str))
+            lpush_result = self.redis.lpush(
+                "execution_dlq", json.dumps(dlq_entry, default=str)
+            )
+            if hasattr(lpush_result, "__await__"):
+                await lpush_result
 
             # Keep only last 1000 entries
-            await self.redis.ltrim("execution_dlq", 0, 999)
+            ltrim_result = self.redis.ltrim("execution_dlq", 0, 999)
+            if hasattr(ltrim_result, "__await__"):
+                await ltrim_result
 
             logger.error(f"Sent to DLQ: {operation} - {error}")
 
@@ -441,9 +459,11 @@ class MarketDataUtils:
             return Decimal("0")
 
         # Calculate returns
-        returns = []
+        returns: List[Decimal] = []
         for i in range(1, min(len(prices), periods + 1)):
-            ret = (prices[i] - prices[i - 1]) / prices[i - 1]
+            ret = (Decimal(str(prices[i])) - Decimal(str(prices[i - 1]))) / Decimal(
+                str(prices[i - 1])
+            )
             returns.append(ret)
 
         if not returns:
@@ -451,7 +471,9 @@ class MarketDataUtils:
 
         # Calculate standard deviation
         mean_return = sum(returns) / len(returns)
-        variance = sum((ret - mean_return) ** 2 for ret in returns) / len(returns)
+        variance = sum(
+            float((float(ret) - float(mean_return)) ** 2) for ret in returns
+        ) / len(returns)
 
         return (
             Decimal(str(math.sqrt(float(variance)))) if variance > 0 else Decimal("0")
@@ -484,8 +506,8 @@ class MarketDataUtils:
                 gains.append(Decimal("0"))
                 losses.append(abs(change))
 
-        avg_gain = sum(gains) / periods
-        avg_loss = sum(losses) / periods
+        avg_gain = sum(gains) / Decimal(str(periods))
+        avg_loss = sum(losses) / Decimal(str(periods))
 
         if avg_loss == 0:
             return Decimal("100")
@@ -498,7 +520,7 @@ class MarketDataUtils:
     @staticmethod
     def is_market_hours() -> bool:
         """Check if current time is within market hours."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         import pytz
 
@@ -767,7 +789,7 @@ class TimeUtils:
     def get_next_market_open() -> datetime:
         """Get next market open time."""
         # import pytz  # Commented out unused import
-        from datetime import time, timezone
+        from datetime import time
 
         ny_tz = TimeUtils.get_market_timezone()
         now = datetime.now(ny_tz)
@@ -832,11 +854,23 @@ class NotificationUtils:
             }
 
             # Publish to alerts channel
-            await self.redis.publish("alerts:execution", json.dumps(alert, default=str))
+            publish_result = self.redis.publish(
+                "alerts:execution", json.dumps(alert, default=str)
+            )
+            if hasattr(publish_result, "__await__"):
+                await publish_result
 
             # Store in alerts list for persistence
-            await self.redis.lpush("alerts:history", json.dumps(alert, default=str))
-            await self.redis.ltrim("alerts:history", 0, 999)  # Keep last 1000 alerts
+            lpush_result = self.redis.lpush(
+                "alerts:history", json.dumps(alert, default=str)
+            )
+            if hasattr(lpush_result, "__await__"):
+                await lpush_result
+            ltrim_result = self.redis.ltrim(
+                "alerts:history", 0, 999
+            )  # Keep last 1000 alerts
+            if hasattr(ltrim_result, "__await__"):
+                await ltrim_result
 
             logger.info(f"Alert sent: {symbol} - {message}")
 
@@ -864,11 +898,19 @@ class NotificationUtils:
                 "service": "trade_executor",
             }
 
-            await self.redis.publish("alerts:risk", json.dumps(alert, default=str))
-            await self.redis.lpush(
+            publish_result = self.redis.publish(
+                "alerts:risk", json.dumps(alert, default=str)
+            )
+            if hasattr(publish_result, "__await__"):
+                await publish_result
+            lpush_result = self.redis.lpush(
                 "alerts:risk_history", json.dumps(alert, default=str)
             )
-            await self.redis.ltrim("alerts:risk_history", 0, 999)
+            if hasattr(lpush_result, "__await__"):
+                await lpush_result
+            ltrim_result = self.redis.ltrim("alerts:risk_history", 0, 999)
+            if hasattr(ltrim_result, "__await__"):
+                await ltrim_result
 
             logger.warning(f"Risk alert: {symbol} - {message}")
 
@@ -970,7 +1012,7 @@ def rate_limit(max_calls: int, period: int):
     """
 
     def decorator(func):
-        calls = []
+        calls: list = []
 
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -1310,15 +1352,25 @@ class MetricsCollector:
     def __init__(self, redis_client: redis.Redis):
         """Initialize metrics collector."""
         self.redis = redis_client
-        self._metrics_buffer = {}
+        self._metrics_buffer: dict[str, Any] = {}
 
     async def record_execution_time(self, operation: str, execution_time: float):
         """Record execution time for an operation."""
         try:
             metric_key = f"metrics:execution_time:{operation}"
-            await self.redis.lpush(metric_key, execution_time)
-            await self.redis.ltrim(metric_key, 0, 999)  # Keep last 1000 measurements
-            await self.redis.expire(metric_key, 3600 * 24)  # Expire after 24 hours
+            lpush_result = self.redis.lpush(metric_key, execution_time)
+            if hasattr(lpush_result, "__await__"):
+                await lpush_result
+            ltrim_result = self.redis.ltrim(
+                metric_key, 0, 999
+            )  # Keep last 1000 measurements
+            if hasattr(ltrim_result, "__await__"):
+                await ltrim_result
+            expire_result = self.redis.expire(
+                metric_key, 3600 * 24
+            )  # Expire after 24 hours
+            if hasattr(expire_result, "__await__"):
+                await expire_result
 
         except Exception as e:
             logger.error(f"Failed to record execution time: {e}")
@@ -1326,8 +1378,14 @@ class MetricsCollector:
     async def record_counter(self, metric_name: str, value: int = 1):
         """Record counter metric."""
         try:
-            await self.redis.incrby(f"metrics:counter:{metric_name}", value)
-            await self.redis.expire(f"metrics:counter:{metric_name}", 3600 * 24)
+            incrby_result = self.redis.incrby(f"metrics:counter:{metric_name}", value)
+            if hasattr(incrby_result, "__await__"):
+                await incrby_result
+            expire_result = self.redis.expire(
+                f"metrics:counter:{metric_name}", 3600 * 24
+            )
+            if hasattr(expire_result, "__await__"):
+                await expire_result
 
         except Exception as e:
             logger.error(f"Failed to record counter: {e}")
@@ -1335,8 +1393,12 @@ class MetricsCollector:
     async def record_gauge(self, metric_name: str, value: float):
         """Record gauge metric."""
         try:
-            await self.redis.set(f"metrics:gauge:{metric_name}", value)
-            await self.redis.expire(f"metrics:gauge:{metric_name}", 3600 * 24)
+            set_result = self.redis.set(f"metrics:gauge:{metric_name}", value)
+            if hasattr(set_result, "__await__"):
+                await set_result
+            expire_result = self.redis.expire(f"metrics:gauge:{metric_name}", 3600 * 24)
+            if hasattr(expire_result, "__await__"):
+                await expire_result
 
         except Exception as e:
             logger.error(f"Failed to record gauge: {e}")
@@ -1344,36 +1406,47 @@ class MetricsCollector:
     async def get_metrics_summary(self) -> Dict[str, Any]:
         """Get summary of all metrics."""
         try:
-            # Get all metric keys
+            # Get all metric keys (redis.asyncio always returns awaitables)
             counter_keys = await self.redis.keys("metrics:counter:*")
             gauge_keys = await self.redis.keys("metrics:gauge:*")
             execution_time_keys = await self.redis.keys("metrics:execution_time:*")
 
-            metrics = {"counters": {}, "gauges": {}, "execution_times": {}}
+            metrics: dict[str, Any] = {
+                "counters": {},
+                "gauges": {},
+                "execution_times": {},
+            }
 
             # Get counter values
-            for key in counter_keys:
-                metric_name = key.decode().replace("metrics:counter:", "")
-                value = await self.redis.get(key)
-                metrics["counters"][metric_name] = int(value) if value else 0
+            if counter_keys:
+                for key in counter_keys:
+                    metric_name = key.decode().replace("metrics:counter:", "")
+                    value = await self.redis.get(key)
+                    metrics["counters"][metric_name] = int(value) if value else 0
 
             # Get gauge values
-            for key in gauge_keys:
-                metric_name = key.decode().replace("metrics:gauge:", "")
-                value = await self.redis.get(key)
-                metrics["gauges"][metric_name] = float(value) if value else 0.0
+            if gauge_keys:
+                for key in gauge_keys:
+                    metric_name = key.decode().replace("metrics:gauge:", "")
+                    value = await self.redis.get(key)
+                    metrics["gauges"][metric_name] = float(value) if value else 0.0
 
             # Get execution time averages
-            for key in execution_time_keys:
-                metric_name = key.decode().replace("metrics:execution_time:", "")
-                values = await self.redis.lrange(key, 0, -1)
-                if values:
-                    avg_time = sum(float(v) for v in values) / len(values)
-                    metrics["execution_times"][metric_name] = {
-                        "avg": avg_time,
-                        "count": len(values),
-                        "latest": float(values[0]) if values else 0,
-                    }
+            if execution_time_keys:
+                for key in execution_time_keys:
+                    metric_name = key.decode().replace("metrics:execution_time:", "")
+                    values_result = self.redis.lrange(key, 0, -1)
+                    if hasattr(values_result, "__await__"):
+                        values = await values_result
+                    else:
+                        values = values_result
+                    if values:
+                        avg_time = sum(float(v) for v in values) / len(values)
+                        metrics["execution_times"][metric_name] = {
+                            "avg": avg_time,
+                            "count": len(values),
+                            "latest": float(values[0]) if values else 0,
+                        }
 
             return metrics
 
@@ -1659,7 +1732,7 @@ async def wait_for_market_open(max_wait_hours: int = 24):
         )  # Max 1 hour wait
 
         logger.info(
-            f"Market closed, waiting {wait_time/60:.1f} minutes until next check"
+            f"Market closed, waiting {wait_time / 60:.1f} minutes until next check"
         )
         await asyncio.sleep(wait_time)
 
@@ -1672,7 +1745,7 @@ class ExecutionQueue:
     def __init__(self, redis_client: redis.Redis):
         """Initialize execution queue."""
         self.redis = redis_client
-        self._processors = {}
+        self._processors: dict[str, Any] = {}
 
     async def enqueue_signal(self, signal: Dict[str, Any], priority: int = 0):
         """Enqueue a signal for processing."""
@@ -1779,7 +1852,7 @@ def create_correlation_matrix(
     symbols: List[str], correlations: Dict[Tuple[str, str], float]
 ) -> Dict[str, Dict[str, float]]:
     """Create correlation matrix from pairwise correlations."""
-    matrix = {}
+    matrix: dict[str, Any] = {}
 
     for symbol1 in symbols:
         matrix[symbol1] = {}

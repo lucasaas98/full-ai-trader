@@ -8,16 +8,15 @@ ensuring accuracy and proper handling of edge cases.
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
 import numpy as np
 import polars as pl
 import pytest
 
+from services.strategy_engine.src.technical_analysis import TechnicalIndicators
+
 # Add project root to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from services.strategy_engine.src.technical_analysis import TechnicalIndicators
 
 
 class TestTechnicalIndicators:
@@ -131,13 +130,13 @@ class TestTechnicalIndicators:
         # First drop nulls and NaN values
         valid_rsi = rsi_values.drop_nulls()
         # Filter out any remaining NaN values that might not be caught by drop_nulls
-        valid_rsi = [
+        valid_rsi_list = [
             val for val in valid_rsi if not (isinstance(val, float) and val != val)
         ]
 
-        assert len(valid_rsi) > 0
+        assert len(valid_rsi_list) > 0
         # RSI should be between 0 and 100
-        assert all(0 <= val <= 100 for val in valid_rsi)
+        assert all(0 <= val <= 100 for val in valid_rsi_list)
 
     @pytest.mark.unit
     def test_macd_calculation(self, sample_price_data):
@@ -148,10 +147,6 @@ class TestTechnicalIndicators:
         assert "macd_line" in result.columns
         assert "macd_signal" in result.columns
         assert "macd_histogram" in result.columns
-
-        macd_line = result.select("macd_line").to_series()
-        macd_signal = result.select("macd_signal").to_series()
-        macd_histogram = result.select("macd_histogram").to_series()
 
         # Histogram should be difference between MACD and signal
         valid_data = result.filter(
@@ -323,14 +318,14 @@ class TestTechnicalIndicators:
 
         # Zero or negative period should return empty results or handle gracefully
         try:
-            result_zero = TechnicalIndicators.sma(sample_price_data, period=0)
+            TechnicalIndicators.sma(sample_price_data, period=0)
             # If it doesn't raise an exception, it should handle gracefully
         except (ValueError, Exception):
             # It's also acceptable to raise an exception
             pass
 
         try:
-            result_negative = TechnicalIndicators.sma(sample_price_data, period=-5)
+            TechnicalIndicators.sma(sample_price_data, period=-5)
             # If it doesn't raise an exception, it should handle gracefully
         except (ValueError, Exception):
             # It's also acceptable to raise an exception

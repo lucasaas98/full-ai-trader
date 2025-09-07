@@ -11,10 +11,10 @@ import json
 import logging
 import sys
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
-import pandas as pd
 import polars as pl
 import redis.asyncio as redis
 from pydantic import BaseModel, Field
@@ -23,8 +23,8 @@ from pydantic import BaseModel, Field
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from shared.config import get_config
-from shared.models import AssetType, FinVizData, MarketData, TimeFrame
+from shared.config import get_config  # noqa: E402
+from shared.models import AssetType, FinVizData, MarketData, TimeFrame  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class MockDataCollector:
                 host=config.redis.host,
                 port=config.redis.port,
                 password=config.redis.password,
-                db=config.redis.db,
+                db=config.redis.database,
                 decode_responses=True,
             )
 
@@ -236,10 +236,11 @@ class MockDataCollector:
                             .replace("h", "_hour")
                             .replace("d", "_day")
                         ),
-                        open=float(latest_record["open"]),
-                        high=float(latest_record["high"]),
-                        low=float(latest_record["low"]),
-                        close=float(latest_record["close"]),
+                        open=Decimal(str(latest_record["open"])),
+                        high=Decimal(str(latest_record["high"])),
+                        low=Decimal(str(latest_record["low"])),
+                        close=Decimal(str(latest_record["close"])),
+                        adjusted_close=Decimal(str(latest_record["close"])),
                         volume=int(latest_record["volume"]),
                         asset_type=AssetType.STOCK,
                     )
@@ -283,6 +284,7 @@ class MockDataCollector:
                             latest = daily_data.tail(1).to_dicts()[0]
 
                             finviz_data = FinVizData(
+                                ticker=symbol,
                                 symbol=symbol,
                                 company=f"{symbol} Corporation",
                                 sector=(
@@ -296,9 +298,9 @@ class MockDataCollector:
                                     else "ETF" if symbol in ["SPY", "QQQ"] else "Auto"
                                 ),
                                 country="USA",
-                                market_cap="1B-10B",
+                                market_cap=Decimal("1000000000"),
                                 pe_ratio=25.5,
-                                price=float(latest["close"]),
+                                price=Decimal(str(latest["close"])),
                                 change=float(latest["close"] - latest["open"]),
                                 volume=int(latest["volume"]),
                             )
@@ -365,10 +367,11 @@ class MockDataCollector:
                         .replace("h", "_hour")
                         .replace("d", "_day")
                     ),
-                    open=float(record["open"]),
-                    high=float(record["high"]),
-                    low=float(record["low"]),
-                    close=float(record["close"]),
+                    open=Decimal(str(record["open"])),
+                    high=Decimal(str(record["high"])),
+                    low=Decimal(str(record["low"])),
+                    close=Decimal(str(record["close"])),
+                    adjusted_close=Decimal(str(record["close"])),
                     volume=int(record["volume"]),
                     asset_type=AssetType.STOCK,
                 )

@@ -1,8 +1,5 @@
-import asyncio
-import json
-from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,9 +7,6 @@ from fastapi.testclient import TestClient
 from services.risk_manager.src.main import app
 from shared.config import Config
 from shared.models import (
-    OrderRequest,
-    OrderSide,
-    OrderType,
     PortfolioMetrics,
     PortfolioState,
     Position,
@@ -21,11 +15,8 @@ from shared.models import (
     RiskAlert,
     RiskEvent,
     RiskEventType,
-    RiskLimits,
     RiskParameters,
     RiskSeverity,
-    SignalType,
-    TradeSignal,
 )
 
 
@@ -138,7 +129,7 @@ class TestRiskManagerAPI:
 
         with patch("src.main.risk_manager") as mock_rm, patch(
             "src.main.portfolio_monitor"
-        ) as mock_pm:
+        ):
 
             mock_rm.validate_order.return_value = (True, "Order validated successfully")
 
@@ -260,7 +251,7 @@ class TestRiskManagerAPI:
         """Test portfolio monitoring endpoint"""
         with patch("src.main.portfolio_monitor") as mock_pm, patch(
             "src.main.alert_manager"
-        ) as mock_am:
+        ):
 
             mock_metrics = PortfolioMetrics(
                 total_exposure=Decimal("158000.00"),
@@ -312,9 +303,7 @@ class TestRiskManagerAPI:
         """Test emergency stop endpoint"""
         request_data = {"reason": "Market crash detected"}
 
-        with patch("src.main.risk_manager") as mock_rm, patch(
-            "src.main.alert_manager"
-        ) as mock_am:
+        with patch("src.main.risk_manager") as mock_rm, patch("src.main.alert_manager"):
 
             mock_rm.activate_emergency_stop.return_value = True
 

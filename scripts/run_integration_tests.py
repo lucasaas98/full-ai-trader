@@ -10,7 +10,6 @@ This script manages the complete lifecycle of integration tests including:
 """
 
 import argparse
-import asyncio
 import json
 import logging
 import os
@@ -19,7 +18,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 # Set up project path
 project_root = Path(__file__).parent.parent
@@ -274,7 +273,7 @@ class IntegrationTestRunner:
         """Run the integration tests."""
         logger.info("🧪 Running integration tests...")
 
-        test_results = {
+        test_results: Dict[str, Any] = {
             "start_time": datetime.now(timezone.utc).isoformat(),
             "tests_run": 0,
             "tests_passed": 0,

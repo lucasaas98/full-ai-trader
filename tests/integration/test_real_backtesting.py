@@ -5,17 +5,12 @@ This module tests the complete backtesting system that runs the actual AI strate
 against historical data, simulating real trading conditions.
 """
 
-import asyncio
 import logging
 import os
 import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from pathlib import Path
-from typing import Dict, List, Optional
 
-import pandas as pd
-import polars as pl
 import pytest
 
 # Add project paths
@@ -27,18 +22,17 @@ sys.path.append(
     os.path.join(os.path.dirname(__file__), "../../services/strategy_engine/src")
 )
 
-from data_store import DataStore, DataStoreConfig
-from real_backtest_engine import (
+from data_store import DataStore, DataStoreConfig  # noqa: E402
+from real_backtest_engine import (  # noqa: E402
     BacktestMode,
     HistoricalDataFeeder,
     MockRedisClient,
     RealBacktestConfig,
     RealBacktestEngine,
     run_monthly_backtest,
-    run_previous_month_backtest,
 )
 
-from shared.models import SignalType, TimeFrame
+from shared.models import SignalType, TimeFrame  # noqa: E402
 
 # Configure logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -225,7 +219,7 @@ class TestRealBacktestEngine:
             assert isinstance(results.portfolio_values, list)
 
             # Log results for inspection
-            logger.info(f"Backtest completed:")
+            logger.info("Backtest completed:")
             logger.info(f"  Total return: {results.total_return:.2%}")
             logger.info(f"  Total trades: {results.total_trades}")
             logger.info(f"  AI calls: {results.total_ai_calls}")
@@ -509,7 +503,7 @@ class TestPerformanceAndScalability:
 
         try:
             engine = RealBacktestEngine(config)
-            results = await engine.run_backtest()
+            _ = await engine.run_backtest()
 
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
             memory_increase = final_memory - initial_memory
@@ -528,4 +522,4 @@ class TestPerformanceAndScalability:
 
 if __name__ == "__main__":
     # Allow running tests directly
-    asyncio.run(pytest.main([__file__, "-v"]))
+    pytest.main([__file__, "-v"])

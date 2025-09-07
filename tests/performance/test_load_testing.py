@@ -55,8 +55,8 @@ class LoadTestRunner:
     def __init__(self, base_url: str = "http://localhost", timeout: int = 30):
         self.base_url = base_url
         self.timeout = timeout
-        self.session = None
-        self.results = []
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.results: List[Dict[str, Any]] = []
 
     async def __aenter__(self):
         """Async context manager entry"""
@@ -144,7 +144,7 @@ class LoadTestRunner:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and convert to results
-        valid_results = []
+        valid_results: List[Dict[str, Any]] = []
         for result in results:
             if isinstance(result, Exception):
                 valid_results.append(
@@ -157,7 +157,7 @@ class LoadTestRunner:
                         "timestamp": datetime.now(timezone.utc),
                     }
                 )
-            else:
+            elif isinstance(result, dict):
                 valid_results.append(result)
 
         return valid_results
@@ -432,10 +432,14 @@ class TradingSystemLoadTests:
                             }
                         },
                     ) as response:
-                        execution_result = await response.json()
-                        execution_time = time.time() - execution_start
+                        await response.json()
+                        execution_time = int(
+                            (time.time() - execution_start) * 1000
+                        )  # Convert to milliseconds
 
-                total_time = time.time() - flow_start
+                total_time = int(
+                    (time.time() - flow_start) * 1000
+                )  # Convert to milliseconds
 
                 return {
                     "flow_id": flow_id,
@@ -471,11 +475,6 @@ class TradingSystemLoadTests:
         # Analyze end-to-end performance
         successful_flows = [
             r for r in flow_results if isinstance(r, dict) and r.get("success", False)
-        ]
-        failed_flows = [
-            r
-            for r in flow_results
-            if isinstance(r, dict) and not r.get("success", True)
         ]
 
         assert len(successful_flows) > 40  # At least 80% success rate
@@ -573,7 +572,6 @@ class DatabaseLoadTests:
 
         # Analyze database performance
         successful_ops = [r for r in db_results if r["success"]]
-        failed_ops = [r for r in db_results if not r["success"]]
 
         assert len(successful_ops) > 475  # At least 95% success rate
 
@@ -824,14 +822,13 @@ class MemoryLeakTests:
                     await mock_ws.send(json.dumps({"type": "heartbeat"}))
 
                     # Receive data
-                    data = await mock_ws.recv()
-                    message = json.loads(data)
+                    await mock_ws.recv()
                     message_count += 1
 
                     # Brief processing delay
                     await asyncio.sleep(0.001)
 
-                except Exception as e:
+                except Exception:
                     # Connection issues should be handled gracefully
                     break
 

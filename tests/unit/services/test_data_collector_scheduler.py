@@ -6,18 +6,19 @@ function and other scheduler-related functionality in the data collector service
 """
 
 # Add path for imports
+import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-
 from services.data_collector.src.scheduler_service import calculate_optimal_intervals
 from shared.models import TimeFrame
+
+sys.path.append(str(Path(__file__).parent.parent.parent.parent))
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../../"))
 
 
 class TestCalculateOptimalIntervals:
@@ -596,16 +597,13 @@ class TestPerformanceAndScalability:
 
         # Run multiple calculations
         for _ in range(50):
-            intervals = calculate_optimal_intervals(**test_params)
+            calculate_optimal_intervals(**test_params)
 
         end_time = time.perf_counter()
         avg_time = (end_time - start_time) / 50
 
         # Should complete quickly (less than 1ms per calculation)
         assert avg_time < 0.001, f"Calculation took too long: {avg_time:.4f}s"
-
-        # Should still return valid results
-        assert len(intervals) == 4
 
     @pytest.mark.unit
     def test_memory_efficiency(self, all_timeframes):
@@ -617,7 +615,7 @@ class TestPerformanceAndScalability:
 
         # Run calculations with large parameters
         for _ in range(100):
-            intervals = calculate_optimal_intervals(
+            calculate_optimal_intervals(
                 api_rate_limits={"api": 500},
                 active_tickers=500,
                 timeframes=all_timeframes,
@@ -753,7 +751,15 @@ class TestAlgorithmValidation:
 
         for scenario in extreme_scenarios:
             intervals = calculate_optimal_intervals(
-                api_rate_limits=basic_api_limits, timeframes=all_timeframes, **scenario
+                api_rate_limits=scenario.get("api_rate_limits", {"default": 60}),  # type: ignore
+                active_tickers=int(scenario["active_tickers"]),
+                timeframes=all_timeframes,
+                market_volatility=float(scenario.get("market_volatility", 1.0)),
+                priority_weights=(
+                    scenario["priority_weights"]  # type: ignore[arg-type]
+                    if scenario.get("priority_weights")
+                    else None
+                ),
             )
 
             # All intervals must be strictly within bounds

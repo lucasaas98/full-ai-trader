@@ -23,12 +23,12 @@ sys.path.append("/app/services/risk_manager/src")
 sys.path.append("/app/services/scheduler/src")
 
 # Mock model classes for testing
-from enum import Enum
-from typing import Optional
-from uuid import UUID
+from enum import Enum  # noqa: E402
+from typing import Optional  # noqa: E402
+from uuid import UUID  # noqa: E402
 
-from shared.market_hours import MarketSession
-from shared.models import (
+from shared.market_hours import MarketSession  # noqa: E402
+from shared.models import (  # noqa: E402
     MarketData,
     OrderSide,
     OrderStatus,
@@ -711,7 +711,7 @@ class TestEndToEndTradeFlow:
         # Generate market data for all symbols
         market_data_batch = []
         for i, symbol in enumerate(symbols):
-            base_price = Decimal(f"{100 + i*50}.00")
+            base_price = Decimal(f"{100 + i * 50}.00")
             data = MarketData(
                 symbol=symbol,
                 timestamp=datetime.now(timezone.utc),
@@ -1175,7 +1175,7 @@ class TestEndToEndTradeFlow:
         redis_client = trading_system_setup["redis_client"]
 
         # Test message delivery with Redis failures
-        message_queue = []
+        message_queue: list = []
 
         async def mock_redis_publish(channel, message):
             if len(message_queue) < 3:  # First 3 fail
@@ -2037,9 +2037,11 @@ class TestDataFlowIntegration:
             strategy = mock_strategy.return_value
             strategy.update_parameters = AsyncMock()
 
-            await strategy.update_parameters(
-                new_config["strategy_parameters"]["momentum"]
-            )
+            if new_config:
+                config_dict = new_config  # type: ignore
+                await strategy.update_parameters(
+                    config_dict["strategy_parameters"]["momentum"]  # type: ignore
+                )
 
             strategy.update_parameters.assert_called_once()
 
@@ -2458,7 +2460,7 @@ class TestComplexScenarioIntegration:
 
         # Execute optimization trades
         optimization_signals = []
-        for trade_rec in optimization_result["rebalancing_trades"]:
+        for trade_rec in list(optimization_result["rebalancing_trades"]):  # type: ignore
             if trade_rec["action"] in ["REDUCE", "SELL"]:
                 signal_type = SignalType.SELL
             else:
@@ -2483,7 +2485,6 @@ class TestComplexScenarioIntegration:
         with patch("risk_manager.RiskManager") as mock_risk:
             risk_manager = mock_risk.return_value
 
-            all_approved = True
             assessments = []
 
             for signal in optimization_signals:

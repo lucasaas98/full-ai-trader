@@ -13,13 +13,12 @@ from typing import Optional, Tuple
 
 import polars as pl
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent))
-
-# Import the required modules
 from services.data_collector.src.data_store import DataStore, DataStoreConfig
 from services.data_collector.src.redis_client import RedisClient, RedisConfig
 from shared.models import TimeFrame
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 async def get_precise_timestamp_range(
@@ -116,7 +115,7 @@ async def inspect_data_completeness():
     data_store = DataStore(data_store_config)
 
     # Initialize Redis client
-    redis_config = RedisConfig()
+    redis_config = RedisConfig(password=None)
     redis_client = RedisClient(redis_config)
 
     try:
@@ -220,7 +219,7 @@ async def inspect_data_completeness():
             show_details = i < display_limit
 
             if show_details:
-                print(f"\n🏷️  {ticker} ({i+1}/{len(tickers_list)}):")
+                print(f"\n🏷️  {ticker} ({i + 1}/{len(tickers_list)}):")
 
             for tf in timeframes_to_check:
                 if show_details:
@@ -234,7 +233,7 @@ async def inspect_data_completeness():
                 # If that fails, try direct parquet reading
                 if timestamp_range is None:
                     if show_details:
-                        print(f"    Trying direct parquet reading...")
+                        print("    Trying direct parquet reading...")
                     timestamp_range = read_parquet_directly(
                         data_store.base_path, ticker, tf
                     )
@@ -304,7 +303,7 @@ async def inspect_data_completeness():
 
                 else:
                     if show_details:
-                        print(f"    ❌ No data found")
+                        print("    ❌ No data found")
                     data_summary.append(
                         {
                             "ticker": ticker,
@@ -319,7 +318,7 @@ async def inspect_data_completeness():
 
             # Show progress for remaining tickers
             if not show_details and (i + 1) % 20 == 0:
-                print(f"  Processed {i+1}/{len(tickers_list)} tickers...")
+                print(f"  Processed {i + 1}/{len(tickers_list)} tickers...")
 
         # 5. SUMMARY TABLE
         print(f"\n📋 COMPLETE DATA SUMMARY TABLE ({len(data_summary)} entries)")
@@ -340,14 +339,14 @@ async def inspect_data_completeness():
                 if item["last_timestamp"]
                 else "None"
             )
-            completeness = (
+            completeness_str = (
                 f"{item['completeness_pct']:.1f}%"
                 if item["completeness_pct"]
                 else "N/A"
             )
 
             print(
-                f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness:<10}"
+                f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness_str:<10}"
             )
 
         # 6. Check Redis cache status (if connected)
@@ -411,11 +410,11 @@ async def inspect_data_completeness():
 
         if completeness_5m:
             print(
-                f"Average 5-minute data completeness: {sum(completeness_5m)/len(completeness_5m):.1f}%"
+                f"Average 5-minute data completeness: {sum(completeness_5m) / len(completeness_5m):.1f}%"
             )
         if completeness_15m:
             print(
-                f"Average 15-minute data completeness: {sum(completeness_15m)/len(completeness_15m):.1f}%"
+                f"Average 15-minute data completeness: {sum(completeness_15m) / len(completeness_15m):.1f}%"
             )
 
         # Find tickers with low data counts

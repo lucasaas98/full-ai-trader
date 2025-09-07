@@ -6,8 +6,9 @@ for the trading system's security infrastructure.
 """
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional, Union
+from typing import Optional
 
 import jwt
 from pydantic import BaseModel, Field
@@ -123,6 +124,7 @@ class JWTManager:
             username=username,
             service=service,
             roles=roles or [],
+            jti=f"{user_id}_{int(time.time())}",
             permissions=permissions or [],
             session_id=session_id,
             api_key_id=api_key_id,
@@ -304,7 +306,7 @@ class JWTManager:
             return None
 
 
-def extract_token_from_header(auth_header: str) -> Optional[str]:
+def extract_token_from_header(auth_header: Optional[str]) -> Optional[str]:
     """Extract JWT token from Authorization header."""
     if not auth_header:
         return None

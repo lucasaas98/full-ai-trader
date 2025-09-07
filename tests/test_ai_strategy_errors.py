@@ -6,29 +6,16 @@ in the AI strategy implementation.
 """
 
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-import numpy as np
 import polars as pl
 import pytest
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from services.strategy_engine.src.ai_integration import AIStrategyIntegration
-from services.strategy_engine.src.ai_models import (
-    AIDecisionRecord,
-    AIPerformanceMetrics,
-    create_performance_summary,
-)
 from services.strategy_engine.src.ai_strategy import (
-    AIDecision,
     AIModel,
     AIResponse,
     AIStrategyEngine,
@@ -36,16 +23,15 @@ from services.strategy_engine.src.ai_strategy import (
     ConsensusEngine,
     CostTracker,
     DataContextBuilder,
-    MarketContext,
     RateLimiter,
     ResponseCache,
 )
 from services.strategy_engine.src.base_strategy import (
-    Signal,
     StrategyConfig,
     StrategyMode,
 )
-from shared.models import SignalType
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestAPIErrors:
@@ -97,7 +83,7 @@ class TestAPIErrors:
     @pytest.mark.asyncio
     async def test_invalid_api_key(self):
         """Test handling of invalid API key."""
-        config = {"models": {}, "cost_management": {}}
+        config: dict = {"models": {}, "cost_management": {}}
 
         client = AnthropicClient("invalid_key", config)
 
@@ -113,7 +99,7 @@ class TestAPIErrors:
     @pytest.mark.asyncio
     async def test_malformed_response(self):
         """Test handling of malformed API response."""
-        config = {"models": {}, "cost_management": {}}
+        config: dict = {"models": {}, "cost_management": {}}
 
         client = AnthropicClient("test_key", config)
 
@@ -179,7 +165,7 @@ class TestDataErrors:
 
         # Should handle NaN values gracefully
         try:
-            context = DataContextBuilder.build_master_context(
+            DataContextBuilder.build_master_context(
                 ticker="TEST", data=df_with_nan, finviz_data=None, market_data=None
             )
             # Should either succeed or raise a clear error
@@ -295,9 +281,7 @@ class TestIntegrationErrors:
             mock_engine.side_effect = Exception("Database connection failed")
 
             with pytest.raises(Exception) as exc_info:
-                integration = AIStrategyIntegration(
-                    AsyncMock(), "postgresql://invalid", {}
-                )
+                AIStrategyIntegration(AsyncMock(), "postgresql://invalid", {})
 
             assert "Database connection failed" in str(exc_info.value)
 
@@ -530,7 +514,7 @@ class TestEdgeCases:
 
         with pytest.raises(ValueError) as exc_info:
             with patch("builtins.open", mock_open(read_data="{}")):
-                strategy = AIStrategyEngine(config)
+                AIStrategyEngine(config)
 
         assert "API key is required" in str(exc_info.value)
 

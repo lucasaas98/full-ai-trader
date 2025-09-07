@@ -18,9 +18,9 @@ FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
 
 async def test_finviz_api(test_name, filters, order_by="-change"):
     """Test FinViz API with specific filters."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"TEST: {test_name}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     # Build request parameters
     params = {

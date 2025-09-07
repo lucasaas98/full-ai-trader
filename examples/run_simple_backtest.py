@@ -12,7 +12,7 @@ Usage:
 import asyncio
 import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -25,13 +25,11 @@ sys.path.append(str(project_root / "services" / "strategy_engine" / "src"))
 sys.path.append(str(project_root / "shared"))
 
 try:
-    from backtest_models import MarketData, SignalType, TimeFrame
+    from backtest_models import TimeFrame
     from real_backtest_engine import (
         BacktestMode,
         RealBacktestConfig,
         RealBacktestEngine,
-        run_monthly_backtest,
-        run_previous_month_backtest,
     )
     from simple_data_store import SimpleDataStore
 except ImportError as e:
@@ -72,14 +70,14 @@ def display_simple_results(results, config):
     print(f"Total Return: {format_percentage(results.total_return)}")
 
     if results.total_trades > 0:
-        print(f"\nTrading Activity:")
+        print("\nTrading Activity:")
         print(f"  Total Trades: {results.total_trades}")
         print(f"  Win Rate: {format_percentage(results.win_rate)}")
         print(f"  AI Calls: {results.total_ai_calls}")
         print(f"  Signals Generated: {results.signals_generated}")
         print(f"  Signals Executed: {results.signals_executed}")
     else:
-        print(f"\nNo trades were executed during this period.")
+        print("\nNo trades were executed during this period.")
 
     print(f"\nExecution Time: {results.execution_time_seconds:.2f} seconds")
     print("=" * 60)
@@ -232,7 +230,7 @@ async def run_data_availability_check():
             print("You can try other symbols or dates")
 
         # Check date ranges for available symbols
-        print(f"\nDate ranges for first few symbols:")
+        print("\nDate ranges for first few symbols:")
         for symbol in available_symbols[:3]:
             timeframes = data_store.get_available_timeframes(symbol)
             if timeframes:

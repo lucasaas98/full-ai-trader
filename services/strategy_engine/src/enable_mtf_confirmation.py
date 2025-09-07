@@ -18,9 +18,9 @@ from typing import Any, Dict, List, Optional
 # Add paths for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-import redis.asyncio as redis
-from base_strategy import StrategyMode
-from multi_timeframe_analyzer import create_multi_timeframe_analyzer
+import redis.asyncio as redis  # noqa: E402
+from base_strategy import StrategyMode  # noqa: E402
+from multi_timeframe_analyzer import create_multi_timeframe_analyzer  # noqa: E402
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class MTFConfigurationManager:
     """Manages multi-timeframe confirmation configuration for strategies."""
 
-    def __init__(self, redis_url: str = None):
+    def __init__(self, redis_url: Optional[str] = None):
         """
         Initialize MTF configuration manager.
 
@@ -42,7 +42,7 @@ class MTFConfigurationManager:
         self.redis_url = (
             redis_url or "redis://:Xo8uWxU1fmG0P1036pXysH2k4MTNhbmi@localhost:6380/0"
         )
-        self.redis_client = None
+        self.redis_client: Optional[redis.Redis] = None
 
         # MTF configuration templates
         self.mtf_configs = {
@@ -80,8 +80,9 @@ class MTFConfigurationManager:
             )
 
             # Test connection
-            await self.redis_client.ping()
-            logger.info("Connected to Redis successfully")
+            if self.redis_client:
+                await self.redis_client.ping()
+                logger.info("Connected to Redis successfully")
 
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
@@ -95,6 +96,8 @@ class MTFConfigurationManager:
     async def get_existing_strategies(self) -> List[Dict[str, Any]]:
         """Get all existing strategies from Redis."""
         try:
+            if self.redis_client is None:
+                return []
             strategy_keys = await self.redis_client.keys("strategy_state:*")
             strategies = []
 
@@ -114,7 +117,7 @@ class MTFConfigurationManager:
             return []
 
     async def enable_mtf_for_strategy(
-        self, strategy_name: str, custom_config: Dict[str, Any] = None
+        self, strategy_name: str, custom_config: Optional[Dict[str, Any]] = None
     ) -> bool:
         """
         Enable multi-timeframe confirmation for a specific strategy.
@@ -127,6 +130,10 @@ class MTFConfigurationManager:
             True if successful, False otherwise
         """
         try:
+            if self.redis_client is None:
+                logger.error("Redis client not connected")
+                return False
+
             strategy_key = f"strategy_state:{strategy_name}"
 
             # Get existing strategy configuration
@@ -186,6 +193,10 @@ class MTFConfigurationManager:
             True if successful, False otherwise
         """
         try:
+            if self.redis_client is None:
+                logger.error("Redis client not connected")
+                return False
+
             strategy_key = f"strategy_state:{strategy_name}"
 
             # Get existing strategy configuration
@@ -229,7 +240,7 @@ class MTFConfigurationManager:
         try:
             strategies = await self.get_existing_strategies()
 
-            status = {
+            status: Dict[str, Any] = {
                 "total_strategies": len(strategies),
                 "mtf_enabled_count": 0,
                 "mtf_disabled_count": 0,
@@ -270,7 +281,7 @@ class MTFConfigurationManager:
     async def validate_mtf_setup(self) -> Dict[str, Any]:
         """Validate that MTF system is properly set up."""
         try:
-            validation_results = {
+            validation_results: Dict[str, Any] = {
                 "overall_status": "unknown",
                 "checks": {},
                 "recommendations": [],
@@ -278,6 +289,8 @@ class MTFConfigurationManager:
 
             # Check 1: Redis connectivity
             try:
+                if self.redis_client is None:
+                    raise RuntimeError("Redis client not connected")
                 await self.redis_client.ping()
                 validation_results["checks"]["redis_connection"] = "PASS"
             except Exception as e:

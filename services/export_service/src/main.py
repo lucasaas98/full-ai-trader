@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import aiofiles
 import asyncpg
@@ -29,7 +29,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Add parent directories to Python path for shared imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
-from shared.config import Config
+from shared.config import Config  # noqa: E402
 
 
 # Simplified logging setup
@@ -144,7 +144,7 @@ class ExportService:
                 WHERE t.status = 'FILLED'
             """
 
-            params = []
+            params: List[Any] = []
             param_count = 1
 
             if request.start_date:
@@ -159,12 +159,12 @@ class ExportService:
 
             if request.symbols:
                 query += f" AND t.symbol = ANY(${param_count})"
-                params.append(request.symbols)
+                params.append(list(request.symbols))
                 param_count += 1
 
             if request.strategies:
                 query += f" AND s.name = ANY(${param_count})"
-                params.append(request.strategies)
+                params.append(list(request.strategies))
                 param_count += 1
 
             query += " ORDER BY t.executed_at DESC"

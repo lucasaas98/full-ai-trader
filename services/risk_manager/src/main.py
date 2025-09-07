@@ -24,10 +24,10 @@ from pydantic import BaseModel
 # Add the parent directory to Python path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
-from decimal import Decimal
+from decimal import Decimal  # noqa: E402
 
-from shared.config import get_config
-from shared.models import (
+from shared.config import get_config  # noqa: E402
+from shared.models import (  # noqa: E402
     DailyRiskReport,
     OrderRequest,
     PortfolioMetrics,
@@ -41,12 +41,12 @@ from shared.models import (
     TradeSignal,
 )
 
-from .alert_manager import AlertManager
-from .alpaca_client import AlpacaRiskClient
-from .database_manager import RiskDatabaseManager
-from .portfolio_monitor import PortfolioMonitor
-from .position_sizer import PositionSizer
-from .risk_manager import RiskManager
+from .alert_manager import AlertManager  # noqa: E402
+from .alpaca_client import AlpacaRiskClient  # noqa: E402
+from .database_manager import RiskDatabaseManager  # noqa: E402
+from .portfolio_monitor import PortfolioMonitor  # noqa: E402
+from .position_sizer import PositionSizer  # noqa: E402
+from .risk_manager import RiskManager  # noqa: E402
 
 
 # Configure logging
@@ -60,7 +60,7 @@ def setup_logging():
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    handlers = []
+    handlers: List[logging.Handler] = []
     if log_config.enable_console:
         handlers.append(logging.StreamHandler(sys.stdout))
     if log_config.enable_file:
@@ -771,7 +771,7 @@ def init_prometheus_metrics():
 
 async def update_prometheus_metrics():
     """Update Prometheus metrics with current values."""
-    global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge
+    global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge  # noqa: F824
 
     try:
         # Update service health metrics
@@ -1073,7 +1073,7 @@ class RiskManagerApp:
             # Initialize database if needed
             global database_manager
             if database_manager is None:
-                database_manager = DatabaseManager()
+                database_manager = RiskDatabaseManager()
                 await database_manager.initialize()
             self._initialized = True
 

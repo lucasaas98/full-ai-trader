@@ -72,7 +72,7 @@ class ConfigValidator:
     def __init__(self, environment: Environment, strict_mode: bool = False):
         self.environment = environment
         self.strict_mode = strict_mode
-        self.config = {}
+        self.config: dict[str, str] = {}
         self.results: List[ValidationResult] = []
 
         # Define validation rules

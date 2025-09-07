@@ -52,7 +52,7 @@ async def publish_daily_summary_trigger():
             else:
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
-        logger.info(f"Connecting to Redis...")
+        logger.info("Connecting to Redis...")
         redis_client = redis.from_url(redis_url, decode_responses=True)
 
         # Test connection
@@ -79,7 +79,7 @@ async def publish_daily_summary_trigger():
             logger.info(
                 f"✅ Message published successfully! {result} subscribers received it."
             )
-            print(f"\n🎉 Daily summary trigger sent successfully!")
+            print("\n🎉 Daily summary trigger sent successfully!")
             print(f"📡 Published to Redis channel: {channel}")
             print(f"👂 {result} subscribers received the message")
             print(
@@ -132,7 +132,7 @@ async def send_direct_notification_trigger():
             else:
                 redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
-        logger.info(f"Connecting to Redis for direct notification trigger...")
+        logger.info("Connecting to Redis for direct notification trigger...")
         redis_client = redis.from_url(redis_url, decode_responses=True)
 
         # Test connection
@@ -162,7 +162,7 @@ async def send_direct_notification_trigger():
             logger.info(
                 f"✅ Status message published successfully! {result} subscribers received it."
             )
-            print(f"\n🎉 Daily summary request sent successfully!")
+            print("\n🎉 Daily summary request sent successfully!")
             print(f"📡 Published to Redis channel: {channel}")
             print(f"👂 {result} subscribers received the message")
             print(

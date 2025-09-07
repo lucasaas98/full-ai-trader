@@ -219,8 +219,8 @@ class RedisDataSubscriber:
         """
         self.redis = redis_client
         self.logger = logging.getLogger("redis_data_subscriber")
-        self._subscriptions = {}
-        self._callbacks = {}
+        self._subscriptions: Dict[str, Any] = {}
+        self._callbacks: Dict[str, Any] = {}
         self._running = False
 
     async def subscribe_to_price_updates(
@@ -513,8 +513,8 @@ class RedisMarketDataHandler:
         """
         self.redis = redis_client
         self.logger = logging.getLogger("redis_market_data")
-        self._price_callbacks = {}
-        self._finviz_callbacks = {}
+        self._price_callbacks: Dict[str, Any] = {}
+        self._finviz_callbacks: Dict[str, Any] = {}
 
     def register_price_callback(
         self, symbol: str, callback: Callable[[MarketData], None]
@@ -599,9 +599,7 @@ class RedisMarketDataHandler:
             )
 
             # Extract symbols for strategy processing
-            symbols = [
-                stock.get("symbol") for stock in stocks_data if stock.get("symbol")
-            ]
+            _ = [stock.get("symbol") for stock in stocks_data if stock.get("symbol")]
 
             # Notify all registered screener callbacks
             callbacks = self._finviz_callbacks.get("screener", [])
@@ -640,8 +638,8 @@ class RedisStrategyEngine:
         self.data_handler = None
 
         # Strategy management
-        self.active_strategies = {}
-        self.strategy_tasks = {}
+        self.active_strategies: Dict[str, Any] = {}
+        self.strategy_tasks: Dict[str, Any] = {}
 
         # Configuration
         self.config = {
@@ -676,10 +674,13 @@ class RedisStrategyEngine:
                 self.redis_sync.ping()
 
             # Initialize components
-            self.publisher = RedisSignalPublisher(self.redis_async)
-            self.subscriber = RedisDataSubscriber(self.redis_async)
-            self.cache = RedisStrategyCache(self.redis_async)
-            self.data_handler = RedisMarketDataHandler(self.redis_async)
+            if self.redis_async:
+                self.publisher = RedisSignalPublisher(self.redis_async)
+                self.subscriber = RedisDataSubscriber(self.redis_async)
+                self.cache = RedisStrategyCache(self.redis_async)
+                self.data_handler = RedisMarketDataHandler(self.redis_async)
+            else:
+                raise Exception("Redis async client not initialized")
 
             self.logger.info("Redis strategy engine initialized successfully")
             return True
@@ -796,22 +797,69 @@ class RedisStrategyEngine:
                 if isinstance(strategy, HybridStrategy):
                     # Get FinViz data for hybrid analysis
                     finviz_data = await self._get_finviz_data(symbol)
-                    signal = await strategy.analyze(
+                    signal_result = await strategy.analyze(
                         symbol, historical_data, finviz_data
                     )
+                    # Convert Signal to HybridSignal if needed
+                    if hasattr(signal_result, "signal_type"):
+                        # It's already a HybridSignal
+                        signal = signal_result
+                    else:
+                        # Convert Signal to HybridSignal
+                        from hybrid_strategy import HybridSignal
+
+                        signal = HybridSignal(
+                            action=signal_result.action,
+                            confidence=signal_result.confidence,
+                            position_size=signal_result.position_size,
+                            reasoning=getattr(signal_result, "reasoning", ""),
+                            technical_score=0.5,
+                            fundamental_score=0.5,
+                            ai_score=0.0,
+                            risk_score=getattr(signal_result, "risk_score", 0.5),
+                            timestamp=getattr(
+                                signal_result, "timestamp", datetime.now(timezone.utc)
+                            ),
+                        )
                 else:
-                    signal = await strategy.analyze(symbol, historical_data)
+                    signal_result = await strategy.analyze(symbol, historical_data)  # type: ignore
+                    # Convert Signal to HybridSignal if needed
+                    if isinstance(signal_result, HybridSignal):
+                        # It's already a HybridSignal
+                        hybrid_signal = signal_result
+                    else:
+                        # Convert Signal to HybridSignal
+                        from hybrid_strategy import HybridSignal
+
+                        hybrid_signal = HybridSignal(
+                            action=signal_result.action,
+                            confidence=signal_result.confidence,
+                            position_size=signal_result.position_size,
+                            reasoning=getattr(signal_result, "reasoning", ""),
+                            technical_score=0.5,
+                            fundamental_score=0.5,
+                            ai_score=0.0,
+                            risk_score=getattr(signal_result, "risk_score", 0.5),
+                            timestamp=getattr(
+                                signal_result, "timestamp", datetime.now(timezone.utc)
+                            ),
+                        )
+
+                # Use the appropriate signal (hybrid_signal if converted, otherwise signal_result)
+                final_signal = (
+                    hybrid_signal if "hybrid_signal" in locals() else signal_result
+                )
 
                 # Update strategy info
                 strategy_info["last_analysis"][symbol] = {
                     "timestamp": datetime.now(timezone.utc),
-                    "signal": signal,
-                    "confidence": signal.confidence,
+                    "signal": final_signal,
+                    "confidence": final_signal.confidence,
                 }
 
                 # Check if signal should be published
-                if signal.confidence >= strategy.config.min_confidence:
-                    await self._publish_strategy_signal(strategy, symbol, signal)
+                if final_signal.confidence >= strategy.config.min_confidence:
+                    await self._publish_strategy_signal(strategy, symbol, final_signal)
                     strategy_info["signal_count"] += 1
 
                 # Cache analysis result
@@ -844,7 +892,7 @@ class RedisStrategyEngine:
     ) -> None:
         """Handle screener data update for hybrid strategies."""
         try:
-            screener_type = screener_data.get("screener_type", "unknown")
+            _ = screener_data.get("screener_type", "unknown")
             stocks_data = screener_data.get("data", [])
 
             if not stocks_data:
@@ -938,6 +986,12 @@ class RedisStrategyEngine:
             current_stats = await self.redis.get(stats_key) if self.redis else None
             if current_stats:
                 stats = json.loads(current_stats)
+                # Ensure all stats have proper default values
+                stats["total_signals"] = stats.get("total_signals") or 0
+                stats["buy_signals"] = stats.get("buy_signals") or 0
+                stats["sell_signals"] = stats.get("sell_signals") or 0
+                stats["hold_signals"] = stats.get("hold_signals") or 0
+                stats["avg_confidence"] = stats.get("avg_confidence") or 0.0
             else:
                 stats = {
                     "total_signals": 0,
@@ -949,22 +1003,22 @@ class RedisStrategyEngine:
                 }
 
             # Update stats
-            stats["total_signals"] += 1
-            stats["last_signal_time"] = datetime.now(timezone.utc).isoformat()
+            stats["total_signals"] = (stats["total_signals"] or 0) + 1
+            stats["last_signal_time"] = int(datetime.now(timezone.utc).timestamp())
 
             if signal.action == SignalType.BUY:
-                stats["buy_signals"] += 1
+                stats["buy_signals"] = (stats["buy_signals"] or 0) + 1
             elif signal.action == SignalType.SELL:
-                stats["sell_signals"] += 1
+                stats["sell_signals"] = (stats["sell_signals"] or 0) + 1
             else:
-                stats["hold_signals"] += 1
+                stats["hold_signals"] = (stats["hold_signals"] or 0) + 1
 
             # Update average confidence
-            total_confidence = (
-                stats["avg_confidence"] * (stats["total_signals"] - 1)
-                + signal.confidence
-            )
-            stats["avg_confidence"] = total_confidence / stats["total_signals"]
+            total_signals = stats["total_signals"] or 1
+            old_avg = stats["avg_confidence"] or 0.0
+            stats["avg_confidence"] = (
+                float(old_avg) * (total_signals - 1) + signal.confidence
+            ) / total_signals
 
             # Save updated stats
             if self.redis:
@@ -1132,7 +1186,7 @@ class RedisStrategyEngine:
         try:
             # Get all signal history keys
             pattern = "signal_history:*"
-            keys = await self.redis.keys(pattern) if self.redis else []
+            keys: List[str] = await self.redis.keys(pattern) if self.redis else []
 
             for key in keys:
                 # Keep only last 100 signals per symbol
@@ -1314,14 +1368,15 @@ class RedisSignalConsumer:
         self.redis = None
         self.pubsub = None
         self.logger = logging.getLogger("redis_signal_consumer")
-        self._callbacks = {}
+        self._callbacks: Dict[str, Any] = {}
         self._running = False
 
     async def initialize(self) -> bool:
         """Initialize Redis connection."""
         try:
             self.redis = redis.from_url(self.redis_url, decode_responses=True)
-            await self.redis.ping()
+            if self.redis:
+                await self.redis.ping()
             self.logger.info("Redis signal consumer initialized")
             return True
 

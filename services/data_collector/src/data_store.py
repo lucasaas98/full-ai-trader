@@ -17,13 +17,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import polars as pl
+from polars import DataType
 from pydantic import BaseModel, Field
 
 from shared.models import (
     AssetType,
     FinVizData,
     MarketData,
-    TechnicalIndicators,
     TimeFrame,
 )
 
@@ -64,50 +64,49 @@ class DataStore:
         self._write_lock = threading.Lock()
 
         # Schema definitions for validation
-        self.market_data_schema = {
-            "symbol": pl.Utf8,
+        self.market_data_schema: Dict[str, DataType] = {
+            "symbol": pl.Utf8(),
             "timestamp": pl.Datetime("us"),
-            "timeframe": pl.Utf8,
-            "open": pl.Float64,
-            "high": pl.Float64,
-            "low": pl.Float64,
-            "close": pl.Float64,
-            "volume": pl.Int64,
-            "asset_type": pl.Utf8,
+            "timeframe": pl.Utf8(),
+            "open": pl.Float64(),
+            "high": pl.Float64(),
+            "low": pl.Float64(),
+            "close": pl.Float64(),
+            "volume": pl.Int64(),
+            "asset_type": pl.Utf8(),
         }
 
-        self.finviz_data_schema = {
-            "symbol": pl.Utf8,
-            "company": pl.Utf8,
-            "sector": pl.Utf8,
-            "industry": pl.Utf8,
-            "country": pl.Utf8,
-            "market_cap": pl.Utf8,
-            "pe_ratio": pl.Float64,
-            "price": pl.Float64,
-            "change": pl.Float64,
-            "volume": pl.Int64,
-            "timestamp": pl.Datetime("us"),
+        self.finviz_data_schema: Dict[str, DataType] = {
+            "symbol": pl.Utf8(),
+            "company": pl.Utf8(),
+            "sector": pl.Utf8(),
+            "industry": pl.Utf8(),
+            "country": pl.Utf8(),
+            "market_cap": pl.Utf8(),
+            "pe": pl.Float64(),
+            "price": pl.Float64(),
+            "change": pl.Float64(),
+            "volume": pl.Int64(),
         }
 
-        self.technical_indicators_schema = {
-            "symbol": pl.Utf8,
+        self.technical_indicators_schema: Dict[str, DataType] = {
+            "symbol": pl.Utf8(),
             "timestamp": pl.Datetime("us"),
-            "timeframe": pl.Utf8,
-            "sma_20": pl.Float64,
-            "sma_50": pl.Float64,
-            "sma_200": pl.Float64,
-            "ema_12": pl.Float64,
-            "ema_26": pl.Float64,
-            "rsi": pl.Float64,
-            "macd": pl.Float64,
-            "macd_signal": pl.Float64,
-            "macd_histogram": pl.Float64,
-            "bollinger_upper": pl.Float64,
-            "bollinger_middle": pl.Float64,
-            "bollinger_lower": pl.Float64,
-            "atr": pl.Float64,
-            "volume_sma": pl.Float64,
+            "timeframe": pl.Utf8(),
+            "sma_20": pl.Float64(),
+            "sma_50": pl.Float64(),
+            "sma_200": pl.Float64(),
+            "ema_12": pl.Float64(),
+            "ema_26": pl.Float64(),
+            "rsi": pl.Float64(),
+            "macd": pl.Float64(),
+            "macd_signal": pl.Float64(),
+            "macd_histogram": pl.Float64(),
+            "bollinger_upper": pl.Float64(),
+            "bollinger_middle": pl.Float64(),
+            "bollinger_lower": pl.Float64(),
+            "atr": pl.Float64(),
+            "volume_sma": pl.Float64(),
         }
 
     def _ensure_base_directory(self):
@@ -396,7 +395,7 @@ class DataStore:
         df_with_date = df.with_columns(pl.col("timestamp").dt.date().alias("date"))
 
         # Group by symbol, timeframe, and date
-        grouped_data = {}
+        grouped_data: Dict[Tuple[Any, Any, Any], Any] = {}
         for row in df_with_date.iter_rows(named=True):
             key = (row["symbol"], row["timeframe"], row["date"])
             if key not in grouped_data:
@@ -405,7 +404,8 @@ class DataStore:
 
         # Process each group
         tasks = []
-        for (symbol, timeframe_str, date_obj), group_rows in grouped_data.items():
+        for key_tuple, group_rows in grouped_data.items():
+            symbol, timeframe_str, date_obj = key_tuple
             try:
                 timeframe = TimeFrame(timeframe_str)
             except ValueError:
@@ -485,7 +485,7 @@ class DataStore:
             df = self._finviz_data_to_dataframe(data)
 
             if df is None or df.is_empty():
-                logger.warning(f"DataFrame is empty after conversion")
+                logger.warning("DataFrame is empty after conversion")
                 return 0
 
             # Group by date
@@ -531,7 +531,7 @@ class DataStore:
             df = self._technical_indicators_to_dataframe(indicators_list)
 
             if df is None or df.is_empty():
-                logger.warning(f"DataFrame is empty after conversion")
+                logger.warning("DataFrame is empty after conversion")
                 return 0
 
             # Add timeframe if not present
@@ -542,7 +542,7 @@ class DataStore:
             df_with_date = df.with_columns(pl.col("timestamp").dt.date().alias("date"))
 
             # Group by symbol, timeframe, and date
-            grouped_data = {}
+            grouped_data: Dict[Tuple[Any, Any, Any], Any] = {}
             for row in df_with_date.iter_rows(named=True):
                 key = (row["symbol"], row["timeframe"], row["date"])
                 if key not in grouped_data:
@@ -552,7 +552,8 @@ class DataStore:
             total_saved = 0
 
             # Process each group
-            for (symbol, tf_str, date_obj), group_rows in grouped_data.items():
+            for key_tuple, group_rows in grouped_data.items():
+                symbol, tf_str, date_obj = key_tuple
                 try:
                     # Create DataFrame for this group (without date column)
                     group_data = []
@@ -866,7 +867,7 @@ class DataStore:
         """
 
         def _scan_directory():
-            summary = {
+            summary: Dict[str, Any] = {
                 "total_files": 0,
                 "total_size_mb": 0,
                 "tickers": set(),
@@ -888,8 +889,14 @@ class DataStore:
                 if ticker and ticker_name != ticker.upper():
                     continue
 
-                summary["tickers"].add(ticker_name)
-                summary["files_by_ticker"][ticker_name] = 0
+                ticker_set = summary["tickers"]
+                assert isinstance(ticker_set, set), "tickers should be a set"
+                ticker_set.add(ticker_name)
+                files_by_ticker = summary["files_by_ticker"]
+                assert isinstance(
+                    files_by_ticker, dict
+                ), "files_by_ticker should be a dict"
+                files_by_ticker[ticker_name] = 0
 
                 for tf_dir in ticker_dir.iterdir():
                     if not tf_dir.is_dir():
@@ -899,40 +906,67 @@ class DataStore:
                     if timeframe and tf_name != timeframe.value:
                         continue
 
-                    summary["timeframes"].add(tf_name)
-                    if tf_name not in summary["files_by_timeframe"]:
-                        summary["files_by_timeframe"][tf_name] = 0
+                    timeframe_set = summary["timeframes"]
+                    assert isinstance(timeframe_set, set), "timeframes should be a set"
+                    timeframe_set.add(tf_name)
+                    files_by_timeframe = summary["files_by_timeframe"]
+                    assert isinstance(
+                        files_by_timeframe, dict
+                    ), "files_by_timeframe should be a dict"
+                    if tf_name not in files_by_timeframe:
+                        files_by_timeframe[tf_name] = 0
 
                     for file_path in tf_dir.glob("*.parquet"):
-                        summary["total_files"] += 1
-                        summary["files_by_ticker"][ticker_name] += 1
-                        summary["files_by_timeframe"][tf_name] += 1
+                        total_files = summary["total_files"]
+                        assert isinstance(
+                            total_files, int
+                        ), "total_files should be an int"
+                        summary["total_files"] = total_files + 1
+                        files_by_ticker = summary["files_by_ticker"]
+                        assert isinstance(
+                            files_by_ticker, dict
+                        ), "files_by_ticker should be a dict"
+                        files_by_ticker[ticker_name] = (
+                            int(files_by_ticker[ticker_name]) + 1
+                        )
+                        files_by_timeframe[tf_name] = (
+                            int(files_by_timeframe[tf_name]) + 1
+                        )
 
                         # File size
                         file_size = file_path.stat().st_size / (1024 * 1024)  # MB
-                        summary["total_size_mb"] += file_size
+                        total_size_mb = summary["total_size_mb"]
+                        assert isinstance(
+                            total_size_mb, (int, float)
+                        ), "total_size_mb should be numeric"
+                        summary["total_size_mb"] = float(total_size_mb) + file_size
 
                         # Date range
                         try:
                             file_date = datetime.strptime(
                                 file_path.stem, "%Y-%m-%d"
                             ).date()
+                            date_range = summary["date_range"]
+                            assert isinstance(
+                                date_range, dict
+                            ), "date_range should be a dict"
                             if (
-                                summary["date_range"]["earliest"] is None
-                                or file_date < summary["date_range"]["earliest"]
+                                date_range["earliest"] is None
+                                or file_date < date_range["earliest"]
                             ):
-                                summary["date_range"]["earliest"] = file_date
+                                date_range["earliest"] = file_date
+
                             if (
-                                summary["date_range"]["latest"] is None
-                                or file_date > summary["date_range"]["latest"]
+                                date_range["latest"] is None
+                                or file_date > date_range["latest"]
                             ):
-                                summary["date_range"]["latest"] = file_date
+                                date_range["latest"] = file_date
                         except ValueError:
                             continue
 
             # Convert sets to lists for JSON serialization
-            summary["tickers"] = sorted(list(summary["tickers"]))
-            summary["timeframes"] = sorted(list(summary["timeframes"]))
+            summary["tickers"] = list(summary["tickers"])
+            summary["timeframes"] = list(summary["timeframes"])
 
             return summary
 
@@ -1022,7 +1056,11 @@ class DataStore:
         if df.is_empty():
             return {"valid": False, "error": "No data found"}
 
-        validation_results = {"valid": True, "total_records": len(df), "issues": []}
+        validation_results: Dict[str, Any] = {
+            "valid": True,
+            "total_records": len(df),
+            "issues": [],
+        }
 
         try:
             # Check for missing values

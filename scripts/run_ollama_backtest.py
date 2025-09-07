@@ -33,9 +33,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
-import pandas as pd
+# pandas import removed as unused
 
 # Add project paths
 script_dir = Path(__file__).parent
@@ -51,7 +51,7 @@ sys.path.extend(
 )
 
 try:
-    from backtest_models import BacktestResults, SignalType, TimeFrame
+    from backtest_models import BacktestResults, TimeFrame
     from ollama_ai_strategy_adapter import OllamaAIStrategyAdapter
     from real_backtest_engine import (
         BacktestMode,
@@ -404,9 +404,9 @@ class OllamaBacktestRunner:
             return {}
 
         # Group trades by symbol
-        trades_by_symbol = {}
+        trades_by_symbol: dict[str, list] = {}
         hold_periods = []
-        returns_by_action = {"BUY": [], "SELL": []}
+        returns_by_action: dict[str, list] = {"BUY": [], "SELL": []}
 
         for trade in trades:
             symbol = trade.symbol
@@ -470,17 +470,17 @@ class OllamaBacktestRunner:
 
         # Portfolio Performance
         perf = report["portfolio_performance"]
-        print(f"\n📊 PORTFOLIO PERFORMANCE")
+        print("\n📊 PORTFOLIO PERFORMANCE")
         print(f"   Initial Capital: ${perf['initial_capital']:,.2f}")
         print(f"   Final Value:     ${perf['final_value']:,.2f}")
         print(f"   Total Return:    {perf['total_return_pct']:+.2f}%")
-        print(f"   Annualized:      {perf['annualized_return']*100:+.2f}%")
+        print(f"   Annualized:      {perf['annualized_return'] * 100:+.2f}%")
         print(f"   Max Drawdown:    {perf['max_drawdown_pct']:-.2f}%")
         print(f"   Sharpe Ratio:    {perf['sharpe_ratio']:.2f}")
 
         # Trading Activity
         trading = report["trading_activity"]
-        print(f"\n📈 TRADING ACTIVITY")
+        print("\n📈 TRADING ACTIVITY")
         print(f"   Total Trades:    {trading['total_trades']}")
         print(
             f"   Win Rate:        {trading['win_rate_pct']:.1f}% ({trading['winning_trades']}/{trading['total_trades']})"
@@ -492,7 +492,7 @@ class OllamaBacktestRunner:
 
         # AI Performance
         ai_perf = report["ai_performance"]
-        print(f"\n🤖 AI STRATEGY PERFORMANCE")
+        print("\n🤖 AI STRATEGY PERFORMANCE")
         print(f"   AI Calls Made:   {ai_perf['total_ai_calls']}")
         print(f"   Success Rate:    {ai_perf['success_rate']:.1f}%")
         print(f"   Avg Response:    {ai_perf['average_response_time']:.2f}s")
@@ -502,15 +502,15 @@ class OllamaBacktestRunner:
 
         # Cost Analysis
         costs = report["cost_analysis"]
-        print(f"\n💰 COST ANALYSIS")
-        print(f"   AI Costs:        $0.00 (Free with Ollama! 🎉)")
+        print("\n💰 COST ANALYSIS")
+        print("   AI Costs:        $0.00 (Free with Ollama! 🎉)")
         print(f"   Commission:      ${costs['commission_costs']:.2f}")
         print(f"   Cost per Trade:  ${costs['cost_per_trade']:.2f}")
         print(f"   Savings vs Cloud: ~${costs['cost_savings_vs_cloud_ai']:.2f}")
 
         # Configuration
         info = report["backtest_info"]
-        print(f"\n⚙️  CONFIGURATION")
+        print("\n⚙️  CONFIGURATION")
         print(f"   Period:          {info['days_tested']} days")
         print(f"   Symbols:         {', '.join(info['symbols_tested'])}")
         print(f"   AI Model:        {info['ai_model']}")
@@ -522,11 +522,11 @@ class OllamaBacktestRunner:
             "trade_details" in report
             and "symbol_performance" in report["trade_details"]
         ):
-            print(f"\n🎯 SYMBOL PERFORMANCE")
+            print("\n🎯 SYMBOL PERFORMANCE")
             symbol_perf = report["trade_details"]["symbol_performance"]
             for symbol, perf in symbol_perf.items():
                 print(
-                    f"   {symbol}: {perf['trades']} trades, {perf['total_return']:+.2f} return, {perf['win_rate']*100:.0f}% win rate"
+                    f"   {symbol}: {perf['trades']} trades, {perf['total_return']:+.2f} return, {perf['win_rate'] * 100:.0f}% win rate"
                 )
 
         print("=" * 80)

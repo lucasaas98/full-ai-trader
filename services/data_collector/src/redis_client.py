@@ -134,7 +134,9 @@ class RedisClient:
             )
 
             # Also update the active tickers list
-            await self.redis.sadd(RedisKeys.TICKER_LIST, *tickers)
+            sadd_result = self.redis.sadd(RedisKeys.TICKER_LIST, *tickers)
+            if hasattr(sadd_result, "__await__"):
+                await sadd_result
 
             logger.info(f"Published {len(tickers)} new tickers to Redis")
 
@@ -362,7 +364,9 @@ class RedisClient:
             return []
 
         try:
-            tickers = await self.redis.smembers(RedisKeys.TICKER_LIST)
+            tickers = self.redis.smembers(RedisKeys.TICKER_LIST)
+            if hasattr(tickers, "__await__"):
+                tickers = await tickers
             return list(tickers) if tickers else []
 
         except Exception as e:
@@ -381,7 +385,9 @@ class RedisClient:
 
         try:
             # Remove from active tickers set
-            await self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
+            srem_result = self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
+            if hasattr(srem_result, "__await__"):
+                await srem_result
 
             # Clear cached price data
             price_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
@@ -601,7 +607,7 @@ class RedisClient:
         return None
 
     async def batch_cache_prices(
-        self, price_data: Dict[str, Union[MarketData, Dict[str, Any]]], ttl: int = 300
+        self, price_data: Dict[str, MarketData], ttl: int = 300
     ):
         """
         Cache multiple price updates in batch.
@@ -778,9 +784,9 @@ class RedisClient:
         """
         health_info = {
             "connected": False,
-            "latency_ms": None,
-            "memory_usage": None,
-            "error": None,
+            "latency_ms": 0.0,
+            "memory_usage": {},
+            "error": "",
         }
 
         if not self.redis:
@@ -990,7 +996,7 @@ async def cache_latest_prices(
         return
 
     # Group by ticker and get latest price for each
-    latest_prices = {}
+    latest_prices: Dict[str, MarketData] = {}
     for data in market_data:
         ticker = data.symbol
         if (

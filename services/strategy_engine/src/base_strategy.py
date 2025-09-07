@@ -103,7 +103,7 @@ class BaseStrategy(ABC):
         self.config = config
         self.logger = logging.getLogger(f"strategy.{config.name}")
         self._initialized = False
-        self._data_cache = {}
+        self._data_cache: Dict[str, Any] = {}
 
     @property
     def name(self) -> str:
@@ -474,7 +474,7 @@ class BaseStrategy(ABC):
                 continue
 
             # Record equity curve
-            position_value = 0
+            position_value = 0.0
             if position:
                 position_value = self._calculate_position_value(position, current_price)
 

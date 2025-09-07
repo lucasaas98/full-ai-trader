@@ -6,6 +6,7 @@ import os
 import sys
 import time
 from datetime import datetime, timezone
+from enum import Enum
 
 import httpx
 import pytest
@@ -16,8 +17,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared")
 # Models available but not used in this test file
 pass  # Removed unused config import
 
+
 # Mock missing model classes
-from enum import Enum
 
 
 class SignalType(str, Enum):
@@ -441,7 +442,7 @@ class TestServiceCommunication:
                     pubsub.get_message(ignore_subscribe_messages=True), timeout=5.0
                 )
                 if message:
-                    data = json.loads(message["data"])
+                    data = json.loads(str(message["data"]))
                     messages_received.append(data)
             except asyncio.TimeoutError:
                 break
@@ -461,7 +462,6 @@ class TestServiceCommunication:
     ):
         """Test service resilience when dependencies temporarily fail"""
         # Simulate Redis being temporarily unavailable
-        original_redis_host = "redis"
 
         # Test data collector resilience
         async with httpx.AsyncClient() as client:
@@ -498,8 +498,6 @@ class TestServiceCommunication:
                 )
 
                 if response.status_code == 200:
-                    positions_data = response.json()
-
                     # Data timestamps should be reasonably recent and consistent
                     collector_time = datetime.fromisoformat(
                         collector_data["timestamp"].replace("Z", "+00:00")
@@ -512,7 +510,6 @@ class TestServiceCommunication:
     @pytest.mark.asyncio
     async def test_concurrent_service_requests(self, service_urls):
         """Test handling of concurrent requests across services"""
-        symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
 
         async def test_service_endpoint(service_name, endpoint):
             try:
@@ -664,7 +661,7 @@ class TestServiceCommunication:
         pubsub = redis_client.pubsub()
         await pubsub.subscribe(channel)
 
-        received_messages = []
+        received_messages: list = []
 
         # Publisher task
         async def publisher():
@@ -768,7 +765,6 @@ class TestServiceCommunication:
                 )
 
                 if response.status_code == 200:
-                    strategy_data = response.json()
 
                     # Check if risk manager has portfolio data
                     response = await client.get(
@@ -806,7 +802,7 @@ class TestServiceCommunication:
                 ),
             ]
 
-            error_responses = []
+            error_responses: list[dict] = []
 
             for url, payload in invalid_requests:
                 try:
@@ -824,11 +820,11 @@ class TestServiceCommunication:
                     error_responses.append({"url": url, "error": str(e)})
 
             # Services should handle errors gracefully (not return 500)
-            for response in error_responses:
-                if "status_code" in response:
+            for error_response in error_responses:
+                if "status_code" in error_response:
                     assert (
-                        response["status_code"] != 500
-                    ), f"Internal server error for {response['url']}"
+                        error_response["status_code"] != 500
+                    ), f"Internal server error for {error_response['url']}"
 
     @pytest.mark.asyncio
     async def test_service_configuration_consistency(self, service_urls):

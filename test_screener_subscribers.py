@@ -11,7 +11,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
 import redis.asyncio as redis
 
@@ -27,7 +27,7 @@ class ScreenerUpdateTester:
 
     def __init__(self):
         """Initialize the tester."""
-        self.redis_client = None
+        self.redis_client: Optional[redis.Redis] = None
         self.subscribers = {}
         self.received_messages = []
 
@@ -51,6 +51,8 @@ class ScreenerUpdateTester:
             name: Name of the test subscriber
         """
         try:
+            if self.redis_client is None:
+                raise ValueError("Redis client not initialized")
             pubsub = self.redis_client.pubsub()
             await pubsub.subscribe("screener:updates")
 
@@ -151,6 +153,8 @@ class ScreenerUpdateTester:
         }
 
         try:
+            if self.redis_client is None:
+                raise ValueError("Redis client not initialized")
             # Publish to screener:updates channel
             await self.redis_client.publish("screener:updates", json.dumps(message))
             logger.info(
@@ -179,6 +183,8 @@ class ScreenerUpdateTester:
             True if cache exists and is valid
         """
         try:
+            if self.redis_client is None:
+                raise ValueError("Redis client not initialized")
             cache_key = f"screener_cache:{screener_type}"
             cached_data = await self.redis_client.get(cache_key)
 
@@ -203,11 +209,12 @@ class ScreenerUpdateTester:
         Returns:
             Test results summary
         """
-        results = {
+        results: Dict[str, Any] = {
             "test_start": datetime.now(timezone.utc).isoformat(),
             "tests_passed": 0,
             "tests_failed": 0,
             "details": [],
+            "errors": [],
         }
 
         try:
@@ -224,7 +231,7 @@ class ScreenerUpdateTester:
             results["tests_passed"] += 1
 
             # Test 2: Publish screener update
-            published_data = await self.publish_test_screener_update("test_momentum")
+            _ = await self.publish_test_screener_update("test_momentum")
             await asyncio.sleep(2)  # Wait for message propagation
 
             results["details"].append("✅ Published test screener update")

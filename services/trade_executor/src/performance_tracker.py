@@ -11,7 +11,7 @@ import logging
 import math
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from uuid import UUID
 
 import asyncpg
@@ -639,7 +639,7 @@ class PerformanceTracker:
                     cumulative_returns.append(cumulative)
 
                 peak = cumulative_returns[0]
-                max_drawdown = 0
+                max_drawdown = 0.0
                 for value in cumulative_returns:
                     if value > peak:
                         peak = value
@@ -647,7 +647,7 @@ class PerformanceTracker:
                     max_drawdown = max(max_drawdown, drawdown)
 
                 # Value at Risk (95% confidence)
-                sorted_returns = sorted(returns)
+                sorted_returns = cast(List[float], sorted(returns))
                 var_95_index = int(len(sorted_returns) * 0.05)
                 var_95 = (
                     sorted_returns[var_95_index]
@@ -797,7 +797,7 @@ class PerformanceTracker:
                 return []
             async with self._db_pool.acquire() as conn:
                 conditions = ["status = 'closed'", "exit_time IS NOT NULL"]
-                params = []
+                params: List[Any] = []
 
                 if start_date:
                     params.append(start_date)
@@ -1649,7 +1649,7 @@ class PerformanceTracker:
             Correlation matrix and analysis
         """
         try:
-            correlation_matrix = {}
+            correlation_matrix: Dict[str, Dict[str, float]] = {}
 
             for i, symbol1 in enumerate(symbols):
                 correlation_matrix[symbol1] = {}
@@ -1686,7 +1686,9 @@ class PerformanceTracker:
                                 }
                             )
 
-            high_correlations.sort(key=lambda x: abs(x["correlation"]), reverse=True)
+            high_correlations.sort(
+                key=lambda x: abs(cast(float, x["correlation"])), reverse=True
+            )
 
             return {
                 "correlation_matrix": correlation_matrix,

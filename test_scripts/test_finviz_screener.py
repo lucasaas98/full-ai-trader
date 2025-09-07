@@ -5,25 +5,23 @@ Tests different screener configurations to see what results are returned.
 """
 
 import asyncio
-import json
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Add the parent directory to Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Set up environment variables from .env file
-from dotenv import load_dotenv
-
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 # Import the screener modules
-from services.data_collector.src.finviz_screener import (
+from services.data_collector.src.finviz_screener import (  # noqa: E402
     FinVizScreener,
     FinVizScreenerParams,
-    FinVizScreenerResult,
 )
 
 # Set the API key from environment
@@ -66,7 +64,7 @@ async def test_basic_screener():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_momentum_screener():
@@ -86,7 +84,7 @@ async def test_momentum_screener():
             print("\nTop momentum stocks:")
             for i, stock in enumerate(result.data[:5], 1):
                 print(
-                    f"  {i}. {stock.ticker}: ${stock.price:.2f} | Change: {stock.change_percent:.2f}%"
+                    f"  {i}. {stock.ticker}: ${stock.price:.2f} | Change: {stock.change:.2f}%"
                 )
         else:
             print("No momentum stocks found!")
@@ -94,7 +92,7 @@ async def test_momentum_screener():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_high_volume_breakouts():
@@ -121,7 +119,7 @@ async def test_high_volume_breakouts():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_large_cap_stocks():
@@ -159,7 +157,7 @@ async def test_large_cap_stocks():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_raw_api_call():
@@ -239,7 +237,7 @@ async def test_all_screener_types():
     for name, screener_func in screener_types:
         print(f"\nTesting {name}...")
         try:
-            result = await screener_func(limit=5)
+            result = await screener_func(limit=5)  # type: ignore
             count = result.total_count if result else 0
             results_summary.append((name, count))
 
@@ -248,7 +246,7 @@ async def test_all_screener_types():
                 if result.data:
                     print(f"    Top ticker: {result.data[0].ticker}")
             else:
-                print(f"  ✗ No results")
+                print("  ✗ No results")
 
             # Small delay between requests
             await asyncio.sleep(1)
@@ -257,7 +255,7 @@ async def test_all_screener_types():
             print(f"  ✗ Error: {e}")
             results_summary.append((name, "ERROR"))
 
-    await screener.close()
+    pass
 
     print("\n" + "-" * 40)
     print("SUMMARY:")

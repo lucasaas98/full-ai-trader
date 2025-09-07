@@ -6,13 +6,11 @@ endpoints and basic service information for integration with the scheduler
 and other services in the trading system.
 """
 
-import asyncio
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, cast
 
-from aiohttp import web, web_response
+from aiohttp import web
 from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from prometheus_client import Counter, Gauge, Histogram, generate_latest
@@ -334,7 +332,8 @@ class DataCollectorHTTPServer:
 
             # Check if service is running
             is_running = service_status.get("is_running", False)
-            health_info["components"]["service"] = {
+            components_dict = cast(Dict[str, Any], health_info["components"])
+            components_dict["service"] = {
                 "status": "healthy" if is_running else "unhealthy",
                 "running": is_running,
                 "active_tickers": service_status.get("active_tickers_count", 0),
@@ -349,13 +348,16 @@ class DataCollectorHTTPServer:
                     finviz_healthy = (
                         await self.data_service.finviz_screener.validate_connection()
                     )
-                    health_info["components"]["finviz"] = {
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["finviz"] = {
                         "status": "healthy" if finviz_healthy else "degraded"
                     }
                     if not finviz_healthy:
-                        health_info["errors"].append("FinViz connection issues")
+                        errors_list = cast(List[str], health_info["errors"])
+                        errors_list.append("FinViz connection issues")
                 except Exception:
-                    health_info["components"]["finviz"] = {"status": "unknown"}
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["finviz"] = {"status": "unknown"}
 
             if (
                 hasattr(self.data_service, "twelvedata_client")
@@ -365,13 +367,16 @@ class DataCollectorHTTPServer:
                     twelvedata_healthy = (
                         await self.data_service.twelvedata_client.test_connection()
                     )
-                    health_info["components"]["twelvedata"] = {
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["twelvedata"] = {
                         "status": "healthy" if twelvedata_healthy else "degraded"
                     }
                     if not twelvedata_healthy:
-                        health_info["errors"].append("TwelveData connection issues")
+                        errors_list = cast(List[str], health_info["errors"])
+                        errors_list.append("TwelveData connection issues")
                 except Exception:
-                    health_info["components"]["twelvedata"] = {"status": "unknown"}
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["twelvedata"] = {"status": "unknown"}
 
             if (
                 hasattr(self.data_service, "redis_client")
@@ -379,7 +384,8 @@ class DataCollectorHTTPServer:
             ):
                 try:
                     redis_health = await self.data_service.redis_client.health_check()
-                    health_info["components"]["redis"] = {
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["redis"] = {
                         "status": (
                             "healthy"
                             if redis_health.get("connected", False)
@@ -388,15 +394,19 @@ class DataCollectorHTTPServer:
                         "connected": redis_health.get("connected", False),
                     }
                     if not redis_health.get("connected", False):
-                        health_info["errors"].append("Redis connection failed")
+                        errors_list = cast(List[str], health_info["errors"])
+                        errors_list.append("Redis connection failed")
                 except Exception:
-                    health_info["components"]["redis"] = {"status": "unknown"}
-                    health_info["errors"].append("Redis health check failed")
+                    components_dict = cast(Dict[str, Any], health_info["components"])
+                    components_dict["redis"] = {"status": "unknown"}
+                    errors_list = cast(List[str], health_info["errors"])
+                    errors_list.append("Redis health check failed")
 
             # Determine overall health status
+            components_dict = cast(Dict[str, Any], health_info["components"])
             component_statuses = [
                 comp.get("status")
-                for comp in health_info["components"].values()
+                for comp in components_dict.values()
                 if isinstance(comp, dict) and "status" in comp
             ]
 
@@ -409,7 +419,8 @@ class DataCollectorHTTPServer:
 
         except Exception as e:
             health_info["status"] = "error"
-            health_info["errors"].append(f"Health check failed: {str(e)}")
+            errors_list = cast(List[str], health_info["errors"])
+            errors_list.append(f"Health check failed: {str(e)}")
 
         return health_info
 
@@ -862,7 +873,6 @@ class DataCollectorHTTPServer:
             # Get historical data for both symbols
             from datetime import datetime, timedelta
 
-            import numpy as np
             import polars as pl
 
             from shared.models import TimeFrame
@@ -1084,7 +1094,7 @@ class DataCollectorHTTPServer:
         """
         try:
             symbol = request.match_info["symbol"]
-            format_param = request.query.get("format", "JSON")
+            _ = request.query.get("format", "JSON")
 
             if not hasattr(self.data_service, "twelvedata_client"):
                 return web.json_response(

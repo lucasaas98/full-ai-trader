@@ -8,30 +8,30 @@ of services and provides a unified interface for testing.
 
 import asyncio
 import logging
-import multiprocessing as mp
-import signal
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 # Add the project root to Python path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.append(str(project_root))
 
-from services.risk_manager.src.main import RiskManagerApp
-from services.scheduler.src.main import SchedulerApp
+from services.risk_manager.src.main import RiskManagerApp  # noqa: E402
+from services.scheduler.src.main import SchedulerApp  # noqa: E402
 
 # Import service modules
-from services.strategy_engine.src.main import StrategyEngineApp
-from services.trade_executor.src.main import TradeExecutorApp
-from shared.config import Config, get_config
-from shared.models import TimeFrame
+from services.strategy_engine.src.main import StrategyEngineApp  # noqa: E402
+from services.trade_executor.src.main import TradeExecutorApp  # noqa: E402
+from shared.config import Config, get_config  # noqa: E402
 
-from .mock_data_collector import MockDataCollector, MockDataCollectorConfig
+from .mock_data_collector import (  # noqa: E402
+    MockDataCollector,
+    MockDataCollectorConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class ServiceOrchestrator:
 
         try:
             config = MockDataCollectorConfig(
-                historical_data_path=self.config.data.base_path or "data/parquet",
+                historical_data_path=self.config.data.parquet_path or "data/parquet",
                 available_symbols=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"],
                 redis_publish_interval=30,
                 simulate_screener=True,
@@ -210,7 +210,8 @@ class ServiceOrchestrator:
 
             # Run in thread to avoid blocking
             def run_strategy_engine():
-                asyncio.run(self.strategy_engine.run())
+                if self.strategy_engine:
+                    asyncio.run(self.strategy_engine.start())
 
             thread = threading.Thread(target=run_strategy_engine, daemon=True)
             thread.start()
@@ -234,8 +235,10 @@ class ServiceOrchestrator:
         try:
             self.risk_manager = RiskManagerApp()
 
+            # Run in thread to avoid blocking
             def run_risk_manager():
-                asyncio.run(self.risk_manager.run())
+                if self.risk_manager:
+                    asyncio.run(self.risk_manager.start())
 
             thread = threading.Thread(target=run_risk_manager, daemon=True)
             thread.start()
@@ -258,8 +261,10 @@ class ServiceOrchestrator:
         try:
             self.trade_executor = TradeExecutorApp()
 
+            # Run in thread to avoid blocking
             def run_trade_executor():
-                asyncio.run(self.trade_executor.run())
+                if self.trade_executor:
+                    asyncio.run(self.trade_executor.start())
 
             thread = threading.Thread(target=run_trade_executor, daemon=True)
             thread.start()
@@ -282,8 +287,10 @@ class ServiceOrchestrator:
         try:
             self.scheduler = SchedulerApp()
 
+            # Run in thread to avoid blocking
             def run_scheduler():
-                asyncio.run(self.scheduler.run())
+                if self.scheduler:
+                    asyncio.run(self.scheduler.start())
 
             thread = threading.Thread(target=run_scheduler, daemon=True)
             thread.start()
@@ -388,7 +395,9 @@ class ServiceOrchestrator:
         }
 
         for service_name, service_status in self.services.items():
-            status["services"][service_name] = {
+            services_dict = status["services"]
+            assert isinstance(services_dict, dict)
+            services_dict[service_name] = {
                 "status": service_status.status,
                 "started_at": (
                     service_status.started_at.isoformat()
@@ -444,7 +453,6 @@ class ServiceOrchestrator:
 
         try:
             # Reset simulation to market open
-            from datetime import date, timedelta
 
             today = date.today()
             await self.mock_data_collector.reset_simulation_date(today)

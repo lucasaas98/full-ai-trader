@@ -1,8 +1,6 @@
 import logging
 import multiprocessing as mp
 import os
-
-# Import shared models
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
@@ -15,13 +13,7 @@ from scipy import stats
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Forward declaration for type hints
-from typing import TYPE_CHECKING
-
-from shared.models import BacktestResult, MarketData, TimeFrame
-
-if TYPE_CHECKING:
-    from .backtest_engine import DataSource
+from shared.models import BacktestResult  # noqa: E402
 
 
 @dataclass
@@ -295,11 +287,13 @@ class MonteCarloEngine:
                 self.config.time_horizon_days,
             )
         elif return_params["type"] == "t":
-            returns = stats.t.rvs(
-                df=return_params["df"],
-                loc=return_params["loc"],
-                scale=return_params["scale"],
-                size=self.config.time_horizon_days,
+            returns = np.array(
+                stats.t.rvs(
+                    df=return_params["df"],
+                    loc=return_params["loc"],
+                    scale=return_params["scale"],
+                    size=self.config.time_horizon_days,
+                )
             )
         else:
             # Fallback to normal
@@ -371,7 +365,9 @@ class MonteCarloEngine:
         # Calculate percentiles
         percentiles = {}
         for conf_level in self.config.confidence_levels:
-            percentiles[conf_level] = np.percentile(final_values, conf_level * 100)
+            percentiles[conf_level] = float(
+                np.percentile(final_values, conf_level * 100)
+            )
 
         # Risk metrics
         var_95 = np.percentile(final_values, 5)  # 5th percentile
@@ -499,7 +495,7 @@ Risk Metrics:
 Portfolio Value Percentiles:
 """
         for conf_level, value in results.percentiles.items():
-            report += f"- {conf_level*100:>5.1f}%: ${value:>10,.2f}\n"
+            report += f"- {conf_level * 100:>5.1f}%: ${value:>10,.2f}\n"
 
         return report
 
@@ -534,7 +530,7 @@ class WalkForwardAnalysis:
 
         for i, (train_start, train_end, test_start, test_end) in enumerate(windows):
             self.logger.info(
-                f"Processing window {i+1}/{len(windows)}: {train_start.date()} - {test_end.date()}"
+                f"Processing window {i + 1}/{len(windows)}: {train_start.date()} - {test_end.date()}"
             )
 
             # Optimize strategy parameters on training data
@@ -681,9 +677,12 @@ class WalkForwardAnalysis:
 
         # Random sampling if too many combinations
         if len(combinations) > self.config.optimization_iterations:
-            combinations = np.random.choice(
-                combinations, size=self.config.optimization_iterations, replace=False
-            ).tolist()
+            indices = np.random.choice(
+                len(combinations),
+                size=self.config.optimization_iterations,
+                replace=False,
+            )
+            combinations = [combinations[i] for i in indices]
 
         return combinations
 
@@ -820,7 +819,7 @@ class BootstrapAnalysis:
 
     async def bootstrap_backtest_results(self, returns: List[float]) -> Dict[str, Any]:
         """Bootstrap backtest results for confidence intervals"""
-        bootstrap_results = {
+        bootstrap_results: Dict[str, Any] = {
             "mean_returns": [],
             "volatilities": [],
             "sharpe_ratios": [],
@@ -872,7 +871,7 @@ class BootstrapAnalysis:
             n - self.block_size + 1, size=num_blocks, replace=True
         )
 
-        bootstrap_sample = []
+        bootstrap_sample: List[float] = []
         for start in start_points:
             block = returns[start : start + self.block_size]
             bootstrap_sample.extend(block)

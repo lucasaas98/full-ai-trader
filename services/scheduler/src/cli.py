@@ -1272,7 +1272,7 @@ def dashboard(
                                 )
                                 if response.status_code == 200:
                                     trading_metrics = response.json()
-                            except:
+                            except Exception:
                                 pass
 
                             # Portfolio data
@@ -1282,7 +1282,7 @@ def dashboard(
                                 )
                                 if response.status_code == 200:
                                     portfolio_data = response.json()
-                            except:
+                            except Exception:
                                 pass
 
                             # Risk data
@@ -1292,10 +1292,10 @@ def dashboard(
                                 )
                                 if response.status_code == 200:
                                     risk_data = response.json()
-                            except:
+                            except Exception:
                                 pass
 
-                    except:
+                    except Exception:
                         pass
 
                     return {
@@ -1353,7 +1353,7 @@ def dashboard(
                 memory = metrics.get("memory", {})
                 disk = metrics.get("disk", {})
 
-                content.append(f"[bold]System Resources[/bold]")
+                content.append("[bold]System Resources[/bold]")
                 content.append(
                     f"CPU Usage: [{'red' if cpu_percent > 80 else 'yellow' if cpu_percent > 60 else 'green'}]{cpu_percent:.1f}%[/]"
                 )
@@ -1439,7 +1439,7 @@ def dashboard(
             def render_trading_panel(data: Dict[str, Any]) -> Panel:
                 """Render trading metrics panel."""
                 trading_data = data.get("trading", {})
-                portfolio_data = data.get("portfolio", {})
+                _ = data.get("portfolio", {})
                 risk_data = data.get("risk", {})
 
                 content = []
@@ -1595,7 +1595,7 @@ def dashboard(
                         try:
                             updated_data = await get_dashboard_data()
                             live.update(render_dashboard(updated_data))
-                        except Exception as e:
+                        except Exception:
                             # Continue with last known data on error
                             pass
 
@@ -1746,9 +1746,9 @@ def format_duration(seconds: float) -> str:
     if seconds < 60:
         return f"{seconds:.1f}s"
     elif seconds < 3600:
-        return f"{seconds/60:.1f}m"
+        return f"{seconds / 60:.1f}m"
     else:
-        return f"{seconds/3600:.1f}h"
+        return f"{seconds / 3600:.1f}h"
 
 
 def format_bytes(bytes_value: int) -> str:
@@ -1938,7 +1938,7 @@ async def maintenance_manage(
                     try:
                         dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
                         timestamp = dt.strftime("%Y-%m-%d %H:%M")
-                    except:
+                    except Exception:
                         pass
 
                     table.add_row(

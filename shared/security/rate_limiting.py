@@ -20,13 +20,13 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import redis.asyncio as redis
 from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from .jwt_utils import extract_user_id_from_request_header, get_default_jwt_manager
+from .jwt_utils import extract_user_id_from_request_header
 
 # Explicit type alias for clarity
 TypeAny = Any
@@ -351,7 +351,7 @@ class RateLimiter:
             logger.error(f"Failed to get current usage: {e}")
             return 0
 
-    async def get_rate_limit_stats(self) -> Dict[str, TypeAny]:
+    async def get_rate_limit_stats(self) -> Dict[str, Any]:
         """Get rate limiting statistics"""
         stats = {
             "active_rules": len([r for r in self.rules.values() if r.enabled]),
@@ -373,7 +373,10 @@ class RateLimiter:
                     active_keys += 1
                     total_usage += usage
 
-            stats["rule_details"][rule_name] = {
+            rule_details = dict(
+                cast(Dict[str, Any], stats.get("rule_details", {}) or {})
+            )
+            rule_details[rule_name] = {
                 "enabled": rule.enabled,
                 "limit": rule.limit,
                 "window_seconds": rule.window_seconds,
@@ -382,6 +385,7 @@ class RateLimiter:
                 "total_usage": total_usage,
                 "endpoints": rule.endpoints,
             }
+            stats["rule_details"] = rule_details
 
         return stats
 
@@ -873,7 +877,7 @@ class RateLimitMonitor:
         """Analyze rate limiting effectiveness"""
         try:
             # Get statistics from the last hour
-            current_time = time.time()
+            _ = time.time()
 
             stats = {
                 "blocked_requests": 0,
@@ -935,7 +939,7 @@ async def get_rate_limit_metrics(redis_client: redis.Redis) -> Dict[str, TypeAny
         metrics["total_active_limits"] = len(keys)
 
         # Analyze key patterns
-        rule_counts = {}
+        rule_counts: Dict[str, int] = {}
         for key in keys:
             parts = key.split(":")
             if len(parts) >= 2:

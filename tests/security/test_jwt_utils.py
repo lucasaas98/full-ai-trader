@@ -8,12 +8,10 @@ including expiration, invalid tokens, and user extraction functionality.
 import os
 import sys
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import jwt
 import pytest
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 from shared.security.jwt_utils import (
     JWTConfig,
@@ -27,6 +25,8 @@ from shared.security.jwt_utils import (
     validate_token,
     validate_token_from_header,
 )
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 
 @pytest.fixture
@@ -112,7 +112,19 @@ class TestJWTPayload:
 
     def test_payload_defaults(self):
         """Test JWT payload defaults."""
-        payload = JWTPayload(user_id="test_user")
+        payload = JWTPayload(
+            user_id="test_user",
+            username=None,
+            service=None,
+            session_id=None,
+            api_key_id=None,
+            iss=None,
+            aud=None,
+            exp=None,
+            iat=None,
+            nbf=None,
+            jti=None,
+        )
         assert payload.user_id == "test_user"
         assert payload.roles == []
         assert payload.permissions == []
@@ -198,7 +210,6 @@ class TestJWTManager:
     def test_decode_expired_token(self, jwt_manager):
         """Test decoding expired JWT token."""
         # Create token with past expiration
-        past_time = datetime.now(timezone.utc) - timedelta(hours=1)
         token = jwt_manager.create_access_token(
             user_id="test_user", expires_delta=timedelta(seconds=-3600)  # Expired
         )
@@ -601,7 +612,7 @@ class TestJWTEnvironmentIntegration:
     @patch.dict(os.environ, {}, clear=True)
     def test_missing_jwt_secret_fallback(self):
         """Test fallback when JWT secret is missing."""
-        with patch("shared.security.jwt_utils.logger") as mock_logger:
+        with patch("shared.security.jwt_utils.logger"):
             # Test with empty JWT secret environment
             manager = JWTManager()
 

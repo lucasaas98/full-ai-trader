@@ -94,8 +94,8 @@ class LoadTestRunner:
             "scheduler": f"{base_url}:9105",
         }
         self.session = requests.Session()
-        self.redis_client = None
-        self.db_connection = None
+        self.redis_client: Optional[redis.Redis] = None
+        self.db_connection: Optional[Any] = None
 
     def setup_connections(self):
         """Setup database and Redis connections for testing."""
@@ -424,7 +424,7 @@ class LoadTestRunner:
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
                     pub_results.append(
-                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                        {"success": False, "duration_ms": duration_ms, "error": None}
                     )
                     errors.append(str(e))
 
@@ -506,7 +506,7 @@ class LoadTestRunner:
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
                     db_results.append(
-                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                        {"success": False, "duration_ms": duration_ms, "error": None}
                     )
                     errors.append(str(e))
 
@@ -920,7 +920,7 @@ async def test_system_under_heavy_load(load_test_runner, heavy_load_config):
         assert total_successful > 0, "No successful requests across all services"
         assert (
             total_failed / total_requests < 0.05
-        ), f"Error rate too high: {total_failed/total_requests*100:.2f}%"
+        ), f"Error rate too high: {total_failed / total_requests * 100:.2f}%"
         assert avg_rps > 50, f"Combined RPS too low: {avg_rps}"
 
         print("Heavy Load Test Results:")
@@ -1167,11 +1167,11 @@ class TestConcurrencyLimits:
                 if success_rate >= 0.95:  # 95% success rate
                     max_successful_users = concurrent_users
                     print(
-                        f"✓ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate"
+                        f"✓ {concurrent_users} concurrent users: {success_rate * 100:.1f}% success rate"
                     )
                 else:
                     print(
-                        f"✗ {concurrent_users} concurrent users: {success_rate*100:.1f}% success rate"
+                        f"✗ {concurrent_users} concurrent users: {success_rate * 100:.1f}% success rate"
                     )
                     break
 
@@ -1202,10 +1202,12 @@ class TestConcurrencyLimits:
             if result.total_requests > 0
             else 1
         )
-        assert error_rate < 0.20, f"Too many connection failures: {error_rate*100:.1f}%"
+        assert (
+            error_rate < 0.20
+        ), f"Too many connection failures: {error_rate * 100:.1f}%"
 
         print(
-            f"Connection Pool Test: {error_rate*100:.1f}% error rate under pool pressure"
+            f"Connection Pool Test: {error_rate * 100:.1f}% error rate under pool pressure"
         )
 
 
@@ -1410,7 +1412,7 @@ class TestChaosEngineering:
                 if result.total_requests > 0
                 else 1
             )
-            print(f"Network partition simulation: {error_rate*100:.1f}% error rate")
+            print(f"Network partition simulation: {error_rate * 100:.1f}% error rate")
 
             # Some failures are expected, but system shouldn't crash
             assert result.total_requests > 0, "No requests were attempted"

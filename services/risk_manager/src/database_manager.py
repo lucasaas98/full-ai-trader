@@ -567,7 +567,7 @@ class RiskDatabaseManager:
         """Retrieve risk events from the database."""
         try:
             conditions = []
-            params = []
+            params: List[Any] = []
             param_count = 0
 
             base_query = "SELECT * FROM risk.risk_events WHERE 1=1"
@@ -646,7 +646,7 @@ class RiskDatabaseManager:
         """Retrieve portfolio snapshots from the database."""
         try:
             conditions = []
-            params = []
+            params: List[Any] = []
             param_count = 0
 
             base_query = "SELECT * FROM risk.portfolio_snapshots WHERE 1=1"
@@ -1197,8 +1197,8 @@ class RiskDatabaseManager:
                 metrics_row = metrics_result.fetchone()
 
                 # Process events data
-                events_by_type = {}
-                events_by_severity = {}
+                events_by_type: Dict[str, int] = {}
+                events_by_severity: Dict[str, int] = {}
 
                 for row in events_rows:
                     events_by_type[row.event_type] = (
@@ -1258,9 +1258,9 @@ class RiskDatabaseManager:
     async def cleanup_old_data(self, retention_days: int = 365) -> int:
         """Clean up old risk management data."""
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            _ = datetime.now(timezone.utc) - timedelta(days=retention_days)
 
-            cleanup_queries = [
+            _ = [
                 "DELETE FROM risk_events WHERE created_at < :p1",
                 "DELETE FROM portfolio_snapshots WHERE created_at < :p1",
                 "DELETE FROM portfolio_metrics WHERE created_at < :p1",

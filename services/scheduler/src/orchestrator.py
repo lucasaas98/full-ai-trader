@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, cast
 
 import httpx
 import redis.asyncio as redis
@@ -115,6 +115,9 @@ class ServiceOrchestrator:
 
         # Monitoring tasks
         self.monitoring_tasks: Set[asyncio.Task] = set()
+
+        # HTTP client for service communication
+        self.http_client: Optional[httpx.AsyncClient] = None
 
     def register_service(self, service_config: ServiceConfiguration):
         """Register a service with the orchestrator."""
@@ -765,7 +768,7 @@ class ServiceOrchestrator:
 
     async def get_dependency_graph(self) -> Dict[str, Any]:
         """Generate service dependency graph."""
-        graph = {"nodes": [], "edges": []}
+        graph: Dict[str, List[Dict[str, Any]]] = {"nodes": [], "edges": []}
 
         # Add nodes
         for service_name, service in self.services.items():
@@ -1089,7 +1092,7 @@ class ServiceOrchestrator:
 
         # Find the service with maximum dependency depth
         max_depth = 0
-        critical_service = None
+        critical_service: Optional[str] = None
 
         for service_name in self.services:
             depth = get_depth(service_name)
@@ -1100,14 +1103,14 @@ class ServiceOrchestrator:
         # Build critical path
         if critical_service:
             path = []
-            current = critical_service
+            current: Optional[str] = critical_service
 
             while current:
                 path.append(current)
                 # Find the dependency with maximum depth
                 if current in self.services:
                     service = self.services[current]
-                    next_service = None
+                    next_service: Optional[str] = None
                     max_dep_depth = 0
 
                     for dep in service.dependencies:
@@ -1120,6 +1123,9 @@ class ServiceOrchestrator:
                 else:
                     break
 
+                if current is None:
+                    break
+
             return list(reversed(path))
 
         return []
@@ -1130,7 +1136,7 @@ class ServiceOrchestrator:
             return {"error": "Service not found"}
 
         service = self.services[service_name]
-        diagnosis = {
+        diagnosis: Dict[str, Any] = {
             "service": service_name,
             "current_status": service.status.value,
             "issues": [],
@@ -1171,22 +1177,27 @@ class ServiceOrchestrator:
             )
 
         # Check resource usage
-        resource_usage = await self.get_service_resource_usage(service_name)
-        if resource_usage:
-            cpu = resource_usage.get("cpu_percent", 0)
-            memory = resource_usage.get("memory_percent", 0)
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{service.url}:{service.port}/metrics")
+                if response.status_code == 200:
+                    metrics = response.json()
+                    cpu = metrics.get("cpu_percent", 0)
+                    memory = metrics.get("memory_percent", 0)
 
-            if cpu > 80:
-                diagnosis["issues"].append(f"High CPU usage: {cpu:.1f}%")
-                diagnosis["recommendations"].append(
-                    "Scale service or optimize performance"
-                )
+                    if cpu > 80:
+                        diagnosis["issues"].append(f"High CPU usage: {cpu:.1f}%")
+                    diagnosis["recommendations"].append(
+                        "Scale service or optimize performance"
+                    )
 
-            if memory > 85:
-                diagnosis["issues"].append(f"High memory usage: {memory:.1f}%")
-                diagnosis["recommendations"].append(
-                    "Check for memory leaks or scale service"
-                )
+                if memory > 85:
+                    diagnosis["issues"].append(f"High memory usage: {memory:.1f}%")
+                    diagnosis["recommendations"].append(
+                        "Check for memory leaks or scale service"
+                    )
+        except Exception:
+            pass  # Metrics endpoint not available
 
         return diagnosis
 
@@ -1310,7 +1321,7 @@ class ServiceOrchestrator:
         }
 
         # Add detailed service information
-        for service_name in self.services:
+        for service_name in list(self.services.keys()):
             service_status = await self.get_service_status(service_name)
             if service_status:
                 # Add diagnosis
@@ -1321,7 +1332,8 @@ class ServiceOrchestrator:
                 resource_usage = await self.get_service_resource_usage(service_name)
                 service_status["resource_usage"] = resource_usage
 
-                report["services"][service_name] = service_status
+                services_dict = cast(Dict[str, Any], report["services"])
+                services_dict[service_name] = service_status
 
         return report
 
