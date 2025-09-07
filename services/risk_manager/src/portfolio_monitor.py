@@ -60,7 +60,7 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Awaitable, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import polars as pl
@@ -1130,11 +1130,19 @@ class PortfolioMonitor:
 
         try:
             # Calculate correlation from historical price data
-            correlation = await self._calculate_price_correlation(symbol1, symbol2)
+            correlation_result = await self._calculate_price_correlation(
+                symbol1, symbol2
+            )
+            correlation = correlation_result if correlation_result is not None else 0.0
 
             # Fallback to estimation if no historical data available
-            if correlation is None:
-                correlation = await self._estimate_correlation(symbol1, symbol2)
+            if correlation == 0.0:
+                estimated_correlation = await self._estimate_correlation(
+                    symbol1, symbol2
+                )
+                correlation = (
+                    estimated_correlation if estimated_correlation is not None else 0.0
+                )
 
             # Cache result
             self._correlation_cache[cache_key] = (
@@ -1259,17 +1267,20 @@ class PortfolioMonitor:
             ("Cryptocurrency", "Technology"): 0.35,
         }
 
-        # Look up correlation using both orders
-        correlation_key1 = (sector1, sector2)
-        correlation_key2 = (sector2, sector1)
-
-        if correlation_key1 in sector_correlations:
-            base_correlation = sector_correlations[correlation_key1]
-        elif correlation_key2 in sector_correlations:
-            base_correlation = sector_correlations[correlation_key2]
-        else:
-            # Default inter-sector correlation
+        # Look up correlation using both orders, handling None sectors
+        if sector1 is None or sector2 is None:
             base_correlation = 0.25
+        else:
+            correlation_key1 = (sector1, sector2)
+            correlation_key2 = (sector2, sector1)
+
+            if correlation_key1 in sector_correlations:
+                base_correlation = sector_correlations[correlation_key1]
+            elif correlation_key2 in sector_correlations:
+                base_correlation = sector_correlations[correlation_key2]
+            else:
+                # Default inter-sector correlation
+                base_correlation = 0.25
 
         # Individual stock adjustments
         correlation = base_correlation
@@ -1519,7 +1530,7 @@ class PortfolioMonitor:
         sector = await self._get_position_sector(symbol)
         return sector == "Technology"
 
-    async def _get_position_sector(self, symbol: str) -> str:
+    async def _get_position_sector(self, symbol: str) -> str | None:
         """Get sector for a position with comprehensive sector mapping."""
         # TODO: Add test_get_position_sector() - Verify sector lookup from screener data and fallback
         # Check cache first
@@ -1715,12 +1726,12 @@ class PortfolioMonitor:
         }
 
         # Handle specific cases
-        sector = sector_map.get(symbol)
+        sector_lookup: Optional[str] = sector_map.get(symbol)
 
-        if sector:
+        if sector_lookup is not None:
             # Cache and return
-            self._sector_cache[cache_key] = (sector, datetime.now(timezone.utc))
-            return sector
+            self._sector_cache[cache_key] = (sector_lookup, datetime.now(timezone.utc))
+            return sector_lookup
 
         # ETF detection by common patterns
         if any(
@@ -1903,7 +1914,7 @@ class PortfolioMonitor:
     ) -> Dict[str, Decimal]:
         """Calculate risk exposure by sector."""
 
-        sector_exposure = {}
+        sector_exposure: Dict[str, Any] = {}
 
         try:
             if portfolio.total_equity <= 0:
@@ -1917,10 +1928,11 @@ class PortfolioMonitor:
                 sector = self._get_position_sector_sync(position.symbol)
                 exposure = abs(position.market_value) / portfolio.total_equity
 
-                if sector in sector_exposure:
-                    sector_exposure[sector] += exposure
-                else:
-                    sector_exposure[sector] = exposure
+                if sector is not None:
+                    if sector in sector_exposure:
+                        sector_exposure[sector] += exposure
+                    else:
+                        sector_exposure[sector] = exposure
 
             return sector_exposure
 
@@ -1928,7 +1940,7 @@ class PortfolioMonitor:
             logger.error(f"Error calculating sector exposure: {e}")
             return {}
 
-    def _get_position_sector_sync(self, symbol: str) -> str:
+    def _get_position_sector_sync(self, symbol: str) -> str | None:
         """Synchronous version of sector lookup."""
         # TODO: Add test_get_position_sector_sync() - Verify sync sector lookup and caching
         # Check cache first
@@ -2102,7 +2114,8 @@ class PortfolioMonitor:
                 redis_url = "redis://redis:6379"
 
             self._redis = redis.from_url(redis_url, decode_responses=True)
-            await self._redis.ping()
+            if self._redis is not None:
+                await self._redis.ping()
 
             # Start screener update subscription
             await self._start_screener_subscription()

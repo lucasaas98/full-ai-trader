@@ -299,7 +299,7 @@ class TestBacktestEngine:
 
         def buy_and_hold_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Simple buy and hold strategy."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             # Buy at the beginning
             if len(data) == 1:  # First data point
@@ -355,7 +355,7 @@ class TestBacktestEngine:
 
         def momentum_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Simple momentum strategy based on moving averages."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) < 20:  # Need enough data for moving average
                 return signals
@@ -434,7 +434,7 @@ class TestBacktestEngine:
 
         def mean_reversion_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Mean reversion strategy using Bollinger Bands."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) < 20:
                 return signals
@@ -503,7 +503,7 @@ class TestBacktestEngine:
             all_data: Dict[str, pd.DataFrame],
         ) -> List[TradingSignal]:
             """Equal-weight portfolio rebalancing strategy."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             # Rebalance monthly
             symbols = list(all_data.keys())
@@ -553,7 +553,7 @@ class TestBacktestEngine:
 
         def simple_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Simple strategy that trades periodically."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             # Trade every 100 data points
             if len(data) % 100 == 0 and len(data) > 0:
@@ -615,7 +615,7 @@ class TestMonteCarloSimulation:
 
         def test_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Test strategy for Monte Carlo."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) % 50 == 0 and len(data) > 0:
                 current = data.iloc[-1]
@@ -681,7 +681,7 @@ class TestMonteCarloSimulation:
             all_data: Dict[str, pd.DataFrame],
         ) -> List[TradingSignal]:
             """Balanced portfolio strategy."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             for symbol, data in all_data.items():
                 if (
@@ -742,7 +742,7 @@ class TestMonteCarloSimulation:
 
         def high_risk_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """High-risk, high-frequency strategy."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) % 10 == 0 and len(data) > 10:  # Trade frequently
                 current = data.iloc[-1]
@@ -806,7 +806,7 @@ class TestMonteCarloSimulation:
             data: pd.DataFrame, lookback_period: int = 50
         ) -> List[TradingSignal]:
             """Strategy that adapts based on recent performance."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) < lookback_period:
                 return signals
@@ -929,7 +929,7 @@ class TestBacktestingInfrastructure:
             data: pd.DataFrame, ma_short: int = 10, ma_long: int = 20
         ) -> List[TradingSignal]:
             """Strategy with optimizable parameters."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) < ma_long:
                 return signals
@@ -1020,7 +1020,7 @@ class TestBacktestingInfrastructure:
 
         def multi_source_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Strategy that could use multiple data sources."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) % 100 == 0 and len(data) > 0:
                 current = data.iloc[-1]
@@ -1079,7 +1079,7 @@ class TestAdvancedBacktesting:
 
         def multi_timeframe_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Strategy using multiple timeframes for decisions."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) < 100:
                 return signals
@@ -1224,7 +1224,7 @@ class TestAdvancedBacktesting:
 
         def test_strategy(data: pd.DataFrame) -> List[TradingSignal]:
             """Test strategy for custom metrics."""
-            signals = []
+            signals: List[TradingSignal] = []
 
             if len(data) % 75 == 0 and len(data) > 0:
                 current = data.iloc[-1]
@@ -1284,7 +1284,7 @@ def test_backtesting_performance_benchmark():
 
     def benchmark_strategy(data: pd.DataFrame) -> List[TradingSignal]:
         """Simple strategy for benchmarking."""
-        signals = []
+        signals: List[TradingSignal] = []
 
         if len(data) % 100 == 0 and len(data) > 0:
             current = data.iloc[-1]

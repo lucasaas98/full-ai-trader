@@ -39,7 +39,7 @@ class ProductionSignal:
         take_profit: Optional[Decimal] = None,
         position_size: float = 0.1,
         reasoning: str = "",
-        metadata: Dict[str, Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ):
         self.symbol = symbol
         self.action = action
@@ -229,7 +229,7 @@ class ProductionStrategyAdapter:
     ) -> float:
         """Calculate technical analysis score (0-100)."""
         try:
-            scores = []
+            scores: List[float] = []
 
             # Price trend analysis
             recent_closes = [float(d.close) for d in historical_data[-20:]]
@@ -266,17 +266,17 @@ class ProductionStrategyAdapter:
 
             # RSI-like momentum indicator
             if len(recent_closes) >= 14:
-                gains = []
-                losses = []
+                gains: List[float] = []
+                losses: List[float] = []
 
                 for i in range(1, len(recent_closes)):
                     change = recent_closes[i] - recent_closes[i - 1]
                     if change > 0:
-                        gains.append(change)
-                        losses.append(0)
+                        gains.append(float(change))
+                        losses.append(0.0)
                     else:
-                        gains.append(0)
-                        losses.append(abs(change))
+                        gains.append(0.0)
+                        losses.append(float(abs(change)))
 
                 avg_gain = sum(gains[-14:]) / 14 if gains else 0.01
                 avg_loss = sum(losses[-14:]) / 14 if losses else 0.01
@@ -340,7 +340,7 @@ class ProductionStrategyAdapter:
     ) -> float:
         """Calculate fundamental analysis score (0-100) using price-based proxies."""
         try:
-            scores = []
+            scores: List[float] = []
 
             # Value analysis (price relative to historical levels)
             if len(historical_data) >= 252:  # ~1 year of data

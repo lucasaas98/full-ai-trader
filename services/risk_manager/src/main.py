@@ -60,7 +60,7 @@ def setup_logging():
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    handlers = []
+    handlers: List[logging.Handler] = []
     if log_config.enable_console:
         handlers.append(logging.StreamHandler(sys.stdout))
     if log_config.enable_file:

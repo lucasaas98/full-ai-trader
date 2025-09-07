@@ -30,7 +30,12 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Protocol, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol, Union
+
+if TYPE_CHECKING:
+    # Forward references for classes defined later in the file
+    DemoConfig = Any
+
 
 # Rich console for better output
 from rich.console import Console
@@ -47,6 +52,9 @@ from rich.table import Table
 
 # Rich layout imports not needed for this demo
 from rich.tree import Tree
+
+# Import MaintenanceScheduler
+from .maintenance import MaintenanceScheduler
 
 console = Console()
 
@@ -107,12 +115,15 @@ class MockResult:
 class MaintenanceManagerProtocol(Protocol):
     """Protocol for maintenance manager implementations."""
 
-    async def register_tasks(self) -> None: ...
+    async def register_tasks(self) -> None:
+        pass
 
-    async def run_task(self, task_name: str) -> Any: ...
+    async def run_task(self, task_name: str) -> Any | None:
+        pass
 
     @property
-    def maintenance_tasks(self) -> Dict[str, Any]: ...
+    def maintenance_tasks(self) -> Dict[str, Any] | None:
+        pass
 
 
 class MockMaintenanceManager:
@@ -202,13 +213,13 @@ class MaintenanceSystemDemo:
 
     def __init__(self, mode: str = "interactive"):
         self.mode = mode
-        self.demo_dir = None
-        self.config = None
-        self.redis_client = None
-        self.maintenance_manager = None
-        self.maintenance_scheduler = None
-        self.report_generator = None
-        self.demo_results = {}
+        self.demo_dir: Optional[Path] = None
+        self.demo_config: Optional["DemoConfig"] = None
+        self.redis_client: Optional[MockRedisClient] = None
+        self.maintenance_manager: Optional[Any] = None
+        self.maintenance_scheduler: Optional[MaintenanceScheduler] = None
+        self.report_generator: Optional[Any] = None
+        self.demo_results: Dict[str, Any] = {}
 
     async def setup_demo_environment(self):
         """Setup complete demo environment with realistic data."""
@@ -473,20 +484,22 @@ class MaintenanceSystemDemo:
             def __init__(self):
                 self.timezone = "America/New_York"
 
-        self.config = DemoConfig(
-            self.demo_dir if self.demo_dir is not None else Path("/tmp")
-        )
+        if self.demo_dir is not None:
+            self.demo_config = DemoConfig(self.demo_dir)
+        else:
+            self.demo_config = DemoConfig(Path("/tmp"))
 
     async def _setup_redis(self):
         """Setup Redis connection or mock."""
         try:
             import redis.asyncio as redis
 
-            if self.config is not None:
-                self.redis_client = redis.Redis.from_url(self.config.redis.url)
+            if self.demo_config is not None:
+                self.redis_client = redis.Redis.from_url(self.demo_config.redis.url)  # type: ignore
             else:
                 raise ImportError("Config not available")
-            await self.redis_client.ping()
+            if self.redis_client:
+                await self.redis_client.ping()
             console.print("[green]✅ Redis connection established[/green]")
 
             # Populate with demo data
@@ -603,12 +616,12 @@ class MaintenanceSystemDemo:
             )
 
             # Try to initialize real maintenance manager if possible
-            if self.config is not None and self.redis_client is not None:
+            if self.demo_config is not None and self.redis_client is not None:
                 try:
                     if self.redis_client is None:
                         raise RuntimeError("Redis client not initialized")
                     self.maintenance_manager = MaintenanceManager(
-                        self.config, self.redis_client
+                        self.demo_config, self.redis_client
                     )
                     console.print("[green]✅ Using real MaintenanceManager[/green]")
                 except Exception as e:
@@ -713,7 +726,7 @@ class MaintenanceSystemDemo:
         """Demonstrate individual maintenance tasks."""
         console.print("[bold yellow]🔧 Individual Maintenance Tasks Demo[/bold yellow]")
 
-        available_tasks = (
+        available_tasks: list[str] = (
             list(self.maintenance_manager.maintenance_tasks.keys())
             if self.maintenance_manager
             else []
@@ -759,7 +772,7 @@ class MaintenanceSystemDemo:
         """Demonstrate complete maintenance cycle."""
         console.print("[bold yellow]🔄 Complete Maintenance Cycle Demo[/bold yellow]")
 
-        tasks_to_run = (
+        tasks_to_run: list[str] = (
             list(self.maintenance_manager.maintenance_tasks.keys())
             if self.maintenance_manager
             else []
@@ -867,13 +880,13 @@ class MaintenanceSystemDemo:
 
         # Show current schedule
         if self.maintenance_manager is not None:
-            schedule = getattr(
+            current_schedule: dict = getattr(
                 self.maintenance_manager, "get_maintenance_schedule", lambda: {}
             )()
         else:
-            schedule = {}
+            current_schedule = {}
 
-        console.print(f"[bold]Scheduled Tasks ({len(schedule)}):[/bold]")
+        console.print(f"[bold]Scheduled Tasks ({len(current_schedule)}):[/bold]")
 
         table = Table()
         table.add_column("Schedule ID", style="bold cyan")
@@ -881,7 +894,7 @@ class MaintenanceSystemDemo:
         table.add_column("Schedule")
         table.add_column("Description")
 
-        for schedule_id, task_info in schedule.items():
+        for schedule_id, task_info in current_schedule.items():
             table.add_row(
                 schedule_id,
                 task_info["task_name"],
@@ -1273,10 +1286,10 @@ class MaintenanceSystemDemo:
     async def _run_report_generation(self) -> Dict[str, Any]:
         """Run report generation step."""
         if self.report_generator is not None:
-            report = await self.report_generator.generate_daily_report()
+            daily_report = await self.report_generator.generate_daily_report()
         else:
-            report = {}
-        return {"success": "error" not in report, "report_generated": True}
+            daily_report = {}
+        return {"success": "error" not in daily_report, "report_generated": True}
 
     async def _run_metrics_collection(self) -> Dict[str, Any]:
         """Run metrics collection step."""
@@ -1539,8 +1552,8 @@ class MaintenanceSystemDemo:
 
                 for task_name in tasks:
                     # Run task multiple times for averaging
-                    durations = []
-                    successes = []
+                    durations: list[float] = []
+                    successes: list[bool] = []
                     for run in range(3):
                         start_time = time.time()
                         if self.maintenance_manager is None:

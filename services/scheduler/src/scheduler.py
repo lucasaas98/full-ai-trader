@@ -322,8 +322,8 @@ class TradingScheduler:
         self.maintenance_scheduler: Optional[Any] = None
 
         # Performance tracking
-        self.task_execution_times = {}
-        self.error_counts = {}
+        self.task_execution_times: Dict[str, float] = {}
+        self.error_counts: Dict[str, int] = {}
 
         # Task execution tracking
         self.running_tasks: Set[str] = set()

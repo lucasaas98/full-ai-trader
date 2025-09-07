@@ -9,21 +9,10 @@ import os
 
 # Import the actual RiskManager and related models
 import sys
-from datetime import datetime
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
 import pytest
-
-# Add required paths for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
-sys.path.insert(
-    0,
-    os.path.join(
-        os.path.dirname(__file__), "..", "..", "services", "risk_manager", "src"
-    ),
-)
-
 from risk_manager import RiskManager  # type: ignore
 
 from shared.models import (
@@ -33,15 +22,19 @@ from shared.models import (
     PortfolioState,
     Position,
     PositionSizing,
-    PositionSizingMethod,
-    RiskEvent,
-    RiskEventType,
     RiskFilter,
-    RiskLimits,
-    RiskSeverity,
     SignalType,
     TradeSignal,
     TrailingStop,
+)
+
+# Add required paths for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "shared"))
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(__file__), "..", "..", "services", "risk_manager", "src"
+    ),
 )
 
 
@@ -822,9 +815,6 @@ class TestRiskViolationChecking:
         self, risk_manager, sample_portfolio
     ):
         """Test risk violation check with no violations."""
-        # Mock the actual metrics return type
-        from unittest.mock import Mock as MockForTest
-
         mock_metrics_obj = Mock()
         mock_metrics_obj.value_at_risk_1d = Decimal("0.01")
         mock_metrics_obj.max_drawdown = Decimal("0.05")
@@ -866,9 +856,6 @@ class TestRiskViolationChecking:
                 )
             ],
         )
-
-        # Mock with proper metrics object
-        from unittest.mock import Mock as MockForTest2
 
         mock_metrics_obj = Mock()
         mock_metrics_obj.value_at_risk_1d = Decimal("0.20")

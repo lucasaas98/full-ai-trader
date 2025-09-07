@@ -80,7 +80,7 @@ class OrderManager:
         self._redis = None
         self._active_orders: Dict[UUID, OrderResponse] = {}
         self._bracket_orders: Dict[UUID, Dict[str, OrderResponse]] = {}
-        self._retry_queue = asyncio.Queue()
+        self._retry_queue: asyncio.Queue[Any] = asyncio.Queue()
         self._running = False
 
     async def initialize(self):

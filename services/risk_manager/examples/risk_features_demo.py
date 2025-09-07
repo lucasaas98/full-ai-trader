@@ -29,42 +29,62 @@ def create_sample_portfolio() -> PortfolioState:
             quantity=100,
             current_price=Decimal("175.50"),
             market_value=Decimal("17550.00"),
+            entry_price=Decimal("170.00"),
+            unrealized_pnl=Decimal("550.00"),
+            cost_basis=Decimal("17000.00"),
         ),
         Position(
             symbol="MSFT",
             quantity=75,
             current_price=Decimal("380.00"),
             market_value=Decimal("28500.00"),
+            entry_price=Decimal("370.00"),
+            unrealized_pnl=Decimal("750.00"),
+            cost_basis=Decimal("27750.00"),
         ),
         Position(
             symbol="GOOGL",
             quantity=25,
             current_price=Decimal("140.00"),
             market_value=Decimal("3500.00"),
+            entry_price=Decimal("135.00"),
+            unrealized_pnl=Decimal("125.00"),
+            cost_basis=Decimal("3375.00"),
         ),
         Position(
             symbol="TSLA",
             quantity=50,
             current_price=Decimal("220.00"),
             market_value=Decimal("11000.00"),
+            entry_price=Decimal("230.00"),
+            unrealized_pnl=Decimal("-500.00"),
+            cost_basis=Decimal("11500.00"),
         ),
         Position(
             symbol="JPM",
             quantity=150,
             current_price=Decimal("165.00"),
             market_value=Decimal("24750.00"),
+            entry_price=Decimal("160.00"),
+            unrealized_pnl=Decimal("750.00"),
+            cost_basis=Decimal("24000.00"),
         ),
         Position(
             symbol="SPY",
             quantity=100,
             current_price=Decimal("450.00"),
             market_value=Decimal("45000.00"),
+            entry_price=Decimal("440.00"),
+            unrealized_pnl=Decimal("1000.00"),
+            cost_basis=Decimal("44000.00"),
         ),
     ]
 
     return PortfolioState(
+        account_id="demo_account",
         timestamp=datetime.now(timezone.utc),
-        cash_balance=Decimal("30000.00"),
+        cash=Decimal("30000.00"),
+        buying_power=Decimal("30000.00"),
         positions=positions,
         total_equity=Decimal("160300.00"),
     )
@@ -99,7 +119,7 @@ def create_sample_options_positions() -> List[Dict]:
 def create_sample_portfolio_history() -> List[Dict]:
     """Create sample portfolio history for VaR backtesting."""
     # Simulate 30 days of portfolio values with some volatility
-    base_value = 160000
+    base_value = 160000.0
     history = []
 
     import random
@@ -350,7 +370,7 @@ async def main():
 
     print("\nSample Portfolio Overview:")
     print(f"Total Value: ${portfolio.total_equity:,.2f}")
-    print(f"Cash: ${portfolio.cash_balance:,.2f}")
+    print(f"Cash: ${portfolio.cash:,.2f}")
     print(f"Positions: {len([p for p in portfolio.positions if p.quantity != 0])}")
 
     # Demonstrate all features

@@ -22,6 +22,7 @@ from ai_models import (
 )
 from ai_strategy import AIDecision, AIStrategyEngine
 from base_strategy import Signal, StrategyConfig
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 logger = logging.getLogger(__name__)
@@ -558,14 +559,16 @@ class AIStrategyIntegration:
                     # Get recent decisions
                     cutoff_time = datetime.now() - timedelta(days=1)
                     result = await session.execute(
-                        "SELECT * FROM ai_decisions WHERE timestamp > :cutoff",
+                        text("SELECT * FROM ai_decisions WHERE timestamp > :cutoff"),
                         {"cutoff": cutoff_time},
                     )
                     recent_decisions = result.fetchall()
 
                     # Get executions
                     result = await session.execute(
-                        "SELECT * FROM ai_trade_executions WHERE executed_at > :cutoff",
+                        text(
+                            "SELECT * FROM ai_trade_executions WHERE executed_at > :cutoff"
+                        ),
                         {"cutoff": cutoff_time},
                     )
                     recent_executions = result.fetchall()

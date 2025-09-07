@@ -402,7 +402,7 @@ class OperationalDashboard:
             daily_pnl = 0.0
             portfolio_value = 0.0
             risk_score = 0.0
-            strategy_performance = {}
+            strategy_performance: Dict[str, float] = {}
             last_trade_time = None
             system_status = "unknown"
 

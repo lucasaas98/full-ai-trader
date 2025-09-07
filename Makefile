@@ -204,7 +204,7 @@ test-coverage: ## Run tests with coverage report
 lint: ## Run linting checks
 	@echo "Running linting checks..."
 	@flake8 . --exclude=venv --ignore=E501,W503,E203
-	@mypy .
+	@mypy . --install-types --ignore-missing-imports --check-untyped-defs
 	@echo "✓ Linting checks completed"
 
 format: ## Format code

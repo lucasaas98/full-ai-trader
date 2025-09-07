@@ -10,18 +10,16 @@ import os
 import sys
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import numpy as np
 import polars as pl
 import pytest
 import yaml
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from services.strategy_engine.src.ai_integration import AIStrategyIntegration
 from services.strategy_engine.src.ai_models import (
     AIContext,
-    AIDecisionRecord,
     create_performance_summary,
     decision_to_dict,
 )
@@ -43,6 +41,8 @@ from services.strategy_engine.src.base_strategy import (
     StrategyMode,
 )
 from shared.models import SignalType
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestResponseCache:
@@ -247,8 +247,11 @@ class TestDataContextBuilder:
         # Generate 100 days of data with trend and volatility
         np.random.seed(42)
         dates = pl.date_range(
-            datetime.now() - timedelta(days=100), datetime.now(), interval="1d"
-        )
+            datetime.now() - timedelta(days=100),
+            datetime.now(),
+            interval="1d",
+            eager=True,
+        ).to_list()
 
         # Create trending data with volatility
         trend = np.linspace(100, 120, len(dates))
@@ -269,13 +272,13 @@ class TestDataContextBuilder:
     def test_rsi_extremes(self, complex_data):
         """Test RSI calculation at extremes."""
         # All up moves
-        up_data = complex_data.with_columns(pl.col("close").cumsum().alias("close"))
+        up_data = complex_data.with_columns(pl.col("close").cum_sum().alias("close"))
         rsi_up = DataContextBuilder._calculate_rsi(up_data)
         assert rsi_up > 70  # Should be overbought
 
         # All down moves
         down_data = complex_data.with_columns(
-            (100 - pl.col("close").cumsum()).alias("close")
+            (100 - pl.col("close").cum_sum()).alias("close")
         )
         rsi_down = DataContextBuilder._calculate_rsi(down_data)
         assert rsi_down < 30  # Should be oversold
@@ -305,7 +308,7 @@ class TestDataContextBuilder:
 
         # Test with strong uptrend
         uptrend_data = complex_data.with_columns(
-            pl.col("close").cumsum().alias("close")
+            pl.col("close").cum_sum().alias("close")
         )
         uptrend_patterns = DataContextBuilder._identify_patterns(uptrend_data)
         assert "Uptrend" in uptrend_patterns or "breakout" in uptrend_patterns.lower()
@@ -606,21 +609,26 @@ class TestAIModels:
 
     def test_decision_to_dict(self):
         """Test conversion of AIDecisionRecord to dictionary."""
-        decision = AIDecisionRecord(
-            timestamp=datetime.now(),
-            ticker="TEST",
-            decision="BUY",
-            confidence=80.0,
-            entry_price=100.0,
-            stop_loss=95.0,
-            take_profit=110.0,
-            position_size=0.05,
-            risk_reward_ratio=3.0,
-            reasoning="Strong bullish signals",
-            key_risks=["Market volatility"],
-            models_used=["claude-3-opus"],
-            total_cost=0.05,
-        )
+        # Create a mock decision object with the required attributes
+        decision = type(
+            "AIDecisionRecord",
+            (),
+            {
+                "id": uuid4(),
+                "timestamp": datetime.now(),
+                "ticker": "TEST",
+                "decision": "BUY",
+                "confidence": 80.0,
+                "entry_price": 100.0,
+                "stop_loss": 95.0,
+                "take_profit": 110.0,
+                "position_size": 0.05,
+                "risk_reward_ratio": 3.0,
+                "reasoning": "Strong bullish signals",
+                "key_risks": ["Market volatility"],
+                "models_used": ["claude-3-opus"],
+            },
+        )()
 
         result = decision_to_dict(decision)
 
@@ -639,14 +647,20 @@ class TestAIModels:
         assert summary.total_pnl == 0
 
         # Decisions without executions
-        decisions = [
-            MagicMock(
-                timestamp=datetime.now(),
-                actual_outcome=None,
-                total_cost=0.05,
-                models_used=["claude-3-opus"],
-            )
-        ]
+        decision = type(
+            "AIDecisionRecord",
+            (),
+            {
+                "id": uuid4(),
+                "ticker": "TEST2",
+                "decision": "HOLD",
+                "timestamp": datetime.now(),
+                "actual_outcome": None,
+                "total_cost": 0.05,
+                "models_used": ["claude-3-opus"],
+            },
+        )()
+        decisions = [decision]
         summary = create_performance_summary(decisions, [])
         assert summary.total_decisions == 1
         assert summary.win_rate == 0
@@ -781,17 +795,18 @@ def create_sample_data(num_rows: int) -> pl.DataFrame:
     dates = pl.date_range(
         datetime.now() - timedelta(days=num_rows), datetime.now(), interval="1d"
     )
+    dates_list = pl.DataFrame({"date": dates}).select("date").to_series().to_list()
 
-    prices = 100 + np.cumsum(np.random.randn(len(dates)) * 2)
+    prices = 100 + np.cumsum(np.random.randn(len(dates_list)) * 2)
 
     return pl.DataFrame(
         {
-            "timestamp": dates,
-            "open": prices + np.random.randn(len(dates)) * 0.5,
-            "high": prices + np.abs(np.random.randn(len(dates))) * 1,
-            "low": prices - np.abs(np.random.randn(len(dates))) * 1,
+            "timestamp": dates_list,
+            "open": prices + np.random.randn(len(dates_list)) * 0.5,
+            "high": prices + np.abs(np.random.randn(len(dates_list))) * 1,
+            "low": prices - np.abs(np.random.randn(len(dates_list))) * 1,
             "close": prices,
-            "volume": np.random.randint(1000000, 5000000, len(dates)),
+            "volume": np.random.randint(1000000, 5000000, len(dates_list)),
         }
     )
 

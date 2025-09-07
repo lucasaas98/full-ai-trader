@@ -23,7 +23,7 @@ import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, cast
 
 import httpx
 import psutil
@@ -108,8 +108,8 @@ class AlertManager:
 
     def __init__(self, config: MaintenanceRunnerConfig):
         self.config = config
-        self.last_alert_times = {}
-        self.alert_counts = {}
+        self.last_alert_times: Dict[str, datetime] = {}
+        self.alert_counts: Dict[str, int] = {}
 
     async def send_alert(
         self,
@@ -235,14 +235,14 @@ class MaintenanceOrchestrator:
         self.config = config
         self.redis_client: Optional[redis.Redis] = None
         self.alert_manager = AlertManager(config)
-        self.running_tasks = {}
+        self.running_tasks: Dict[str, Any] = {}
         self.is_running = False
         self.shutdown_event = asyncio.Event()
-        self.current_run_status = None
+        self.current_run_status: Optional[MaintenanceRunStatus] = None
 
         # Performance tracking
-        self.task_history = []
-        self.system_metrics_history = []
+        self.task_history: List[Dict[str, Any]] = []
+        self.system_metrics_history: List[Dict[str, Any]] = []
 
         # Emergency state
         self.emergency_mode = False
@@ -375,41 +375,121 @@ class MaintenanceOrchestrator:
             }
 
             # Calculate health score
-            if health_data["cpu_percent"] > self.config.cpu_threshold:
-                health_data["health_score"] -= 30
-                health_data["issues"].append(
-                    f"High CPU usage: {health_data['cpu_percent']:.1f}%"
+            cpu_data = health_data.get("cpu_percent", 0)
+            cpu_percent = (
+                float(cpu_data)
+                if cpu_data is not None and isinstance(cpu_data, (int, float, str))
+                else 0.0
+            )
+            cpu_threshold_val = getattr(self.config, "cpu_threshold", 80)
+            cpu_threshold = (
+                float(cpu_threshold_val)
+                if isinstance(cpu_threshold_val, (int, float, str))
+                else 80.0
+            )
+            if cpu_percent > cpu_threshold:
+                current_score_val = health_data.get("health_score", 100)
+                current_score = (
+                    float(current_score_val)
+                    if isinstance(current_score_val, (int, float, str))
+                    else 100.0
                 )
+                health_data["health_score"] = current_score - 30
+                issues = health_data.get("issues", [])
+                if isinstance(issues, list):
+                    issues.append(f"High CPU usage: {cpu_percent:.1f}%")
+                    health_data["issues"] = issues
 
-            if health_data["memory_percent"] > self.config.memory_threshold:
-                health_data["health_score"] -= 25
-                health_data["issues"].append(
-                    f"High memory usage: {health_data['memory_percent']:.1f}%"
+            memory_data = health_data.get("memory_percent", 0)
+            memory_percent = (
+                float(memory_data)
+                if memory_data is not None
+                and isinstance(memory_data, (int, float, str))
+                else 0.0
+            )
+            memory_threshold_val = getattr(self.config, "memory_threshold", 85)
+            memory_threshold = (
+                float(memory_threshold_val)
+                if isinstance(memory_threshold_val, (int, float, str))
+                else 85.0
+            )
+            if memory_percent > memory_threshold:
+                current_score_val = health_data.get("health_score", 100)
+                current_score = (
+                    float(current_score_val)
+                    if isinstance(current_score_val, (int, float, str))
+                    else 100.0
                 )
+                health_data["health_score"] = current_score - 30
+                issues = health_data.get("issues", [])
+                if isinstance(issues, list):
+                    issues.append(f"High memory usage: {memory_percent:.1f}%")
+                    health_data["issues"] = issues
 
-            if health_data["disk_percent"] > self.config.disk_threshold:
-                health_data["health_score"] -= 20
-                health_data["issues"].append(
-                    f"High disk usage: {health_data['disk_percent']:.1f}%"
+            disk_data = health_data.get("disk_percent", 0)
+            disk_percent = (
+                float(disk_data)
+                if disk_data is not None and isinstance(disk_data, (int, float, str))
+                else 0.0
+            )
+            disk_threshold_val = getattr(self.config, "disk_threshold", 90)
+            disk_threshold = (
+                float(disk_threshold_val)
+                if isinstance(disk_threshold_val, (int, float, str))
+                else 90.0
+            )
+            if disk_percent > disk_threshold:
+                current_score_val = health_data.get("health_score", 100)
+                current_score = (
+                    float(current_score_val)
+                    if isinstance(current_score_val, (int, float, str))
+                    else 100.0
                 )
+                health_data["health_score"] = current_score - 20
+                issues = health_data.get("issues", [])
+                if isinstance(issues, list):
+                    issues.append(f"High disk usage: {disk_percent:.1f}%")
+                    health_data["issues"] = issues
 
             # Check Redis connectivity
             try:
                 if self.redis_client:
                     await self.redis_client.ping()
                     redis_info = await self.redis_client.info()
-                    health_data["redis_memory_mb"] = redis_info.get(
-                        "used_memory", 0
-                    ) / (1024 * 1024)
-                    health_data["redis_connections"] = redis_info.get(
-                        "connected_clients", 0
+                    used_memory_data = redis_info.get("used_memory", 0)
+                    used_memory = (
+                        float(used_memory_data)
+                        if used_memory_data is not None
+                        and isinstance(used_memory_data, (int, float, str))
+                        else 0
+                    )
+                    health_data["redis_memory_mb"] = used_memory / (1024 * 1024)
+                    connections_data = redis_info.get("connected_clients", 0)
+                    health_data["redis_connections"] = (
+                        int(connections_data)
+                        if connections_data is not None
+                        and isinstance(connections_data, (int, float, str))
+                        else 0
                     )
                 else:
-                    health_data["health_score"] -= 15
-                    health_data["issues"].append("Redis client not initialized")
+                    current_score_val = health_data.get("health_score", 100)
+                    current_score = (
+                        float(current_score_val)
+                        if isinstance(current_score_val, (int, float, str))
+                        else 100.0
+                    )
+                    health_data["health_score"] = current_score - 15
+                    issues = health_data.get("issues", [])
+                    if isinstance(issues, list):
+                        issues.append("Redis client not initialized")
+                        health_data["issues"] = issues
             except Exception as e:
-                health_data["health_score"] -= 15
-                health_data["issues"].append(f"Redis connectivity issue: {str(e)}")
+                current_score = float(cast(float, health_data.get("health_score", 100)))
+                health_data["health_score"] = current_score - 15
+                issues = health_data.get("issues", [])
+                if isinstance(issues, list):
+                    issues.append(f"Redis connectivity issue: {str(e)}")
+                    health_data["issues"] = issues
 
             # Check scheduler service
             try:
@@ -418,13 +498,37 @@ class MaintenanceOrchestrator:
                         f"{self.config.scheduler_url}/health", timeout=10.0
                     )
                     if response.status_code != 200:
-                        health_data["health_score"] -= 10
-                        health_data["issues"].append("Scheduler service unhealthy")
+                        current_score_val = health_data.get("health_score", 100)
+                        current_score = (
+                            float(current_score_val)
+                            if isinstance(current_score_val, (int, float, str))
+                            else 100.0
+                        )
+                        health_data["health_score"] = current_score - 25
+                        issues = health_data.get("issues", [])
+                        if isinstance(issues, list):
+                            issues.append("Scheduler service unhealthy")
+                            health_data["issues"] = issues
             except Exception as e:
-                health_data["health_score"] -= 15
-                health_data["issues"].append(f"Scheduler service unreachable: {str(e)}")
+                current_score_val = health_data.get("health_score", 100)
+                current_score = (
+                    float(current_score_val)
+                    if isinstance(current_score_val, (int, float, str))
+                    else 100.0
+                )
+                health_data["health_score"] = current_score - 15
+                issues = health_data.get("issues", [])
+                if isinstance(issues, list):
+                    issues.append(f"Scheduler service unreachable: {str(e)}")
+                    health_data["issues"] = issues
 
-            health_data["health_score"] = max(0, health_data["health_score"])
+            current_score_val = health_data.get("health_score", 100)
+            current_score = (
+                float(current_score_val)
+                if isinstance(current_score_val, (int, float, str))
+                else 100.0
+            )
+            health_data["health_score"] = max(0, current_score)
 
             # Store health metrics
             await self._store_health_metrics(health_data)
@@ -505,7 +609,7 @@ class MaintenanceOrchestrator:
         self, tasks: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Execute maintenance tasks with proper orchestration and error handling."""
-        results = {}
+
         semaphore = asyncio.Semaphore(self.config.max_concurrent_tasks)
 
         # Sort tasks by priority
@@ -578,7 +682,10 @@ class MaintenanceOrchestrator:
                             )
 
                             # Send alert for critical task failures
-                            if task_name in self.config.critical_tasks:
+                            if (
+                                self.config.critical_tasks
+                                and task_name in self.config.critical_tasks
+                            ):
                                 await self.alert_manager.send_alert(
                                     "critical_maintenance_failure",
                                     f"Critical maintenance task {task_name} failed: {task_result['message']}",
@@ -625,19 +732,20 @@ class MaintenanceOrchestrator:
         task_results = await asyncio.gather(*task_coroutines, return_exceptions=True)
 
         # Compile results
+        final_results: Dict[str, object] = {}
         for i, result in enumerate(task_results):
             task_name = tasks[i]["name"]
             if isinstance(result, Exception):
-                results[task_name] = {
+                final_results[task_name] = {
                     "success": False,
                     "duration": 0.0,
                     "message": f"Task execution failed: {str(result)}",
                     "error": str(result),
                 }
             else:
-                results[task_name] = result
+                final_results[task_name] = cast(Dict[str, object], result)
 
-        return results
+        return final_results
 
     async def _process_maintenance_results(self, results: Dict[str, Any]):
         """Process and analyze maintenance results."""
@@ -862,7 +970,7 @@ class MaintenanceOrchestrator:
     ):
         """Generate comprehensive maintenance report."""
         try:
-            report = {
+            report: Dict[str, Any] = {
                 "run_id": (
                     self.current_run_status.run_id
                     if self.current_run_status

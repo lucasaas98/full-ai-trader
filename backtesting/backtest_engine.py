@@ -370,12 +370,12 @@ class RSIStrategy(StrategyInterface):
 
         for i in range(period, len(gains)):
             if avg_loss == 0:
-                rsi = 100
+                rsi = 100.0
             else:
                 rs = avg_gain / avg_loss
                 rsi = 100 - (100 / (1 + rs))
 
-            rsi_values.append(rsi)
+            rsi_values.append(float(rsi))
 
             # Update averages using smoothing
             avg_gain = (avg_gain * (period - 1) + gains[i]) / period
@@ -548,7 +548,10 @@ class BacktestEngine:
 
             if should_close:
                 trade = await self._close_position(
-                    position, float(current_price), current_time, exit_reason
+                    position,
+                    float(current_price),
+                    current_time,
+                    exit_reason or "UNKNOWN",
                 )
                 positions_to_close.append(symbol)
                 self.completed_trades.append(trade)
@@ -901,7 +904,7 @@ class BacktestEngine:
 
     def _validate_strategy_performance(self) -> Dict[str, Any]:
         """Validate strategy performance and identify potential issues"""
-        validation_results = {
+        validation_results: Dict[str, Any] = {
             "is_valid": True,
             "warnings": [],
             "errors": [],
@@ -1116,8 +1119,10 @@ class BacktestEngine:
             if losing_trades > 0
             else 0.0
         )
-        profit_factor = (
-            abs(avg_win * winning_trades / (avg_loss * losing_trades))
+        profit_factor: float = (
+            float(
+                abs(float(avg_win) * winning_trades / (float(avg_loss) * losing_trades))
+            )
             if avg_loss != 0
             else float("inf")
         )

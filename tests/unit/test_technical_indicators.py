@@ -13,10 +13,10 @@ import numpy as np
 import polars as pl
 import pytest
 
+from services.strategy_engine.src.technical_analysis import TechnicalIndicators
+
 # Add project root to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from services.strategy_engine.src.technical_analysis import TechnicalIndicators
 
 
 class TestTechnicalIndicators:
@@ -130,13 +130,13 @@ class TestTechnicalIndicators:
         # First drop nulls and NaN values
         valid_rsi = rsi_values.drop_nulls()
         # Filter out any remaining NaN values that might not be caught by drop_nulls
-        valid_rsi = [
+        valid_rsi_list = [
             val for val in valid_rsi if not (isinstance(val, float) and val != val)
         ]
 
-        assert len(valid_rsi) > 0
+        assert len(valid_rsi_list) > 0
         # RSI should be between 0 and 100
-        assert all(0 <= val <= 100 for val in valid_rsi)
+        assert all(0 <= val <= 100 for val in valid_rsi_list)
 
     @pytest.mark.unit
     def test_macd_calculation(self, sample_price_data):

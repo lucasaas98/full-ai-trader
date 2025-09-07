@@ -19,7 +19,9 @@ import asyncio
 import logging
 import sys
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 # Add project paths
 project_root = Path(__file__).parent.parent
@@ -64,7 +66,7 @@ async def run_optimization_example():
     strategies_to_optimize = ["day_trading", "swing_trading"]
     optimization_level = "standard"  # standard, quick, or detailed
     num_periods = 6  # Number of 30-day test periods
-    initial_capital = 100000  # Starting capital for each test
+    initial_capital = Decimal("100000")  # Starting capital for each test
 
     print("Configuration:")
     print(f"  Strategies: {', '.join(strategies_to_optimize)}")
@@ -84,7 +86,7 @@ async def run_optimization_example():
     print()
 
     # Step 2: Run optimization for each strategy
-    optimization_results = {}
+    optimization_results: dict[str, Any] = {}
 
     for strategy_type in strategies_to_optimize:
         print(
@@ -154,7 +156,8 @@ async def run_optimization_example():
 
             comparison_data = []
             for strategy_type, results in optimization_results.items():
-                best = results["best_config"]
+                results_dict = dict(results)
+                best = results_dict["best_config"]
                 comparison_data.append(
                     {
                         "Strategy": strategy_type.replace("_", " ").title(),
@@ -185,8 +188,9 @@ async def run_optimization_example():
             print(f"🔍 DETAILED ANALYSIS: {strategy_type.replace('_', ' ').title()}")
             print("=" * 50)
 
-            summaries = results["summaries"]
-            best = results["best_config"]
+            results_dict = dict(results)
+            summaries = results_dict["summaries"]
+            best = results_dict["best_config"]
 
             # Parameter recommendations
             print("📋 RECOMMENDED PARAMETER CONFIGURATION:")
@@ -259,7 +263,7 @@ async def run_optimization_example():
         print("=" * 25)
 
         for strategy_type, results in optimization_results.items():
-            best = results["best_config"]
+            best = dict(results)["best_config"]
 
             print(
                 f"\n{strategy_type.replace('_', ' ').title()} Strategy Implementation:"

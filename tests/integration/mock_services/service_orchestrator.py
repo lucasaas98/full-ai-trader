@@ -183,7 +183,7 @@ class ServiceOrchestrator:
 
         try:
             config = MockDataCollectorConfig(
-                historical_data_path=self.config.data.base_path or "data/parquet",
+                historical_data_path=self.config.data.parquet_path or "data/parquet",
                 available_symbols=["AAPL", "SPY", "QQQ", "MSFT", "TSLA"],
                 redis_publish_interval=30,
                 simulate_screener=True,
@@ -210,7 +210,8 @@ class ServiceOrchestrator:
 
             # Run in thread to avoid blocking
             def run_strategy_engine():
-                asyncio.run(self.strategy_engine.run())
+                if self.strategy_engine:
+                    asyncio.run(self.strategy_engine.start())
 
             thread = threading.Thread(target=run_strategy_engine, daemon=True)
             thread.start()
@@ -234,8 +235,10 @@ class ServiceOrchestrator:
         try:
             self.risk_manager = RiskManagerApp()
 
+            # Run in thread to avoid blocking
             def run_risk_manager():
-                asyncio.run(self.risk_manager.run())
+                if self.risk_manager:
+                    asyncio.run(self.risk_manager.start())
 
             thread = threading.Thread(target=run_risk_manager, daemon=True)
             thread.start()
@@ -258,8 +261,10 @@ class ServiceOrchestrator:
         try:
             self.trade_executor = TradeExecutorApp()
 
+            # Run in thread to avoid blocking
             def run_trade_executor():
-                asyncio.run(self.trade_executor.run())
+                if self.trade_executor:
+                    asyncio.run(self.trade_executor.start())
 
             thread = threading.Thread(target=run_trade_executor, daemon=True)
             thread.start()
@@ -282,8 +287,10 @@ class ServiceOrchestrator:
         try:
             self.scheduler = SchedulerApp()
 
+            # Run in thread to avoid blocking
             def run_scheduler():
-                asyncio.run(self.scheduler.run())
+                if self.scheduler:
+                    asyncio.run(self.scheduler.start())
 
             thread = threading.Thread(target=run_scheduler, daemon=True)
             thread.start()
@@ -388,7 +395,9 @@ class ServiceOrchestrator:
         }
 
         for service_name, service_status in self.services.items():
-            status["services"][service_name] = {
+            services_dict = status["services"]
+            assert isinstance(services_dict, dict)
+            services_dict[service_name] = {
                 "status": service_status.status,
                 "started_at": (
                     service_status.started_at.isoformat()

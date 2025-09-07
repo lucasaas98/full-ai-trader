@@ -87,7 +87,10 @@ class SimpleDatabaseManager:
             return False
 
     async def get_portfolio_snapshots(
-        self, start_date: datetime = None, end_date: datetime = None, limit: int = None
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Get portfolio snapshots between dates or latest snapshots."""
         try:
@@ -419,10 +422,10 @@ class SimpleDatabaseManager:
 
     async def get_risk_events(
         self,
-        start_date: datetime = None,
-        end_date: datetime = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
         days: int = 1,
-        severity: str = None,
+        severity: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get risk events for the specified date range or number of days."""
         try:

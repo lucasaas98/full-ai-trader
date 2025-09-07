@@ -1007,7 +1007,7 @@ class MultiTimeFrameSignalEnhancer:
                 )
 
             else:
-                final_action = SignalType.HOLD
+                final_action = SignalType.HOLD  # type: ignore
                 final_confidence = 0.0
                 adjusted_position_size = 0.0
 

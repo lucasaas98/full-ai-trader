@@ -410,7 +410,7 @@ class AlpacaRiskClient:
                 "start": start_date.strftime("%Y-%m-%d"),
                 "end": end_date.strftime("%Y-%m-%d"),
                 "timeframe": "1Day",
-                "limit": days,
+                "limit": "500",
                 "adjustment": "raw",
             }
 
@@ -497,7 +497,7 @@ class AlpacaRiskClient:
             await self._rate_limit()
 
             url = f"{self.base_url}/v2/account/activities"
-            params = {"activity_type": activity_type, "page_size": limit}
+            params = {"activity_type": activity_type, "page_size": str(limit)}
 
             timeout = aiohttp.ClientTimeout(total=15)
             async with aiohttp.ClientSession() as session:
@@ -646,17 +646,17 @@ class AlpacaRiskClient:
             price_dict2 = {date.date(): price for date, price in prices2}
 
             common_dates = set(price_dict1.keys()) & set(price_dict2.keys())
-            common_dates = sorted(common_dates)
+            common_dates_list = sorted(common_dates)
 
-            if len(common_dates) < 10:
+            if len(common_dates_list) < 10:
                 return 0.0
 
             returns1 = []
             returns2 = []
 
-            for i in range(1, len(common_dates)):
-                prev_date = common_dates[i - 1]
-                curr_date = common_dates[i]
+            for i in range(1, len(common_dates_list)):
+                prev_date = common_dates_list[i - 1]
+                curr_date = common_dates_list[i]
 
                 prev_price1 = price_dict1[prev_date]
                 curr_price1 = price_dict1[curr_date]
@@ -761,11 +761,13 @@ class AlpacaRiskClient:
         dict2 = {date.date(): ret for date, ret in returns2}
 
         common_dates = set(dict1.keys()) & set(dict2.keys())
-        common_dates = sorted(common_dates)
+        common_dates_list = sorted(common_dates)
 
         aligned = []
-        for date in common_dates:
-            aligned.append((date, dict1[date], dict2[date]))
+        for date in common_dates_list:
+            # Convert date back to datetime for return type consistency
+            dt = datetime.combine(date, datetime.min.time())
+            aligned.append((dt, dict1[date], dict2[date]))
 
         return aligned
 
@@ -1106,8 +1108,20 @@ class AlpacaRiskClient:
 
                     # Update average price
                     current_qty, current_avg = buy_positions[symbol_trade]
+                    current_qty = (
+                        int(current_qty)
+                        if isinstance(current_qty, (int, float))
+                        else current_qty
+                    )
+                    current_avg = (
+                        Decimal(str(current_avg))
+                        if not isinstance(current_avg, Decimal)
+                        else current_avg
+                    )
                     total_qty = current_qty + quantity
-                    total_cost = (current_qty * current_avg) + (quantity * price)
+                    total_cost = (Decimal(str(current_qty)) * current_avg) + (
+                        quantity * price
+                    )
                     new_avg = total_cost / total_qty if total_qty > 0 else Decimal("0")
 
                     buy_positions[symbol_trade] = [total_qty, new_avg]
@@ -1171,7 +1185,7 @@ class AlpacaRiskClient:
             logger.error(f"Error getting risk metrics data: {e}")
             return {}
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear cached data."""
         self.portfolio_cache = None
         self.cache_timestamp = None

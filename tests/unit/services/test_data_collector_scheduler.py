@@ -6,11 +6,15 @@ function and other scheduler-related functionality in the data collector service
 """
 
 # Add path for imports
+import os
 import sys
 from pathlib import Path
 from typing import Dict, List
 
 import pytest
+
+from services.data_collector.src.scheduler_service import calculate_optimal_intervals
+from shared.models import TimeFrame
 
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
@@ -747,7 +751,15 @@ class TestAlgorithmValidation:
 
         for scenario in extreme_scenarios:
             intervals = calculate_optimal_intervals(
-                api_rate_limits=basic_api_limits, timeframes=all_timeframes, **scenario
+                api_rate_limits=scenario.get("api_rate_limits", {"default": 60}),  # type: ignore
+                active_tickers=int(scenario["active_tickers"]),
+                timeframes=all_timeframes,
+                market_volatility=float(scenario.get("market_volatility", 1.0)),
+                priority_weights=(
+                    scenario["priority_weights"]  # type: ignore[arg-type]
+                    if scenario.get("priority_weights")
+                    else None
+                ),
             )
 
             # All intervals must be strictly within bounds

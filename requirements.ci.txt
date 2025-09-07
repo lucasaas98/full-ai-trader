@@ -2,3 +2,12 @@ black
 flake8
 isort
 mypy
+scipy-stubs
+types-PyYAML
+types-aiofiles
+types-psutil
+pandas-stubs
+types-requests
+types-docker
+types-seaborn
+types-pytz

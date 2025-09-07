@@ -416,7 +416,7 @@ class SchedulerService:
     async def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check."""
         try:
-            health_status = {
+            health_status: Dict[str, Any] = {
                 "status": "healthy",
                 "timestamp": datetime.now().isoformat(),
                 "components": {},
@@ -628,7 +628,8 @@ class SchedulerApp:
     async def start(self):
         """Start the Scheduler service."""
         await self.initialize()
-        asyncio.create_task(self.service.run())
+        if self.service:
+            asyncio.create_task(self.service.run())
 
     async def stop(self):
         """Stop the Scheduler service."""

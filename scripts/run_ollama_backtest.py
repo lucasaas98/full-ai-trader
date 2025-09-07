@@ -404,9 +404,9 @@ class OllamaBacktestRunner:
             return {}
 
         # Group trades by symbol
-        trades_by_symbol = {}
+        trades_by_symbol: dict[str, list] = {}
         hold_periods = []
-        returns_by_action = {"BUY": [], "SELL": []}
+        returns_by_action: dict[str, list] = {"BUY": [], "SELL": []}
 
         for trade in trades:
             symbol = trade.symbol

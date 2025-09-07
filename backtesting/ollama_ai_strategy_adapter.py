@@ -37,10 +37,10 @@ class OllamaAIStrategyAdapter:
 
     def __init__(
         self,
-        ollama_url: str = None,
-        ollama_model: str = None,
-        prompts_config_path: str = None,
-        config: Dict[str, Any] = None,
+        ollama_url: Optional[str] = None,
+        ollama_model: Optional[str] = None,
+        prompts_config_path: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
     ):
         """
         Initialize Ollama AI Strategy.
@@ -78,10 +78,10 @@ class OllamaAIStrategyAdapter:
             f"Ollama AI Strategy initialized: {self.ollama_url} using {self.ollama_model}"
         )
 
-    def _load_prompts_config(self, config_path: str = None) -> Dict[str, Any]:
+    def _load_prompts_config(self, config_path: Optional[str] = None) -> Dict[str, Any]:
         """Load prompts configuration from YAML file."""
         if config_path is None:
-            config_path = (
+            config_path = str(
                 Path(__file__).parent.parent / "config" / "ai_strategy" / "prompts.yaml"
             )
 
@@ -182,7 +182,7 @@ class OllamaAIStrategyAdapter:
         )
 
         # Calculate daily change
-        daily_change = 0
+        daily_change = 0.0
         if len(historical_data) >= 2:
             try:
                 if hasattr(historical_data[-2], "close"):
@@ -191,7 +191,7 @@ class OllamaAIStrategyAdapter:
                     prev_close = float(historical_data[-2].get("close", current_price))
                 daily_change = ((current_price - prev_close) / prev_close) * 100
             except (IndexError, ZeroDivisionError, AttributeError):
-                daily_change = 0
+                daily_change = 0.0
 
         # Build template data
         template_data = {
@@ -287,7 +287,7 @@ Focus on high-probability setups and proper risk management.
         self, historical_data, current_data
     ) -> Dict[str, float]:
         """Calculate technical indicators from historical data."""
-        indicators = {}
+        indicators: Dict[str, float] = {}
 
         if not historical_data or len(historical_data) < 2:
             return indicators

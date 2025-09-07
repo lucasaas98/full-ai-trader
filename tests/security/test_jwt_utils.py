@@ -13,9 +13,6 @@ from unittest.mock import patch
 import jwt
 import pytest
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
-
 from shared.security.jwt_utils import (
     JWTConfig,
     JWTManager,
@@ -28,6 +25,8 @@ from shared.security.jwt_utils import (
     validate_token,
     validate_token_from_header,
 )
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 
 @pytest.fixture
@@ -113,7 +112,19 @@ class TestJWTPayload:
 
     def test_payload_defaults(self):
         """Test JWT payload defaults."""
-        payload = JWTPayload(user_id="test_user")
+        payload = JWTPayload(
+            user_id="test_user",
+            username=None,
+            service=None,
+            session_id=None,
+            api_key_id=None,
+            iss=None,
+            aud=None,
+            exp=None,
+            iat=None,
+            nbf=None,
+            jti=None,
+        )
         assert payload.user_id == "test_user"
         assert payload.roles == []
         assert payload.permissions == []

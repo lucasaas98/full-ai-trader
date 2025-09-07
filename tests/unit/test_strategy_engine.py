@@ -604,7 +604,7 @@ class TestSignalProcessor:
 
             async def aggregate_signals(self, signals):
                 """Aggregate signals from multiple strategies"""
-                aggregated = {}
+                aggregated: dict[str, list] = {}
                 for signal in signals:
                     if signal.symbol not in aggregated:
                         aggregated[signal.symbol] = []

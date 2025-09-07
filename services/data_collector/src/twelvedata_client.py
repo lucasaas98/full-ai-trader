@@ -45,7 +45,7 @@ class TwelveDataRateLimiter:
     def __init__(self, requests_per_period: int = 800, period: int = 60):
         self.requests_per_period = requests_per_period
         self.period = period
-        self.requests = []
+        self.requests: List[float] = []
         self._lock = asyncio.Lock()
 
     async def wait_if_needed(self):
@@ -231,7 +231,7 @@ class TwelveDataClient:
         timeframe: TimeFrame,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-    ) -> Dict[str, List[MarketData]]:
+    ) -> Dict[str, List[MarketData] | BaseException]:
         """
         Get time series data for multiple symbols in batch.
 
@@ -250,7 +250,7 @@ class TwelveDataClient:
             for i in range(0, len(symbols), self.config.batch_size)
         ]
 
-        all_results = {}
+        all_results: Dict[str, Any] = {}
 
         for batch_num, batch_symbols in enumerate(batches, 1):
             logger.info(
@@ -355,7 +355,7 @@ class TwelveDataClient:
         timeframes: List[TimeFrame],
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-    ) -> Dict[TimeFrame, List[MarketData]]:
+    ) -> Dict[TimeFrame, List[MarketData] | BaseException]:
         """
         Get data for multiple timeframes for a single symbol.
 
@@ -374,7 +374,7 @@ class TwelveDataClient:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        output = {}
+        output: Dict[TimeFrame, Any] = {}
         for timeframe, result in zip(timeframes, results):
             if isinstance(result, Exception):
                 logger.error(f"Failed to fetch {timeframe} data for {symbol}: {result}")
@@ -508,7 +508,7 @@ class TwelveDataClient:
         Returns:
             Dictionary mapping symbols to MarketData
         """
-        results = {}
+        results: Dict[str, Any] = {}
 
         try:
             # Handle different response formats
@@ -546,9 +546,8 @@ class TwelveDataClient:
         except Exception as e:
             logger.error(f"Failed to parse batch real-time response: {e}")
             # Return None for all symbols on parsing error
-            results: Dict[str, Optional[MarketData]] = {
-                symbol: None for symbol in symbols
-            }
+            for symbol in symbols:
+                results[symbol] = None
 
         # Ensure all requested symbols are in results
         for symbol in symbols:
@@ -871,9 +870,10 @@ async def fetch_latest_data_for_symbols(
     )
 
     # Combine all data into single list
-    all_data = []
+    all_data: List[MarketData] = []
     for symbol, data_list in batch_data.items():
-        all_data.extend(data_list)
+        if isinstance(data_list, list):
+            all_data.extend(data_list)
 
     # Convert to Polars DataFrame
     return client.to_polars_dataframe(all_data)
@@ -901,12 +901,20 @@ async def update_symbol_data(
         # Default to last 24 hours
         last_update = datetime.now(timezone.utc) - timedelta(hours=24)
 
-    return await client.get_multi_timeframe_data(
+    result = await client.get_multi_timeframe_data(
         symbol=symbol,
         timeframes=timeframes,
         start_date=last_update,
         end_date=datetime.now(timezone.utc),
     )
+
+    # Filter out BaseExceptions to match return type
+    filtered_result: Dict[TimeFrame, List[MarketData]] = {}
+    for timeframe, data in result.items():
+        if isinstance(data, list):
+            filtered_result[timeframe] = data
+
+    return filtered_result
 
 
 # Example usage

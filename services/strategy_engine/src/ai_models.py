@@ -6,10 +6,10 @@ including decision tracking, performance metrics, and prompt management.
 """
 
 import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from sqlalchemy import (
     JSON,
@@ -29,7 +29,12 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
-Base = declarative_base()
+if TYPE_CHECKING:
+    from sqlalchemy.ext.declarative import DeclarativeMeta
+
+    Base = DeclarativeMeta
+else:
+    Base = declarative_base()
 
 
 class AIModelType(Enum):
@@ -98,7 +103,7 @@ class AIDecisionRecord(Base):
     execution_time_ms = Column(Integer)  # Time to generate decision
 
     # Metadata
-    strategy_version = Column(String(2, 20))
+    strategy_version = Column(String(20))
     prompt_versions = Column(JSON)  # Version of each prompt used
 
     __table_args__ = (
@@ -373,7 +378,27 @@ def init_database(connection_string: str):
 
 def decision_to_dict(decision: AIDecisionRecord) -> Dict[str, Any]:
     """Convert AIDecisionRecord to dictionary."""
-    return asdict(decision)
+    return {
+        "id": str(decision.id) if decision.id is not None else None,
+        "timestamp": (
+            decision.timestamp.isoformat() if decision.timestamp is not None else None
+        ),
+        "ticker": decision.ticker,
+        "decision": decision.decision,
+        "confidence": decision.confidence,
+        "models_used": decision.models_used,
+        "consensus_details": decision.consensus_details,
+        "total_tokens": decision.total_tokens,
+        "total_cost": decision.total_cost,
+        "market_context": decision.market_context,
+        "reasoning": decision.reasoning,
+        "key_risks": decision.key_risks,
+        "actual_outcome": decision.actual_outcome,
+        "accuracy_score": decision.accuracy_score,
+        "execution_time_ms": decision.execution_time_ms,
+        "strategy_version": decision.strategy_version,
+        "prompt_versions": decision.prompt_versions,
+    }
 
 
 def create_performance_summary(
@@ -407,42 +432,61 @@ def create_performance_summary(
         )
 
     # Calculate metrics
-    period_start = min(d.timestamp for d in decisions) if decisions else datetime.now()
-    period_end = max(d.timestamp for d in decisions) if decisions else datetime.now()
+    timestamps = [
+        cast(datetime, d.timestamp)
+        for d in decisions
+        if d.timestamp is not None and isinstance(d.timestamp, datetime)
+    ]
+    period_start = min(timestamps) if timestamps else datetime.now()
+    period_end = max(timestamps) if timestamps else datetime.now()
     total_decisions = len(decisions)
 
     # Calculate accuracy (decisions with positive outcomes)
-    accurate_decisions = [d for d in decisions if (d.actual_outcome or 0) > 0]
+    accurate_decisions = [
+        d for d in decisions if (d.actual_outcome is not None and d.actual_outcome > 0)
+    ]
     accuracy_rate = (
         len(accurate_decisions) / total_decisions if total_decisions > 0 else 0
     )
 
     # Calculate win rate from executions
-    winning_trades = [
-        e for e in executions if e.realized_pnl is not None and e.realized_pnl > 0
-    ]
+    winning_trades = []
+    for e in executions:
+        if (
+            hasattr(e, "realized_pnl")
+            and e.realized_pnl is not None
+            and e.realized_pnl > 0
+        ):
+            winning_trades.append(e)
     win_rate = len(winning_trades) / len(executions) if executions else 0
 
     # Calculate total P&L
-    total_pnl = sum(e.realized_pnl for e in executions if e.realized_pnl) or 0
+    total_pnl = (
+        sum(float(e.realized_pnl) for e in executions if e.realized_pnl is not None)
+        or 0.0
+    )
 
     # Calculate API costs
-    total_api_cost = sum(d.total_cost for d in decisions if d.total_cost) or 0
+    total_api_cost = (
+        sum(float(d.total_cost) for d in decisions if d.total_cost is not None) or 0.0
+    )
 
     # Cost per profitable trade
     cost_per_profitable_trade = (
-        total_api_cost / len(winning_trades) if winning_trades else 0
+        float(total_api_cost) / len(winning_trades) if winning_trades else 0.0
     )
 
     # Model rankings (simplified)
-    model_performance = {}
+    model_performance: Dict[str, Any] = {}
     for decision in decisions:
-        if decision.models_used is not None:
+        if decision.models_used is not None and isinstance(
+            decision.models_used, (list, tuple)
+        ):
             for model in decision.models_used:
                 if model not in model_performance:
                     model_performance[model] = {"count": 0, "success": 0}
                 model_performance[model]["count"] += 1
-                if (decision.actual_outcome or 0) > 0:
+                if decision.actual_outcome is not None and decision.actual_outcome > 0:
                     model_performance[model]["success"] += 1
 
     model_rankings = {
@@ -454,7 +498,7 @@ def create_performance_summary(
     recommendations = []
     if accuracy_rate < 0.5:
         recommendations.append("Consider adjusting confidence thresholds")
-    if total_api_cost > total_pnl * 0.1:
+    if total_api_cost > float(total_pnl) * 0.1:
         recommendations.append(
             "API costs are high relative to profits, increase cache usage"
         )
@@ -462,15 +506,17 @@ def create_performance_summary(
         recommendations.append("Low win rate, review risk management parameters")
 
     return PerformanceReport(
-        period_start=period_start,
-        period_end=period_end,
+        period_start=(
+            period_start if isinstance(period_start, datetime) else datetime.now()
+        ),
+        period_end=period_end if isinstance(period_end, datetime) else datetime.now(),
         total_decisions=total_decisions,
         accuracy_rate=accuracy_rate,
         win_rate=win_rate,
-        total_pnl=float(total_pnl),
+        total_pnl=total_pnl,
         sharpe_ratio=0.0,  # Would need returns series to calculate
-        total_api_cost=float(total_api_cost),
-        cost_per_profitable_trade=float(cost_per_profitable_trade),
+        total_api_cost=total_api_cost,
+        cost_per_profitable_trade=cost_per_profitable_trade,
         best_performing_prompt="master_analyst",  # Placeholder
         worst_performing_prompt="contrarian",  # Placeholder
         model_rankings={str(k): float(v) for k, v in model_rankings.items()},

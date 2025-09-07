@@ -273,7 +273,7 @@ class IntegrationTestRunner:
         """Run the integration tests."""
         logger.info("🧪 Running integration tests...")
 
-        test_results = {
+        test_results: Dict[str, Any] = {
             "start_time": datetime.now(timezone.utc).isoformat(),
             "tests_run": 0,
             "tests_passed": 0,

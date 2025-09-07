@@ -259,7 +259,11 @@ class HistoricalScreenerSimulator:
         self, date: datetime, symbols: List[str]
     ) -> Dict[str, List[str]]:
         """Simulate screener results for a specific date."""
-        screener_results = {"breakouts": [], "momentum": [], "value_stocks": []}
+        screener_results: Dict[str, List[str]] = {
+            "breakouts": [],
+            "momentum": [],
+            "value_stocks": [],
+        }
 
         # Load market data for all symbols for this date and previous days for analysis
         symbol_data = await self._load_symbol_data_for_screening(date, symbols)
@@ -817,6 +821,9 @@ class ProductionBacktestEngine:
                 self.strategy_stats["total_analysis_calls"] += 1
 
                 # Call strategy's analyze method
+                if self.strategy is None:
+                    continue
+
                 analysis_result = await self.strategy.analyze_symbol(
                     symbol=symbol,
                     current_data=current_data,
@@ -1172,10 +1179,20 @@ class ProductionBacktestEngine:
                 else Decimal("0")
             )
 
-            gross_profit = sum(t.net_pnl for t in winning_trades)
-            gross_loss = abs(sum(t.net_pnl for t in losing_trades))
+            gross_profit = (
+                sum(t.net_pnl for t in winning_trades)
+                if winning_trades
+                else Decimal("0")
+            )
+            gross_loss = (
+                Decimal(str(abs(sum(t.net_pnl for t in losing_trades))))
+                if losing_trades
+                else Decimal("0")
+            )
             profit_factor = (
-                float(gross_profit / gross_loss) if gross_loss > 0 else float("inf")
+                float(str(gross_profit)) / float(str(gross_loss))
+                if gross_loss > Decimal("0")
+                else float("inf")
             )
 
             largest_win = max((t.net_pnl for t in winning_trades), default=Decimal("0"))
@@ -1222,8 +1239,8 @@ class ProductionBacktestEngine:
                 winning_trades=len(winning_trades),
                 losing_trades=len(losing_trades),
                 win_rate=win_rate,
-                avg_win_amount=avg_win,
-                avg_loss_amount=avg_loss,
+                avg_win_amount=Decimal(str(avg_win)),
+                avg_loss_amount=Decimal(str(avg_loss)),
                 largest_win=largest_win,
                 largest_loss=largest_loss,
                 avg_hold_time_hours=(
@@ -1242,11 +1259,15 @@ class ProductionBacktestEngine:
                 var_95=Decimal("0"),  # Would need more sophisticated calculation
                 max_concurrent_positions=max(len(self.positions), 1),
                 avg_position_size=(
-                    sum(
-                        abs(t.entry_price * Decimal(str(abs(t.quantity))))
-                        for t in self.trades
+                    Decimal(
+                        str(
+                            sum(
+                                abs(t.entry_price * Decimal(str(abs(t.quantity))))
+                                for t in self.trades
+                            )
+                            / len(self.trades)
+                        )
                     )
-                    / len(self.trades)
                     if self.trades
                     else Decimal("0")
                 ),

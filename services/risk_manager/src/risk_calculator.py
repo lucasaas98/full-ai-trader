@@ -14,7 +14,7 @@ import math
 import statistics
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -344,7 +344,10 @@ class RiskCalculator:
                 # TODO: Integrate with real market data for bid-ask spreads, volume, etc.
                 liquidity_score = self._calculate_position_liquidity_score(symbol)
 
-                liquidity_metrics["position_liquidity"][symbol] = {
+                position_liquidity_dict = cast(
+                    Dict[str, Any], liquidity_metrics["position_liquidity"]
+                )
+                position_liquidity_dict[symbol] = {
                     "score": liquidity_score,
                     "weight": position_weight,
                     "market_value": float(position.market_value),
@@ -352,7 +355,10 @@ class RiskCalculator:
 
                 # Flag illiquid positions
                 if liquidity_score < 0.3 and position_weight > illiquid_threshold:
-                    liquidity_metrics["illiquid_positions"].append(
+                    illiquid_positions_list = cast(
+                        List[Any], liquidity_metrics["illiquid_positions"]
+                    )
+                    illiquid_positions_list.append(
                         {
                             "symbol": symbol,
                             "weight": position_weight,
@@ -362,15 +368,18 @@ class RiskCalculator:
 
             # Calculate portfolio-weighted liquidity score
             weighted_score = 0.0
-            for symbol, data in liquidity_metrics["position_liquidity"].items():
+            position_liquidity_dict = cast(
+                Dict[str, Any], liquidity_metrics["position_liquidity"]
+            )
+            for symbol, data in position_liquidity_dict.items():
                 weighted_score += data["score"] * data["weight"]
 
             liquidity_metrics["portfolio_liquidity_score"] = weighted_score
+            position_liquidity_dict = cast(
+                Dict[str, Any], liquidity_metrics["position_liquidity"]
+            )
             liquidity_metrics["concentration_risk"] = max(
-                [
-                    data["weight"]
-                    for data in liquidity_metrics["position_liquidity"].values()
-                ],
+                [data["weight"] for data in position_liquidity_dict.values()],
                 default=0.0,
             )
 
@@ -486,7 +495,7 @@ class RiskCalculator:
     async def calculate_risk_adjusted_returns(
         self,
         portfolio: PortfolioState,
-        benchmark_returns: List[float] = None,
+        benchmark_returns: Optional[List[float]] = None,
         risk_free_rate: float = 0.02,
     ) -> Dict:
         """
@@ -624,7 +633,10 @@ class RiskCalculator:
                     "vega": greeks["vega"] * quantity,
                 }
 
-                greeks_summary["position_greeks"][symbol] = position_greeks
+                position_greeks_dict = cast(
+                    Dict[str, Any], greeks_summary["position_greeks"]
+                )
+                position_greeks_dict[symbol] = position_greeks
 
                 # Add to portfolio totals
                 greeks_summary["portfolio_delta"] += position_greeks["delta"]
@@ -693,7 +705,7 @@ class RiskCalculator:
         # TODO: Add comprehensive tests for enhanced stress testing
         try:
             # Define common stress scenarios
-            stress_scenarios = [
+            stress_scenarios: List[Dict[str, Any]] = [
                 {
                     "name": "market_crash_2008",
                     "description": "2008-style market crash",
@@ -733,12 +745,17 @@ class RiskCalculator:
             base_portfolio_value = float(portfolio.total_equity)
 
             for scenario in stress_scenarios:
-                scenario_name = scenario["name"]
+                scenario_name = str(scenario["name"])
                 scenario_pnl = 0.0
                 position_impacts = {}
 
                 # Apply shocks to individual positions
-                for position in portfolio.positions:
+                positions_list = (
+                    cast(List[Any], portfolio.positions)
+                    if isinstance(portfolio.positions, list)
+                    else list(portfolio.positions.values())
+                )
+                for position in positions_list:
                     if position.quantity == 0:
                         continue
 
@@ -747,12 +764,13 @@ class RiskCalculator:
                     shock = 0.0
 
                     # Apply specific symbol shocks
-                    if "shocks" in scenario:
-                        shock = scenario["shocks"].get(symbol, 0.0)
+                    scenario_shocks = cast(Dict[str, Any], scenario.get("shocks", {}))
+                    if "shocks" in scenario and symbol in scenario_shocks:
+                        shock = scenario_shocks[symbol]
 
                     # Apply general market shock
                     if "general_shock" in scenario:
-                        shock += scenario["general_shock"]
+                        shock += cast(float, scenario["general_shock"])
 
                     # Apply volatility shock
                     if "volatility_multiplier" in scenario:
@@ -830,7 +848,7 @@ class RiskCalculator:
         """
         # TODO: Add comprehensive tests for risk attribution
         try:
-            attribution = {
+            attribution: Dict[str, Any] = {
                 "factor_contributions": {},
                 "position_contributions": {},
                 "sector_risk": {},
@@ -857,7 +875,10 @@ class RiskCalculator:
 
                 # Position risk contribution
                 position_risk = weight * position_vol
-                attribution["position_contributions"][symbol] = {
+                position_contributions_dict = cast(
+                    Dict[str, Any], attribution["position_contributions"]
+                )
+                position_contributions_dict[symbol] = {
                     "weight": weight,
                     "volatility": position_vol,
                     "risk_contribution": position_risk,
@@ -872,16 +893,20 @@ class RiskCalculator:
                 characteristics = await self._get_position_characteristics(symbol)
                 sector = characteristics.get("sector", "Unknown")
 
-                if sector not in attribution["sector_risk"]:
-                    attribution["sector_risk"][sector] = {
+                sector_risk_dict = cast(Dict[str, Any], attribution["sector_risk"])
+                if sector not in sector_risk_dict:
+                    sector_risk_dict[sector] = {
                         "total_weight": 0.0,
                         "risk_contribution": 0.0,
                         "positions": [],
                     }
 
-                attribution["sector_risk"][sector]["total_weight"] += weight
-                attribution["sector_risk"][sector]["risk_contribution"] += position_risk
-                attribution["sector_risk"][sector]["positions"].append(symbol)
+                sector_risk_dict[sector]["total_weight"] += weight
+                sector_risk_dict[sector]["risk_contribution"] += position_risk
+                sector_positions_list = cast(
+                    List[Any], sector_risk_dict[sector]["positions"]
+                )
+                sector_positions_list.append(symbol)
 
             # Calculate factor contributions (simplified)
             attribution["factor_contributions"] = {
@@ -889,14 +914,18 @@ class RiskCalculator:
                 "concentration_risk": max(
                     [
                         data["weight"]
-                        for data in attribution["position_contributions"].values()
+                        for data in cast(
+                            Dict[str, Any], attribution["position_contributions"]
+                        ).values()
                     ],
                     default=0,
                 ),
                 "sector_concentration": max(
                     [
-                        data["total_weight"]
-                        for data in attribution["sector_risk"].values()
+                        sector_data["total_weight"]
+                        for sector_data in cast(
+                            Dict[str, Any], attribution["sector_risk"]
+                        ).values()
                     ],
                     default=0,
                 ),
@@ -920,14 +949,15 @@ class RiskCalculator:
                 }
 
             # Calculate position weights
-            weights = []
-            position_values = []
+            weights: List[float] = []
+            position_values: List[Tuple[str, float]] = []
 
-            for position in portfolio.positions:
-                if position.quantity != 0:
-                    weight = abs(position.market_value) / portfolio.total_equity
-                    weights.append(float(weight))
-                    position_values.append((position.symbol, float(weight)))
+            if isinstance(portfolio.positions, dict):
+                for position in portfolio.positions.values():
+                    if position.quantity != 0:
+                        weight = abs(position.market_value) / portfolio.total_equity
+                        weights.append(float(weight))
+                        position_values.append((position.symbol, float(weight)))
 
             if not weights:
                 return {
@@ -1387,7 +1417,7 @@ class RiskCalculator:
         self, portfolio: PortfolioState
     ) -> Dict[str, float]:
         """Calculate position weights in portfolio."""
-        weights = {}
+        weights: Dict[str, float] = {}
 
         if portfolio.total_equity <= 0:
             return weights
@@ -1499,15 +1529,22 @@ class RiskCalculator:
         returns2: List[Tuple[datetime, float]],
     ) -> List[Tuple[datetime, float, float]]:
         """Align two return series by date."""
-        dict1 = {date.date(): ret for date, ret in returns1}
-        dict2 = {date.date(): ret for date, ret in returns2}
+
+        dict1 = {dt.date(): ret for dt, ret in returns1}
+        dict2 = {dt.date(): ret for dt, ret in returns2}
 
         common_dates = set(dict1.keys()) & set(dict2.keys())
-        common_dates = sorted(common_dates)
+        sorted_dates = list(sorted(common_dates))
 
         aligned = []
-        for date in common_dates:
-            aligned.append((date, dict1[date], dict2[date]))
+        for date_obj in sorted_dates:
+            aligned.append(
+                (
+                    datetime(date_obj.year, date_obj.month, date_obj.day),
+                    dict1[date_obj],
+                    dict2[date_obj],
+                )
+            )
 
         return aligned
 
@@ -1783,7 +1820,7 @@ class RiskCalculator:
 
     async def generate_comprehensive_risk_report(
         self, portfolio: PortfolioState, benchmark: str = "SPY"
-    ) -> Dict:
+    ) -> Dict[str, Any]:
         """
         Generate a comprehensive risk assessment report combining all available metrics.
 
@@ -1796,14 +1833,14 @@ class RiskCalculator:
         """
         # TODO: Add comprehensive tests for risk report generation
         try:
-            report = {
+            report: Dict[str, Any] = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "portfolio_summary": {
                     "total_value": float(portfolio.total_equity),
                     "num_positions": len(
                         [p for p in portfolio.positions if p.quantity != 0]
                     ),
-                    "cash_balance": float(portfolio.cash_balance),
+                    "cash_balance": float(getattr(portfolio, "cash_balance", 0.0)),
                 },
                 "risk_metrics": {},
                 "performance_metrics": {},
@@ -2002,13 +2039,19 @@ class RiskCalculator:
                     "Consider diversifying across sectors to reduce concentration risk"
                 )
 
-            report["warnings"] = warnings
-            report["recommendations"] = recommendations
+            warnings_list = cast(List[str], report["warnings"])
+            warnings_list.extend(warnings)
+            recommendations_list = cast(List[str], report["recommendations"])
+            recommendations_list.extend(recommendations)
 
         except Exception as e:
             logger.error(f"Error generating warnings and recommendations: {e}")
-            report["warnings"] = ["Error generating risk warnings"]
-            report["recommendations"] = ["Review risk metrics manually"]
+            warnings_list = cast(List[str], report["warnings"])
+            warnings_list.clear()
+            warnings_list.append("Error generating risk warnings")
+            recommendations_list = cast(List[str], report["recommendations"])
+            recommendations_list.clear()
+            recommendations_list.append("Review risk metrics manually")
 
     def get_calculation_info(self) -> Dict:
         """Get information about calculation parameters and cache status."""

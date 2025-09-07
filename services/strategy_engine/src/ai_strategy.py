@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import polars as pl
@@ -179,7 +179,7 @@ class AnthropicClient:
                 model=model,
                 prompt_type="custom",
                 response=parsed_response,
-                confidence=parsed_response.get("confidence", 50),
+                confidence=float(cast(float, parsed_response.get("confidence", 50))),
                 tokens_used=tokens_used,
                 cost=cost,
                 timestamp=datetime.now(),
@@ -293,7 +293,7 @@ class ResponseCache:
     """Caches AI responses to reduce API calls."""
 
     def __init__(self, ttl: int = 300):
-        self.cache = {}
+        self.cache: Dict[str, Any] = {}
         self.ttl = ttl
 
     def _get_cache_key(self, prompt: str, model: AIModel) -> str:
@@ -371,8 +371,10 @@ class DataContextBuilder:
         macd_signal, macd_histogram = DataContextBuilder._calculate_macd(data)
         sma20_val = data["close"].tail(20).mean()
         sma50_val = data["close"].tail(50).mean() if len(data) >= 50 else sma20_val
-        sma20 = float(sma20_val) if sma20_val is not None else current_price
-        sma50 = float(sma50_val) if sma50_val is not None else sma20
+        sma20 = (
+            float(cast(float, sma20_val)) if sma20_val is not None else current_price
+        )
+        sma50 = float(cast(float, sma50_val)) if sma50_val is not None else sma20
 
         # Bollinger Bands position
         bb_upper, bb_lower = DataContextBuilder._calculate_bollinger_bands(data)
@@ -403,8 +405,8 @@ class DataContextBuilder:
             "ticker": ticker,
             "current_price": f"{current_price:.2f}",
             "daily_change": f"{daily_change:.2f}",
-            "volume": f"{int(float(latest['volume'].item())):,}",
-            "avg_volume": f"{int(float(data['volume'].tail(20).mean())):,}",
+            "volume": f"{int(float(cast(float, latest['volume'].item()))):,}",
+            "avg_volume": f"{int(float(cast(float, data['volume'].tail(20).mean()))):,}",
             "rsi": f"{rsi:.1f}",
             "macd_signal": f"{macd_signal:.3f}",
             "macd_histogram": f"{macd_histogram:.3f}",
@@ -548,8 +550,14 @@ class DataContextBuilder:
         latest_price = float(data["close"].item(-1))
         low_min = recent_data["low"].min()
         high_max = recent_data["high"].max()
-        support = float(low_min) if low_min is not None else latest_price * 0.98
-        resistance = float(high_max) if high_max is not None else latest_price * 1.02
+        support = (
+            float(cast(float, low_min)) if low_min is not None else latest_price * 0.98
+        )
+        resistance = (
+            float(cast(float, high_max))
+            if high_max is not None
+            else latest_price * 1.02
+        )
 
         return support, resistance
 
@@ -601,10 +609,13 @@ class DataContextBuilder:
             return "Insufficient data for pattern recognition"
 
         # Check for trending
+        current_price = float(data["close"].tail(1).item())
         sma20_val = data["close"].tail(20).mean()
         sma50_val = data["close"].tail(50).mean() if len(data) >= 50 else sma20_val
-        sma20 = float(sma20_val) if sma20_val is not None else 100.0
-        sma50 = float(sma50_val) if sma50_val is not None else sma20
+        sma20 = (
+            float(cast(float, sma20_val)) if sma20_val is not None else current_price
+        )
+        sma50 = float(cast(float, sma50_val)) if sma50_val is not None else sma20
 
         if sma20 > sma50 * 1.02:
             patterns.append("Uptrend (SMA20 > SMA50)")
@@ -613,24 +624,32 @@ class DataContextBuilder:
 
         # Check for breakout
         high_max = data["high"].tail(20).max()
-        recent_high = float(high_max) if high_max is not None else 100.0
+        recent_high = float(cast(float, high_max)) if high_max is not None else 100.0
         close_val = data["close"].item(-1)
-        current_price = float(close_val) if close_val is not None else 100.0
+        current_price = (
+            float(cast(float, close_val)) if close_val is not None else 100.0
+        )
 
         if current_price > recent_high * 0.98:
             patterns.append("Near resistance breakout")
 
         # Check for support bounce
         low_min = data["low"].tail(20).min()
-        recent_low = float(low_min) if low_min is not None else current_price * 0.98
+        recent_low = (
+            float(cast(float, low_min)) if low_min is not None else current_price * 0.98
+        )
         if current_price < recent_low * 1.02:
             patterns.append("Near support level")
 
         # Volume spike
         volume_mean = data["volume"].tail(20).mean()
         volume_last = data["volume"].item(-1)
-        avg_volume = float(volume_mean) if volume_mean is not None else 1000000.0
-        latest_volume = float(volume_last) if volume_last is not None else avg_volume
+        avg_volume = (
+            float(cast(float, volume_mean)) if volume_mean is not None else 1000000.0
+        )
+        latest_volume = (
+            float(cast(float, volume_last)) if volume_last is not None else avg_volume
+        )
 
         if latest_volume > avg_volume * 1.5:
             patterns.append("Volume spike detected")
@@ -717,10 +736,12 @@ class ConsensusEngine:
         # Determine majority action
         if total_weight == 0:
             final_action = "HOLD"
-            consensus_confidence = 0
+            consensus_confidence = 0.0
         else:
             final_action = max(action_votes.items(), key=lambda x: x[1])[0]
-            consensus_confidence = (action_votes[final_action] / total_weight) * 100
+            consensus_confidence = float(
+                (action_votes[final_action] / total_weight) * 100
+            )
 
         # Average the numerical values from responses that agree with majority
         entry_prices = []
@@ -827,7 +848,7 @@ class AIStrategyEngine(BaseStrategy):
         """Setup any required indicators."""
         # AI strategy doesn't use traditional indicators
         # but we initialize tracking structures
-        self.signal_cache = {}
+        self.signal_cache: Dict[str, Any] = {}
         self.cache_ttl = 300  # 5 minutes
 
     async def analyze(self, symbol: str, data: pl.DataFrame) -> Signal:
@@ -877,8 +898,12 @@ class AIStrategyEngine(BaseStrategy):
             self.decision_history.append(decision)
 
             # Update performance tracking
-            self.ai_performance["total_decisions"] += 1
-            self.ai_performance["total_cost"] += sum(r.cost for r in responses)
+            self.ai_performance["total_decisions"] = (
+                cast(int, self.ai_performance.get("total_decisions", 0)) + 1
+            )
+            self.ai_performance["total_cost"] = cast(
+                float, self.ai_performance.get("total_cost", 0.0)
+            ) + sum(r.cost for r in responses)
 
             # Convert to Signal (placeholder method)
             from decimal import Decimal

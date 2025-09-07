@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from datetime import time as dt_time
 from datetime import timedelta, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import polars as pl
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -140,7 +140,7 @@ class DataCollectionService:
             "last_price_update": None,
         }
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all service components."""
         logger.info("Initializing data collection service...")
 
@@ -194,7 +194,7 @@ class DataCollectionService:
             logger.error(f"Failed to initialize data collection service: {e}")
             raise
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the data collection service."""
         if self.is_running:
             logger.warning("Service is already running")
@@ -230,7 +230,7 @@ class DataCollectionService:
             self.is_running = False
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the data collection service."""
         if not self.is_running:
             return
@@ -269,7 +269,7 @@ class DataCollectionService:
         except Exception as e:
             logger.error(f"Error stopping data collection service: {e}")
 
-    async def _setup_scheduler(self):
+    async def _setup_scheduler(self) -> None:
         """Set up scheduled jobs."""
         logger.info("Setting up scheduled jobs...")
 
@@ -375,7 +375,7 @@ class DataCollectionService:
             max_instances=1,
         )
 
-    async def _run_initial_collection(self):
+    async def _run_initial_collection(self) -> None:
         """Run initial data collection on startup."""
         logger.info("Running initial data collection...")
 
@@ -391,7 +391,7 @@ class DataCollectionService:
         except Exception as e:
             logger.error(f"Initial data collection failed: {e}")
 
-    async def _load_active_tickers(self):
+    async def _load_active_tickers(self) -> None:
         """Load active tickers from Redis or data store."""
         if self.redis_client:
             try:
@@ -414,7 +414,7 @@ class DataCollectionService:
             except Exception as e:
                 logger.error(f"Failed to load tickers from data store: {e}")
 
-    async def _run_finviz_scan(self):
+    async def _run_finviz_scan(self) -> None:
         """Run multiple FinViz screeners to discover new tickers."""
         if not self.finviz_screener:
             return
@@ -423,23 +423,35 @@ class DataCollectionService:
             logger.info("Running multiple FinViz screeners...")
 
             # Define screening strategies - conservative approaches only
-            screening_strategies = [
+            screening_strategies: List[Tuple[str, Callable]] = [
                 (
                     "breakouts",
-                    lambda: self.finviz_screener.get_high_volume_breakouts(
-                        limit=max(10, self.config.screener_result_limit // 10)
+                    lambda: (
+                        self.finviz_screener.get_high_volume_breakouts(
+                            limit=max(10, self.config.screener_result_limit // 10)
+                        )
+                        if self.finviz_screener
+                        else []
                     ),
                 ),
                 (
                     "gappers",
-                    lambda: self.finviz_screener.get_gappers(
-                        limit=max(10, self.config.screener_result_limit // 10)
+                    lambda: (
+                        self.finviz_screener.get_gappers(
+                            limit=max(10, self.config.screener_result_limit // 10)
+                        )
+                        if self.finviz_screener
+                        else []
                     ),
                 ),
                 (
                     "low_floaters",
-                    lambda: self.finviz_screener.get_low_float_moving_stocks(
-                        limit=max(10, self.config.screener_result_limit // 10)
+                    lambda: (
+                        self.finviz_screener.get_low_float_moving_stocks(
+                            limit=max(10, self.config.screener_result_limit // 10)
+                        )
+                        if self.finviz_screener
+                        else []
                     ),
                 ),
                 # ("stable_growth", lambda: self.finviz_screener.get_stable_growth_stocks(
@@ -572,8 +584,12 @@ class DataCollectionService:
                 )
                 logger.info("Successfully published screener update")
 
-            self._stats["screener_runs"] += 1
-            self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
+            self._stats["screener_runs"] = (
+                self._stats.get("screener_runs", 0) or 0
+            ) + 1
+            self._stats["last_finviz_scan"] = int(
+                datetime.now(timezone.utc).timestamp()
+            )
 
             logger.info(
                 f"Multi-strategy FinViz scan completed: {len(final_stocks)} total stocks, "
@@ -582,7 +598,7 @@ class DataCollectionService:
 
         except Exception as e:
             logger.error(f"FinViz multi-screener scan failed: {e}")
-            self._stats["errors"] += 1
+            self._stats["errors"] = (self._stats.get("errors", 0) or 0) + 1
 
             # Publish error alert
             if self.redis_client:
@@ -592,7 +608,7 @@ class DataCollectionService:
                     "error",
                 )
 
-    async def _use_fallback_tickers(self):
+    async def _use_fallback_tickers(self) -> None:
         """Use fallback ticker lists when screeners return no results."""
         try:
             # Define popular, liquid stocks as fallbacks
@@ -661,8 +677,12 @@ class DataCollectionService:
                     },
                 )
 
-            self._stats["screener_runs"] += 1
-            self._stats["last_finviz_scan"] = datetime.now(timezone.utc)
+            self._stats["screener_runs"] = (
+                self._stats.get("screener_runs", 0) or 0
+            ) + 1
+            self._stats["last_finviz_scan"] = int(
+                datetime.now(timezone.utc).timestamp()
+            )
 
             logger.info(
                 f"Fallback tickers activated: {len(selected_tickers)} tickers, {len(truly_new_tickers)} new"
@@ -670,9 +690,9 @@ class DataCollectionService:
 
         except Exception as e:
             logger.error(f"Fallback ticker selection failed: {e}")
-            self._stats["errors"] += 1
+            self._stats["errors"] = (self._stats.get("errors", 0) or 0) + 1
 
-    async def _update_price_data(self, timeframe: TimeFrame):
+    async def _update_price_data(self, timeframe: TimeFrame) -> None:
         """
         Update price data for active tickers.
 
@@ -729,7 +749,7 @@ class DataCollectionService:
                 for i in range(0, len(tickers_list), batch_size)
             ]
 
-            all_market_data = []
+            all_market_data: List[Any] = []
             successful_updates = 0
 
             for batch_num, batch_tickers in enumerate(batches, 1):
@@ -748,7 +768,7 @@ class DataCollectionService:
 
                     # Process results
                     for ticker, data_list in batch_data.items():
-                        if data_list:
+                        if data_list and isinstance(data_list, list):
                             all_market_data.extend(data_list)
                             successful_updates += 1
 
@@ -764,14 +784,18 @@ class DataCollectionService:
 
                 except Exception as e:
                     logger.error(f"Batch {batch_num} failed: {e}")
-                    self._stats["errors"] += 1
+                    self._stats["errors"] = (self._stats.get("errors", 0) or 0) + 1
 
             # Save all collected data
             if all_market_data and self.data_store:
                 save_stats = await self.data_store.save_market_data(
                     all_market_data, append=True
                 )
-                self._stats["total_records_saved"] += save_stats["total_saved"]
+                total_saved = save_stats.get("total_saved")
+                current_count = self._stats.get("total_records_saved", 0) or 0
+                self._stats["total_records_saved"] = current_count + (
+                    total_saved if total_saved is not None else 0
+                )
 
                 logger.info(
                     f"Saved {save_stats['total_saved']} {timeframe} records for {successful_updates} tickers"
@@ -789,7 +813,7 @@ class DataCollectionService:
 
             # Cache latest prices if this is real-time data
             if timeframe == TimeFrame.FIVE_MINUTES and self.redis_client:
-                latest_prices = {}
+                latest_prices: Dict[str, Any] = {}
                 for data in all_market_data:
                     ticker = data.symbol
                     if (
@@ -801,14 +825,16 @@ class DataCollectionService:
                 if latest_prices:
                     await self.redis_client.batch_cache_prices(latest_prices)
 
-            self._stats["data_updates"] += 1
-            self._stats["last_price_update"] = datetime.now(timezone.utc)
+            self._stats["data_updates"] = (self._stats.get("data_updates", 0) or 0) + 1
+            self._stats["last_sync_timestamp"] = int(
+                datetime.now(timezone.utc).timestamp()
+            )
 
         except Exception as e:
             logger.error(f"Price data update failed for {timeframe}: {e}")
-            self._stats["errors"] += 1
+            self._stats["errors"] = (self._stats.get("errors", 0) or 0) + 1
 
-    async def _download_historical_data(self):
+    async def _download_historical_data(self) -> None:
         """Download historical data for new tickers."""
         if not self.twelvedata_client or not self.data_store:
             return
@@ -1177,7 +1203,7 @@ class DataCollectionService:
 
     async def _health_check(self):
         """Perform health check on all components."""
-        health_status = {
+        health_status: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_status": "healthy",
             "components": {},
@@ -1237,7 +1263,7 @@ class DataCollectionService:
             if self.redis_client:
                 await self.redis_client.set_system_status(
                     "data_collector_health",
-                    health_status["overall_status"],
+                    str(health_status["overall_status"]),
                     health_status,
                 )
 
@@ -1570,7 +1596,7 @@ class DataCollectionService:
             logger.error(f"Failed to export data for {ticker}: {e}")
             return None
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on destruction."""
         if hasattr(self, "scheduler") and self.scheduler.running:
             self.scheduler.shutdown(wait=False)

@@ -11,7 +11,7 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import aiohttp
 
@@ -44,7 +44,7 @@ class OllamaClient:
         """
         self.base_url = base_url.rstrip("/")
         self.model = model
-        self.session = None
+        self.session: Optional[aiohttp.ClientSession] = None
 
     async def _ensure_session(self):
         """Ensure aiohttp session is created."""
@@ -80,6 +80,9 @@ class OllamaClient:
         }
 
         try:
+            await self._ensure_session()
+            if self.session is None:
+                raise RuntimeError("Failed to initialize session")
             async with self.session.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
@@ -119,6 +122,9 @@ class OllamaClient:
 
         try:
             # Check server health
+            await self._ensure_session()
+            if self.session is None:
+                raise RuntimeError("Failed to initialize session")
             async with self.session.get(
                 f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
@@ -151,6 +157,9 @@ class OllamaClient:
         await self._ensure_session()
 
         try:
+            await self._ensure_session()
+            if self.session is None:
+                raise RuntimeError("Failed to initialize session")
             async with self.session.get(
                 f"{self.base_url}/api/tags", timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
@@ -177,6 +186,9 @@ class OllamaClient:
         try:
             payload = {"name": model_name}
 
+            await self._ensure_session()
+            if self.session is None:
+                raise RuntimeError("Failed to initialize session")
             async with self.session.post(
                 f"{self.base_url}/api/pull",
                 json=payload,

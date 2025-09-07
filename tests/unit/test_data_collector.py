@@ -5,9 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-sys.path.append("/app/shared")
-
 from shared.models import AssetType, FinVizData, MarketData, TimeFrame
+
+sys.path.append("/app/shared")
 
 
 class TestMarketDataValidation:

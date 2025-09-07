@@ -55,8 +55,8 @@ class LoadTestRunner:
     def __init__(self, base_url: str = "http://localhost", timeout: int = 30):
         self.base_url = base_url
         self.timeout = timeout
-        self.session = None
-        self.results = []
+        self.session: Optional[aiohttp.ClientSession] = None
+        self.results: List[Dict[str, Any]] = []
 
     async def __aenter__(self):
         """Async context manager entry"""
@@ -144,7 +144,7 @@ class LoadTestRunner:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions and convert to results
-        valid_results = []
+        valid_results: List[Dict[str, Any]] = []
         for result in results:
             if isinstance(result, Exception):
                 valid_results.append(
@@ -157,7 +157,7 @@ class LoadTestRunner:
                         "timestamp": datetime.now(timezone.utc),
                     }
                 )
-            else:
+            elif isinstance(result, dict):
                 valid_results.append(result)
 
         return valid_results
@@ -433,9 +433,13 @@ class TradingSystemLoadTests:
                         },
                     ) as response:
                         await response.json()
-                        execution_time = time.time() - execution_start
+                        execution_time = int(
+                            (time.time() - execution_start) * 1000
+                        )  # Convert to milliseconds
 
-                total_time = time.time() - flow_start
+                total_time = int(
+                    (time.time() - flow_start) * 1000
+                )  # Convert to milliseconds
 
                 return {
                     "flow_id": flow_id,

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Use standalone models to avoid config dependencies
 from backtest_models import (
@@ -135,7 +135,7 @@ class HistoricalDataFeeder:
 
     async def get_screener_data_for_date(self, date: datetime) -> Dict[str, List[str]]:
         """Get screener results for specific date."""
-        screener_results = {}
+        screener_results: Dict[str, List[str]] = {}
 
         if not self.config.enable_screener_data:
             return screener_results
@@ -254,7 +254,7 @@ class RealBacktestEngine:
         self.total_slippage = Decimal("0")
 
         # AI Strategy (will be initialized in run_backtest)
-        self.ai_strategy = None
+        self.ai_strategy: Optional[Any] = None
 
     async def initialize_ai_strategy(self) -> None:
         """Initialize the AI strategy with backtesting configuration."""
@@ -463,7 +463,7 @@ class RealBacktestEngine:
 
     async def _get_symbols_for_date(self, date: datetime) -> List[str]:
         """Get symbols to analyze for given date."""
-        symbols = set()
+        symbols: Set[str] = set()
 
         # Add existing position symbols
         symbols.update(self.positions.keys())

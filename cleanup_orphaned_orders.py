@@ -141,7 +141,7 @@ class OrphanedOrdersCleaner:
         """Get all order IDs from Alpaca account."""
         url = f"{self.alpaca_base_url}/v2/orders"
         headers = self.get_alpaca_headers()
-        params = {"status": "all", "limit": 500}  # Maximum allowed
+        params: Dict[str, Any] = {"status": "all", "limit": 500}  # Maximum allowed
 
         try:
             loop = asyncio.get_event_loop()

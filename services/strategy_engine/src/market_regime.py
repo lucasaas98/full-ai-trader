@@ -8,8 +8,9 @@ in unfavorable conditions and provides market state analysis.
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
@@ -70,8 +71,8 @@ class MarketRegimeDetector:
         """
         self.lookback_period = lookback_period
         self.logger = logging.getLogger("market_regime")
-        self._regime_history = []
-        self._volatility_history = []
+        self._regime_history: List[Dict[str, Any]] = []
+        self._volatility_history: List[float] = []
 
     def detect_regime(self, data: pl.DataFrame) -> RegimeState:
         """
@@ -878,11 +879,24 @@ class MarketRegimeDetector:
 
     def _get_previous_regime(self) -> Optional[MarketRegime]:
         """Get the previous regime from history."""
-        return self._regime_history[-2] if len(self._regime_history) >= 2 else None
+        regime_data = (
+            self._regime_history[-2] if len(self._regime_history) >= 2 else None
+        )
+        return regime_data if isinstance(regime_data, MarketRegime) else None
 
     def _update_regime_history(self, regime_state: RegimeState) -> None:
         """Update regime history."""
-        self._regime_history.append(regime_state.primary_regime)
+        if isinstance(regime_state.primary_regime, MarketRegime):
+            regime_dict = {
+                "regime": regime_state.primary_regime.value,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "confidence": regime_state.confidence,
+            }
+            self._regime_history.append(regime_dict)
+        else:
+            # Convert dict to proper format if needed
+            if isinstance(regime_state.primary_regime, dict):
+                self._regime_history.append(regime_state.primary_regime)
         # Keep only last 100 regime states
         if len(self._regime_history) > 100:
             self._regime_history = self._regime_history[-100:]

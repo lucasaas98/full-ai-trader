@@ -68,7 +68,7 @@ class FundamentalAnalyzer:
         self.logger = logging.getLogger("fundamental_analyzer")
 
         # Industry benchmarks (can be updated from external data)
-        self.industry_benchmarks = {
+        self.industry_benchmarks: Dict[str, Dict[str, float]] = {
             "Technology": {"pe": 25, "pb": 4, "roe": 15, "margin": 20},
             "Healthcare": {"pe": 20, "pb": 3, "roe": 12, "margin": 15},
             "Finance": {"pe": 12, "pb": 1.2, "roe": 10, "margin": 25},
@@ -117,12 +117,12 @@ class FundamentalAnalyzer:
             # P/B Ratio Analysis
             if metrics.pb_ratio is not None and metrics.pb_ratio > 0:
                 pb_score = self._score_pb_ratio(
-                    metrics.pb_ratio, benchmarks.get("pb", 3)
+                    metrics.pb_ratio, benchmarks.get("pb", 2.5)
                 )
                 valuation_scores.append(pb_score)
                 details["pb_analysis"] = {
                     "value": metrics.pb_ratio,
-                    "benchmark": benchmarks.get("pb", 3),
+                    "benchmark": benchmarks.get("pb", 2.5),
                     "score": pb_score,
                 }
 
@@ -177,12 +177,13 @@ class FundamentalAnalyzer:
             benchmarks = self.industry_benchmarks.get(sector or "Technology", {})
 
             # ROE Analysis
+            # Profitability Analysis
             if metrics.roe is not None:
-                roe_score = self._score_roe(metrics.roe, benchmarks.get("roe", 12))
+                roe_score = self._score_roe(metrics.roe, benchmarks.get("roe", 15))
                 health_scores.append(roe_score)
                 details["roe_analysis"] = {
                     "value": metrics.roe,
-                    "benchmark": benchmarks.get("roe", 12),
+                    "benchmark": benchmarks.get("roe", 15),
                     "score": roe_score,
                 }
 
@@ -220,7 +221,10 @@ class FundamentalAnalyzer:
             growth_score = self._analyze_growth_metrics(metrics)
             if growth_score is not None:
                 health_scores.append(growth_score)
-                details["growth_analysis"] = growth_score
+                details["growth_analysis"] = {
+                    "score": growth_score,
+                    "details": float(growth_score) if growth_score is not None else 0.0,
+                }
 
             # Calculate overall health score
             if health_scores:
@@ -1504,11 +1508,12 @@ class FundamentalAnalysisEngine:
                 )
 
             # Investment style screens
+            sector_benchmarks: Dict[str, float] = self.analyzer.industry_benchmarks.get(
+                finviz_data.sector or "unknown", {}
+            )
             value_screen = self.screener.value_screen(
                 metrics,
-                self.analyzer.industry_benchmarks.get(
-                    finviz_data.sector or "unknown", {}
-                ),
+                sector_benchmarks,
             )
             growth_screen = self.screener.growth_screen(metrics)
             quality_screen = self.screener.quality_screen(metrics)

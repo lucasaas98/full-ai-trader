@@ -287,11 +287,13 @@ class MonteCarloEngine:
                 self.config.time_horizon_days,
             )
         elif return_params["type"] == "t":
-            returns = stats.t.rvs(
-                df=return_params["df"],
-                loc=return_params["loc"],
-                scale=return_params["scale"],
-                size=self.config.time_horizon_days,
+            returns = np.array(
+                stats.t.rvs(
+                    df=return_params["df"],
+                    loc=return_params["loc"],
+                    scale=return_params["scale"],
+                    size=self.config.time_horizon_days,
+                )
             )
         else:
             # Fallback to normal
@@ -363,7 +365,9 @@ class MonteCarloEngine:
         # Calculate percentiles
         percentiles = {}
         for conf_level in self.config.confidence_levels:
-            percentiles[conf_level] = np.percentile(final_values, conf_level * 100)
+            percentiles[conf_level] = float(
+                np.percentile(final_values, conf_level * 100)
+            )
 
         # Risk metrics
         var_95 = np.percentile(final_values, 5)  # 5th percentile
@@ -673,9 +677,12 @@ class WalkForwardAnalysis:
 
         # Random sampling if too many combinations
         if len(combinations) > self.config.optimization_iterations:
-            combinations = np.random.choice(
-                combinations, size=self.config.optimization_iterations, replace=False
-            ).tolist()
+            indices = np.random.choice(
+                len(combinations),
+                size=self.config.optimization_iterations,
+                replace=False,
+            )
+            combinations = [combinations[i] for i in indices]
 
         return combinations
 
@@ -812,7 +819,7 @@ class BootstrapAnalysis:
 
     async def bootstrap_backtest_results(self, returns: List[float]) -> Dict[str, Any]:
         """Bootstrap backtest results for confidence intervals"""
-        bootstrap_results = {
+        bootstrap_results: Dict[str, Any] = {
             "mean_returns": [],
             "volatilities": [],
             "sharpe_ratios": [],
@@ -864,7 +871,7 @@ class BootstrapAnalysis:
             n - self.block_size + 1, size=num_blocks, replace=True
         )
 
-        bootstrap_sample = []
+        bootstrap_sample: List[float] = []
         for start in start_points:
             block = returns[start : start + self.block_size]
             bootstrap_sample.extend(block)

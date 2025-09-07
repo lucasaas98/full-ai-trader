@@ -211,7 +211,7 @@ class DataCollectorApp:
 
     async def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check."""
-        health_info = {
+        health_info: Dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "service": "data_collector",
             "status": "unknown",

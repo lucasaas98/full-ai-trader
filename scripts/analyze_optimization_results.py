@@ -34,7 +34,7 @@ import json
 import warnings
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -55,7 +55,9 @@ class OptimizationAnalyzer:
         self.detailed_data = {}  # strategy -> detailed results DataFrame
         self.summary_data = {}  # strategy -> summary DataFrame
 
-    def load_results(self, file_path: str = None, directory: str = None) -> None:
+    def load_results(
+        self, file_path: Optional[str] = None, directory: Optional[str] = None
+    ) -> None:
         """Load optimization results from files."""
 
         files_to_load = []
@@ -74,9 +76,9 @@ class OptimizationAnalyzer:
 
         print(f"Loading {len(files_to_load)} result files...")
 
-        for file_path in files_to_load:
+        for file_path_obj in files_to_load:
             try:
-                with open(file_path, "r") as f:
+                with open(file_path_obj, "r") as f:
                     data = json.load(f)
 
                 strategy_type = data.get("strategy_type")
@@ -86,14 +88,14 @@ class OptimizationAnalyzer:
 
                     # Also try to load corresponding detailed CSV
                     csv_pattern = f"optimization_detailed_{strategy_type}_*.csv"
-                    csv_files = list(file_path.parent.glob(csv_pattern))
+                    csv_files = list(file_path_obj.parent.glob(csv_pattern))
                     if csv_files:
                         detailed_df = pd.read_csv(csv_files[0])
                         self.detailed_data[strategy_type] = detailed_df
 
                     # Load summary CSV
                     summary_pattern = f"optimization_summary_{strategy_type}_*.csv"
-                    summary_files = list(file_path.parent.glob(summary_pattern))
+                    summary_files = list(file_path_obj.parent.glob(summary_pattern))
                     if summary_files:
                         summary_df = pd.read_csv(summary_files[0])
                         self.summary_data[strategy_type] = summary_df
@@ -158,12 +160,27 @@ class OptimizationAnalyzer:
 
         if "risk_adjusted_score" in df.columns:
             best_idx = df["risk_adjusted_score"].idxmax()
-            return df.loc[best_idx, param]
+            param_value = df.loc[best_idx, param]
+            if pd.notna(param_value):
+                try:
+                    return float(str(param_value))
+                except (ValueError, TypeError):
+                    return 0.0
+            else:
+                return 0.0
         elif "avg_return" in df.columns:
             best_idx = df["avg_return"].idxmax()
-            return df.loc[best_idx, param]
+            param_value = df.loc[best_idx, param]
+            if pd.notna(param_value):
+                try:
+                    return float(str(param_value))
+                except (ValueError, TypeError):
+                    return 0.0
+            else:
+                return 0.0
         else:
-            return df[param].mean()
+            mean_value = df[param].mean()
+            return float(mean_value) if pd.notna(mean_value) else 0.0
 
     def analyze_market_conditions(self, strategy: str) -> Dict[str, Any]:
         """Analyze performance across different market conditions."""
@@ -227,7 +244,7 @@ class OptimizationAnalyzer:
     def generate_recommendations(self, strategy: str) -> Dict[str, Any]:
         """Generate parameter recommendations based on analysis."""
 
-        recommendations = {}
+        recommendations: Dict[str, Any] = {}
 
         if strategy not in self.summary_data:
             return recommendations
@@ -285,7 +302,7 @@ class OptimizationAnalyzer:
         if len(self.results_data) < 2:
             return {}
 
-        comparison = {}
+        comparison: Dict[str, Any] = {}
         strategy_summaries = {}
 
         # Collect best performance for each strategy

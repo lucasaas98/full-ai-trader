@@ -163,7 +163,7 @@ class StrategyEngineService:
                 self.logger.debug(
                     f"Initializing Redis engine with URL: {self.config['redis_url']}"
                 )
-                self.redis_engine = RedisStrategyEngine(self.config["redis_url"])
+                self.redis_engine = RedisStrategyEngine(str(self.config["redis_url"]))
                 if not await self.redis_engine.initialize():
                     self.logger.error("Failed to initialize Redis engine")
                     return False
@@ -231,13 +231,13 @@ class StrategyEngineService:
             if request.strategy_type == "technical":
                 strategy = TechnicalStrategy(config)
             elif request.strategy_type == "fundamental":
-                strategy = FundamentalStrategy(config)
+                strategy = FundamentalStrategy(config)  # type: ignore
             elif request.strategy_type == "hybrid":
                 hybrid_mode = HybridMode(
                     request.parameters.get("hybrid_mode", "swing_trading")
                 )
                 self.logger.debug(f"Using hybrid mode: {hybrid_mode.value}")
-                strategy = HybridStrategy(config, hybrid_mode)
+                strategy = HybridStrategy(config, hybrid_mode)  # type: ignore
             else:
                 raise ValueError(f"Unsupported strategy type: {request.strategy_type}")
 
@@ -313,7 +313,7 @@ class StrategyEngineService:
                     request.symbol, market_data, finviz_data
                 )
             else:
-                signal = await strategy.analyze(request.symbol, market_data)
+                signal = await strategy.analyze(request.symbol, market_data)  # type: ignore
 
             if signal:
                 self.logger.debug(
@@ -393,9 +393,7 @@ class StrategyEngineService:
                 raise ValueError(f"Strategy not found: {request.strategy_name}")
 
             strategy = self.active_strategies[request.strategy_name]
-            self.logger.debug(
-                f"Optimization method: {request.optimization_method}, objective: {request.objective}"
-            )
+            self.logger.debug(f"Running backtest for strategy: {request.strategy_name}")
             self.logger.debug(
                 f"Backtest period: {request.start_date} to {request.end_date}"
             )
@@ -669,12 +667,12 @@ class StrategyEngineService:
 
             self.logger.info(f"Loaded {full_data.height} data points for {symbol}")
             self.logger.debug(
-                f"Data date range: {full_data['timestamp'].min()} to {full_data['timestamp'].max()}"
+                f"Data date range: {str(full_data['timestamp'].min())} to {str(full_data['timestamp'].max())}"
             )
             return full_data
 
         except Exception as e:
-            self.logger.error(f"Error getting market data for {symbol}: {e}")
+            self.logger.error(f"Error getting market data for {symbol}: {str(e)}")
             return None
 
     async def _get_historical_data(
@@ -921,7 +919,7 @@ class StrategyEngineService:
                 self.logger.debug(f"Average technical score: {avg_technical_score}")
 
             # Create EOD report
-            eod_report = {
+            eod_report: Dict[str, Any] = {
                 "report_type": "end_of_day",
                 "date": report_date.strftime("%Y-%m-%d"),
                 "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
@@ -1040,7 +1038,7 @@ class StrategyEngineService:
         self, report_date: datetime
     ) -> List[Dict[str, Any]]:
         """Get detailed signal information for a specific date."""
-        detailed_signals = []
+        detailed_signals: List[Dict[str, Any]] = []
 
         if not self.redis_engine or not self.redis_engine.redis:
             return detailed_signals
@@ -1394,7 +1392,7 @@ async def analyze_market_data():
                 base_path.mkdir(parents=True, exist_ok=True)
 
                 # Group indicators by symbol and save
-                grouped_indicators = {}
+                grouped_indicators: dict[str, Any] = {}
                 for indicator in indicators_to_save:
                     symbol = indicator["symbol"]
                     if symbol not in grouped_indicators:

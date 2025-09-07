@@ -2362,7 +2362,7 @@ class TestPerformance:
 
         # Mock TwelveData client
         mock_twelve_client = Mock()
-        fetch_times = {}
+        fetch_times: dict[str, list[float]] = {}
 
         async def mock_timeframe_fetch(symbols, timeframe, start_date, end_date):
             fetch_start = time.time()

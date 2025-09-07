@@ -94,8 +94,8 @@ class LoadTestRunner:
             "scheduler": f"{base_url}:9105",
         }
         self.session = requests.Session()
-        self.redis_client = None
-        self.db_connection = None
+        self.redis_client: Optional[redis.Redis] = None
+        self.db_connection: Optional[Any] = None
 
     def setup_connections(self):
         """Setup database and Redis connections for testing."""
@@ -424,7 +424,7 @@ class LoadTestRunner:
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
                     pub_results.append(
-                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                        {"success": False, "duration_ms": duration_ms, "error": None}
                     )
                     errors.append(str(e))
 
@@ -506,7 +506,7 @@ class LoadTestRunner:
                 except Exception as e:
                     duration_ms = (time.time() - start_time) * 1000
                     db_results.append(
-                        {"success": False, "duration_ms": duration_ms, "error": str(e)}
+                        {"success": False, "duration_ms": duration_ms, "error": None}
                     )
                     errors.append(str(e))
 

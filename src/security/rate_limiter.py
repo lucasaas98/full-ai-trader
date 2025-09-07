@@ -18,12 +18,13 @@ Features:
 - Circuit breaker integration
 """
 
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional, cast
 
 import structlog
 from prometheus_client import Counter, Gauge, Histogram
@@ -139,9 +140,17 @@ class TokenBucket:
         end
         """
 
-        result = await self.redis.eval(
-            lua_script, 1, key, self.capacity, self.refill_rate, tokens, now
+        result = self.redis.eval(
+            lua_script,
+            1,
+            key,
+            str(self.capacity),
+            str(self.refill_rate),
+            str(tokens),
+            str(now),
         )
+        if hasattr(result, "__await__"):
+            result = await result
 
         allowed = bool(result[0])
         remaining = int(result[1])
@@ -206,9 +215,11 @@ class SlidingWindowLimiter:
         end
         """
 
-        result = await self.redis.eval(
-            lua_script, 1, key, window_start, now, self.requests
+        result = self.redis.eval(
+            lua_script, 1, key, str(window_start), str(now), str(self.requests)
         )
+        if hasattr(result, "__await__"):
+            result = await result
 
         allowed = bool(result[0])
         remaining = int(result[1])
@@ -243,7 +254,9 @@ class AdaptiveRateLimiter:
         """Get current system load metrics"""
         try:
             # Get system metrics from Redis
-            load_data = await self.redis.hgetall(self.load_key)
+            load_data = self.redis.hgetall(self.load_key)
+            if hasattr(load_data, "__await__"):
+                load_data = await load_data
 
             if not load_data:
                 return 0.5  # Default moderate load
@@ -685,7 +698,9 @@ class RateLimiter:
 
         # Store violation in Redis for analysis
         violation_key = f"{self.key_prefix}:violations:{rule.name}:{identifier}"
-        await self.redis.lpush(violation_key, json.dumps(violation_data))
+        lpush_result = self.redis.lpush(violation_key, json.dumps(violation_data))
+        if hasattr(lpush_result, "__await__"):
+            await lpush_result
         await self.redis.expire(violation_key, 86400)  # Keep for 24 hours
 
     async def get_rate_limit_status(
@@ -711,12 +726,21 @@ class RateLimiter:
                 else:
                     # For other algorithms, get current state
                     key = f"{limiter.key_prefix}:sliding:{rate_limit_identifier}"
-                    current_count = await self.redis.zcard(key)
+                    current_count = self.redis.zcard(key)
+                    if hasattr(current_count, "__await__"):
+                        current_count = await current_count
+                    if asyncio.iscoroutine(current_count):
+                        current_count = await current_count
+                    current_count_int = (
+                        int(current_count)
+                        if not isinstance(current_count, (Awaitable, type(None)))
+                        else 0
+                    )
                     result = RateLimitResult(
-                        allowed=current_count < rule.requests,
-                        remaining=max(0, rule.requests - current_count),
+                        allowed=current_count_int < rule.requests,
+                        remaining=max(0, rule.requests - current_count_int),
                         reset_time=time.time() + rule.window_seconds,
-                        current_usage=current_count,
+                        current_usage=current_count_int,
                     )
 
                 status[rule_name] = {
@@ -751,25 +775,35 @@ class RateLimiter:
             "timestamp": time.time(),
         }
 
-        await self.redis.hset(f"{self.key_prefix}:system_load", mapping=load_data)
-        await self.redis.expire(f"{self.key_prefix}:system_load", 300)  # 5 minutes TTL
+        result = self.redis.hset(f"{self.key_prefix}:system_load", mapping=load_data)
+        if hasattr(result, "__await__"):
+            await result
+        expire_result = self.redis.expire(f"{self.key_prefix}:system_load", 300)
+        if hasattr(expire_result, "__await__"):
+            await expire_result
 
     async def add_to_whitelist(
         self, user_id: Optional[str] = None, ip_address: Optional[str] = None
     ):
         """Add user or IP to whitelist"""
         if user_id:
-            await self.redis.sadd(f"{self.key_prefix}:whitelist:users", user_id)
+            result = self.redis.sadd(f"{self.key_prefix}:whitelist:users", user_id)
+            if hasattr(result, "__await__"):
+                await result
             logger.info("User added to whitelist", user_id=user_id)
 
         if ip_address:
-            await self.redis.sadd(f"{self.key_prefix}:whitelist:ips", ip_address)
+            result = self.redis.sadd(f"{self.key_prefix}:whitelist:ips", ip_address)
+            if hasattr(result, "__await__"):
+                await result
             logger.info("IP added to whitelist", ip_address=ip_address)
 
     async def add_to_blacklist(self, ip_address: str, duration_seconds: int = 3600):
         """Add IP to blacklist for specified duration"""
         self.blacklisted_ips.add(ip_address)
-        await self.redis.sadd(f"{self.key_prefix}:blacklist:ips", ip_address)
+        result = self.redis.sadd(f"{self.key_prefix}:blacklist:ips", ip_address)
+        if hasattr(result, "__await__"):
+            await result
         await self.redis.expire(f"{self.key_prefix}:blacklist:ips", duration_seconds)
 
         logger.warning(
@@ -782,12 +816,16 @@ class RateLimiter:
         """Remove user or IP from whitelist"""
         if user_id and user_id in self.whitelisted_users:
             self.whitelisted_users.remove(user_id)
-            await self.redis.srem(f"{self.key_prefix}:whitelist:users", user_id)
+            result = self.redis.srem(f"{self.key_prefix}:whitelist:users", user_id)
+            if hasattr(result, "__await__"):
+                await result
             logger.info("User removed from whitelist", user_id=user_id)
 
         if ip_address and ip_address in self.whitelisted_ips:
             self.whitelisted_ips.remove(ip_address)
-            await self.redis.srem(f"{self.key_prefix}:whitelist:ips", ip_address)
+            result = self.redis.srem(f"{self.key_prefix}:whitelist:ips", ip_address)
+            if asyncio.iscoroutine(result):
+                await result
             logger.info("IP removed from whitelist", ip_address=ip_address)
 
     async def get_violation_stats(self, time_range_hours: int = 24) -> Dict[str, Any]:
@@ -808,7 +846,13 @@ class RateLimiter:
         violation_keys = await self.redis.keys(f"{self.key_prefix}:violations:*")
 
         for key in violation_keys:
-            violations = await self.redis.lrange(key, 0, -1)
+            violations = self.redis.lrange(key, 0, -1)
+            if hasattr(violations, "__await__"):
+                violations = await violations
+
+            # Ensure violations is a list
+            if not isinstance(violations, list):
+                continue
 
             for violation_json in violations:
                 try:
@@ -816,19 +860,35 @@ class RateLimiter:
                     violation_time = violation.get("timestamp", end_time)
 
                     if violation_time >= start_time:
-                        stats["total_violations"] += 1
+                        if violation_time:
+                            total_violations = int(
+                                cast(int, stats.get("total_violations", 0) or 0)
+                            )
+                            stats["total_violations"] = total_violations + 1
 
-                        # Count by rule
-                        rule_name = violation.get("rule_name", "unknown")
-                        stats["violations_by_rule"][rule_name] = (
-                            stats["violations_by_rule"].get(rule_name, 0) + 1
-                        )
+                            # Count by rule
+                            rule_name = str(violation.get("rule_name", "unknown"))
+                            violations_by_rule = dict(
+                                cast(
+                                    Dict[str, Any],
+                                    stats.get("violations_by_rule", {}) or {},
+                                )
+                            )
+                            rule_count = int(violations_by_rule.get(rule_name, 0))
+                            violations_by_rule[rule_name] = rule_count + 1
+                            stats["violations_by_rule"] = violations_by_rule
 
-                        # Count by hour
-                        hour = datetime.fromtimestamp(violation_time).strftime("%H")
-                        stats["violations_by_hour"][hour] = (
-                            stats["violations_by_hour"].get(hour, 0) + 1
-                        )
+                            # Count by hour
+                            hour = datetime.fromtimestamp(violation_time).strftime("%H")
+                            violations_by_hour = dict(
+                                cast(
+                                    Dict[str, Any],
+                                    stats.get("violations_by_hour", {}) or {},
+                                )
+                            )
+                            hour_count = int(violations_by_hour.get(hour, 0))
+                            violations_by_hour[hour] = hour_count + 1
+                            stats["violations_by_hour"] = violations_by_hour
 
                 except Exception as e:
                     logger.warning(f"Failed to parse violation data: {e}")

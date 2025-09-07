@@ -89,6 +89,8 @@ class SharedDatabaseManager:
     async def _ensure_tables(self):
         """Ensure required tables exist in the database."""
         try:
+            if self.engine is None:
+                raise RuntimeError("Database not initialized. Call initialize() first.")
             async with self.engine.begin() as conn:
                 # Create tables if they don't exist
                 await conn.execute(
@@ -238,6 +240,8 @@ class SharedDatabaseManager:
     async def test_connection(self) -> bool:
         """Test database connection."""
         try:
+            if self.session_factory is None:
+                return False
             async with self.session_factory() as session:
                 result = await session.execute(text("SELECT 1 as test"))
                 return result.scalar() == 1
@@ -250,6 +254,8 @@ class SharedDatabaseManager:
     ) -> List[Dict[str, Any]]:
         """Get portfolio snapshots between dates."""
         try:
+            if self.session_factory is None:
+                return []
             async with self.session_factory() as session:
                 query = text(
                     """
@@ -294,6 +300,8 @@ class SharedDatabaseManager:
     async def get_latest_portfolio_metrics(self) -> Optional[Dict[str, Any]]:
         """Get the latest portfolio metrics."""
         try:
+            if self.session_factory is None:
+                return None
             async with self.session_factory() as session:
                 query = text(
                     """
@@ -374,6 +382,8 @@ class SharedDatabaseManager:
     async def get_risk_statistics(self, days: int = 30) -> Dict[str, Any]:
         """Get risk statistics for the specified number of days."""
         try:
+            if self.session_factory is None:
+                return {}
             start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
             async with self.session_factory() as session:
@@ -458,6 +468,8 @@ class SharedDatabaseManager:
     async def get_daily_trades(self, target_date: date) -> List[Dict[str, Any]]:
         """Get trades for a specific date."""
         try:
+            if self.session_factory is None:
+                return []
             start_datetime = datetime.combine(target_date, datetime.min.time())
             end_datetime = datetime.combine(target_date, datetime.max.time())
 
@@ -504,6 +516,10 @@ class SharedDatabaseManager:
     async def list_tables(self) -> List[str]:
         """List all tables in the database."""
         try:
+            if self.session_factory is None:
+                return []
+            if self.session_factory is None:
+                return []
             async with self.session_factory() as session:
                 query = text(
                     """
@@ -524,6 +540,8 @@ class SharedDatabaseManager:
     async def insert_portfolio_snapshot(self, snapshot_data: Dict[str, Any]) -> bool:
         """Insert a new portfolio snapshot."""
         try:
+            if self.session_factory is None:
+                return False
             async with self.session_factory() as session:
                 query = text(
                     """
@@ -566,6 +584,8 @@ class SharedDatabaseManager:
     ) -> List[Dict[str, Any]]:
         """Get risk events between dates."""
         try:
+            if self.session_factory is None:
+                return []
             async with self.session_factory() as session:
                 query = text(
                     """
@@ -604,8 +624,8 @@ class SharedDatabaseManager:
             return []
 
     async def close(self):
-        """Close database connections."""
-        if self.engine:
+        """Close database connection."""
+        if self.engine is not None:
             await self.engine.dispose()
             logger.info("Database connection closed")
         self._initialized = False

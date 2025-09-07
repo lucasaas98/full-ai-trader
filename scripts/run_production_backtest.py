@@ -38,7 +38,7 @@ sys.path.append(str(project_root / "backtesting"))
 
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from decimal import Decimal  # noqa: E402
-from typing import Any, Dict  # noqa: E402
+from typing import Any, Callable, Dict, List, Tuple  # noqa: E402
 
 from backtest_models import TimeFrame  # noqa: E402
 from production_backtest_engine import (  # noqa: E402
@@ -426,7 +426,7 @@ def display_strategy_comparison(
     print("-" * (25 + 20 * len(strategies)))
 
     # Performance metrics
-    metrics = [
+    metrics: List[Tuple[str, str, Callable[[Any], str]]] = [
         ("Total Return", "total_return", format_percentage),
         ("Annualized Return", "annualized_return", format_percentage),
         ("Max Drawdown", "max_drawdown", format_percentage),

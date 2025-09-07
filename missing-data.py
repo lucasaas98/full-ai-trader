@@ -115,7 +115,7 @@ async def inspect_data_completeness():
     data_store = DataStore(data_store_config)
 
     # Initialize Redis client
-    redis_config = RedisConfig()
+    redis_config = RedisConfig(password=None)
     redis_client = RedisClient(redis_config)
 
     try:
@@ -339,14 +339,14 @@ async def inspect_data_completeness():
                 if item["last_timestamp"]
                 else "None"
             )
-            completeness = (
+            completeness_str = (
                 f"{item['completeness_pct']:.1f}%"
                 if item["completeness_pct"]
                 else "N/A"
             )
 
             print(
-                f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness:<10}"
+                f"{item['ticker']:<8} {item['timeframe']:<12} {item['records']:<10,} {first_date:<12} {last_date:<12} {item['span_days']:<6} {completeness_str:<10}"
             )
 
         # 6. Check Redis cache status (if connected)

@@ -8,12 +8,9 @@ testing only the functionality that actually exists and works as implemented.
 # Import scheduler components
 import sys
 from datetime import datetime
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-sys.path.append("/app/shared")
-sys.path.append("/app/services/scheduler/src")
 
 from services.scheduler.src.scheduler import (
     ScheduledTask,
@@ -23,6 +20,9 @@ from services.scheduler.src.scheduler import (
     TradingScheduler,
 )
 from shared.market_hours import MarketHoursService, MarketSession
+
+sys.path.append("/app/shared")
+sys.path.append("/app/services/scheduler/src")
 
 
 # Mock MarketHoursManager class

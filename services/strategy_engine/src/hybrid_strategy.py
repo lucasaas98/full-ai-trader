@@ -88,8 +88,8 @@ class HybridStrategy(BaseStrategy):
         self.hybrid_mode = hybrid_mode
 
         # Initialize component strategies
-        self.technical_strategy = None
-        self.fundamental_strategy = None
+        self.technical_strategy: Optional[TechnicalStrategy] = None
+        self.fundamental_strategy: Optional[FundamentalStrategy] = None
 
         # Analysis engines
         self.technical_engine = TechnicalAnalysisEngine()
@@ -264,17 +264,28 @@ class HybridStrategy(BaseStrategy):
             )
 
             # Execute analyses
-            technical_result, fundamental_result = await asyncio.gather(
+            results = await asyncio.gather(
                 technical_task, fundamental_task, return_exceptions=True
             )
+
+            technical_result = results[0]
+            fundamental_result = results[1]
 
             # Handle analysis errors
             if isinstance(technical_result, Exception):
                 self.logger.error(f"Technical analysis error: {technical_result}")
                 technical_result = self._default_technical_result()
 
+            # Ensure technical_result is a dict
+            if not isinstance(technical_result, dict):
+                technical_result = self._default_technical_result()
+
             if isinstance(fundamental_result, Exception):
                 self.logger.error(f"Fundamental analysis error: {fundamental_result}")
+                fundamental_result = self._default_fundamental_result()
+
+            # Ensure fundamental_result is a dict
+            if not isinstance(fundamental_result, dict):
                 fundamental_result = self._default_fundamental_result()
 
             # Ensure results are dictionaries
@@ -850,7 +861,7 @@ class HybridStrategy(BaseStrategy):
                     confidence = combined_score * 0.9
                 else:
                     # Conflicting signals
-                    final_action = SignalType.HOLD
+                    final_action = SignalType.HOLD  # type: ignore
                     confidence = 40.0
 
             elif combined_score >= min_confidence:
@@ -875,11 +886,11 @@ class HybridStrategy(BaseStrategy):
                     final_action = fund_action
                     confidence = combined_score * 0.85
                 else:
-                    final_action = SignalType.HOLD
+                    final_action = SignalType.HOLD  # type: ignore
                     confidence = 30.0
             else:
                 # Weak signal
-                final_action = SignalType.HOLD
+                final_action = SignalType.HOLD  # type: ignore
                 confidence = combined_score * 0.5
 
             return final_action, confidence

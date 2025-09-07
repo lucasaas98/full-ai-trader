@@ -19,18 +19,8 @@ import polars as pl
 import psutil
 import pytest
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from services.strategy_engine.src.ai_integration import AIStrategyIntegration
-from services.strategy_engine.src.ai_models import (
-    AIDecisionRecord,
-    AIPerformanceMetrics,
-    PerformanceReport,
-    create_performance_summary,
-)
 from services.strategy_engine.src.ai_strategy import (
-    AIDecision,
     AIModel,
     AIResponse,
     AIStrategyEngine,
@@ -45,6 +35,8 @@ from services.strategy_engine.src.base_strategy import (
     StrategyMode,
 )
 from shared.models import SignalType
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestPerformanceMetrics:
@@ -364,13 +356,12 @@ class TestCostOptimization:
                 timestamp=datetime.now(),
             )
 
-        client.query = mock_query
+        with patch.object(client, "query", mock_query):
+            # Low confidence scenario - should use Haiku
+            await client.query("screening prompt", AIModel.HAIKU)
+            assert models_used[-1] == AIModel.HAIKU
 
-        # Low confidence scenario - should use Haiku
-        await client.query("screening prompt", AIModel.HAIKU)
-        assert models_used[-1] == AIModel.HAIKU
-
-        # High confidence scenario - should use Opus
+            # High confidence scenario - should use Opus
         await client.query("critical decision", AIModel.OPUS)
         assert models_used[-1] == AIModel.OPUS
 
@@ -427,10 +418,10 @@ class TestRealTimePerformance:
             await asyncio.sleep(0.01)  # Simulate 10ms API call
             return Signal(action=SignalType.BUY, confidence=70, position_size=0.05)
 
-        strategy.analyze = fast_analyze
+        with patch.object(strategy, "analyze", fast_analyze):
 
-        # Measure end-to-end latency
-        data = create_large_dataset(50)
+            # Measure end-to-end latency
+            data = create_large_dataset(50)
 
         start = time.time()
         signal = await strategy.analyze("TEST", data)
@@ -487,17 +478,18 @@ def create_large_dataset(num_rows: int) -> pl.DataFrame:
     dates = pl.date_range(
         datetime.now() - timedelta(days=num_rows), datetime.now(), interval="1d"
     )
+    dates_list = pl.DataFrame({"date": dates}).select("date").to_series().to_list()
 
-    prices = 100 + np.cumsum(np.random.randn(len(dates)) * 2)
+    prices = 100 + np.cumsum(np.random.randn(len(dates_list)) * 2)
 
     return pl.DataFrame(
         {
-            "timestamp": dates,
-            "open": prices + np.random.randn(len(dates)) * 0.5,
-            "high": prices + np.abs(np.random.randn(len(dates))) * 1,
-            "low": prices - np.abs(np.random.randn(len(dates))) * 1,
+            "timestamp": dates_list,
+            "open": prices + np.random.randn(len(dates_list)) * 0.5,
+            "high": prices + np.abs(np.random.randn(len(dates_list))) * 1,
+            "low": prices - np.abs(np.random.randn(len(dates_list))) * 1,
             "close": prices,
-            "volume": np.random.randint(1000000, 5000000, len(dates)),
+            "volume": np.random.randint(1000000, 5000000, len(dates_list)),
         }
     )
 

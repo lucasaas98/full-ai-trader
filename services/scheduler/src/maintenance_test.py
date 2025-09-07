@@ -236,7 +236,7 @@ class MaintenanceSystemTester:
             logger.error(f"Failed to initialize maintenance system: {e}")
             raise
 
-    async def run_all_tests(self) -> Dict[str, bool]:
+    async def run_all_tests(self) -> Dict[str, Dict[str, Any]]:
         """Run all maintenance system tests."""
         logger.info("Starting comprehensive maintenance system tests...")
 
@@ -267,7 +267,14 @@ class MaintenanceSystemTester:
             test_start = time.time()  # Initialize before try block
             try:
                 if self.maintenance_manager is None:
-                    return {test_name: False for test_name, _ in test_suite}
+                    return {
+                        test_name: {
+                            "passed": False,
+                            "duration": 0.0,
+                            "error": "Maintenance manager not initialized",
+                        }
+                        for test_name, _ in test_suite
+                    }
                 result = await test_func()
                 test_duration = time.time() - test_start
 

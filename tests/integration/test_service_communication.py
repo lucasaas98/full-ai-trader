@@ -442,7 +442,7 @@ class TestServiceCommunication:
                     pubsub.get_message(ignore_subscribe_messages=True), timeout=5.0
                 )
                 if message:
-                    data = json.loads(message["data"])
+                    data = json.loads(str(message["data"]))
                     messages_received.append(data)
             except asyncio.TimeoutError:
                 break
@@ -661,7 +661,7 @@ class TestServiceCommunication:
         pubsub = redis_client.pubsub()
         await pubsub.subscribe(channel)
 
-        received_messages = []
+        received_messages: list = []
 
         # Publisher task
         async def publisher():
@@ -802,7 +802,7 @@ class TestServiceCommunication:
                 ),
             ]
 
-            error_responses = []
+            error_responses: list[dict] = []
 
             for url, payload in invalid_requests:
                 try:
@@ -820,11 +820,11 @@ class TestServiceCommunication:
                     error_responses.append({"url": url, "error": str(e)})
 
             # Services should handle errors gracefully (not return 500)
-            for response in error_responses:
-                if "status_code" in response:
+            for error_response in error_responses:
+                if "status_code" in error_response:
                     assert (
-                        response["status_code"] != 500
-                    ), f"Internal server error for {response['url']}"
+                        error_response["status_code"] != 500
+                    ), f"Internal server error for {error_response['url']}"
 
     @pytest.mark.asyncio
     async def test_service_configuration_consistency(self, service_urls):

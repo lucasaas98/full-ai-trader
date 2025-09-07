@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from queue import Queue
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union, cast
 
 import aiofiles
 import numpy as np
@@ -90,7 +90,7 @@ class TradeLogEntry:
 
     def to_json(self) -> str:
         """Convert to JSON string."""
-        log_dict = {
+        log_dict: Dict[str, Any] = {
             "timestamp": self.timestamp.isoformat(),
             "level": self.level.value,
             "category": self.category.value,
@@ -130,11 +130,11 @@ class JSONFormatter(logging.Formatter):
 
         # Handle exceptions
         exception_info = None
-        stack_trace = None
+        stack_trace: Optional[str] = None
         if record.exc_info:
             exception_info = str(record.exc_info[1])
-            stack_trace = traceback.format_exception(*record.exc_info)
-            stack_trace = "".join(stack_trace)
+            stack_trace_list = traceback.format_exception(*record.exc_info)
+            stack_trace = "".join(stack_trace_list)
 
         # Create structured log entry
         log_entry = TradeLogEntry(
@@ -146,7 +146,7 @@ class JSONFormatter(logging.Formatter):
             context=self.context,
             data=data,
             exception=exception_info,
-            stack_trace=stack_trace,
+            stack_trace=stack_trace if isinstance(stack_trace, str) else None,
             duration_ms=duration_ms,
             tags=tags,
         )
@@ -165,9 +165,9 @@ class AsyncFileHandler(logging.Handler):
         self.max_bytes = max_bytes
         self.backup_count = backup_count
         self.current_size = 0
-        self.log_queue = Queue()
+        self.log_queue: Queue[str] = Queue()
         self.stop_event = threading.Event()
-        self.writer_thread = None
+        self.writer_thread: Optional[threading.Thread] = None
 
         # Ensure log directory exists
         os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -178,7 +178,8 @@ class AsyncFileHandler(logging.Handler):
     def _start_writer_thread(self):
         """Start the async writer thread."""
         self.writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
-        self.writer_thread.start()
+        if self.writer_thread:
+            self.writer_thread.start()
 
     def _writer_loop(self):
         """Main writer loop running in separate thread."""
@@ -234,7 +235,7 @@ class AsyncFileHandler(logging.Handler):
         os.remove(self.filename)
         self.current_size = 0
 
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record: logging.LogRecord) -> None:
         """Emit log record to queue."""
         try:
             formatted_record = self.format(record)
@@ -242,7 +243,7 @@ class AsyncFileHandler(logging.Handler):
         except Exception:
             self.handleError(record)
 
-    def close(self):
+    def close(self) -> None:
         """Close handler and stop writer thread."""
         self.stop_event.set()
         if self.writer_thread and self.writer_thread.is_alive():
@@ -259,7 +260,7 @@ class ElasticsearchHandler(logging.Handler):
         self.es_port = es_port
         self.index_prefix = index_prefix
         self.es_client = None
-        self.buffer = []
+        self.buffer: List[Dict[str, Any]] = []
         self.buffer_size = 100
         self.flush_interval = 30  # seconds
         self.last_flush = time.time()
@@ -284,7 +285,7 @@ class ElasticsearchHandler(logging.Handler):
 
         return self.es_client
 
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record: logging.LogRecord) -> None:
         """Emit log record to Elasticsearch buffer."""
         try:
             formatted_record = json.loads(self.format(record))
@@ -401,7 +402,7 @@ class StructuredLogger:
             es_handler.setFormatter(self.formatter)
             self.logger.addHandler(es_handler)
 
-    def set_context(self, **kwargs):
+    def set_context(self, **kwargs) -> None:
         """Update logging context."""
         for key, value in kwargs.items():
             if hasattr(self.context, key):
@@ -477,7 +478,10 @@ class StructuredLogger:
     ):
         """Log warning message."""
         self._log(LogLevel.WARNING, message, data, category, tags)
-        self.performance_stats["warnings_logged"] += 1
+        warnings_count = int(
+            cast(int, self.performance_stats.get("warnings_logged", 0) or 0)
+        )
+        self.performance_stats["warnings_logged"] = warnings_count + 1
 
     def error(
         self,
@@ -488,17 +492,18 @@ class StructuredLogger:
         exception: Optional[Exception] = None,
     ):
         """Log error message."""
-        extra_data = {"data": data, "category": category, "tags": tags}
+        extra_data: Dict[str, Any] = {"data": data, "category": category, "tags": tags}
 
         if exception:
-            extra_data["exc_info"] = (
-                type(exception),
-                exception,
-                exception.__traceback__,
-            )
+            exc_info = sys.exc_info()
+            if exc_info != (None, None, None):
+                extra_data["exc_info"] = exc_info
 
         self.logger.error(message, extra=extra_data)
-        self.performance_stats["errors_logged"] += 1
+        errors_count = int(
+            cast(int, self.performance_stats.get("errors_logged", 0) or 0)
+        )
+        self.performance_stats["errors_logged"] = errors_count + 1
 
     def critical(
         self,
@@ -509,14 +514,12 @@ class StructuredLogger:
         exception: Optional[Exception] = None,
     ):
         """Log critical message."""
-        extra_data = {"data": data, "category": category, "tags": tags}
+        extra_data: Dict[str, Any] = {"data": data, "category": category, "tags": tags}
 
         if exception:
-            extra_data["exc_info"] = (
-                type(exception),
-                exception,
-                exception.__traceback__,
-            )
+            exc_info = sys.exc_info()
+            if exc_info != (None, None, None):
+                extra_data["exc_info"] = exc_info
 
         self.logger.critical(message, extra=extra_data)
 
@@ -557,11 +560,19 @@ class StructuredLogger:
         extra_data = {"data": data, "category": category, "tags": tags}
 
         getattr(self.logger, level.value.lower())(message, extra=extra_data)
-        self.performance_stats["logs_written"] += 1
+        line_count = int(
+            cast(int, self.performance_stats.get("lines_processed", 0) or 0)
+        )
+        self.performance_stats["lines_processed"] = line_count + 1
 
     def get_stats(self) -> Dict[str, Any]:
         """Get logging performance statistics."""
-        uptime = datetime.now(timezone.utc) - self.performance_stats["start_time"]
+        start_time = self.performance_stats.get(
+            "start_time", datetime.now(timezone.utc)
+        )
+        if not isinstance(start_time, datetime):
+            start_time = datetime.now(timezone.utc)
+        uptime = datetime.now(timezone.utc) - start_time
 
         return {
             "service_name": self.service_name,
@@ -570,8 +581,12 @@ class StructuredLogger:
             "logs_written": self.performance_stats["logs_written"],
             "errors_logged": self.performance_stats["errors_logged"],
             "warnings_logged": self.performance_stats["warnings_logged"],
-            "logs_per_minute": self.performance_stats["logs_written"]
-            / (uptime.total_seconds() / 60),
+            "logs_per_minute": (
+                int(cast(int, self.performance_stats.get("logs_written", 0) or 0))
+                / (uptime.total_seconds() / 60)
+                if uptime.total_seconds() > 0
+                else 0
+            ),
             "handler_count": len(self.logger.handlers),
         }
 
@@ -579,11 +594,11 @@ class StructuredLogger:
 class TradingLogger(StructuredLogger):
     """Specialized logger for trading operations."""
 
-    def trade_executed(self, trade_data: Dict[str, Any]):
+    def trade_executed(self, trade_data: Dict[str, Any]) -> None:
         """Log trade execution."""
         self.audit("Trade executed", data=trade_data, tags=["trade", "execution"])
 
-    def signal_generated(self, signal_data: Dict[str, Any]):
+    def signal_generated(self, signal_data: Dict[str, Any]) -> None:
         """Log signal generation."""
         self.info(
             "Trading signal generated",
@@ -592,7 +607,7 @@ class TradingLogger(StructuredLogger):
             tags=["signal", "strategy"],
         )
 
-    def risk_check_failed(self, risk_data: Dict[str, Any]):
+    def risk_check_failed(self, risk_data: Dict[str, Any]) -> None:
         """Log risk check failure."""
         self.warning(
             "Risk check failed",
@@ -601,7 +616,7 @@ class TradingLogger(StructuredLogger):
             tags=["risk", "rejection"],
         )
 
-    def portfolio_updated(self, portfolio_data: Dict[str, Any]):
+    def portfolio_updated(self, portfolio_data: Dict[str, Any]) -> None:
         """Log portfolio update."""
         self.info(
             "Portfolio updated",
@@ -610,13 +625,13 @@ class TradingLogger(StructuredLogger):
             tags=["portfolio", "update"],
         )
 
-    def market_data_received(self, market_data: Dict[str, Any]):
+    def market_data_received(self, market_data: Dict[str, Any]) -> None:
         """Log market data reception."""
         self.info(
             "Market data received", data=market_data, tags=["market-data", "reception"]
         )
 
-    def api_request(self, api_data: Dict[str, Any], duration_ms: float):
+    def api_request(self, api_data: Dict[str, Any], duration_ms: float) -> None:
         """Log API request."""
         self.info(
             "API request completed",
@@ -638,7 +653,7 @@ class TradingLogger(StructuredLogger):
             )
             record.duration_ms = duration_ms
 
-    def security_event(self, security_data: Dict[str, Any]):
+    def security_event(self, security_data: Dict[str, Any]) -> None:
         """Log security event."""
         self.warning(
             "Security event detected",
@@ -647,7 +662,7 @@ class TradingLogger(StructuredLogger):
             tags=["security", "alert"],
         )
 
-    def performance_metric(self, metric_data: Dict[str, Any]):
+    def performance_metric(self, metric_data: Dict[str, Any]) -> None:
         """Log performance metric."""
         self.info(
             "Performance metric", data=metric_data, tags=["performance", "metric"]
@@ -659,7 +674,7 @@ class LogAggregator:
 
     def __init__(self, log_directory: str):
         self.log_directory = Path(log_directory)
-        self.log_files = []
+        self.log_files: List[Path] = []
         self._scan_log_files()
 
     def _scan_log_files(self):
@@ -719,29 +734,56 @@ class LogAggregator:
         try:
             # Handle compressed files
             if file_path.suffix == ".gz":
-                mode = "rt"
+                async with aiofiles.open(
+                    str(file_path), mode="rt", encoding="utf-8"
+                ) as f:
+                    async for line in f:
+                        try:
+                            log_entry = json.loads(line.strip())
+
+                            # Apply filters
+                            if not self._matches_filters(
+                                log_entry,
+                                start_time,
+                                end_time,
+                                level,
+                                category,
+                                service,
+                            ):
+                                continue
+
+                            results.append(log_entry)
+
+                        except (json.JSONDecodeError, KeyError):
+                            # Skip invalid log entries
+                            continue
             else:
-                mode = "r"
+                async with aiofiles.open(
+                    str(file_path), mode="r", encoding="utf-8"
+                ) as f:
+                    async for line in f:
+                        try:
+                            log_entry = json.loads(line.strip())
 
-            async with aiofiles.open(file_path, mode=mode, encoding="utf-8") as f:
-                async for line in f:
-                    try:
-                        log_entry = json.loads(line.strip())
+                            # Apply filters
+                            if not self._matches_filters(
+                                log_entry,
+                                start_time,
+                                end_time,
+                                level,
+                                category,
+                                service,
+                            ):
+                                continue
 
-                        # Apply filters
-                        if not self._matches_filters(
-                            log_entry, start_time, end_time, level, category, service
-                        ):
-                            continue
+                            # Apply query filter
+                            if query and not self._matches_query(log_entry, query):
+                                continue
 
-                        # Apply query filter
-                        if query and not self._matches_query(log_entry, query):
-                            continue
+                            results.append(log_entry)
 
-                        results.append(log_entry)
-
-                    except json.JSONDecodeError:
-                        continue  # Skip invalid JSON lines
+                        except json.JSONDecodeError:
+                            continue  # Skip invalid JSON lines
 
         except Exception as e:
             print(f"Error searching log file {file_path}: {e}", file=sys.stderr)
@@ -812,7 +854,7 @@ class LogAggregator:
         self, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """Get aggregated log statistics."""
-        stats = {
+        stats: Dict[str, Any] = {
             "total_entries": 0,
             "by_level": {},
             "by_category": {},
@@ -826,27 +868,44 @@ class LogAggregator:
             file_stats = await self._analyze_file_stats(log_file, start_time, end_time)
 
             # Aggregate stats
-            stats["total_entries"] += file_stats["total_entries"]
-
-            for level, count in file_stats["by_level"].items():
-                stats["by_level"][level] = stats["by_level"].get(level, 0) + count
-
-            for category, count in file_stats["by_category"].items():
-                stats["by_category"][category] = (
-                    stats["by_category"].get(category, 0) + count
+            if isinstance(stats, dict) and isinstance(file_stats, dict):
+                total_entries = stats.get("total_entries", 0)
+                stats["total_entries"] = total_entries + file_stats.get(
+                    "total_entries", 0
                 )
 
-            for service, count in file_stats["by_service"].items():
-                stats["by_service"][service] = (
-                    stats["by_service"].get(service, 0) + count
-                )
+                by_level: Dict[str, Any] = stats.get("by_level", {})
+                for level, count in file_stats.get("by_level", {}).items():
+                    by_level[level] = by_level.get(level, 0) + count
+                    stats["by_level"] = by_level
+
+                by_category: Dict[str, Any] = stats.get("by_category", {})
+                for category, count in file_stats.get("by_category", {}).items():
+                    by_category[category] = int(
+                        by_category.get(category, 0) or 0
+                    ) + int(count)
+                stats["by_category"] = by_category
+
+                by_service: Dict[str, Any] = stats.get("by_service", {})
+
+                for service, count in file_stats.get("by_service", {}).items():
+                    by_service[service] = int(
+                        cast(int, by_service.get(service, 0) or 0)
+                    ) + int(count)
+                stats["by_service"] = by_service
 
         # Calculate error rate
-        total_errors = stats["by_level"].get("ERROR", 0) + stats["by_level"].get(
-            "CRITICAL", 0
+        by_level = cast(Dict[str, Any], stats.get("by_level", {}))
+        total_errors = int(cast(int, by_level.get("ERROR", 0) or 0)) + int(
+            cast(int, by_level.get("CRITICAL", 0) or 0)
         )
-        if stats["total_entries"] > 0:
-            stats["error_rate"] = total_errors / stats["total_entries"]
+        total_entries = (
+            int(cast(int, stats.get("total_entries", 0) or 0))
+            if isinstance(stats, dict)
+            else 0
+        )
+        if total_entries > 0 and isinstance(stats, dict):
+            stats["error_rate"] = total_errors / total_entries
 
         return stats
 
@@ -866,39 +925,92 @@ class LogAggregator:
 
         try:
             if file_path.suffix == ".gz":
-                mode = "rt"
-            else:
-                mode = "r"
+                async with aiofiles.open(
+                    str(file_path), mode="rt", encoding="utf-8"
+                ) as f:
+                    async for line in f:
+                        try:
+                            log_entry = json.loads(line.strip())
 
-            async with aiofiles.open(file_path, mode=mode, encoding="utf-8") as f:
-                async for line in f:
-                    try:
-                        log_entry = json.loads(line.strip())
+                            # Apply time filter
+                            entry_time = datetime.fromisoformat(
+                                log_entry["timestamp"].replace("Z", "+00:00")
+                            )
+                            if (
+                                start_time
+                                and end_time
+                                and start_time <= entry_time <= end_time
+                            ):
+                                continue
 
-                        # Apply time filter
-                        if not self._matches_filters(log_entry, start_time, end_time):
+                            stats["total_entries"] = (
+                                cast(int, stats.get("total_entries", 0)) + 1
+                            )
+                            if "error" in log_entry.get("level", "").lower():
+                                stats["errors"] = cast(int, stats.get("errors", 0)) + 1
+
+                            # Aggregate by hour
+                            hour_key = entry_time.strftime("%Y-%m-%d %H:00")
+                            hourly_stats = dict(
+                                cast(
+                                    Dict[str, Any],
+                                    stats.get("hourly_breakdown", {}) or {},
+                                )
+                            )
+                            hourly_stats[hour_key] = hourly_stats.get(hour_key, 0) + 1
+                            stats["hourly_breakdown"] = hourly_stats
+
+                        except (json.JSONDecodeError, KeyError):
                             continue
+            else:
+                async with aiofiles.open(
+                    str(file_path), mode="r", encoding="utf-8"
+                ) as f:
+                    async for line in f:
+                        try:
+                            log_entry = json.loads(line.strip())
 
-                        stats["total_entries"] += 1
+                            # Apply time filter
+                            if not self._matches_filters(
+                                log_entry, start_time, end_time
+                            ):
+                                continue
 
-                        # Count by level
-                        level = log_entry.get("level", "UNKNOWN")
-                        stats["by_level"][level] = stats["by_level"].get(level, 0) + 1
+                            total_entries = int(
+                                cast(int, stats.get("total_entries", 0) or 0)
+                            )
+                            stats["total_entries"] = total_entries + 1
 
-                        # Count by category
-                        category = log_entry.get("category", "unknown")
-                        stats["by_category"][category] = (
-                            stats["by_category"].get(category, 0) + 1
-                        )
+                            # Count by level
+                            level = log_entry.get("level", "UNKNOWN")
+                            by_level: Dict[str, Any] = (
+                                cast(Dict[str, Any], stats.get("by_level", {})) or {}
+                            )
+                            by_level[level] = int(by_level.get(level, 0)) + 1
+                            stats["by_level"] = by_level
 
-                        # Count by service
-                        service = log_entry.get("service", "unknown")
-                        stats["by_service"][service] = (
-                            stats["by_service"].get(service, 0) + 1
-                        )
+                            # Count by category
+                            category = log_entry.get("category", "unknown")
+                            by_category: Dict[str, Any] = (
+                                cast(Dict[str, Any], stats.get("by_category", {})) or {}
+                            )
+                            by_category[category] = by_category.get(category, 0) + 1
+                            stats["by_category"] = by_category
 
-                    except json.JSONDecodeError:
-                        continue
+                            # Count by service
+                            service = log_entry.get("service", "unknown")
+                            entries_by_service = dict(
+                                cast(
+                                    Dict[str, Any], stats.get("entries_by_service", {})
+                                )
+                            )
+                            entries_by_service[service] = (
+                                int(entries_by_service.get(service, 0)) + 1
+                            )
+                            stats["entries_by_service"] = entries_by_service
+
+                        except json.JSONDecodeError:
+                            continue
 
         except Exception as e:
             print(f"Error analyzing log file {file_path}: {e}", file=sys.stderr)
@@ -911,7 +1023,7 @@ class AuditTrailManager:
 
     def __init__(self, logger: StructuredLogger):
         self.logger = logger
-        self.audit_events = []
+        self.audit_events: List[Dict[str, Any]] = []
         self.sensitive_fields = {
             "password",
             "api_key",
@@ -1069,7 +1181,7 @@ class AuditTrailManager:
 
     def _count_events_by_type(self) -> Dict[str, int]:
         """Count audit events by type."""
-        counts = {}
+        counts: Dict[str, int] = {}
         for event in self.audit_events:
             event_type = event.get("event_type", "unknown")
             counts[event_type] = counts.get(event_type, 0) + 1
@@ -1086,7 +1198,7 @@ class AuditTrailManager:
 
     def _get_most_active_user(self) -> Optional[str]:
         """Get most active user from audit trail."""
-        user_counts = {}
+        user_counts: Dict[str, int] = {}
         for event in self.audit_events:
             user_id = event.get("user_id")
             if user_id and user_id != "system":
@@ -1118,7 +1230,7 @@ class LogRetentionManager:
         self.archive_days = archive_days
         self.compression_enabled = compression_enabled
 
-    async def cleanup_old_logs(self):
+    async def cleanup_old_logs(self) -> None:
         """Clean up old log files based on retention policy."""
         cutoff_date = datetime.now() - timedelta(days=self.retention_days)
         archive_date = datetime.now() - timedelta(days=self.archive_days)
@@ -1155,9 +1267,9 @@ class LogRetentionManager:
 
     def get_retention_stats(self) -> Dict[str, Any]:
         """Get log retention statistics."""
-        stats = {
+        stats: Dict[str, Any] = {
             "total_files": 0,
-            "total_size_mb": 0,
+            "total_size_mb": 0.0,
             "compressed_files": 0,
             "uncompressed_files": 0,
             "oldest_file": None,
@@ -1170,13 +1282,24 @@ class LogRetentionManager:
         for log_file in self.log_directory.glob("**/*.log*"):
             try:
                 file_stat = log_file.stat()
-                stats["total_files"] += 1
-                stats["total_size_mb"] += file_stat.st_size / (1024 * 1024)
+                stats["total_files"] = (
+                    int(cast(int, stats.get("total_files", 0) or 0)) + 1
+                )
+                current_size = float(stats.get("total_size_mb", 0.0))
+                stats["total_size_mb"] = current_size + file_stat.st_size / (
+                    1024 * 1024
+                )
 
                 if str(log_file).endswith(".gz"):
-                    stats["compressed_files"] += 1
+                    compressed_files = int(
+                        cast(int, stats.get("compressed_files", 0) or 0)
+                    )
+                    stats["compressed_files"] = compressed_files + 1
                 else:
-                    stats["uncompressed_files"] += 1
+                    uncompressed_files = int(
+                        cast(int, stats.get("uncompressed_files", 0) or 0)
+                    )
+                    stats["uncompressed_files"] = uncompressed_files + 1
 
                 file_time = datetime.fromtimestamp(file_stat.st_mtime)
                 if oldest_time is None or file_time < oldest_time:
@@ -1348,7 +1471,7 @@ class LogSearchEngine:
 
     def __init__(self, aggregator: LogAggregator):
         self.aggregator = aggregator
-        self.search_cache = {}
+        self.search_cache: Dict[str, Any] = {}
         self.cache_ttl = 300  # 5 minutes
 
     async def search_with_aggregation(
@@ -1416,7 +1539,7 @@ class LogSearchEngine:
         self, results: List[Dict[str, Any]], group_by: str
     ) -> Dict[str, Any]:
         """Aggregate search results by specified field."""
-        aggregations = {}
+        aggregations: Dict[str, Any] = {}
 
         for result in results:
             group_value = result.get(group_by, "unknown")
@@ -1483,7 +1606,7 @@ class LogSearchEngine:
 
     def _find_common_errors(self, errors: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Find most common error messages."""
-        error_counts = {}
+        error_counts: Dict[str, int] = {}
 
         for error in errors:
             message = error.get("message", "Unknown error")
@@ -1529,24 +1652,28 @@ class LogSearchEngine:
 
     def _analyze_error_sources(self, errors: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze error sources and services."""
-        sources = {}
+        sources: Dict[str, Any] = {}
 
         for error in errors:
             service = error.get("service", "unknown")
             if service not in sources:
                 sources[service] = {"count": 0, "percentage": 0, "categories": {}}
 
-            sources[service]["count"] += 1
+            service_count = int(cast(int, sources[service].get("count", 0) or 0))
+            sources[service]["count"] = service_count + 1
 
             category = error.get("category", "unknown")
-            sources[service]["categories"][category] = (
-                sources[service]["categories"].get(category, 0) + 1
-            )
+            categories: Dict[str, Any] = dict(sources[service].get("categories", {}))
+            category_count = int(cast(int, categories.get(category, 0) or 0))
+            categories[category] = category_count + 1
+            sources[service]["categories"] = categories
 
         # Calculate percentages
         total_errors = len(errors)
         for service_data in sources.values():
-            service_data["percentage"] = service_data["count"] / total_errors * 100
+            service_data["percentage"] = (
+                int(cast(int, service_data["count"] or 0)) / total_errors * 100
+            )
 
         return sources
 
@@ -1558,7 +1685,7 @@ class LogSearchEngine:
             return []
 
         # Group errors by hour
-        hourly_counts = {}
+        hourly_counts: Dict[str, int] = {}
 
         for error in errors:
             timestamp_str = error.get("timestamp")
@@ -1567,14 +1694,16 @@ class LogSearchEngine:
                     timestamp = datetime.fromisoformat(
                         timestamp_str.replace("Z", "+00:00")
                     )
-                    hour_key = timestamp.replace(minute=0, second=0, microsecond=0)
+                    hour_key = timestamp.replace(
+                        minute=0, second=0, microsecond=0
+                    ).isoformat()
                     hourly_counts[hour_key] = hourly_counts.get(hour_key, 0) + 1
                 except ValueError:
                     continue
 
         # Convert to timeline format
         timeline = [
-            {"timestamp": hour.isoformat(), "error_count": count}
+            {"timestamp": hour, "error_count": count}
             for hour, count in sorted(hourly_counts.items())
         ]
 
@@ -1650,7 +1779,7 @@ class SecurityLogAnalyzer:
 
     def _analyze_suspicious_ips(self, logs: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze suspicious IP addresses."""
-        ip_activity = {}
+        ip_activity: Dict[str, Any] = {}
 
         for log in logs:
             data = log.get("data", {})
@@ -1709,12 +1838,30 @@ class SecurityLogAnalyzer:
         for log in logs:
             message = log.get("message", "").lower()
             if "authentication" in message and "failed" in message:
-                failed_auth["total_attempts"] += 1
+                total_attempts = failed_auth.get("total_attempts", 0)
+                failed_auth["total_attempts"] = (
+                    int(
+                        total_attempts
+                        if isinstance(total_attempts, (int, float, str))
+                        else 0
+                    )
+                    + 1
+                )
 
                 # Count by service
                 service = log.get("service", "unknown")
-                failed_auth["by_service"][service] = (
-                    failed_auth["by_service"].get(service, 0) + 1
+                by_service = failed_auth.get("by_service", {})
+                if not isinstance(by_service, dict):
+                    by_service = {}
+                    failed_auth["by_service"] = by_service
+                service_count = by_service.get(service, 0)
+                by_service[service] = (
+                    int(
+                        service_count
+                        if isinstance(service_count, (int, float, str))
+                        else 0
+                    )
+                    + 1
                 )
 
                 # Count by hour
@@ -1725,18 +1872,39 @@ class SecurityLogAnalyzer:
                             timestamp_str.replace("Z", "+00:00")
                         )
                         hour_key = timestamp.strftime("%Y-%m-%d %H:00")
-                        failed_auth["by_hour"][hour_key] = (
-                            failed_auth["by_hour"].get(hour_key, 0) + 1
+                        by_hour = failed_auth.get("by_hour", {})
+                        if not isinstance(by_hour, dict):
+                            by_hour = {}
+                            failed_auth["by_hour"] = by_hour
+                        hour_count = by_hour.get(hour_key, 0)
+                        by_hour[hour_key] = (
+                            int(
+                                hour_count
+                                if isinstance(hour_count, (int, float, str))
+                                else 0
+                            )
+                            + 1
                         )
                     except ValueError:
                         pass
 
                 # Extract failure reason
                 data = log.get("data", {})
-                reason = data.get("failure_reason", "unknown")
-                failed_auth["common_failure_reasons"][reason] = (
-                    failed_auth["common_failure_reasons"].get(reason, 0) + 1
-                )
+                if isinstance(data, dict):
+                    reason = data.get("failure_reason", "unknown")
+                    common_reasons = failed_auth.get("common_failure_reasons", {})
+                    if not isinstance(common_reasons, dict):
+                        common_reasons = {}
+                        failed_auth["common_failure_reasons"] = common_reasons
+                    reason_count = common_reasons.get(reason, 0)
+                    common_reasons[reason] = (
+                        int(
+                            reason_count
+                            if isinstance(reason_count, (int, float, str))
+                            else 0
+                        )
+                        + 1
+                    )
 
         return failed_auth
 
@@ -1771,7 +1939,7 @@ class SecurityLogAnalyzer:
             return None
 
         # Analyze activity by hour
-        hourly_activity = {}
+        hourly_activity: Dict[str, int] = {}
         for log in logs:
             timestamp_str = log.get("timestamp")
             if timestamp_str:
@@ -1779,7 +1947,7 @@ class SecurityLogAnalyzer:
                     timestamp = datetime.fromisoformat(
                         timestamp_str.replace("Z", "+00:00")
                     )
-                    hour = timestamp.hour
+                    hour = str(timestamp.hour)
                     hourly_activity[hour] = hourly_activity.get(hour, 0) + 1
                 except ValueError:
                     continue
@@ -1819,7 +1987,7 @@ class SecurityLogAnalyzer:
     ) -> Optional[Dict[str, Any]]:
         """Detect volume-based anomalies."""
         # Group logs by 10-minute intervals
-        interval_counts = {}
+        interval_counts: Dict[str, int] = {}
 
         for log in logs:
             timestamp_str = log.get("timestamp")
@@ -1832,7 +2000,10 @@ class SecurityLogAnalyzer:
                     interval = timestamp.replace(
                         minute=(timestamp.minute // 10) * 10, second=0, microsecond=0
                     )
-                    interval_counts[interval] = interval_counts.get(interval, 0) + 1
+                    interval_key = interval.isoformat()
+                    interval_counts[interval_key] = (
+                        interval_counts.get(interval_key, 0) + 1
+                    )
                 except ValueError:
                     continue
 
@@ -1845,11 +2016,11 @@ class SecurityLogAnalyzer:
 
         # Find intervals with unusual volume
         anomalous_intervals = []
-        for interval, count in interval_counts.items():
+        for interval_key, count in interval_counts.items():
             if count > mean_count + 3 * std_count:  # 3 sigma threshold
                 anomalous_intervals.append(
                     {
-                        "interval": interval.isoformat(),
+                        "interval": interval_key,
                         "event_count": count,
                         "normal_range": f"{mean_count:.1f} ± {std_count:.1f}",
                     }
@@ -1909,7 +2080,7 @@ class LogDashboard:
 
     def __init__(self, search_engine: LogSearchEngine):
         self.search_engine = search_engine
-        self.dashboard_data = {}
+        self.dashboard_data: Dict[str, Any] = {}
         self.refresh_interval = 30  # seconds
 
     async def get_dashboard_data(self) -> Dict[str, Any]:
@@ -1950,7 +2121,7 @@ class LogDashboard:
 
     def _count_by_level(self, logs: List[Dict[str, Any]]) -> Dict[str, int]:
         """Count logs by level."""
-        counts = {}
+        counts: Dict[str, int] = {}
         for log in logs:
             level = log.get("level", "UNKNOWN")
             counts[level] = counts.get(level, 0) + 1
@@ -1958,7 +2129,7 @@ class LogDashboard:
 
     def _count_by_service(self, logs: List[Dict[str, Any]]) -> Dict[str, int]:
         """Count logs by service."""
-        counts = {}
+        counts: Dict[str, int] = {}
         for log in logs:
             service = log.get("service", "unknown")
             counts[service] = counts.get(service, 0) + 1
@@ -1985,24 +2156,32 @@ class LogDashboard:
 
             level = log.get("level", "INFO")
             if level == "ERROR":
-                service_status[service]["error_count"] += 1
+                error_count = service_status[service].get("error_count", 0)
+                service_status[service]["error_count"] = (
+                    int(cast(Union[int, str], error_count)) + 1
+                )
             elif level == "WARNING":
-                service_status[service]["warning_count"] += 1
+                warning_count = service_status[service].get("warning_count", 0)
+                service_status[service]["warning_count"] = (
+                    int(cast(Union[int, str], warning_count)) + 1
+                )
 
             # Update last heartbeat
             timestamp = log.get("timestamp")
-            if timestamp:
-                if (
-                    not service_status[service]["last_heartbeat"]
-                    or timestamp > service_status[service]["last_heartbeat"]
+            if timestamp and isinstance(timestamp, str):
+                last_heartbeat = service_status[service]["last_heartbeat"]
+                if not last_heartbeat or (
+                    isinstance(last_heartbeat, str) and timestamp > str(last_heartbeat)
                 ):
                     service_status[service]["last_heartbeat"] = timestamp
 
         # Determine overall status
         for service, status in service_status.items():
-            if status["error_count"] > 5:
+            error_count = int(cast(Union[int, str], status.get("error_count", 0)))
+            warning_count = int(cast(Union[int, str], status.get("warning_count", 0)))
+            if error_count > 5:
                 status["status"] = "unhealthy"
-            elif status["warning_count"] > 10:
+            elif warning_count > 10:
                 status["status"] = "degraded"
             else:
                 status["status"] = "healthy"
@@ -2038,19 +2217,24 @@ class LogDashboard:
 
                 # Track slow operations
                 if duration_ms > 1000:  # Slower than 1 second
-                    metrics["slow_operations"].append(
-                        {
-                            "operation": data.get("operation"),
-                            "duration_ms": duration_ms,
-                            "timestamp": log.get("timestamp"),
-                        }
-                    )
+                    slow_ops = metrics.get("slow_operations", [])
+                    if isinstance(slow_ops, list):
+                        slow_ops.append(
+                            {
+                                "operation": data.get("operation"),
+                                "duration_ms": duration_ms,
+                                "timestamp": log.get("timestamp"),
+                            }
+                        )
+                        metrics["slow_operations"] = slow_ops
 
                 # Count operations
                 operation = data.get("operation", "unknown")
-                metrics["operation_counts"][operation] = (
-                    metrics["operation_counts"].get(operation, 0) + 1
+                op_counts = dict(
+                    cast(Dict[str, Any], metrics.get("operation_counts", {}))
                 )
+                op_counts[operation] = int(op_counts.get(operation, 0)) + 1
+                metrics["operation_counts"] = op_counts
 
         if response_times:
             metrics["avg_response_time"] = np.mean(response_times)
@@ -2063,21 +2247,22 @@ class LogDashboard:
         self, recent_logs: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Generate alerts based on recent log activity."""
-        alerts = []
+        alerts: List[Dict[str, Any]] = []
 
         # High error rate alert
         error_count = sum(
             1 for log in recent_logs if log.get("level") in ["ERROR", "CRITICAL"]
         )
         if error_count > len(recent_logs) * 0.1:  # More than 10% errors
-            alerts.append(
-                {
-                    "type": "high_error_rate",
-                    "severity": "warning",
-                    "message": f"High error rate detected: {error_count}/{len(recent_logs)} logs",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            if isinstance(alerts, list):
+                alerts.append(
+                    {
+                        "type": "high_error_rate",
+                        "severity": "warning",
+                        "message": f"High error rate detected: {error_count}/{len(recent_logs)} logs",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
 
         # Service unavailability alert
         services_with_errors = set()
@@ -2086,28 +2271,30 @@ class LogDashboard:
                 services_with_errors.add(log.get("service", "unknown"))
 
         if len(services_with_errors) > 2:
-            alerts.append(
-                {
-                    "type": "multiple_service_errors",
-                    "severity": "critical",
-                    "message": f'Multiple services reporting errors: {", ".join(services_with_errors)}',
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            if isinstance(alerts, list):
+                alerts.append(
+                    {
+                        "type": "multiple_service_errors",
+                        "severity": "critical",
+                        "message": f'Multiple services reporting errors: {", ".join(services_with_errors)}',
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
 
         # Security alert
         security_events = [
             log for log in recent_logs if log.get("category") == "security"
         ]
         if len(security_events) > 5:
-            alerts.append(
-                {
-                    "type": "security_activity",
-                    "severity": "warning",
-                    "message": f"Elevated security event activity: {len(security_events)} events",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            if isinstance(alerts, list):
+                alerts.append(
+                    {
+                        "type": "security_activity",
+                        "severity": "warning",
+                        "message": f"Elevated security event activity: {len(security_events)} events",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
 
         return alerts
 

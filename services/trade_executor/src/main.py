@@ -291,13 +291,15 @@ class TradeExecutorService:
             logger.debug("Creating TradeSignal object")
             signal = TradeSignal(**data)
             logger.debug(
-                f"TradeSignal created: id={signal.id}, symbol={signal.symbol}, side={signal.side}"
+                f"TradeSignal created: id={signal.id}, symbol={signal.symbol}, signal_type={signal.signal_type}"
             )
 
             # Update stats
-            self._signal_processing_stats["total_processed"] += 1
-            self._signal_processing_stats["last_signal_time"] = datetime.now(
-                timezone.utc
+            self._signal_processing_stats["total_processed"] = (
+                self._signal_processing_stats.get("total_processed") or 0
+            ) + 1
+            self._signal_processing_stats["last_signal_time"] = int(
+                datetime.now(timezone.utc).timestamp()
             )
             logger.debug(
                 f"Updated stats: total_processed={self._signal_processing_stats['total_processed']}"
@@ -305,18 +307,33 @@ class TradeExecutorService:
 
             # Execute signal
             logger.debug(f"Executing signal {signal.id}")
-            result = await self.execution_engine.execute_signal(signal)
+            # Convert TradeSignal to dict for execute_signal
+            signal_dict = {
+                "symbol": signal.symbol,
+                "action": signal.signal_type.value,
+                "confidence": signal.confidence,
+                "quantity": signal.quantity,
+                "price": float(signal.price) if signal.price else None,
+                "strategy": signal.strategy_name,
+                "metadata": signal.metadata,
+            }
+            result = await self.execution_engine.execute_signal(signal_dict)
             logger.debug(f"Signal execution result: {result}")
 
             # Update execution stats
             if result.get("success"):
-                self._signal_processing_stats["successful_executions"] += 1
+                self._signal_processing_stats["successful_executions"] = (
+                    self._signal_processing_stats.get("successful_executions") or 0
+                ) + 1
+
                 logger.info(f"Signal {signal.id} executed successfully")
                 logger.debug(
                     f"Successful executions: {self._signal_processing_stats['successful_executions']}"
                 )
             else:
-                self._signal_processing_stats["failed_executions"] += 1
+                self._signal_processing_stats["failed_executions"] = (
+                    self._signal_processing_stats.get("failed_executions") or 0
+                ) + 1
                 logger.warning(
                     f"Signal {signal.id} execution failed: {result.get('error')}"
                 )
@@ -337,7 +354,9 @@ class TradeExecutorService:
 
         except Exception as e:
             logger.error(f"Failed to process signal message: {e}", exc_info=True)
-            self._signal_processing_stats["failed_executions"] += 1
+            self._signal_processing_stats["failed_executions"] = (
+                self._signal_processing_stats.get("failed_executions") or 0
+            ) + 1
 
     async def start_status_broadcaster(self):
         """Start broadcasting system status updates."""
@@ -1051,10 +1070,11 @@ async def get_prometheus_metrics():
 
         # Update metrics before returning them
         logger.debug("Updating service health metrics")
-        service_health_gauge.labels(component="alpaca").set(
-            1 if hasattr(app.state, "service") else 0
-        )
-        service_health_gauge.labels(component="service").set(1)
+        if service_health_gauge:
+            service_health_gauge.labels(component="alpaca").set(
+                1 if hasattr(app.state, "service") else 0
+            )
+            service_health_gauge.labels(component="service").set(1)
 
         # Generate Prometheus format
         logger.debug("Generating Prometheus metrics output")
@@ -1187,8 +1207,9 @@ class TradeExecutorApp:
         """Start the Trade Executor service."""
         await self.initialize()
         # Start background tasks
-        asyncio.create_task(self.service.start_signal_processing())
-        asyncio.create_task(self.service.start_status_broadcaster())
+        if self.service:
+            asyncio.create_task(self.service.start_signal_processing())
+            asyncio.create_task(self.service.start_status_broadcaster())
 
     async def stop(self):
         """Stop the Trade Executor service."""

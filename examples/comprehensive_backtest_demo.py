@@ -864,7 +864,9 @@ class ComprehensiveBacktestEngine:
                     period_datetime - position.entry_date
                 ).total_seconds() / 3600
                 if self.timeframe == TimeFrame.ONE_HOUR:
-                    max_hold = strategy.max_hold_days * 6.5  # Trading hours per day
+                    max_hold = int(
+                        strategy.max_hold_days * 6.5
+                    )  # Trading hours per day
                 elif self.timeframe == TimeFrame.FIFTEEN_MIN:
                     max_hold = strategy.max_hold_days * 26  # 15-min periods per day
                 elif self.timeframe == TimeFrame.FIVE_MIN:
@@ -872,14 +874,16 @@ class ComprehensiveBacktestEngine:
                 else:  # ONE_MINUTE
                     max_hold = strategy.max_hold_days * 390  # 1-min periods per day
 
-                hold_days = hold_hours / (
-                    6.5 if self.timeframe != TimeFrame.ONE_DAY else 24
+                hold_days = int(
+                    hold_hours / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)
                 )
 
             if hold_days >= (
                 max_hold
                 if self.timeframe == TimeFrame.ONE_DAY
-                else max_hold / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)
+                else int(
+                    max_hold / (6.5 if self.timeframe != TimeFrame.ONE_DAY else 24)
+                )
             ):
                 positions_to_close.append((symbol, "time_exit"))
                 continue
@@ -955,7 +959,7 @@ class ComprehensiveBacktestEngine:
                 hold_hours = (
                     period_datetime - position.entry_date
                 ).total_seconds() / 3600
-                hold_days = hold_hours / 6.5  # Convert to trading days
+                hold_days = int(hold_hours / 6.5)  # Convert to trading days
             pnl_percentage = float(
                 net_pnl / (position.entry_price * Decimal(str(position.quantity)))
             )
@@ -1132,20 +1136,27 @@ class ComprehensiveBacktestEngine:
         ]
 
         try:
-            breakouts, momentum, value_stocks = await asyncio.gather(
+            breakouts_res, momentum_res, value_stocks_res = await asyncio.gather(
                 *tasks, return_exceptions=True
             )
 
-            # Handle exceptions
-            if isinstance(breakouts, Exception):
-                self.logger.debug(f"❌ Breakout screener failed: {breakouts}")
-                breakouts = []
-            if isinstance(momentum, Exception):
-                self.logger.debug(f"❌ Momentum screener failed: {momentum}")
-                momentum = []
-            if isinstance(value_stocks, Exception):
-                self.logger.debug(f"❌ Value screener failed: {value_stocks}")
-                value_stocks = []
+            breakouts = []
+            if not isinstance(breakouts_res, BaseException):
+                breakouts = breakouts_res
+            else:
+                self.logger.debug(f"❌ Breakout screener failed: {breakouts_res}")
+
+            momentum = []
+            if not isinstance(momentum_res, BaseException):
+                momentum = momentum_res
+            else:
+                self.logger.debug(f"❌ Momentum screener failed: {momentum_res}")
+
+            value_stocks = []
+            if not isinstance(value_stocks_res, BaseException):
+                value_stocks = value_stocks_res
+            else:
+                self.logger.debug(f"❌ Value screener failed: {value_stocks_res}")
 
             result = {
                 "breakouts": breakouts[:15],
@@ -1250,14 +1261,14 @@ class ComprehensiveBacktestEngine:
         batch_size = min(
             6, len(analysis_tasks)
         )  # Reduced batch size for memory management
-        signals = []
+        signals: List[Optional[TradingSignal]] = []
 
         for i in range(0, len(analysis_tasks), batch_size):
             batch = analysis_tasks[i : i + batch_size]
             batch_results = await asyncio.gather(*batch, return_exceptions=True)
 
             for result in batch_results:
-                if not isinstance(result, Exception) and result is not None:
+                if not isinstance(result, BaseException) and result is not None:
                     signals.append(result)
 
         return signals
@@ -1886,7 +1897,8 @@ async def run_debug_signal_test():
 
 
 async def run_quick_timeframe_test(
-    timeframes: List[TimeFrame] = None, strategy_mode: str = "position_trading"
+    timeframes: Optional[List[TimeFrame]] = None,
+    strategy_mode: str = "position_trading",
 ):
     """Quick function to test specific timeframes with minimal setup."""
     if timeframes is None:

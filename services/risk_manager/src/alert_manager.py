@@ -11,7 +11,7 @@ import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Dict, List, Set
+from typing import Any, Dict, List, Set
 
 import aiohttp
 
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class AlertManager:
     """Manages risk alerts and notifications."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize alert manager."""
         self.config = get_config()
         self.notification_config = self.config.notifications
@@ -193,9 +193,10 @@ class AlertManager:
             }
 
             headers = {
-                "X-Gotify-Key": self.notification_config.gotify_token,
                 "Content-Type": "application/json",
             }
+            if self.notification_config.gotify_token:
+                headers["X-Gotify-Key"] = self.notification_config.gotify_token
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
@@ -227,7 +228,7 @@ class AlertManager:
             }
 
             # Create Slack payload
-            payload = {
+            payload: Dict[str, Any] = {
                 "username": "Risk Manager",
                 "icon_emoji": ":warning:",
                 "attachments": [
@@ -266,11 +267,11 @@ class AlertManager:
             }
 
             # Add metadata fields if present
-            if alert.metadata:
+            if alert.metadata and isinstance(alert.metadata, dict):
                 for key, value in alert.metadata.items():
                     payload["attachments"][0]["fields"].append(
                         {
-                            "title": key.replace("_", " ").title(),
+                            "title": str(key).replace("_", " ").title(),
                             "value": str(value),
                             "short": True,
                         }
@@ -504,9 +505,10 @@ Message:
 
             url = f"{self.notification_config.gotify_url}/message"
             headers = {
-                "X-Gotify-Key": self.notification_config.gotify_token,
                 "Content-Type": "application/json",
             }
+            if self.notification_config.gotify_token:
+                headers["X-Gotify-Key"] = self.notification_config.gotify_token
 
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
@@ -542,7 +544,7 @@ Message:
         """Create a batch notification from multiple alerts."""
 
         # Group by severity
-        severity_counts = {}
+        severity_counts: Dict[str, int] = {}
         for alert in alerts:
             severity_counts[alert.severity] = severity_counts.get(alert.severity, 0) + 1
 
@@ -807,12 +809,12 @@ Message:
         """Get alert statistics."""
 
         # Count alerts by severity
-        severity_counts = {}
+        severity_counts: Dict[str, int] = {}
         for alert in self.alert_history:
             severity_counts[alert.severity] = severity_counts.get(alert.severity, 0) + 1
 
         # Count alerts by type
-        type_counts = {}
+        type_counts: Dict[str, int] = {}
         for alert in self.alert_history:
             type_counts[alert.alert_type] = type_counts.get(alert.alert_type, 0) + 1
 

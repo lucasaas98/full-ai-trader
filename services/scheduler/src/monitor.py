@@ -113,7 +113,7 @@ class SystemMonitor:
         }
 
         # Performance tracking
-        self.performance_history = defaultdict(list)
+        self.performance_history: Dict[str, List[Any]] = defaultdict(list)
         self.last_performance_check = datetime.now()
 
     async def start_monitoring(self):
@@ -922,7 +922,14 @@ class SystemMonitor:
             )
 
         # Sort by timestamp (newest first)
-        alerts.sort(key=lambda x: x["timestamp"], reverse=True)
+        alerts.sort(
+            key=lambda x: (
+                timestamp.timestamp()
+                if (timestamp := x.get("timestamp")) and isinstance(timestamp, datetime)
+                else 0
+            ),
+            reverse=True,
+        )
         return alerts
 
     async def clear_alerts(self, severity: Optional[AlertSeverity] = None):

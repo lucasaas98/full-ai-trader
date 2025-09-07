@@ -1,489 +1,81 @@
 Running linting checks...
-./backtesting/backtest_engine.py:14:1: E402 module level import not at top of file
-./backtesting/backtest_engine.py:15:1: E402 module level import not at top of file
-./backtesting/monte_carlo.py:16:1: E402 module level import not at top of file
-./backtesting/ollama_ai_strategy_adapter.py:24:1: E402 module level import not at top of file
-./backtesting/ollama_ai_strategy_adapter.py:25:1: E402 module level import not at top of file
-./backtesting/production_backtest_engine.py:37:1: E402 module level import not at top of file
-./backtesting/production_backtest_engine.py:38:1: E402 module level import not at top of file
-./examples/comprehensive_backtest_demo.py:41:1: E402 module level import not at top of file
-./examples/comprehensive_backtest_demo.py:42:1: E402 module level import not at top of file
-./monitoring/gotify_client.py:16:1: E402 module level import not at top of file
-./monitoring/gotify_client.py:17:1: E402 module level import not at top of file
-./monitoring/metrics.py:23:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:26:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:27:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:28:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:29:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:31:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:33:1: E402 module level import not at top of file
-./parameter_optimization_framework.py:34:1: E402 module level import not at top of file
-./scripts/backtest.py:24:1: E402 module level import not at top of file
-./scripts/backtest.py:34:1: E402 module level import not at top of file
-./scripts/optimize_strategy_parameters.py:50:1: E402 module level import not at top of file
-./scripts/optimize_strategy_parameters.py:51:1: E402 module level import not at top of file
-./scripts/optimize_strategy_parameters.py:56:1: E402 module level import not at top of file
-./scripts/run_monthly_backtest.py:41:1: E402 module level import not at top of file
-./scripts/run_monthly_backtest.py:42:1: E402 module level import not at top of file
-./scripts/run_monthly_backtest.py:44:1: E402 module level import not at top of file
-./scripts/run_monthly_backtest.py:50:1: E402 module level import not at top of file
-./scripts/run_production_backtest.py:40:1: E402 module level import not at top of file
-./scripts/run_production_backtest.py:41:1: E402 module level import not at top of file
-./scripts/run_production_backtest.py:42:1: E402 module level import not at top of file
-./scripts/run_production_backtest.py:44:1: E402 module level import not at top of file
-./scripts/run_production_backtest.py:45:1: E402 module level import not at top of file
-./services/data_collector/src/http_server.py:864:13: E303 too many blank lines (2)
-./services/data_collector/src/main.py:19:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:20:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:22:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:24:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:25:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:26:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:27:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:28:1: E402 module level import not at top of file
-./services/data_collector/src/main.py:29:1: E402 module level import not at top of file
-./services/export_service/src/main.py:32:1: E402 module level import not at top of file
-./services/maintenance_service/src/main.py:883:5: F824 `global maintenance_manager` is unused: name is never assigned in scope
-./services/notification_service/src/main.py:25:1: E402 module level import not at top of file
-./services/notification_service/src/main.py:26:1: E402 module level import not at top of file
-./services/notification_service/src/main.py:27:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:27:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:28:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:29:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:42:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:43:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:44:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:45:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:46:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:47:1: E402 module level import not at top of file
-./services/risk_manager/src/main.py:772:5: F824 `global risk_events_counter` is unused: name is never assigned in scope
-./services/risk_manager/src/main.py:772:5: F824 `global portfolio_value_gauge` is unused: name is never assigned in scope
-./services/risk_manager/src/main.py:772:5: F824 `global positions_count_gauge` is unused: name is never assigned in scope
-./services/risk_manager/src/main.py:772:5: F824 `global alerts_counter` is unused: name is never assigned in scope
-./services/risk_manager/src/main.py:772:5: F824 `global service_health_gauge` is unused: name is never assigned in scope
-./services/risk_manager/src/portfolio_monitor.py:573:45: E203 whitespace before ':'
-./services/scheduler/src/cli.py:1598:25: F841 local variable 'e' is assigned to but never used
-./services/scheduler/src/main.py:24:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:25:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:26:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:27:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:28:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:29:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:30:1: E402 module level import not at top of file
-./services/scheduler/src/main.py:36:1: E402 module level import not at top of file
-./services/scheduler/src/scheduler.py:32:1: E402 module level import not at top of file
-./services/scheduler/src/scheduler.py:42:5: F824 `global _scheduler_instance` is unused: name is never assigned in scope
-./services/strategy_engine/src/ai_strategy.py:29:1: E402 module level import not at top of file
-./services/strategy_engine/src/ai_strategy.py:30:1: E402 module level import not at top of file
-./services/strategy_engine/src/ai_strategy.py:31:1: E402 module level import not at top of file
-./services/strategy_engine/src/ai_strategy.py:32:1: E402 module level import not at top of file
-./services/strategy_engine/src/ai_strategy.py:590:28: E226 missing whitespace around arithmetic operator
-./services/strategy_engine/src/ai_strategy.py:1045:25: E117 over-indented
-./services/strategy_engine/src/ai_strategy.py:1088:25: E117 over-indented
-./services/strategy_engine/src/enable_mtf_confirmation.py:16:1: F401 'typing.Optional' imported but unused
-./services/strategy_engine/src/enable_mtf_confirmation.py:21:1: E402 module level import not at top of file
-./services/strategy_engine/src/enable_mtf_confirmation.py:22:1: E402 module level import not at top of file
-./services/strategy_engine/src/enable_mtf_confirmation.py:23:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:28:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:29:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:30:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:31:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:32:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:39:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:40:1: E402 module level import not at top of file
-./services/strategy_engine/src/main.py:41:1: E402 module level import not at top of file
-./services/strategy_engine/src/multi_timeframe_data.py:15:1: F401 'typing.Tuple' imported but unused
-./services/strategy_engine/src/multi_timeframe_data.py:19:1: F401 'shared.models.TimeFrame' imported but unused
-./services/strategy_engine/src/test_mtf_integration.py:19:1: E402 module level import not at top of file
-./services/strategy_engine/src/test_mtf_integration.py:20:1: E402 module level import not at top of file
-./services/strategy_engine/src/test_mtf_integration.py:21:1: E402 module level import not at top of file
-./services/strategy_engine/src/test_mtf_integration.py:22:1: E402 module level import not at top of file
-./services/strategy_engine/src/test_mtf_integration.py:23:1: E402 module level import not at top of file
-./services/strategy_engine/src/test_mtf_integration.py:24:1: E402 module level import not at top of file
-./services/trade_executor/src/main.py:27:1: E402 module level import not at top of file
-./services/trade_executor/src/main.py:28:1: E402 module level import not at top of file
-./services/trade_executor/src/main.py:29:1: E402 module level import not at top of file
-./services/trade_executor/src/main.py:30:1: E402 module level import not at top of file
-./services/trade_executor/src/main.py:475:30: F541 f-string is missing placeholders
-./services/trade_executor/src/utils.py:501:9: F401 'datetime.timezone' imported but unused
-./services/trade_executor/src/utils.py:770:9: F401 'datetime.timezone' imported but unused
-./shared/clients/data_collector_client.py:11:1: F401 'datetime.timedelta' imported but unused
-./shared/clients/data_collector_client.py:12:1: F401 'decimal.Decimal' imported but unused
-./shared/clients/data_collector_client.py:13:1: F401 'typing.Tuple' imported but unused
-./shared/security/jwt_utils.py:10:1: F401 'typing.Dict' imported but unused
-./src/backup_service/main.py:38:1: E402 module level import not at top of file
-./src/security/rate_limiter.py:24:1: F401 'datetime.timedelta' imported but unused
-./test_scripts/test_finviz_screener.py:17:1: E402 module level import not at top of file
-./test_scripts/test_finviz_screener.py:22:1: E402 module level import not at top of file
-./tests/conftest.py:11:1: E402 module level import not at top of file
-./tests/conftest.py:12:1: E402 module level import not at top of file
-./tests/conftest.py:13:1: E402 module level import not at top of file
-./tests/conftest.py:14:1: E402 module level import not at top of file
-./tests/conftest.py:15:1: E402 module level import not at top of file
-./tests/conftest.py:17:1: E402 module level import not at top of file
-./tests/conftest.py:18:1: E402 module level import not at top of file
-./tests/conftest.py:19:1: E402 module level import not at top of file
-./tests/conftest.py:20:1: E402 module level import not at top of file
-./tests/conftest.py:22:1: E402 module level import not at top of file
-./tests/demo_enhanced_scheduler.py:19:1: F401 'typing.Dict' imported but unused
-./tests/demo_enhanced_scheduler.py:19:1: F401 'typing.List' imported but unused
-./tests/demo_enhanced_scheduler.py:24:1: E402 module level import not at top of file
-./tests/demo_enhanced_scheduler.py:25:1: E402 module level import not at top of file
-./tests/demo_enhanced_scheduler.py:518:13: F841 local variable 'intervals' is assigned to but never used
-./tests/fixtures/test_data.py:18:1: E402 module level import not at top of file
-./tests/fixtures/test_data.py:409:45: E203 whitespace before ':'
-./tests/fixtures/test_data.py:763:59: E203 whitespace before ':'
-./tests/fixtures/test_data.py:776:52: E203 whitespace before ':'
-./tests/integration/mock_services/mock_data_collector.py:15:1: F401 'typing.Set' imported but unused
-./tests/integration/mock_services/mock_data_collector.py:17:1: F401 'pandas as pd' imported but unused
-./tests/integration/mock_services/mock_data_collector.py:26:1: E402 module level import not at top of file
-./tests/integration/mock_services/mock_data_collector.py:27:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:11:1: F401 'multiprocessing as mp' imported but unused
-./tests/integration/mock_services/service_orchestrator.py:12:1: F401 'signal' imported but unused
-./tests/integration/mock_services/service_orchestrator.py:19:1: F401 'typing.Callable' imported but unused
-./tests/integration/mock_services/service_orchestrator.py:19:1: F401 'typing.List' imported but unused
-./tests/integration/mock_services/service_orchestrator.py:25:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:26:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:29:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:30:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:31:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:32:1: F401 'shared.models.TimeFrame' imported but unused
-./tests/integration/mock_services/service_orchestrator.py:32:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:34:1: E402 module level import not at top of file
-./tests/integration/mock_services/service_orchestrator.py:447:13: F401 'datetime.timedelta' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:8:1: F401 'asyncio' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:12:1: F401 'decimal.Decimal' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:15:1: F401 'unittest.mock.AsyncMock' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:15:1: F401 'unittest.mock.patch' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:17:1: F401 'pandas as pd' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:23:1: F401 'services.strategy_engine.src.ai_strategy.AIDecision' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:23:1: F401 'services.strategy_engine.src.ai_strategy.AnthropicClient' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:34:1: F401 'services.strategy_engine.src.ollama_client.OllamaResponse' imported but unused
-./tests/integration/test_ai_strategy_with_ollama.py:421:15: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:542:9: F841 local variable 'decision' is assigned to but never used
-./tests/integration/test_ai_strategy_with_ollama.py:619:15: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:624:15: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:629:19: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:637:19: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:639:19: F541 f-string is missing placeholders
-./tests/integration/test_ai_strategy_with_ollama.py:647:15: F541 f-string is missing placeholders
-./tests/integration/test_backtesting.py:18:1: E402 module level import not at top of file
-./tests/integration/test_backtesting.py:19:1: E402 module level import not at top of file
-./tests/integration/test_backtesting.py:527:76: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:549:55: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:605:78: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:734:66: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:737:72: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:803:46: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:803:72: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:871:63: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:875:37: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:1067:63: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:1070:49: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:1134:61: E226 missing whitespace around arithmetic operator
-./tests/integration/test_backtesting.py:1213:49: E226 missing whitespace around arithmetic operator
-./tests/integration/test_data_collector_integration.py:9:1: F401 'os' imported but unused
-./tests/integration/test_data_collector_integration.py:10:1: F401 'tempfile' imported but unused
-./tests/integration/test_data_collector_integration.py:13:1: F401 'unittest.mock.patch' imported but unused
-./tests/integration/test_data_collector_integration.py:44:9: F841 local variable 'config' is assigned to but never used
-./tests/integration/test_data_collector_integration.py:223:9: F841 local variable 'market_data' is assigned to but never used
-./tests/integration/test_data_collector_integration.py:312:9: F841 local variable 'old_data' is assigned to but never used
-./tests/integration/test_data_collector_integration.py:326:9: F841 local variable 'recent_data' is assigned to but never used
-./tests/integration/test_end_to_end_trade_flow.py:26:1: E402 module level import not at top of file
-./tests/integration/test_end_to_end_trade_flow.py:27:1: E402 module level import not at top of file
-./tests/integration/test_end_to_end_trade_flow.py:28:1: E402 module level import not at top of file
-./tests/integration/test_end_to_end_trade_flow.py:30:1: E402 module level import not at top of file
-./tests/integration/test_end_to_end_trade_flow.py:31:1: E402 module level import not at top of file
-./tests/integration/test_end_to_end_trade_flow.py:714:44: E226 missing whitespace around arithmetic operator
-./tests/integration/test_end_to_end_trade_flow.py:2486:13: F841 local variable 'all_approved' is assigned to but never used
-./tests/integration/test_multi_timeframe_confirmation.py:6:1: F401 'asyncio' imported but unused
-./tests/integration/test_multi_timeframe_confirmation.py:7:1: F401 'json' imported but unused
-./tests/integration/test_multi_timeframe_confirmation.py:833:9: F841 local variable 'volume_confluence' is assigned to but never used
-./tests/integration/test_ollama_ai_strategy.py:8:1: F401 'asyncio' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:10:1: F401 'tempfile' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:12:1: F401 'decimal.Decimal' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:14:1: F401 'typing.Any' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:14:1: F401 'typing.Dict' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:15:1: F401 'unittest.mock.AsyncMock' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:15:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:15:1: F401 'unittest.mock.patch' imported but unused
-./tests/integration/test_ollama_ai_strategy.py:345:31: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:348:31: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:361:39: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:378:41: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:382:41: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:386:41: F541 f-string is missing placeholders
-./tests/integration/test_ollama_ai_strategy.py:425:19: F541 f-string is missing placeholders
-./tests/integration/test_ollama_with_prompts.py:7:1: F401 'asyncio' imported but unused
-./tests/integration/test_ollama_with_prompts.py:381:15: F541 f-string is missing placeholders
-./tests/integration/test_ollama_with_prompts.py:514:15: F541 f-string is missing placeholders
-./tests/integration/test_ollama_with_prompts.py:584:15: F541 f-string is missing placeholders
-./tests/integration/test_real_backtesting.py:14:1: F401 'pathlib.Path' imported but unused
-./tests/integration/test_real_backtesting.py:15:1: F401 'typing.Dict' imported but unused
-./tests/integration/test_real_backtesting.py:15:1: F401 'typing.List' imported but unused
-./tests/integration/test_real_backtesting.py:15:1: F401 'typing.Optional' imported but unused
-./tests/integration/test_real_backtesting.py:17:1: F401 'pandas as pd' imported but unused
-./tests/integration/test_real_backtesting.py:18:1: F401 'polars as pl' imported but unused
-./tests/integration/test_real_backtesting.py:30:1: E402 module level import not at top of file
-./tests/integration/test_real_backtesting.py:31:1: F401 'real_backtest_engine.run_previous_month_backtest' imported but unused
-./tests/integration/test_real_backtesting.py:31:1: E402 module level import not at top of file
-./tests/integration/test_real_backtesting.py:41:1: E402 module level import not at top of file
-./tests/integration/test_real_backtesting.py:228:25: F541 f-string is missing placeholders
-./tests/integration/test_real_backtesting.py:512:13: F841 local variable 'results' is assigned to but never used
-./tests/integration/test_real_system_integration.py:14:1: F401 'datetime.date' imported but unused
-./tests/integration/test_real_system_integration.py:14:1: F401 'datetime.timedelta' imported but unused
-./tests/integration/test_real_system_integration.py:15:1: F401 'decimal.Decimal' imported but unused
-./tests/integration/test_real_system_integration.py:17:1: F401 'typing.Any' imported but unused
-./tests/integration/test_real_system_integration.py:17:1: F401 'typing.Dict' imported but unused
-./tests/integration/test_real_system_integration.py:17:1: F401 'typing.List' imported but unused
-./tests/integration/test_real_system_integration.py:17:1: F401 'typing.Optional' imported but unused
-./tests/integration/test_real_system_integration.py:17:1: F401 'typing.Tuple' imported but unused
-./tests/integration/test_real_system_integration.py:18:1: F401 'unittest.mock.AsyncMock' imported but unused
-./tests/integration/test_real_system_integration.py:18:1: F401 'unittest.mock.Mock' imported but unused
-./tests/integration/test_real_system_integration.py:28:1: F401 'shared.config.Config' imported but unused
-./tests/integration/test_real_system_integration.py:28:1: E402 module level import not at top of file
-./tests/integration/test_real_system_integration.py:29:1: F401 'shared.database_manager.SharedDatabaseManager as DatabaseManager' imported but unused
-./tests/integration/test_real_system_integration.py:29:1: E402 module level import not at top of file
-./tests/integration/test_real_system_integration.py:30:1: F401 'shared.models.OrderRequest' imported but unused
-./tests/integration/test_real_system_integration.py:30:1: F401 'shared.models.OrderResponse' imported but unused
-./tests/integration/test_real_system_integration.py:30:1: F401 'shared.models.OrderSide' imported but unused
-./tests/integration/test_real_system_integration.py:30:1: F401 'shared.models.OrderStatus' imported but unused
-./tests/integration/test_real_system_integration.py:30:1: F401 'shared.models.OrderType' imported but unused
-./tests/integration/test_real_system_integration.py:30:1: E402 module level import not at top of file
-./tests/integration/test_real_system_integration.py:40:1: E402 module level import not at top of file
-./tests/integration/test_real_system_integration.py:44:1: F401 'tests.integration.mock_services.service_orchestrator.ServiceOrchestrator' imported but unused
-./tests/integration/test_real_system_integration.py:44:1: E402 module level import not at top of file
-./tests/integration/test_real_system_integration.py:453:9: F841 local variable 'e' is assigned to but never used
-./tests/integration/test_redis_pubsub.py:755:67: E226 missing whitespace around arithmetic operator
-./tests/integration/test_redis_pubsub.py:762:28: E226 missing whitespace around arithmetic operator
-./tests/integration/test_redis_pubsub.py:1460:58: E226 missing whitespace around arithmetic operator
-./tests/integration/test_redis_pubsub.py:1466:85: E226 missing whitespace around arithmetic operator
-./tests/integration/test_redis_pubsub.py:2143:78: E226 missing whitespace around arithmetic operator
-./tests/integration/test_redis_pubsub.py:2153:60: E226 missing whitespace around arithmetic operator
-./tests/integration/test_service_communication.py:20:1: E402 module level import not at top of file
-./tests/integration/test_service_communication.py:464:9: F841 local variable 'original_redis_host' is assigned to but never used
-./tests/integration/test_service_communication.py:501:21: F841 local variable 'positions_data' is assigned to but never used
-./tests/integration/test_service_communication.py:515:9: F841 local variable 'symbols' is assigned to but never used
-./tests/integration/test_service_communication.py:771:21: F841 local variable 'strategy_data' is assigned to but never used
-./tests/performance/test_backtesting.py:14:1: E402 module level import not at top of file
-./tests/performance/test_backtesting.py:19:1: E402 module level import not at top of file
-./tests/performance/test_backtesting.py:21:1: E402 module level import not at top of file
-./tests/performance/test_backtesting.py:61:9: F841 local variable 'portfolio_value' is assigned to but never used
-./tests/performance/test_load.py:923:48: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:923:63: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:1170:79: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:1174:79: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:1205:78: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:1208:48: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load.py:1413:62: E226 missing whitespace around arithmetic operator
-./tests/performance/test_load_testing.py:435:25: F841 local variable 'execution_result' is assigned to but never used
-./tests/performance/test_load_testing.py:475:9: F841 local variable 'failed_flows' is assigned to but never used
-./tests/performance/test_load_testing.py:576:9: F841 local variable 'failed_ops' is assigned to but never used
-./tests/performance/test_load_testing.py:828:21: F841 local variable 'message' is assigned to but never used
-./tests/performance/test_load_testing.py:834:17: F841 local variable 'e' is assigned to but never used
-./tests/run_ai_tests.py:16:1: F401 'typing.Any' imported but unused
-./tests/run_ai_tests.py:16:1: F401 'typing.Dict' imported but unused
-./tests/run_ai_tests.py:16:1: F401 'typing.List' imported but unused
-./tests/run_ai_tests.py:230:15: F541 f-string is missing placeholders
-./tests/security/test_jwt_integration.py:20:1: F401 'shared.security.audit.AuditLogger' imported but unused
-./tests/security/test_jwt_integration.py:20:1: E402 module level import not at top of file
-./tests/security/test_jwt_integration.py:21:1: E402 module level import not at top of file
-./tests/security/test_jwt_integration.py:22:1: E402 module level import not at top of file
-./tests/security/test_jwt_integration.py:280:9: F841 local variable 'token1' is assigned to but never used
-./tests/security/test_jwt_integration.py:281:16: F541 f-string is missing placeholders
-./tests/security/test_jwt_integration.py:290:9: F841 local variable 'token2' is assigned to but never used
-./tests/security/test_jwt_integration.py:291:16: F541 f-string is missing placeholders
-./tests/security/test_jwt_integration.py:472:9: F841 local variable 'token' is assigned to but never used
-./tests/security/test_jwt_integration.py:488:23: F541 f-string is missing placeholders
-./tests/security/test_jwt_utils.py:11:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/security/test_jwt_utils.py:18:1: E402 module level import not at top of file
-./tests/security/test_jwt_utils.py:201:9: F841 local variable 'past_time' is assigned to but never used
-./tests/security/test_jwt_utils.py:604:59: F841 local variable 'mock_logger' is assigned to but never used
-./tests/security/test_security.py:22:1: F401 'shared.security.jwt_utils.JWTManager' imported but unused
-./tests/security/test_security.py:22:1: F401 'shared.security.jwt_utils.get_default_jwt_manager' imported but unused
-./tests/security/test_security.py:22:1: E402 module level import not at top of file
-./tests/security/test_security.py:29:9: F811 redefinition of unused 'JWTManager' from line 22
-./tests/security/test_security.py:1593:75: E226 missing whitespace around arithmetic operator
-./tests/security/test_security.py:1600:56: E226 missing whitespace around arithmetic operator
-./tests/security/test_security.py:1636:54: E226 missing whitespace around arithmetic operator
-./tests/security/test_security.py:1638:48: E226 missing whitespace around arithmetic operator
-./tests/test_ai_strategy.py:8:1: F401 'asyncio' imported but unused
-./tests/test_ai_strategy.py:9:1: F401 'json' imported but unused
-./tests/test_ai_strategy.py:15:1: F401 'typing.Any' imported but unused
-./tests/test_ai_strategy.py:15:1: F401 'typing.Dict' imported but unused
-./tests/test_ai_strategy.py:15:1: F401 'typing.List' imported but unused
-./tests/test_ai_strategy.py:16:1: F401 'unittest.mock.Mock' imported but unused
-./tests/test_ai_strategy.py:24:1: E402 module level import not at top of file
-./tests/test_ai_strategy.py:25:1: F401 'services.strategy_engine.src.ai_models.AIPerformanceMetrics' imported but unused
-./tests/test_ai_strategy.py:25:1: E402 module level import not at top of file
-./tests/test_ai_strategy.py:31:1: F401 'services.strategy_engine.src.ai_strategy.MarketContext' imported but unused
-./tests/test_ai_strategy.py:31:1: F401 'services.strategy_engine.src.ai_strategy.ResponseCache' imported but unused
-./tests/test_ai_strategy.py:31:1: E402 module level import not at top of file
-./tests/test_ai_strategy.py:44:1: E402 module level import not at top of file
-./tests/test_ai_strategy.py:49:1: E402 module level import not at top of file
-./tests/test_ai_strategy.py:419:13: F841 local variable 'strategy' is assigned to but never used
-./tests/test_ai_strategy.py:602:9: F811 redefinition of unused 'List' from line 15
-./tests/test_ai_strategy.py:626:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:9:1: F401 'json' imported but unused
-./tests/test_ai_strategy_errors.py:13:1: F401 'decimal.Decimal' imported but unused
-./tests/test_ai_strategy_errors.py:14:1: F401 'typing.Any' imported but unused
-./tests/test_ai_strategy_errors.py:14:1: F401 'typing.Dict' imported but unused
-./tests/test_ai_strategy_errors.py:14:1: F401 'typing.List' imported but unused
-./tests/test_ai_strategy_errors.py:15:1: F401 'unittest.mock.Mock' imported but unused
-./tests/test_ai_strategy_errors.py:17:1: F401 'numpy as np' imported but unused
-./tests/test_ai_strategy_errors.py:24:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:25:1: F401 'services.strategy_engine.src.ai_models.AIDecisionRecord' imported but unused
-./tests/test_ai_strategy_errors.py:25:1: F401 'services.strategy_engine.src.ai_models.AIPerformanceMetrics' imported but unused
-./tests/test_ai_strategy_errors.py:25:1: F401 'services.strategy_engine.src.ai_models.create_performance_summary' imported but unused
-./tests/test_ai_strategy_errors.py:25:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:30:1: F401 'services.strategy_engine.src.ai_strategy.AIDecision' imported but unused
-./tests/test_ai_strategy_errors.py:30:1: F401 'services.strategy_engine.src.ai_strategy.MarketContext' imported but unused
-./tests/test_ai_strategy_errors.py:30:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:43:1: F401 'services.strategy_engine.src.base_strategy.Signal' imported but unused
-./tests/test_ai_strategy_errors.py:43:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:48:1: F401 'shared.models.SignalType' imported but unused
-./tests/test_ai_strategy_errors.py:48:1: E402 module level import not at top of file
-./tests/test_ai_strategy_errors.py:182:13: F841 local variable 'context' is assigned to but never used
-./tests/test_ai_strategy_errors.py:298:17: F841 local variable 'integration' is assigned to but never used
-./tests/test_ai_strategy_errors.py:533:17: F841 local variable 'strategy' is assigned to but never used
-./tests/test_ai_strategy_extended.py:9:1: F401 'json' imported but unused
-./tests/test_ai_strategy_extended.py:15:1: F401 'decimal.Decimal' imported but unused
-./tests/test_ai_strategy_extended.py:16:1: F401 'typing.Any' imported but unused
-./tests/test_ai_strategy_extended.py:16:1: F401 'typing.Dict' imported but unused
-./tests/test_ai_strategy_extended.py:16:1: F401 'typing.List' imported but unused
-./tests/test_ai_strategy_extended.py:17:1: F401 'unittest.mock.Mock' imported but unused
-./tests/test_ai_strategy_extended.py:17:1: F401 'unittest.mock.call' imported but unused
-./tests/test_ai_strategy_extended.py:25:1: E402 module level import not at top of file
-./tests/test_ai_strategy_extended.py:26:1: F401 'services.strategy_engine.src.ai_models.AIPerformanceMetrics' imported but unused
-./tests/test_ai_strategy_extended.py:26:1: F401 'services.strategy_engine.src.ai_models.ConsensusResult' imported but unused
-./tests/test_ai_strategy_extended.py:26:1: F401 'services.strategy_engine.src.ai_models.MarketRegimeState' imported but unused
-./tests/test_ai_strategy_extended.py:26:1: F401 'services.strategy_engine.src.ai_models.PerformanceReport' imported but unused
-./tests/test_ai_strategy_extended.py:26:1: F401 'services.strategy_engine.src.ai_models.PromptContext' imported but unused
-./tests/test_ai_strategy_extended.py:26:1: E402 module level import not at top of file
-./tests/test_ai_strategy_extended.py:37:1: F401 'services.strategy_engine.src.ai_strategy.AnthropicClient' imported but unused
-./tests/test_ai_strategy_extended.py:37:1: E402 module level import not at top of file
-./tests/test_ai_strategy_extended.py:50:1: E402 module level import not at top of file
-./tests/test_ai_strategy_extended.py:55:1: E402 module level import not at top of file
-./tests/test_ai_strategy_extended.py:242:13: F841 local variable 'start' is assigned to but never used
-./tests/test_ai_strategy_extended.py:779:75: F841 local variable 'mock_exit' is assigned to but never used
-./tests/test_ai_strategy_extended.py:820:1: E402 module level import not at top of file
-./tests/test_ai_strategy_performance.py:10:1: F401 'json' imported but unused
-./tests/test_ai_strategy_performance.py:16:1: F401 'typing.Any' imported but unused
-./tests/test_ai_strategy_performance.py:16:1: F401 'typing.Dict' imported but unused
-./tests/test_ai_strategy_performance.py:16:1: F401 'typing.List' imported but unused
-./tests/test_ai_strategy_performance.py:17:1: F401 'unittest.mock.Mock' imported but unused
-./tests/test_ai_strategy_performance.py:27:1: E402 module level import not at top of file
-./tests/test_ai_strategy_performance.py:28:1: F401 'services.strategy_engine.src.ai_models.AIDecisionRecord' imported but unused
-./tests/test_ai_strategy_performance.py:28:1: F401 'services.strategy_engine.src.ai_models.AIPerformanceMetrics' imported but unused
-./tests/test_ai_strategy_performance.py:28:1: F401 'services.strategy_engine.src.ai_models.PerformanceReport' imported but unused
-./tests/test_ai_strategy_performance.py:28:1: F401 'services.strategy_engine.src.ai_models.create_performance_summary' imported but unused
-./tests/test_ai_strategy_performance.py:28:1: E402 module level import not at top of file
-./tests/test_ai_strategy_performance.py:34:1: F401 'services.strategy_engine.src.ai_strategy.AIDecision' imported but unused
-./tests/test_ai_strategy_performance.py:34:1: F401 'services.strategy_engine.src.ai_strategy.CostTracker' imported but unused
-./tests/test_ai_strategy_performance.py:34:1: F401 'services.strategy_engine.src.ai_strategy.MarketContext' imported but unused
-./tests/test_ai_strategy_performance.py:34:1: F401 'services.strategy_engine.src.ai_strategy.RateLimiter' imported but unused
-./tests/test_ai_strategy_performance.py:34:1: E402 module level import not at top of file
-./tests/test_ai_strategy_performance.py:47:1: E402 module level import not at top of file
-./tests/test_ai_strategy_performance.py:52:1: E402 module level import not at top of file
-./tests/test_enhanced_algorithm_impact.py:12:1: F401 'typing.Dict' imported but unused
-./tests/test_enhanced_algorithm_impact.py:12:1: F401 'typing.List' imported but unused
-./tests/test_enhanced_algorithm_impact.py:17:1: E402 module level import not at top of file
-./tests/test_enhanced_algorithm_impact.py:18:1: E402 module level import not at top of file
-./tests/test_enhanced_algorithm_impact.py:272:73: E226 missing whitespace around arithmetic operator
-./tests/test_enhanced_algorithm_impact.py:562:56: E226 missing whitespace around arithmetic operator
-./tests/unit/services/test_data_collector.py:3:1: F401 'os' imported but unused
-./tests/unit/services/test_data_collector.py:6:1: F401 'sys' imported but unused
-./tests/unit/services/test_data_collector.py:439:14: F841 local variable 'mock_store' is assigned to but never used
-./tests/unit/services/test_data_collector.py:439:71: F841 local variable 'mock_publish' is assigned to but never used
-./tests/unit/services/test_data_collector.py:462:14: F841 local variable 'mock_publish' is assigned to but never used
-./tests/unit/services/test_data_collector.py:942:13: F841 local variable 'result' is assigned to but never used
-./tests/unit/services/test_data_collector.py:1578:44: E712 comparison to True should be 'if cond is True:' or 'if cond:'
-./tests/unit/services/test_data_collector.py:1579:45: E712 comparison to True should be 'if cond is True:' or 'if cond:'
-./tests/unit/services/test_data_collector.py:1864:28: E203 whitespace before ':'
-./tests/unit/services/test_data_collector.py:1954:29: E203 whitespace before ':'
-./tests/unit/services/test_data_collector.py:1980:32: E203 whitespace before ':'
-./tests/unit/services/test_data_collector.py:2276:9: F841 local variable 'large_batch_size' is assigned to but never used
-./tests/unit/services/test_data_collector.py:2332:30: E203 whitespace before ':'
-./tests/unit/services/test_data_collector_scheduler.py:10:1: F401 'datetime.datetime' imported but unused
-./tests/unit/services/test_data_collector_scheduler.py:10:1: F401 'datetime.timezone' imported but unused
-./tests/unit/services/test_data_collector_scheduler.py:13:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/services/test_data_collector_scheduler.py:13:1: F401 'unittest.mock.patch' imported but unused
-./tests/unit/services/test_data_collector_scheduler.py:19:1: E402 module level import not at top of file
-./tests/unit/services/test_data_collector_scheduler.py:20:1: E402 module level import not at top of file
-./tests/unit/services/test_data_collector_scheduler.py:620:13: F841 local variable 'intervals' is assigned to but never used
-./tests/unit/services/test_risk_manager.py:1:1: F401 'asyncio' imported but unused
-./tests/unit/services/test_risk_manager.py:2:1: F401 'json' imported but unused
-./tests/unit/services/test_risk_manager.py:3:1: F401 'datetime.datetime' imported but unused
-./tests/unit/services/test_risk_manager.py:3:1: F401 'datetime.timedelta' imported but unused
-./tests/unit/services/test_risk_manager.py:3:1: F401 'datetime.timezone' imported but unused
-./tests/unit/services/test_risk_manager.py:5:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.OrderRequest' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.OrderSide' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.OrderType' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.RiskLimits' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.SignalType' imported but unused
-./tests/unit/services/test_risk_manager.py:12:1: F401 'shared.models.TradeSignal' imported but unused
-./tests/unit/services/test_risk_manager.py:141:14: F841 local variable 'mock_pm' is assigned to but never used
-./tests/unit/services/test_risk_manager.py:263:14: F841 local variable 'mock_am' is assigned to but never used
-./tests/unit/services/test_risk_manager.py:317:14: F841 local variable 'mock_am' is assigned to but never used
-./tests/unit/services/test_strategy_engine.py:1:1: F401 'os' imported but unused
-./tests/unit/services/test_strategy_engine.py:2:1: F401 'sys' imported but unused
-./tests/unit/services/test_trade_executor.py:4:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/services/test_trade_executor.py:12:1: F401 'shared.models.Position' imported but unused
-./tests/unit/test_data_collector.py:2:1: F401 'json' imported but unused
-./tests/unit/test_data_collector.py:3:1: F401 'os' imported but unused
-./tests/unit/test_data_collector.py:7:1: F401 'tempfile' imported but unused
-./tests/unit/test_data_collector.py:10:1: F401 'unittest.mock.AsyncMock' imported but unused
-./tests/unit/test_data_collector.py:10:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/test_data_collector.py:10:1: F401 'unittest.mock.patch' imported but unused
-./tests/unit/test_data_collector.py:12:1: F401 'pandas as pd' imported but unused
-./tests/unit/test_data_collector.py:13:1: F401 'polars as pl' imported but unused
-./tests/unit/test_data_collector.py:18:1: E402 module level import not at top of file
-./tests/unit/test_data_collector.py:402:54: E203 whitespace before ':'
-./tests/unit/test_data_collector.py:566:31: E203 whitespace before ':'
-./tests/unit/test_risk_manager.py:12:1: F401 'datetime.datetime' imported but unused
-./tests/unit/test_risk_manager.py:12:1: F401 'datetime.timedelta' imported but unused
-./tests/unit/test_risk_manager.py:12:1: F401 'datetime.timezone' imported but unused
-./tests/unit/test_risk_manager.py:14:1: F401 'unittest.mock.AsyncMock' imported but unused
-./tests/unit/test_risk_manager.py:14:1: F401 'unittest.mock.Mock' imported but unused
-./tests/unit/test_risk_manager.py:16:1: F401 'numpy as np' imported but unused
-./tests/unit/test_risk_manager.py:17:1: F401 'pandas as pd' imported but unused
-./tests/unit/test_risk_manager.py:19:1: F401 'pytest_asyncio' imported but unused
-./tests/unit/test_risk_manager.py:30:1: E402 module level import not at top of file
-./tests/unit/test_risk_manager.py:32:1: F401 'shared.models.PositionSizingMethod' imported but unused
-./tests/unit/test_risk_manager.py:32:1: F401 'shared.models.RiskEvent' imported but unused
-./tests/unit/test_risk_manager.py:32:1: F401 'shared.models.RiskEventType' imported but unused
-./tests/unit/test_risk_manager.py:32:1: F401 'shared.models.RiskLimits' imported but unused
-./tests/unit/test_risk_manager.py:32:1: F401 'shared.models.RiskSeverity' imported but unused
-./tests/unit/test_risk_manager.py:32:1: E402 module level import not at top of file
-./tests/unit/test_risk_manager.py:683:9: F841 local variable 'position_size' is assigned to but never used
-./tests/unit/test_risk_manager.py:705:9: F841 local variable 'position_size' is assigned to but never used
-./tests/unit/test_risk_manager.py:831:9: F811 redefinition of unused 'Mock' from line 14
-./tests/unit/test_risk_manager.py:876:9: F811 redefinition of unused 'Mock' from line 14
-./tests/unit/test_scheduler.py:8:1: F401 'asyncio' imported but unused
-./tests/unit/test_scheduler.py:9:1: F401 'json' imported but unused
-./tests/unit/test_scheduler.py:13:1: F401 'dataclasses.dataclass' imported but unused
-./tests/unit/test_scheduler.py:14:1: F401 'datetime.time' imported but unused
-./tests/unit/test_scheduler.py:14:1: F401 'datetime.timedelta' imported but unused
-./tests/unit/test_scheduler.py:14:1: F401 'datetime.timezone' imported but unused
-./tests/unit/test_scheduler.py:15:1: F401 'typing.Optional' imported but unused
-./tests/unit/test_scheduler.py:16:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/test_scheduler.py:16:1: F401 'unittest.mock.Mock' imported but unused
-./tests/unit/test_scheduler.py:18:1: F401 'pandas as pd' imported but unused
-./tests/unit/test_scheduler.py:24:1: E402 module level import not at top of file
-./tests/unit/test_scheduler.py:31:1: E402 module level import not at top of file
-./tests/unit/test_scheduler.py:36:24: F811 redefinition of unused 'timezone' from line 14
-./tests/unit/test_scheduler.py:51:24: F811 redefinition of unused 'timezone' from line 14
-./tests/unit/test_scheduler.py:98:55: F821 undefined name 'MarketHoursManager'
-./tests/unit/test_scheduler.py:245:19: F821 undefined name 'MarketHoursManager'
-./tests/unit/test_scheduler.py:255:19: F821 undefined name 'MarketHoursManager'
-./tests/unit/test_strategy_engine.py:4:1: F401 'unittest.mock.MagicMock' imported but unused
-./tests/unit/test_strategy_engine.py:9:1: F401 'services.strategy_engine.src.base_strategy.BaseStrategy' imported but unused
-./tests/unit/test_strategy_engine.py:182:5: F811 redefinition of unused 'BaseStrategy' from line 9
-./tests/unit/test_technical_indicators.py:11:1: F401 'decimal.Decimal' imported but unused
-./tests/unit/test_technical_indicators.py:20:1: E402 module level import not at top of file
-./tests/unit/test_technical_indicators.py:152:9: F841 local variable 'macd_line' is assigned to but never used
-./tests/unit/test_technical_indicators.py:153:9: F841 local variable 'macd_signal' is assigned to but never used
-./tests/unit/test_technical_indicators.py:154:9: F841 local variable 'macd_histogram' is assigned to but never used
-./tests/unit/test_technical_indicators.py:326:13: F841 local variable 'result_zero' is assigned to but never used
-./tests/unit/test_technical_indicators.py:333:13: F841 local variable 'result_negative' is assigned to but never used
+backtesting/production_backtest_engine.py:1194: error: Unsupported operand types for < ("Decimal" and "object")  [operator]
+src/backup_service/main.py:170: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/backup_service/main.py:171: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/backup_service/main.py:172: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/backup_service/main.py:176: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/backup_service/main.py:177: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+src/backup_service/main.py:953: error: Return value expected  [return-value]
+services/risk_manager/src/alpaca_client.py:48: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/risk_manager/src/alpaca_client.py:49: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/risk_manager/src/alert_manager.py:272: error: Value of type "Collection[str]" is not indexable  [index]
+logging/structured_logging.py:681: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/trade_executor/src/performance_tracker.py:44: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/scheduler/src/maintenance.py:385: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/risk_manager/src/risk_calculator.py:82: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/risk_manager/src/risk_calculator.py:83: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/risk_manager/src/risk_calculator.py:84: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/scheduler/src/demo_maintenance.py:1281: error: Need type annotation for "report" (hint: "report: dict[<type>, <type>] = ...")  [var-annotated]
+scripts/analyze_optimization_results.py:166: error: Argument 1 to "float" has incompatible type "str | bytes | date | datetime | timedelta | <7 more items> | complex | integer[Any] | floating[Any] | complexfloating[Any, Any]"; expected "str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+scripts/analyze_optimization_results.py:176: error: Argument 1 to "float" has incompatible type "str | bytes | date | datetime | timedelta | <7 more items> | complex | integer[Any] | floating[Any] | complexfloating[Any, Any]"; expected "str | Buffer | SupportsFloat | SupportsIndex"  [arg-type]
+services/strategy_engine/src/hybrid_ai_strategy.py:82: error: Missing positional argument "model" in call to "query" of "AnthropicClient"  [call-arg]
+services/strategy_engine/src/hybrid_ai_strategy.py:99: error: Incompatible return value type (got "OllamaResponse | AIResponse", expected "AIResponse")  [return-value]
+services/strategy_engine/src/hybrid_ai_strategy.py:99: error: Unexpected keyword argument "model" for "query" of "OllamaClient"  [call-arg]
+services/strategy_engine/src/hybrid_ai_strategy.py:101: error: Argument "model" to "query" of "AnthropicClient" has incompatible type "str"; expected "AIModel"  [arg-type]
+services/strategy_engine/src/hybrid_ai_strategy.py:550: error: No overload variant of "int" matches argument type "object"  [call-overload]
+services/strategy_engine/src/hybrid_ai_strategy.py:550: note: Possible overload variants:
+services/strategy_engine/src/hybrid_ai_strategy.py:550: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+services/strategy_engine/src/hybrid_ai_strategy.py:550: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+services/risk_manager/src/risk_manager.py:1165: error: "Series" has no attribute "iloc"  [attr-defined]
+services/notification_service/src/main.py:46: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/notification_service/src/main.py:47: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/notification_service/src/main.py:48: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/notification_service/src/main.py:49: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/notification_service/src/main.py:51: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/notification_service/src/main.py:67: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/data_collector/src/data_collection_service.py:767: error: Unsupported operand types for + ("None" and "int")  [operator]
+services/data_collector/src/data_collection_service.py:767: note: Left operand is of type "int | None"
+services/data_collector/src/main.py:76: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/data_collector/src/main.py:77: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/data_collector/src/main.py:78: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/trade_executor/src/alpaca_client.py:312: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/trade_executor/src/alpaca_client.py:313: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/redis_integration.py:825: error: Incompatible types in assignment (expression has type "Signal", variable has type "HybridSignal")  [assignment]
+services/strategy_engine/src/redis_integration.py:829: error: Name "signal" already defined on line 806  [no-redef]
+services/strategy_engine/src/backtesting_engine.py:103: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:104: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:105: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:106: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:107: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:110: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:113: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:114: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:117: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:118: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:119: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:122: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:123: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:124: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:125: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:128: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:129: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:130: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:131: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:134: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:135: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:136: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:137: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:138: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:139: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:142: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:143: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:146: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/backtesting_engine.py:292: error: Incompatible types in assignment (expression has type "Signal", variable has type "HybridSignal")  [assignment]
+services/strategy_engine/src/backtesting_engine.py:298: error: "Signal" has no attribute "strength"  [attr-defined]
+services/strategy_engine/src/backtesting_engine.py:596: error: Incompatible types in assignment (expression has type "BaseStrategy", variable has type "HybridStrategy")  [assignment]
+services/strategy_engine/src/main.py:123: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/main.py:124: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/main.py:125: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/main.py:132: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+services/strategy_engine/src/main.py:670: error: If x = b'abc' then f"{x}" or "{}".format(x) produces "b'abc'", not "abc". If this is desired behavior, use f"{x!r}" or "{!r}".format(x). Otherwise, decode the bytes  [str-bytes-safe]
+Found 19 errors in 11 files (checked 167 source files)

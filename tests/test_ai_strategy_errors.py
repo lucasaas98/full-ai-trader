@@ -14,17 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from services.strategy_engine.src.ai_integration import AIStrategyIntegration
-from services.strategy_engine.src.ai_models import (
-    AIDecisionRecord,
-    AIPerformanceMetrics,
-    create_performance_summary,
-)
 from services.strategy_engine.src.ai_strategy import (
-    AIDecision,
     AIModel,
     AIResponse,
     AIStrategyEngine,
@@ -39,6 +30,8 @@ from services.strategy_engine.src.base_strategy import (
     StrategyConfig,
     StrategyMode,
 )
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 class TestAPIErrors:
@@ -90,7 +83,7 @@ class TestAPIErrors:
     @pytest.mark.asyncio
     async def test_invalid_api_key(self):
         """Test handling of invalid API key."""
-        config = {"models": {}, "cost_management": {}}
+        config: dict = {"models": {}, "cost_management": {}}
 
         client = AnthropicClient("invalid_key", config)
 
@@ -106,7 +99,7 @@ class TestAPIErrors:
     @pytest.mark.asyncio
     async def test_malformed_response(self):
         """Test handling of malformed API response."""
-        config = {"models": {}, "cost_management": {}}
+        config: dict = {"models": {}, "cost_management": {}}
 
         client = AnthropicClient("test_key", config)
 

@@ -8,7 +8,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pandas as pd
 import pytest
@@ -153,7 +153,7 @@ class TradingSignalSimulator:
     ):
         self.ollama_client = ollama_client
         self.prompt_processor = prompt_processor
-        self.decisions_made = []
+        self.decisions_made: List[Dict[str, Any]] = []
 
     async def process_signal(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process a trading signal through the AI system."""
@@ -214,14 +214,14 @@ class TradingSignalSimulator:
         # Fallback parsing
         content_lower = content.lower()
         if "buy" in content_lower:
-            decision = "BUY"
+            decision_type = "BUY"
         elif "sell" in content_lower:
-            decision = "SELL"
+            decision_type = "SELL"
         else:
-            decision = "HOLD"
+            decision_type = "HOLD"
 
         return {
-            "decision": decision,
+            "decision": decision_type,
             "confidence": 50,
             "reasoning": "Parsed from text response",
             "entry_price": None,
@@ -481,8 +481,9 @@ class TestOllamaWithPrompts:
 
         for scenario in scenarios:
             print(f"\n{scenario['name']}:")
+            scenario_data = scenario["data"]  # type: ignore
             print(
-                f"RSI: {scenario['data']['rsi']}, Change: {scenario['data']['daily_change']}%"
+                f"RSI: {scenario_data['rsi']}, Change: {scenario_data['daily_change']}%"  # type: ignore[index]
             )
 
             decision = await trading_simulator.process_signal(scenario["data"])

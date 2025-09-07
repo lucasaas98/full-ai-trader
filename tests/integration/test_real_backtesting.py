@@ -5,7 +5,6 @@ This module tests the complete backtesting system that runs the actual AI strate
 against historical data, simulating real trading conditions.
 """
 
-import asyncio
 import logging
 import os
 import sys
@@ -523,4 +522,4 @@ class TestPerformanceAndScalability:
 
 if __name__ == "__main__":
     # Allow running tests directly
-    asyncio.run(pytest.main([__file__, "-v"]))
+    pytest.main([__file__, "-v"])

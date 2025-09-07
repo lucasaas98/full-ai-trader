@@ -280,7 +280,7 @@ class AuditLogger:
     ) -> List[Dict[str, Any]]:
         """Query audit events with filters"""
         query = "SELECT * FROM audit_logs WHERE 1=1"
-        params = []
+        params: List[Any] = []
 
         if start_date:
             params.append(start_date)
@@ -806,9 +806,9 @@ async def get_audit_summary(audit_logger: AuditLogger, days: int = 7) -> Dict[st
     # Calculate summary statistics
     total_events = len(events)
     failed_events = len([e for e in events if not e["success"]])
-    event_type_counts = {}
-    service_counts = {}
-    hourly_distribution = {}
+    event_type_counts: Dict[str, int] = {}
+    service_counts: Dict[str, int] = {}
+    hourly_distribution: Dict[str, int] = {}
 
     for event in events:
         # Count by event type
@@ -821,7 +821,7 @@ async def get_audit_summary(audit_logger: AuditLogger, days: int = 7) -> Dict[st
 
         # Count by hour
         hour = dt.datetime.fromisoformat(event["timestamp"].replace("Z", "+00:00")).hour
-        hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
+        hourly_distribution[str(hour)] = hourly_distribution.get(str(hour), 0) + 1
 
     return {
         "period_days": days,

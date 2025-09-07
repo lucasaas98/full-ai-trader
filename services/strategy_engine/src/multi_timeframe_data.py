@@ -152,20 +152,27 @@ class MultiTimeFrameDataFetcher:
                         f"Failed to fetch data for {request.symbol} {timeframe}: {result}"
                     )
                     missing_timeframes.append(timeframe)
-                elif result is not None and not result.is_empty():
+                elif (
+                    result is not None
+                    and isinstance(result, pl.DataFrame)
+                    and not result.is_empty()
+                ):
                     data_dict[timeframe] = result
                     available_timeframes.append(timeframe)
                 else:
                     missing_timeframes.append(timeframe)
 
-            # Calculate data quality score
+            # Calculate data quality score - filter out BaseExceptions
+            filtered_data = {
+                k: v for k, v in data_dict.items() if isinstance(v, pl.DataFrame)
+            }
             quality_score = self._calculate_data_quality_score(
-                data_dict, request.timeframes
+                filtered_data, request.timeframes
             )
 
             return TimeFrameDataResult(
                 symbol=request.symbol,
-                data=data_dict,
+                data=filtered_data,
                 request_time=datetime.now(timezone.utc),
                 available_timeframes=available_timeframes,
                 missing_timeframes=missing_timeframes,
@@ -448,7 +455,7 @@ class MultiTimeFrameDataFetcher:
             Validation results with alignment information
         """
         try:
-            validation_results = {
+            validation_results: Dict[str, Any] = {
                 "is_aligned": True,
                 "alignment_issues": [],
                 "timestamp_ranges": {},

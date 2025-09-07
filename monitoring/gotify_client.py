@@ -13,20 +13,12 @@ import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from shared.config import Config  # noqa: E402
-from shared.models import Notification, RiskEvent, RiskSeverity  # noqa: E402
-
 # Import shared database manager for data collection
-try:
-    from shared.database_manager import SharedDatabaseManager
-except ImportError:
-    SharedDatabaseManager = None
 
-# Import simple database manager as fallback
-try:
-    from shared.simple_db_manager import SimpleDatabaseManager
-except ImportError:
-    SimpleDatabaseManager = None
+from shared.config import Config  # noqa: E402
+from shared.database_manager import SharedDatabaseManager  # noqa: E402
+from shared.models import Notification, RiskEvent, RiskSeverity  # noqa: E402
+from shared.simple_db_manager import SimpleDatabaseManager  # noqa: E402
 
 
 class NotificationPriority(Enum):
@@ -711,7 +703,7 @@ class NotificationManager:
         self.config = config
         self.logger = logging.getLogger(__name__)
         self.gotify_client: Optional[GotifyClient] = None
-        self.db_manager = None
+        self.db_manager: Optional[Any] = None
         self.notification_history: List[Dict] = []
         self.rate_limits: Dict[str, float] = {}
         self.last_notifications: Dict[str, datetime] = {}
@@ -736,10 +728,11 @@ class NotificationManager:
             )
 
         # Initialize database manager for data collection
-        if SharedDatabaseManager:
+        if SharedDatabaseManager is not None:
             try:
                 self.db_manager = SharedDatabaseManager(self.config)
-                await self.db_manager.initialize()
+                if self.db_manager:
+                    await self.db_manager.initialize()
                 self.logger.info(
                     "SharedDatabaseManager initialized for notification data collection"
                 )

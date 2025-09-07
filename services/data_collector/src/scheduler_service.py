@@ -43,8 +43,8 @@ except ImportError:
         "Alpaca market hours functionality not available, using fallback logic"
     )
     ALPACA_MARKET_HOURS_AVAILABLE = False
-    alpaca_is_market_open = None
-    get_market_status = None
+    alpaca_is_market_open_func: Optional[Callable] = None
+    get_market_status_func: Optional[Callable] = None
 
 
 logger = logging.getLogger(__name__)
@@ -1074,7 +1074,7 @@ class SchedulerService:
         Returns:
             Performance report with recommendations
         """
-        report = {
+        report: Dict[str, Any] = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "scheduler_status": self.get_scheduler_stats(),
             "task_performance": {},
@@ -1126,21 +1126,30 @@ class SchedulerService:
 
                 # Generate recommendations
                 if success_rate < 0.8:
-                    report["alerts"].append(
-                        f"Task {task.name} has low success rate: {success_rate:.2f}"
-                    )
+                    alerts_list = report.get("alerts", [])
+                    if isinstance(alerts_list, list):
+                        alerts_list.append(
+                            f"Task {task.name} has low success rate: {success_rate:.2f}"
+                        )
+                        report["alerts"] = alerts_list
 
                 if stats.last_success and datetime.now(
                     timezone.utc
                 ) - stats.last_success > timedelta(hours=24):
-                    report["alerts"].append(
-                        f"Task {task.name} hasn't succeeded in over 24 hours"
-                    )
+                    alerts_list = report.get("alerts", [])
+                    if isinstance(alerts_list, list):
+                        alerts_list.append(
+                            f"Task {task.name} hasn't succeeded in 24+ hours"
+                        )
+                        report["alerts"] = alerts_list
 
                 if avg_runtime > task.max_runtime_seconds * 0.8:
-                    report["recommendations"].append(
-                        f"Consider increasing timeout for {task.name}"
-                    )
+                    recommendations_list = report.get("recommendations", [])
+                    if isinstance(recommendations_list, list):
+                        recommendations_list.append(
+                            f"Consider increasing timeout for {task.name}"
+                        )
+                        report["recommendations"] = recommendations_list
 
                 report["task_performance"][task_id] = task_report
 

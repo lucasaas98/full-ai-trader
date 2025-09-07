@@ -21,7 +21,7 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import asyncpg
 import redis
@@ -30,6 +30,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from prometheus_client import Counter, Gauge, Histogram
 from pydantic import BaseModel, Field
+from redis import Redis
 
 # Add parent directory to path for shared modules
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -39,10 +40,10 @@ from shared.config import get_config  # noqa: E402
 
 # Simple implementations for missing classes
 class DatabaseManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.pool = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         config = get_config()
         self.pool = await asyncpg.create_pool(
             host=config.database.host,
@@ -54,10 +55,10 @@ class DatabaseManager:
 
 
 class RedisManager:
-    def __init__(self):
-        self.client = None
+    def __init__(self) -> None:
+        self.client: Optional[Redis] = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         config = get_config()
         self.client = redis.Redis(
             host=config.redis.host, port=config.redis.port, db=config.redis.database
@@ -65,11 +66,15 @@ class RedisManager:
 
 
 class HealthChecker:
-    def __init__(self, db_manager, redis_manager):
+    def __init__(
+        self,
+        db_manager: Optional[DatabaseManager],
+        redis_manager: Optional[RedisManager],
+    ) -> None:
         self.db_manager = db_manager
         self.redis_manager = redis_manager
 
-    async def start(self):
+    async def start(self) -> None:
         """Start health monitoring"""
         logger.info("Health checker started")
 
@@ -77,23 +82,23 @@ class HealthChecker:
 class ConfigWrapper:
     """Wrapper to provide dict-like interface for config object"""
 
-    def __init__(self, config):
+    def __init__(self, config: Any) -> None:
         self._config = config
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         """Get config value with fallback to environment variable"""
         if hasattr(self._config, key.lower()):
             return getattr(self._config, key.lower())
         return os.environ.get(key, default)
 
-    def get_bool(self, key, default=False):
+    def get_bool(self, key: str, default: bool = False) -> bool:
         """Get boolean config value"""
         value = self.get(key, default)
         if isinstance(value, bool):
             return value
         return str(value).lower() in ("true", "1", "yes", "on")
 
-    def get_int(self, key, default=0):
+    def get_int(self, key: str, default: int = 0) -> int:
         """Get integer config value"""
         value = self.get(key, default)
         try:
@@ -102,7 +107,7 @@ class ConfigWrapper:
             return default
 
     @property
-    def project_root(self):
+    def project_root(self) -> Path:
         """Get project root path"""
         return Path(__file__).parent.parent.parent
 
@@ -184,7 +189,7 @@ class BackupService:
         (self.backup_root / "incremental").mkdir(exist_ok=True)
         (self.backup_root / "config").mkdir(exist_ok=True)
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize service connections and scheduler"""
         logger.info("Initializing backup service")
 
@@ -210,7 +215,7 @@ class BackupService:
             logger.error(f"Failed to initialize backup service: {str(e)}")
             raise
 
-    async def setup_scheduled_backups(self):
+    async def setup_scheduled_backups(self) -> None:
         """Setup scheduled backup jobs"""
         logger.info("Setting up scheduled backup jobs")
 
@@ -270,7 +275,7 @@ class BackupService:
         self.scheduler.start()
         logger.info("Scheduled backup jobs configured")
 
-    async def run_scheduled_backup(self, backup_type: str):
+    async def run_scheduled_backup(self, backup_type: str) -> None:
         """Run a scheduled backup operation"""
         logger.info(f"Running scheduled backup: {backup_type}")
 
@@ -382,7 +387,7 @@ class BackupService:
 
             raise
 
-    async def create_full_backup(self, backup_id: str, request: BackupRequest):
+    async def create_full_backup(self, backup_id: str, request: BackupRequest) -> None:
         """Create a full system backup"""
         logger.info("Creating full backup", backup_id=backup_id)
 
@@ -403,7 +408,9 @@ class BackupService:
         # Create consolidated archive
         await self.create_consolidated_archive(session_dir, backup_id, request)
 
-    async def create_database_backup(self, backup_id: str, request: BackupRequest):
+    async def create_database_backup(
+        self, backup_id: str, request: BackupRequest
+    ) -> None:
         """Create database-only backup"""
         logger.info("Creating database backup", backup_id=backup_id)
 
@@ -413,7 +420,7 @@ class BackupService:
         await self.backup_database(session_dir)
         await self.backup_redis(session_dir)
 
-    async def create_files_backup(self, backup_id: str, request: BackupRequest):
+    async def create_files_backup(self, backup_id: str, request: BackupRequest) -> None:
         """Create files-only backup"""
         logger.info("Creating files backup", backup_id=backup_id)
 
@@ -422,7 +429,9 @@ class BackupService:
 
         await self.backup_files(session_dir)
 
-    async def create_incremental_backup(self, backup_id: str, request: BackupRequest):
+    async def create_incremental_backup(
+        self, backup_id: str, request: BackupRequest
+    ) -> None:
         """Create incremental backup"""
         logger.info("Creating incremental backup", backup_id=backup_id)
 
@@ -444,7 +453,9 @@ class BackupService:
             session_dir, last_backup_file.stat().st_mtime
         )
 
-    async def create_config_backup(self, backup_id: str, request: BackupRequest):
+    async def create_config_backup(
+        self, backup_id: str, request: BackupRequest
+    ) -> None:
         """Create configuration-only backup"""
         logger.info("Creating configuration backup", backup_id=backup_id)
 
@@ -453,7 +464,7 @@ class BackupService:
 
         await self.backup_configuration(session_dir)
 
-    async def backup_database(self, session_dir: Path):
+    async def backup_database(self, session_dir: Path) -> None:
         """Backup PostgreSQL database"""
         logger.info("Backing up PostgreSQL database")
 
@@ -510,7 +521,7 @@ class BackupService:
             "Database backup completed", file_size=file_size, file_path=str(backup_file)
         )
 
-    async def backup_redis(self, session_dir: Path):
+    async def backup_redis(self, session_dir: Path) -> None:
         """Backup Redis data"""
         logger.info("Backing up Redis data")
 
@@ -551,7 +562,7 @@ class BackupService:
                 file_path=str(backup_file),
             )
 
-    async def backup_files(self, session_dir: Path):
+    async def backup_files(self, session_dir: Path) -> None:
         """Backup data files"""
         logger.info("Backing up data files")
 
@@ -597,7 +608,7 @@ class BackupService:
             "File backup completed", file_size=file_size, file_path=str(backup_file)
         )
 
-    async def backup_configuration(self, session_dir: Path):
+    async def backup_configuration(self, session_dir: Path) -> None:
         """Backup configuration files"""
         logger.info("Backing up configuration files")
 
@@ -635,7 +646,9 @@ class BackupService:
 
         logger.info("Configuration backup completed", file_path=str(backup_file))
 
-    async def backup_incremental_files(self, session_dir: Path, since_timestamp: float):
+    async def backup_incremental_files(
+        self, session_dir: Path, since_timestamp: float
+    ) -> None:
         """Create incremental file backup"""
         logger.info("Creating incremental file backup", since_timestamp=since_timestamp)
 
@@ -725,7 +738,7 @@ class BackupService:
 
         logger.info("Consolidated archive created", file_path=str(consolidated_file))
 
-    async def encrypt_backup_file(self, backup_file: Path):
+    async def encrypt_backup_file(self, backup_file: Path) -> None:
         """Encrypt backup file using GPG"""
         logger.info("Encrypting backup file", file_path=str(backup_file))
 
@@ -759,7 +772,7 @@ class BackupService:
 
         logger.info("Backup file encrypted", encrypted_file=str(encrypted_file))
 
-    async def sync_to_cloud(self, backup_status: BackupStatus):
+    async def sync_to_cloud(self, backup_status: BackupStatus) -> None:
         """Sync backup to cloud storage"""
         if not self.s3_bucket:
             logger.warning("Cloud sync requested but S3 bucket not configured")
@@ -770,6 +783,9 @@ class BackupService:
         )
 
         # Use AWS CLI for upload
+        if not backup_status.file_path:
+            raise RuntimeError("Backup file path is not set")
+
         cmd = [
             "aws",
             "s3",
@@ -791,7 +807,7 @@ class BackupService:
 
         logger.info("Backup synced to cloud", backup_id=backup_status.backup_id)
 
-    async def verify_recent_backups(self):
+    async def verify_recent_backups(self) -> None:
         """Verify recent backups for integrity"""
         logger.info("Starting backup verification")
 
@@ -826,7 +842,7 @@ class BackupService:
             "Backup verification completed:\n" + "\n".join(verification_results),
         )
 
-    async def verify_backup_integrity(self, backup_file: Path):
+    async def verify_backup_integrity(self, backup_file: Path) -> None:
         """Verify integrity of a backup file"""
         logger.info("Verifying backup integrity for %s", backup_file.name)
 
@@ -869,7 +885,7 @@ class BackupService:
 
         logger.info("Backup integrity verification passed", file=backup_file.name)
 
-    async def cleanup_old_backups(self):
+    async def cleanup_old_backups(self) -> None:
         """Clean up old backups based on retention policy"""
         logger.info("Starting backup cleanup")
 
@@ -918,14 +934,14 @@ class BackupService:
             f"{total_size_freed / (1024 * 1024):.1f} MB freed",
         )
 
-    async def run_restore_test(self):
+    async def run_restore_test(self) -> bool:
         """Run automated restore test"""
         logger.info("Starting automated restore test")
 
         try:
             # Find latest full backup
             latest_backup = None
-            latest_time = 0
+            latest_time = 0.0
 
             for backup_file in self.backup_root.rglob("full_*.tar*"):
                 if backup_file.stat().st_mtime > latest_time:
@@ -934,7 +950,7 @@ class BackupService:
 
             if not latest_backup:
                 logger.warning("No full backups found for restore testing")
-                return
+                return False
 
             # Run restore test script
             cmd = [
@@ -968,7 +984,7 @@ class BackupService:
             logger.error(f"Error running restore test: {e}")
             return False
 
-    async def send_backup_alert(self, alert_type: str, message: str):
+    async def send_backup_alert(self, alert_type: str, message: str) -> None:
         """Send backup alert notification"""
         try:
             logger.info(f"Backup alert [{alert_type}]: {message}")

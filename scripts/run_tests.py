@@ -12,7 +12,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class TestRunner:
@@ -20,9 +20,9 @@ class TestRunner:
 
     def __init__(self, project_root: str):
         self.project_root = Path(project_root)
-        self.test_results = {}
-        self.coverage_results = {}
-        self.start_time = None
+        self.test_results: Dict[str, Dict] = {}
+        self.coverage_results: Dict[str, Any] = {}
+        self.start_time: Optional[float] = None
 
     def setup_environment(self):
         """Setup test environment."""
@@ -342,10 +342,10 @@ class TestRunner:
             import xml.etree.ElementTree as ET
 
             tree = ET.parse(coverage_file)
-            root = tree.getroot()
+            root: ET.Element = tree.getroot()
 
             # Extract coverage metrics
-            coverage_data = {}
+            coverage_data: Dict[str, Dict[str, Any]] = {}
 
             for package in root.findall(".//package"):
                 package_name = package.get("name", "unknown")
@@ -447,10 +447,15 @@ class TestRunner:
         if all_passed:
             print("✅ All linting checks passed")
         else:
-            print("❌ Some linting checks failed:")
-            for tool, result in lint_results.items():
-                if not result["success"]:
-                    print(f"  {tool}: {result['output'][:200]}...")
+            if not all(result["success"] for result in lint_results.values()):
+                print("❌ Some linting checks failed:")
+                for tool, result in lint_results.items():
+                    if not result["success"]:
+                        output = result.get("output", "")
+                        if isinstance(output, str):
+                            print(f"  {tool}: {output[:200]}...")
+                        else:
+                            print(f"  {tool}: {str(output)[:200]}...")
 
         return lint_results
 
@@ -604,7 +609,7 @@ class TestRunner:
         """Generate comprehensive test report."""
         print("\n📋 Generating test report...")
 
-        report = {
+        report: Dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "total_duration_seconds": (
                 time.time() - self.start_time if self.start_time else 0
@@ -636,7 +641,7 @@ class TestRunner:
         print(f"📄 Test report saved to: {report_path}")
 
         # Print summary
-        summary = report["summary"]
+        summary: Dict[str, Any] = report["summary"]
         print("\n📊 Test Summary:")
         print(
             f"  Categories passed: {summary['tests_passed']}/{summary['total_test_categories']}"

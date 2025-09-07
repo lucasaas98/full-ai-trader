@@ -494,7 +494,7 @@ class AuditLogger:
         """Verify integrity of audit chain"""
         self.logger.info("Starting audit chain verification")
 
-        verification_result = {
+        verification_result: dict[str, Any] = {
             "status": "valid",
             "total_events": 0,
             "verified_events": 0,
@@ -726,7 +726,7 @@ class AuditLogger:
         )
 
         # Analyze events for compliance metrics
-        report = {
+        report: Dict[str, Any] = {
             "report_id": f"compliance_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "report_type": report_type,
             "period": {

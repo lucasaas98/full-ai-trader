@@ -223,14 +223,19 @@ async def update_prometheus_metrics():
 
     try:
         if scheduler_instance:
-            tasks_count_gauge.set(len(scheduler_instance.tasks))
-            services_count_gauge.set(len(scheduler_instance.services))
+            if tasks_count_gauge:
+                tasks_count_gauge.set(len(scheduler_instance.tasks))
+            if services_count_gauge:
+                services_count_gauge.set(len(scheduler_instance.services))
 
             # Update component health
-            service_health_gauge.labels(component="scheduler").set(
-                1 if scheduler_instance else 0
-            )
-            service_health_gauge.labels(component="api").set(1 if api_instance else 0)
+            if service_health_gauge:
+                service_health_gauge.labels(component="scheduler").set(
+                    1 if scheduler_instance else 0
+                )
+                service_health_gauge.labels(component="api").set(
+                    1 if api_instance else 0
+                )
 
     except Exception as e:
         logger.error(f"Failed to update Prometheus metrics: {e}")
@@ -498,7 +503,9 @@ async def get_pipeline_status(scheduler: TradingScheduler = Depends(get_schedule
             for step in pipeline.pipeline_steps:
                 key = f"pipeline:step:{step}:completed"
                 completed = await redis_client.get(key)
-                pipeline_status[step] = completed is not None
+                pipeline_status[step] = (
+                    "completed" if completed is not None else "pending"
+                )
         else:
             pipeline_status = {"error": "Pipeline or Redis not available"}
 
@@ -554,14 +561,22 @@ async def get_market_hours(scheduler: TradingScheduler = Depends(get_scheduler))
         market_hours = scheduler.market_hours
         now = datetime.now(market_hours.timezone)
 
+        current_session = await market_hours.get_current_session()
+        next_open = await market_hours.get_next_market_open()
+        next_close = await market_hours.get_next_market_close()
+
         return {
-            "current_session": market_hours.get_current_session().value,
+            "current_session": current_session.value,
             "is_trading_day": market_hours.is_trading_day(now.date()),
-            "is_market_open": market_hours.is_market_open(),
-            "next_market_open": market_hours.get_next_market_open().isoformat(),
-            "next_market_close": market_hours.get_next_market_close().isoformat(),
-            "time_until_open": str(market_hours.time_until_market_open()),
-            "time_until_close": str(market_hours.time_until_market_close()),
+            "is_market_open": await market_hours.is_market_open(),
+            "next_market_open": next_open.isoformat() if next_open else None,
+            "next_market_close": next_close.isoformat() if next_close else None,
+            "time_until_open": str(
+                getattr(market_hours, "time_until_market_open", lambda: None)()
+            ),
+            "time_until_close": str(
+                getattr(market_hours, "time_until_market_close", lambda: None)()
+            ),
             "timezone": str(market_hours.timezone),
         }
     except Exception as e:
@@ -812,7 +827,7 @@ async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_sched
                     status_code=503, detail="Maintenance manager not available"
                 )
 
-            status = {
+            stats: Dict[str, Any] = {
                 "is_running": getattr(manager, "is_running", False),
                 "current_task": getattr(manager, "current_task", None),
                 "maintenance_tasks": list(
@@ -824,9 +839,9 @@ async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_sched
             # Get maintenance history
             history = manager.get_maintenance_history()
             if history:
-                status["last_maintenance_cycle"] = history[0]
+                stats["last_maintenance_cycle"] = history[0]
 
-            return status
+            return stats
         else:
             raise HTTPException(
                 status_code=503, detail="Maintenance manager not available"
@@ -1039,7 +1054,7 @@ async def get_maintenance_statistics(
     try:
         maintenance_manager = getattr(scheduler, "maintenance_manager", None)
         if maintenance_manager:
-            stats = getattr(
+            stats: Dict[str, Any] = getattr(
                 maintenance_manager, "get_maintenance_statistics", lambda: {}
             )()
             return {"statistics": stats}
@@ -1061,7 +1076,7 @@ async def get_maintenance_dashboard(
         if hasattr(scheduler, "maintenance_manager") and hasattr(
             scheduler, "maintenance_scheduler"
         ):
-            dashboard_data = {
+            dashboard_data: Dict[str, Any] = {
                 "system_health": {},
                 "recent_tasks": [],
                 "scheduled_tasks": {},

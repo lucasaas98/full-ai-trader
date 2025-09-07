@@ -1175,7 +1175,7 @@ class TestEndToEndTradeFlow:
         redis_client = trading_system_setup["redis_client"]
 
         # Test message delivery with Redis failures
-        message_queue = []
+        message_queue: list = []
 
         async def mock_redis_publish(channel, message):
             if len(message_queue) < 3:  # First 3 fail
@@ -2037,9 +2037,11 @@ class TestDataFlowIntegration:
             strategy = mock_strategy.return_value
             strategy.update_parameters = AsyncMock()
 
-            await strategy.update_parameters(
-                new_config["strategy_parameters"]["momentum"]
-            )
+            if new_config:
+                config_dict = new_config  # type: ignore
+                await strategy.update_parameters(
+                    config_dict["strategy_parameters"]["momentum"]  # type: ignore
+                )
 
             strategy.update_parameters.assert_called_once()
 
@@ -2458,7 +2460,7 @@ class TestComplexScenarioIntegration:
 
         # Execute optimization trades
         optimization_signals = []
-        for trade_rec in optimization_result["rebalancing_trades"]:
+        for trade_rec in list(optimization_result["rebalancing_trades"]):  # type: ignore
             if trade_rec["action"] in ["REDUCE", "SELL"]:
                 signal_type = SignalType.SELL
             else:

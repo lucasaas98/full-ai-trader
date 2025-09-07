@@ -30,7 +30,7 @@ class TestRunner:
         """
         self.verbose = verbose
         self.test_dir = Path(__file__).parent
-        self.results = {}
+        self.results: dict[str, int] = {}
 
     def run_unit_tests(self) -> int:
         """

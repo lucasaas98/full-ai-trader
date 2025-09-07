@@ -13,7 +13,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import polars as pl
@@ -66,7 +66,7 @@ class RiskManager:
         self._atr_cache: Dict[str, Tuple[datetime, float]] = {}
 
         # Initialize HTTP client for data access
-        self._data_client = None
+        self._data_client: Optional[Any] = None
         asyncio.create_task(self._initialize_data_client())
 
     async def validate_trade_request(
@@ -1076,7 +1076,7 @@ class RiskManager:
                 return 0.0
 
             # Calculate weighted returns for portfolio
-            total_returns = []
+            total_returns: List[float] = []
             total_weights = 0.0
 
             for position in portfolio.positions:
@@ -1154,7 +1154,54 @@ class RiskManager:
                     if position.symbol in position_data:
                         stock_df = position_data[position.symbol]
                         if i < len(stock_df):
-                            price = float(stock_df[i]["close"])
+                            close_value = stock_df[i]["close"]
+                            # Handle different types of close_value (pandas Series, float, etc.)
+                            if hasattr(close_value, "item"):
+                                price = float(close_value.item())
+                            elif hasattr(close_value, "iloc"):
+                                price = float(close_value.iloc[0])
+                            else:
+                                # Handle pandas Series or other types
+                                if (
+                                    hasattr(close_value, "values")
+                                    and len(close_value.values) > 0
+                                ):
+                                    price = float(close_value.values[0])
+                                else:
+                                    if (
+                                        hasattr(close_value, "iloc")
+                                        and len(close_value) > 0
+                                    ):
+                                        # Handle Series by taking the first/last value
+                                        price = float(close_value.iloc[-1])
+                                    else:
+                                        if hasattr(close_value, "iloc") and hasattr(
+                                            close_value, "__len__"
+                                        ):
+                                            # Handle empty Series
+                                            price = (
+                                                float(close_value.iloc[0])
+                                                if len(close_value) > 0
+                                                else 0.0
+                                            )
+                                        else:
+                                            if close_value is not None:
+                                                if (
+                                                    hasattr(close_value, "iloc")
+                                                    and len(close_value) > 0
+                                                ):
+                                                    price = float(close_value.iloc[0])
+                                                else:
+                                                    price = (
+                                                        float(close_value)
+                                                        if isinstance(
+                                                            close_value,
+                                                            (int, float, str),
+                                                        )
+                                                        else 0.0
+                                                    )
+                                            else:
+                                                price = 0.0
                             value = price * float(position.quantity)
                             portfolio_value += value
 

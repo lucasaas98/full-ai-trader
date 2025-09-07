@@ -6,10 +6,10 @@ Tests the multi-timeframe confirmation system with the strategy engine.
 import os
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -58,13 +58,13 @@ class Signal:
     entry_price: Optional[float] = None
     stop_loss: Optional[float] = None
     take_profit: Optional[float] = None
-    metadata: Dict[str, Any] = None
-    timestamp: datetime = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now())
 
     def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
-        if self.timestamp is None:
+        if not self.metadata:
+            pass
+        if not hasattr(self, "_timestamp_set"):
             self.timestamp = datetime.now(timezone.utc)
 
 
@@ -80,13 +80,13 @@ class TimeFrameSignal:
     momentum: float
     volume_confirmation: bool
     support_resistance_level: Optional[float] = None
-    key_indicators: Dict[str, float] = None
-    timestamp: datetime = None
+    key_indicators: Dict[str, float] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=lambda: datetime.now())
 
     def __post_init__(self):
-        if self.key_indicators is None:
-            self.key_indicators = {}
-        if self.timestamp is None:
+        if not self.key_indicators:
+            pass
+        if not hasattr(self, "_timestamp_set"):
             self.timestamp = datetime.now(timezone.utc)
 
 
@@ -105,11 +105,11 @@ class MultiTimeFrameConfirmation:
     key_confluence_factors: List[str]
     risk_factors: List[str]
     optimal_entry_timeframe: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
+        if not self.metadata:
+            pass
 
 
 class MockMarketDataGenerator:
@@ -228,9 +228,9 @@ class MultiTimeFrameAnalyzer:
         volumes = recent_data["volume"].values
 
         # Calculate indicators
-        sma_short = np.mean(closes[-10:])
-        sma_long = np.mean(closes[-20:])
-        current_price = closes[-1]
+        sma_short = float(np.mean(cast(np.ndarray, closes[-10:])))
+        sma_long = float(np.mean(cast(np.ndarray, closes[-20:])))
+        current_price = float(closes[-1])
 
         # Momentum
         price_change = (
@@ -238,8 +238,8 @@ class MultiTimeFrameAnalyzer:
         )
 
         # Price position
-        recent_high = np.max(highs)
-        recent_low = np.min(lows)
+        recent_high = float(np.max(cast(np.ndarray, highs)))
+        recent_low = float(np.min(cast(np.ndarray, lows)))
         price_position = (
             (current_price - recent_low) / (recent_high - recent_low)
             if recent_high > recent_low
@@ -247,8 +247,8 @@ class MultiTimeFrameAnalyzer:
         )
 
         # Volume trend
-        vol_recent = np.mean(volumes[-5:])
-        vol_older = np.mean(volumes[-15:-5])
+        vol_recent = float(np.mean(cast(np.ndarray, volumes[-5:])))
+        vol_older = float(np.mean(cast(np.ndarray, volumes[-15:-5])))
         volume_trend = (vol_recent - vol_older) / vol_older if vol_older > 0 else 0
 
         # Score signals
@@ -288,8 +288,8 @@ class MultiTimeFrameAnalyzer:
             momentum=price_change,
             volume_confirmation=volume_confirmation,
             key_indicators={
-                "sma_short": sma_short,
-                "sma_long": sma_long,
+                "sma_short": float(sma_short),
+                "sma_long": float(sma_long),
                 "price_change": price_change,
                 "signal_score": signal_score,
             },

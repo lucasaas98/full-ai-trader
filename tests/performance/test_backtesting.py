@@ -10,10 +10,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from shared.models import OrderSide, SignalType, Trade, TradeSignal
+
 sys.path.append("/app/shared")
 sys.path.append("/app/backtesting")
-
-from shared.models import OrderSide, SignalType, Trade, TradeSignal
 
 warnings.filterwarnings("ignore")
 
@@ -93,13 +93,31 @@ class SimpleBacktestEngine:
             elif signal.signal_type == SignalType.SELL and signal.symbol in positions:
                 # Sell logic
                 position = positions[signal.symbol]
-                quantity = position["quantity"]
+                quantity_obj = position.get("quantity", 0)
+                if hasattr(quantity_obj, "__iter__") and not isinstance(
+                    quantity_obj, (str, bytes)
+                ):
+                    quantity = 0  # Default for non-convertible iterables
+                else:
+                    quantity = (
+                        int(quantity_obj)
+                        if quantity_obj is not None
+                        and isinstance(quantity_obj, (int, float, str))
+                        else 0
+                    )
                 signal_price = signal.price or Decimal("0")
                 proceeds = quantity * float(signal_price) - self.commission
                 cash += proceeds
 
                 # Calculate PnL
-                pnl = proceeds - (quantity * position["avg_price"] + self.commission)
+                avg_price = position.get("avg_price", Decimal("0"))
+                avg_price_float = (
+                    float(avg_price)
+                    if isinstance(avg_price, (int, float, Decimal))
+                    else 0.0
+                )
+                pnl_val = proceeds - (quantity * avg_price_float + self.commission)
+                pnl = float(pnl_val)
 
                 trades.append(
                     Trade(
@@ -137,13 +155,24 @@ class SimpleBacktestEngine:
         win_rate = len(winning_trades) / len(trades) if trades else 0
 
         avg_win = (
-            np.mean([float(t.pnl) for t in winning_trades]) if winning_trades else 0
+            np.mean([float(t.pnl) for t in winning_trades if t.pnl is not None])
+            if winning_trades
+            else 0
         )
         avg_loss = (
-            np.mean([abs(float(t.pnl)) for t in losing_trades]) if losing_trades else 0
+            np.mean([abs(float(t.pnl)) for t in losing_trades if t.pnl is not None])
+            if losing_trades
+            else 0
         )
 
-        profit_factor = float(abs(avg_win) / abs(avg_loss)) if avg_loss != 0 else 0.0
+        profit_factor = (
+            float(abs(avg_win)) / float(abs(avg_loss))
+            if avg_loss
+            and avg_loss != 0
+            and isinstance(avg_win, (int, float))
+            and isinstance(avg_loss, (int, float))
+            else 0.0
+        )
 
         # Simple Sharpe ratio calculation
         returns = pd.Series([float(t.pnl) if t.pnl else 0 for t in trades])
@@ -502,7 +531,7 @@ class TestBacktestingPerformance:
             return result.total_return
 
         # Test parameter optimization
-        best_return = -999
+        best_return = -999.0
         best_params = None
 
         start_time = datetime.now()

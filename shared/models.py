@@ -8,7 +8,7 @@ including market data, trade signals, portfolio state, and risk parameters.
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
@@ -1096,7 +1096,9 @@ class RiskAlert(BaseModel):
     action_required: bool = Field(
         default=False, description="Whether immediate action is required"
     )
-    metadata: Dict = Field(default_factory=dict, description="Additional alert data")
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict, description="Additional alert data"
+    )
 
     model_config = ConfigDict()
 

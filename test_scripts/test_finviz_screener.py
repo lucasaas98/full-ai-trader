@@ -64,7 +64,7 @@ async def test_basic_screener():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_momentum_screener():
@@ -84,7 +84,7 @@ async def test_momentum_screener():
             print("\nTop momentum stocks:")
             for i, stock in enumerate(result.data[:5], 1):
                 print(
-                    f"  {i}. {stock.ticker}: ${stock.price:.2f} | Change: {stock.change_percent:.2f}%"
+                    f"  {i}. {stock.ticker}: ${stock.price:.2f} | Change: {stock.change:.2f}%"
                 )
         else:
             print("No momentum stocks found!")
@@ -92,7 +92,7 @@ async def test_momentum_screener():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_high_volume_breakouts():
@@ -119,7 +119,7 @@ async def test_high_volume_breakouts():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_large_cap_stocks():
@@ -157,7 +157,7 @@ async def test_large_cap_stocks():
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        await screener.close()
+        pass
 
 
 async def test_raw_api_call():
@@ -237,7 +237,7 @@ async def test_all_screener_types():
     for name, screener_func in screener_types:
         print(f"\nTesting {name}...")
         try:
-            result = await screener_func(limit=5)
+            result = await screener_func(limit=5)  # type: ignore
             count = result.total_count if result else 0
             results_summary.append((name, count))
 
@@ -255,7 +255,7 @@ async def test_all_screener_types():
             print(f"  ✗ Error: {e}")
             results_summary.append((name, "ERROR"))
 
-    await screener.close()
+    pass
 
     print("\n" + "-" * 40)
     print("SUMMARY:")

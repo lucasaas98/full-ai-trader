@@ -222,8 +222,8 @@ def create_backtest_config(args: argparse.Namespace) -> RealBacktestConfig:
     timeframe_map = {
         "1day": TimeFrame.ONE_DAY,
         "1h": TimeFrame.ONE_HOUR,
-        "15min": TimeFrame.FIFTEEN_MIN,
-        "5min": TimeFrame.FIVE_MIN,
+        "15min": TimeFrame.FIFTEEN_MINUTES,
+        "5min": TimeFrame.FIVE_MINUTES,
     }
     timeframe = timeframe_map[args.timeframe]
 
