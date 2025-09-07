@@ -826,7 +826,7 @@ class RedisStrategyEngine:
                     # Convert Signal to HybridSignal if needed
                     if isinstance(signal_result, HybridSignal):
                         # It's already a HybridSignal
-                        hybrid_signal: HybridSignal = signal_result  # type: ignore[assignment]
+                        hybrid_signal = signal_result
                     else:
                         # Convert Signal to HybridSignal
                         from hybrid_strategy import HybridSignal
