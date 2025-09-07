@@ -11,3 +11,6 @@ types-requests
 types-docker
 types-seaborn
 types-pytz
+types-pyOpenSSL
+types-python-dateutil
+types-ujson
