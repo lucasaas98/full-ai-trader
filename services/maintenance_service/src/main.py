@@ -35,13 +35,13 @@ def setup_logging(service_name: str):
     """Set up logging configuration."""
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[logging.StreamHandler()],
     )
 
     logger = logging.getLogger(service_name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     return logger
 
@@ -55,6 +55,9 @@ class DatabaseManager:
 
     async def initialize(self):
         """Initialize database connection pool."""
+        logger.debug(
+            f"Initializing database connection pool to {self.config.database.host}:{self.config.database.port}"
+        )
         self.pool = await asyncpg.create_pool(
             host=self.config.database.host,
             port=self.config.database.port,
@@ -64,17 +67,22 @@ class DatabaseManager:
             min_size=2,
             max_size=self.config.database.pool_size,
         )
+        logger.debug("Database connection pool initialized successfully")
 
     async def get_connection(self):
         """Get a database connection from the pool."""
+        logger.debug("Acquiring database connection from pool")
         if not self.pool:
+            logger.error("Database connection pool not initialized")
             raise RuntimeError("Database not initialized")
         return self.pool.acquire()
 
     async def close(self):
         """Close the database connection pool."""
         if self.pool:
+            logger.debug("Closing database connection pool")
             await self.pool.close()
+            logger.debug("Database connection pool closed")
 
 
 # Configure logging
@@ -132,6 +140,7 @@ class MaintenanceManager:
     def __init__(
         self, db_manager: DatabaseManager, redis_client: redis.Redis, config: Config
     ):
+        logger.debug("Initializing MaintenanceManager")
         self.db = db_manager
         self.redis = redis_client
         self.config = config
@@ -159,8 +168,10 @@ class MaintenanceManager:
 
     async def load_maintenance_state(self):
         """Load maintenance state from persistent storage"""
+        logger.debug(f"Loading maintenance state from {self.state_file}")
         try:
             if os.path.exists(self.state_file):
+                logger.debug("State file exists, loading data")
                 async with aiofiles.open(self.state_file, "r") as f:
                     state_data = json.loads(await f.read())
 
@@ -181,7 +192,11 @@ class MaintenanceManager:
                 logger.info(
                     f"Loaded maintenance state: {self.current_state.mode.value}"
                 )
+                logger.debug(
+                    f"State details - reason: {self.current_state.reason}, affected_services: {self.current_state.affected_services}"
+                )
             else:
+                logger.debug("No existing state file found, creating default state")
                 self.current_state = MaintenanceState(
                     mode=MaintenanceMode.NORMAL,
                     started_at=datetime.now(),
@@ -194,6 +209,7 @@ class MaintenanceManager:
 
         except Exception as e:
             logger.error(f"Failed to load maintenance state: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
             # Default to normal mode
             self.current_state = MaintenanceState(
                 mode=MaintenanceMode.NORMAL,
@@ -207,6 +223,7 @@ class MaintenanceManager:
 
     async def save_maintenance_state(self):
         """Save maintenance state to persistent storage"""
+        logger.debug("Saving maintenance state to persistent storage")
         try:
             state_data = {
                 "mode": (
@@ -241,15 +258,19 @@ class MaintenanceManager:
             async with aiofiles.open(self.state_file, "w") as f:
                 await f.write(json.dumps(state_data, indent=2))
 
+            logger.debug(f"Maintenance state saved to file: {self.state_file}")
+
             # Also store in Redis for quick access
             await self.redis.set(
                 "maintenance:state",
                 json.dumps(state_data),
                 ex=3600,  # Expire after 1 hour
             )
+            logger.debug("Maintenance state stored in Redis")
 
         except Exception as e:
             logger.error(f"Failed to save maintenance state: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
 
     async def enter_maintenance_mode(
         self,
@@ -261,6 +282,9 @@ class MaintenanceManager:
     ):
         """Enter specified maintenance mode"""
         logger.info(f"Entering maintenance mode: {mode.value}")
+        logger.debug(
+            f"Maintenance details - reason: {reason}, duration: {estimated_duration}, affected_services: {affected_services}, initiated_by: {initiated_by}"
+        )
 
         self.current_state = MaintenanceState(
             mode=mode,
@@ -275,11 +299,13 @@ class MaintenanceManager:
         await self.save_maintenance_state()
 
         # Send notifications
+        logger.debug("Sending maintenance mode notification")
         await self.send_maintenance_notification(
             f"System entering {mode.value} mode", reason, estimated_duration
         )
 
         # Update service configurations
+        logger.debug("Updating service maintenance status")
         await self.update_service_maintenance_status()
 
         # Record audit log
@@ -297,7 +323,7 @@ class MaintenanceManager:
 
     async def exit_maintenance_mode(self, initiated_by: str = "admin"):
         """Exit maintenance mode and return to normal operation"""
-        if self.current_state and self.current_state.mode != MaintenanceMode.NORMAL:
+        if self.current_state and self.current_state.mode == MaintenanceMode.NORMAL:
             logger.warning("System is already in normal mode")
             return
 
@@ -305,6 +331,7 @@ class MaintenanceManager:
             self.current_state.mode if self.current_state else MaintenanceMode.NORMAL
         )
         logger.info(f"Exiting maintenance mode: {previous_mode.value}")
+        logger.debug(f"Exit initiated by: {initiated_by}")
 
         self.current_state = MaintenanceState(
             mode=MaintenanceMode.NORMAL,
@@ -319,12 +346,14 @@ class MaintenanceManager:
         await self.save_maintenance_state()
 
         # Send notifications
+        logger.debug("Sending maintenance exit notification")
         await self.send_maintenance_notification(
             "System maintenance completed",
             f"Exited {previous_mode.value} mode - normal operations resumed",
         )
 
         # Update service configurations
+        logger.debug("Updating service maintenance status after exit")
         await self.update_service_maintenance_status()
 
         # Record audit log
@@ -335,10 +364,12 @@ class MaintenanceManager:
 
     async def check_service_health(self) -> Dict[str, ServiceHealthStatus]:
         """Check health of all services"""
+        logger.debug("Starting health check for all services")
         health_statuses = {}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
             for service_name, endpoint in self.service_endpoints.items():
+                logger.debug(f"Checking health of {service_name} at {endpoint}")
                 try:
                     start_time = datetime.now()
                     response = await client.get(endpoint)
@@ -347,14 +378,19 @@ class MaintenanceManager:
                     if response.status_code == 200:
                         status = ServiceStatus.HEALTHY
                         error_message = None
+                        logger.debug(
+                            f"{service_name} is healthy (response time: {response_time:.3f}s)"
+                        )
                     else:
                         status = ServiceStatus.DEGRADED
                         error_message = f"HTTP {response.status_code}"
+                        logger.debug(f"{service_name} is degraded: {error_message}")
 
                 except Exception as e:
                     status = ServiceStatus.UNAVAILABLE
                     response_time = 0
                     error_message = str(e)
+                    logger.debug(f"{service_name} is unavailable: {error_message}")
 
                 health_statuses[service_name] = ServiceHealthStatus(
                     service_name=service_name,
@@ -364,23 +400,34 @@ class MaintenanceManager:
                     error_message=error_message,
                 )
 
+        logger.debug(f"Health check completed for {len(health_statuses)} services")
         return health_statuses
 
     async def graceful_shutdown_service(self, service_name: str) -> bool:
         """Gracefully shutdown a specific service"""
         logger.info(f"Initiating graceful shutdown for {service_name}")
+        logger.debug(
+            f"Service {service_name} endpoint: {self.service_endpoints.get(service_name)}"
+        )
 
         try:
             # Send shutdown signal to service
             endpoint = f"http://{service_name}:800{self.service_endpoints[service_name][-1]}/shutdown"
+            logger.debug(f"Sending shutdown request to: {endpoint}")
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 try:
                     response = await client.post(endpoint, json={"graceful": True})
+                    logger.debug(
+                        f"Shutdown request response status: {response.status_code}"
+                    )
                     if response.status_code == 200:
                         logger.info(f"Graceful shutdown initiated for {service_name}")
 
                         # Wait for service to stop responding
+                        logger.debug(
+                            f"Waiting for {service_name} to shutdown (30s timeout)"
+                        )
                         for attempt in range(30):  # 30 second timeout
                             await asyncio.sleep(1)
                             try:
@@ -388,27 +435,36 @@ class MaintenanceManager:
                                     self.service_endpoints[service_name], timeout=2.0
                                 )
                                 if health_response.status_code != 200:
+                                    logger.debug(
+                                        f"Service {service_name} stopped responding (attempt {attempt + 1})"
+                                    )
                                     break
                             except Exception:
+                                logger.debug(
+                                    f"Service {service_name} is down (attempt {attempt + 1})"
+                                )
                                 break  # Service is down
 
                         logger.info(f"Service {service_name} shutdown completed")
                         return True
 
-                except httpx.RequestError:
+                except httpx.RequestError as e:
                     logger.warning(
-                        f"Could not contact {service_name} for graceful shutdown"
+                        f"Could not contact {service_name} for graceful shutdown: {e}"
                     )
+                    logger.debug(f"Request error details: {type(e).__name__}: {str(e)}")
                     return False
 
         except Exception as e:
             logger.error(f"Failed to shutdown {service_name}: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
             return False
 
         return False
 
     async def update_service_maintenance_status(self):
         """Update all services with current maintenance status"""
+        logger.debug("Updating all services with current maintenance status")
         maintenance_info = {
             "maintenance_mode": (
                 self.current_state.mode.value if self.current_state else "normal"
@@ -430,25 +486,33 @@ class MaintenanceManager:
         }
 
         # Store in Redis for services to check
+        logger.debug("Storing maintenance info in Redis")
         await self.redis.set(
             "system:maintenance", json.dumps(maintenance_info), ex=86400  # 24 hours
         )
 
         # Notify each service via API if possible
+        logger.debug("Notifying services of maintenance status via API")
         async with httpx.AsyncClient(timeout=10.0) as client:
             for service_name, endpoint in self.service_endpoints.items():
                 try:
                     maintenance_endpoint = endpoint.replace("/health", "/maintenance")
+                    logger.debug(f"Notifying {service_name} at {maintenance_endpoint}")
                     await client.put(maintenance_endpoint, json=maintenance_info)
+                    logger.debug(f"Successfully notified {service_name}")
                 except Exception as e:
                     logger.warning(
                         f"Could not notify {service_name} of maintenance status: {e}"
+                    )
+                    logger.debug(
+                        f"Notification error details: {type(e).__name__}: {str(e)}"
                     )
 
     async def send_maintenance_notification(
         self, title: str, message: str, estimated_duration: Optional[timedelta] = None
     ):
         """Send maintenance notifications via Gotify"""
+        logger.debug(f"Attempting to send notification: {title}")
         if not self.gotify_url or not self.gotify_token:
             logger.warning("Gotify not configured - skipping notification")
             return
@@ -478,6 +542,7 @@ class MaintenanceManager:
                 },
             }
 
+            logger.debug(f"Sending notification to Gotify at {self.gotify_url}")
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.gotify_url}/message",
@@ -485,6 +550,7 @@ class MaintenanceManager:
                     json=notification_data,
                 )
 
+                logger.debug(f"Gotify response status: {response.status_code}")
                 if response.status_code == 200:
                     if self.current_state:
                         self.current_state.notification_sent = True
@@ -492,12 +558,15 @@ class MaintenanceManager:
                     logger.info("Maintenance notification sent successfully")
                 else:
                     logger.error(f"Failed to send notification: {response.status_code}")
+                    logger.debug(f"Gotify response content: {response.text}")
 
         except Exception as e:
             logger.error(f"Failed to send maintenance notification: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
 
     async def log_maintenance_event(self, action: str, details: Dict[str, Any]):
         """Log maintenance events to audit trail"""
+        logger.debug(f"Logging maintenance event: {action} with details: {details}")
         try:
             async with await self.db.get_connection() as conn:
                 await conn.execute(
@@ -522,12 +591,15 @@ class MaintenanceManager:
                     json.dumps(details),
                     True,
                 )
+            logger.debug(f"Successfully logged maintenance event: {action}")
 
         except Exception as e:
             logger.error(f"Failed to log maintenance event: {e}")
+            logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
 
     async def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status"""
+        logger.debug("Getting comprehensive system status")
         service_health = await self.check_service_health()
 
         # Calculate overall system health
@@ -538,6 +610,10 @@ class MaintenanceManager:
         )
         total_services = len(service_health)
 
+        logger.debug(
+            f"Service health summary: {healthy_services}/{total_services} services healthy"
+        )
+
         system_health = "healthy"
         if healthy_services == 0:
             system_health = "critical"
@@ -545,6 +621,8 @@ class MaintenanceManager:
             system_health = "degraded"
         elif healthy_services < total_services:
             system_health = "warning"
+
+        logger.debug(f"Overall system health: {system_health}")
 
         return {
             "maintenance_mode": (
@@ -586,6 +664,7 @@ class MaintenanceManager:
     async def emergency_shutdown(self, reason: str, initiated_by: str = "system"):
         """Perform emergency shutdown of all trading operations"""
         logger.critical(f"EMERGENCY SHUTDOWN initiated: {reason}")
+        logger.debug(f"Emergency shutdown initiated by: {initiated_by}")
 
         await self.enter_maintenance_mode(
             MaintenanceMode.EMERGENCY_SHUTDOWN,
@@ -596,9 +675,11 @@ class MaintenanceManager:
         )
 
         # Stop all trading operations immediately
+        logger.debug("Setting emergency stop flag in Redis")
         await self.redis.set("trading:emergency_stop", "true", ex=86400)
 
         # Send critical notifications
+        logger.debug("Sending emergency shutdown notification")
         await self.send_maintenance_notification(
             "🚨 EMERGENCY SHUTDOWN 🚨",
             f"Trading system emergency shutdown: {reason}",
@@ -606,15 +687,21 @@ class MaintenanceManager:
         )
 
         # Attempt graceful shutdown of services
+        logger.debug("Initiating graceful shutdown of all services")
         shutdown_tasks = []
         for service_name in self.service_endpoints.keys():
             if service_name != "maintenance_service":  # Don't shutdown ourselves
+                logger.debug(f"Creating shutdown task for {service_name}")
                 task = asyncio.create_task(self.graceful_shutdown_service(service_name))
                 shutdown_tasks.append(task)
 
         # Wait for shutdowns with timeout
+        logger.debug(
+            f"Waiting for {len(shutdown_tasks)} services to shutdown (60s timeout)"
+        )
         try:
             await asyncio.wait_for(asyncio.gather(*shutdown_tasks), timeout=60.0)
+            logger.info("All services shutdown completed successfully")
         except asyncio.TimeoutError:
             logger.warning("Some services did not shutdown gracefully within timeout")
 
@@ -625,7 +712,9 @@ maintenance_manager: Optional[MaintenanceManager] = None
 
 async def get_maintenance_manager() -> MaintenanceManager:
     """Dependency injection for maintenance manager"""
+    logger.debug("Getting maintenance manager instance")
     if maintenance_manager is None:
+        logger.error("Maintenance manager not initialized")
         raise HTTPException(
             status_code=500, detail="Maintenance service not initialized"
         )
@@ -634,9 +723,12 @@ async def get_maintenance_manager() -> MaintenanceManager:
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Verify API token"""
+    logger.debug("Verifying API token")
     # In production, implement proper token verification
     if not credentials.credentials:
+        logger.warning("Authentication failed: missing or invalid token")
         raise HTTPException(status_code=401, detail="Invalid or missing token")
+    logger.debug("Token verification successful")
     return credentials.credentials
 
 
@@ -647,13 +739,18 @@ async def lifespan(app: FastAPI):
 
     try:
         # Load configuration
+        logger.debug("Loading configuration")
         config = Config()
 
         # Initialize database
+        logger.debug("Initializing database manager")
         db_manager = DatabaseManager(config)
         await db_manager.initialize()
 
         # Initialize Redis
+        logger.debug(
+            f"Initializing Redis connection to {config.redis.host}:{config.redis.port}"
+        )
         redis_client = redis.Redis(
             host=config.redis.host,
             port=config.redis.port,
@@ -662,6 +759,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Initialize maintenance manager
+        logger.debug("Creating maintenance manager instance")
         maintenance_manager = MaintenanceManager(db_manager, redis_client, config)
         await maintenance_manager.load_maintenance_state()
 
@@ -671,12 +769,16 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         logger.error(f"Failed to initialize maintenance service: {e}")
+        logger.debug(f"Initialization error details: {type(e).__name__}: {str(e)}")
         raise
     finally:
         # Cleanup
+        logger.debug("Starting cleanup process")
         if maintenance_manager:
+            logger.debug("Closing database and Redis connections")
             await maintenance_manager.db.close()
             await maintenance_manager.redis.close()
+        logger.debug("Cleanup completed")
 
 
 app = FastAPI(
@@ -690,6 +792,7 @@ app = FastAPI(
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    logger.debug("Health check requested")
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
@@ -700,6 +803,7 @@ async def health_check():
 @app.get("/status")
 async def get_status(manager: MaintenanceManager = Depends(get_maintenance_manager)):
     """Get current system status"""
+    logger.debug("System status requested")
     return await manager.get_system_status()
 
 
@@ -714,6 +818,11 @@ async def enter_maintenance(
     token: str = Depends(verify_token),
 ):
     """Enter maintenance mode"""
+    logger.info(f"API request to enter maintenance mode: {mode}")
+    logger.debug(
+        f"Request details - reason: {reason}, duration: {estimated_minutes}, services: {affected_services}"
+    )
+
     try:
         maintenance_mode = MaintenanceMode(mode)
         estimated_duration = (
@@ -730,6 +839,7 @@ async def enter_maintenance(
             "api_user",
         )
 
+        logger.debug("Maintenance mode task queued successfully")
         return {
             "message": f"Entering {mode} mode",
             "estimated_duration_minutes": estimated_minutes,
@@ -737,9 +847,11 @@ async def enter_maintenance(
         }
 
     except ValueError:
+        logger.warning(f"Invalid maintenance mode provided: {mode}")
         raise HTTPException(status_code=400, detail="Invalid maintenance mode")
     except Exception as e:
         logger.error(f"Failed to enter maintenance mode: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -750,13 +862,16 @@ async def exit_maintenance(
     token: str = Depends(verify_token),
 ):
     """Exit maintenance mode"""
+    logger.info("API request to exit maintenance mode")
+
     try:
         background_tasks.add_task(manager.exit_maintenance_mode, "api_user")
-
+        logger.debug("Maintenance exit task queued successfully")
         return {"message": "Exiting maintenance mode"}
 
     except Exception as e:
         logger.error(f"Failed to exit maintenance mode: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -768,13 +883,16 @@ async def emergency_shutdown(
     token: str = Depends(verify_token),
 ):
     """Perform emergency shutdown"""
+    logger.critical(f"API request for emergency shutdown: {reason}")
+
     try:
         background_tasks.add_task(manager.emergency_shutdown, reason, "api_user")
-
+        logger.debug("Emergency shutdown task queued successfully")
         return {"message": "Emergency shutdown initiated", "reason": reason}
 
     except Exception as e:
         logger.error(f"Failed to initiate emergency shutdown: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -785,8 +903,11 @@ async def get_maintenance_history(
     token: str = Depends(verify_token),
 ):
     """Get maintenance history"""
+    logger.debug(f"Fetching maintenance history for last {days} days")
+
     try:
         start_date = datetime.now() - timedelta(days=days)
+        logger.debug(f"Fetching history from {start_date.isoformat()}")
 
         async with await manager.db.get_connection() as conn:
             history = await conn.fetch(
@@ -805,6 +926,7 @@ async def get_maintenance_history(
                 start_date,
             )
 
+        logger.debug(f"Found {len(history)} maintenance history records")
         return {
             "maintenance_history": [
                 {
@@ -821,6 +943,7 @@ async def get_maintenance_history(
 
     except Exception as e:
         logger.error(f"Failed to get maintenance history: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -833,8 +956,12 @@ async def send_custom_notification(
     token: str = Depends(verify_token),
 ):
     """Send custom maintenance notification"""
+    logger.info(f"Custom notification request: {title}")
+    logger.debug(f"Notification details - message: {message}, priority: {priority}")
+
     try:
         if not manager.gotify_url or not manager.gotify_token:
+            logger.warning("Gotify not configured for notifications")
             raise HTTPException(status_code=501, detail="Notifications not configured")
 
         notification_data = {
@@ -847,6 +974,7 @@ async def send_custom_notification(
             },
         }
 
+        logger.debug(f"Sending notification to Gotify at {manager.gotify_url}")
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{manager.gotify_url}/message",
@@ -854,46 +982,63 @@ async def send_custom_notification(
                 json=notification_data,
             )
 
+            logger.debug(f"Gotify response status: {response.status_code}")
             if response.status_code == 200:
+                logger.debug("Custom notification sent successfully")
                 return {"message": "Notification sent successfully"}
             else:
+                logger.error(
+                    f"Failed to send notification: HTTP {response.status_code}"
+                )
+                logger.debug(f"Response content: {response.text}")
                 raise HTTPException(
                     status_code=500, detail="Failed to send notification"
                 )
 
     except Exception as e:
         logger.error(f"Failed to send notification: {e}")
+        logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # Signal handlers for graceful shutdown
 def setup_signal_handlers():
     """Setup signal handlers for graceful shutdown"""
+    logger.debug("Setting up signal handlers for graceful shutdown")
 
     def signal_handler(signum, frame):
         logger.info(f"Received signal {signum}, initiating graceful shutdown")
+        logger.debug(f"Signal frame: {frame}")
         asyncio.create_task(graceful_system_shutdown())
 
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
+    logger.debug("Signal handlers configured for SIGTERM and SIGINT")
 
 
 async def graceful_system_shutdown():
     """Perform graceful system shutdown"""
+    logger.info("Starting graceful system shutdown")
     global maintenance_manager  # noqa: F824
 
     if maintenance_manager:
+        logger.debug("Maintenance manager available, initiating emergency shutdown")
         await maintenance_manager.emergency_shutdown(
             "System shutdown signal received", "system"
         )
+    else:
+        logger.warning("Maintenance manager not available during shutdown")
 
 
 if __name__ == "__main__":
     import uvicorn
 
+    logger.info("Starting maintenance service")
+
     # Setup signal handlers
     setup_signal_handlers()
 
     port = int(os.getenv("SERVICE_PORT", 9107))
+    logger.debug(f"Service will run on port {port}")
 
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info", access_log=True)

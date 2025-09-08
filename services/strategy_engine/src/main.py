@@ -53,7 +53,7 @@ from .technical_analysis import TechnicalAnalysisEngine, TechnicalStrategy  # no
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("strategy_engine_main")
 
@@ -1073,15 +1073,48 @@ class StrategyEngineService:
                 )
                 return
 
-            # Get all symbols from active strategies
+            # Get symbols from screener via Redis
             all_symbols = set()
+
+            # First try to get active tickers from the screener
+            if self.redis_engine:
+                screener_tickers = await self.redis_engine.get_active_tickers()
+                if screener_tickers:
+                    all_symbols.update(screener_tickers)
+                    self.logger.info(
+                        f"Using {len(screener_tickers)} tickers from screener: {screener_tickers[:10]}{'...' if len(screener_tickers) > 10 else ''}"
+                    )
+                else:
+                    self.logger.warning(
+                        "No active tickers found in screener, using fallback symbols"
+                    )
+
+            # Fallback to default symbols if screener has no tickers
+            if not all_symbols:
+                fallback_symbols = [
+                    "AAPL",
+                    "MSFT",
+                    "GOOGL",
+                    "TSLA",
+                    "SPY",
+                    "QQQ",
+                    "IWM",
+                    "XLF",
+                    "XLK",
+                    "NVDA",
+                ]
+                all_symbols.update(fallback_symbols)
+                self.logger.info(f"Using fallback symbols: {fallback_symbols}")
+
+            # Also include any symbols from active strategies
             for strategy_info in self.active_strategies.values():
-                # This would get symbols from strategy configuration
-                # For now, use default symbols
-                all_symbols.update(["AAPL", "MSFT", "GOOGL", "TSLA", "SPY"])
+                if hasattr(strategy_info, "symbols") and getattr(
+                    strategy_info, "symbols", None
+                ):
+                    all_symbols.update(getattr(strategy_info, "symbols"))
 
             self.logger.debug(
-                f"Starting real-time processing for {len(all_symbols)} symbols: {list(all_symbols)}"
+                f"Starting real-time processing for {len(all_symbols)} symbols: {list(all_symbols)[:10]}{'...' if len(all_symbols) > 10 else ''}"
             )
             # Start real-time processing
             await self.redis_engine.start_real_time_processing(list(all_symbols))
@@ -1090,6 +1123,34 @@ class StrategyEngineService:
 
         except Exception as e:
             self.logger.error(f"Error starting real-time processing: {e}")
+
+    async def refresh_screener_tickers(self) -> List[str]:
+        """
+        Refresh and get the latest tickers from the screener.
+
+        Returns:
+            List of current active tickers from screener
+        """
+        try:
+            if not self.redis_engine:
+                self.logger.warning("Redis engine not available for ticker refresh")
+                return []
+
+            screener_tickers = await self.redis_engine.get_active_tickers()
+            if screener_tickers:
+                self.logger.info(
+                    f"Refreshed {len(screener_tickers)} tickers from screener"
+                )
+                return screener_tickers
+            else:
+                self.logger.warning(
+                    "No active tickers found in screener during refresh"
+                )
+                return []
+
+        except Exception as e:
+            self.logger.error(f"Error refreshing screener tickers: {e}")
+            return []
 
     async def shutdown(self) -> None:
         """Shutdown the service gracefully."""
@@ -1604,6 +1665,51 @@ async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
         raise
     except Exception as e:
         logger.error(f"Error updating strategy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/screener/tickers")
+async def get_screener_tickers():
+    """Get current active tickers from the screener."""
+    try:
+        logger.debug("Getting current screener tickers")
+        tickers = await service.refresh_screener_tickers()
+
+        return {
+            "status": "success",
+            "tickers": tickers,
+            "count": len(tickers),
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting screener tickers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/screener/refresh")
+async def refresh_screener_tickers():
+    """Refresh tickers from screener and restart real-time processing if needed."""
+    try:
+        logger.debug("Refreshing screener tickers")
+        tickers = await service.refresh_screener_tickers()
+
+        # Optionally restart real-time processing with new tickers
+        if service.config.get("enable_real_time", False) and tickers:
+            logger.info("Restarting real-time processing with refreshed tickers")
+            await service.start_real_time_processing()
+
+        return {
+            "status": "success",
+            "message": f"Refreshed {len(tickers)} tickers from screener",
+            "tickers": tickers,
+            "real_time_restarted": service.config.get("enable_real_time", False)
+            and len(tickers) > 0,
+            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        }
+
+    except Exception as e:
+        logger.error(f"Error refreshing screener tickers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -415,14 +415,30 @@ class DataCollectionService:
                 logger.error(f"Failed to load tickers from data store: {e}")
 
     async def _run_finviz_scan(self) -> None:
-        """Run multiple FinViz screeners to discover new tickers."""
+        """Run multiple FinViz screeners to discover new tickers and cleanup expired ones."""
         if not self.finviz_screener:
             return
 
         try:
             logger.info("Running multiple FinViz screeners...")
 
-            # Define screening strategies - conservative approaches only
+            # Step 1: Cleanup expired tickers (not seen for 1+ hours)
+            if self.redis_client:
+                try:
+                    removed_tickers = await self.redis_client.cleanup_expired_tickers(
+                        expiry_hours=1.0
+                    )
+                    if removed_tickers:
+                        async with self._ticker_lock:
+                            # Remove expired tickers from local set
+                            self._active_tickers.difference_update(removed_tickers)
+                        logger.info(
+                            f"Removed {len(removed_tickers)} expired tickers: {removed_tickers}"
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to cleanup expired tickers: {e}")
+
+            # Step 2: Define screening strategies - conservative approaches only
             screening_strategies: List[Tuple[str, Callable]] = [
                 (
                     "breakouts",
@@ -469,7 +485,7 @@ class DataCollectionService:
             all_new_tickers = set()
             successful_screeners = 0
 
-            # Run each screening strategy
+            # Step 3: Run each screening strategy
             for strategy_name, screener_func in screening_strategies:
                 try:
                     logger.info(f"Running {strategy_name} screener...")
@@ -501,7 +517,7 @@ class DataCollectionService:
                     logger.error(f"{strategy_name} screener failed: {e}")
                     continue
 
-            # If no stocks found from screeners, use fallback ticker lists
+            # Step 4: If no stocks found from screeners, use fallback ticker lists
             if not all_stocks:
                 logger.warning(
                     "All FinViz screeners returned no results, using fallback tickers"
@@ -509,7 +525,7 @@ class DataCollectionService:
                 await self._use_fallback_tickers()
                 return
 
-            # Remove duplicates while preserving the best stocks
+            # Step 5: Remove duplicates while preserving the best stocks
             unique_stocks = {}
             for i, stock in enumerate(all_stocks):
                 symbol = stock.symbol
@@ -521,42 +537,46 @@ class DataCollectionService:
                         unique_stocks[symbol] = stock
 
             final_stocks = list(unique_stocks.values())
-            new_tickers = set(unique_stocks.keys())
+            screener_tickers = set(unique_stocks.keys())
 
+            # Step 6: Update timestamps for all tickers returned by screener
+            if self.redis_client and screener_tickers:
+                current_time = datetime.now(timezone.utc)
+                await self.redis_client.batch_update_ticker_timestamps(
+                    list(screener_tickers), current_time
+                )
+                logger.debug(
+                    f"Updated timestamps for {len(screener_tickers)} screener tickers"
+                )
+
+            # Step 7: Update active tickers with screener results (respecting max limits)
             async with self._ticker_lock:
                 previously_active = self._active_tickers.copy()
 
-                # Update active tickers (keep existing + add new, but limit total)
-                combined_tickers = self._active_tickers.union(new_tickers)
-
-                # If we exceed max tickers, prioritize by volume
-                if len(combined_tickers) > self.config.max_active_tickers:
+                # Prioritize screener results, but respect max active tickers limit
+                if len(screener_tickers) <= self.config.max_active_tickers:
+                    # If screener results fit within limit, use them all
+                    new_active_tickers = screener_tickers
+                else:
                     # Sort by volume and take top N
                     sorted_stocks = sorted(
                         final_stocks, key=lambda x: x.volume or 0, reverse=True
                     )
-                    top_tickers = {
+                    new_active_tickers = {
                         stock.symbol
                         for stock in sorted_stocks[: self.config.max_active_tickers]
                     }
 
-                    # Keep some existing tickers to maintain continuity
-                    existing_to_keep = min(10, len(previously_active))
-                    if existing_to_keep > 0:
-                        existing_list = list(previously_active)[:existing_to_keep]
-                        combined_tickers = top_tickers.union(set(existing_list))
+                truly_new_tickers = new_active_tickers - previously_active
+                removed_tickers_this_scan = previously_active - new_active_tickers
+                self._active_tickers = new_active_tickers
 
-                        # Still might exceed limit, so trim again
-                        if len(combined_tickers) > self.config.max_active_tickers:
-                            combined_tickers = set(
-                                list(combined_tickers)[: self.config.max_active_tickers]
-                            )
+                if removed_tickers_this_scan:
+                    logger.info(
+                        f"Screener no longer returned {len(removed_tickers_this_scan)} tickers: {removed_tickers_this_scan}"
+                    )
 
-                truly_new_tickers = combined_tickers - previously_active
-                self._active_tickers = combined_tickers
-
-            # Immediately fetch historical data for new tickers discovered by FinViz
-            # This ensures we have data ready when market opens, even for premarket discoveries
+            # Step 8: Immediately fetch historical data for new tickers discovered by FinViz
             if truly_new_tickers:
                 logger.info(
                     f"Fetching historical data for {len(truly_new_tickers)} new tickers"
@@ -565,7 +585,7 @@ class DataCollectionService:
                     list(truly_new_tickers)
                 )
 
-            # Publish new tickers to Redis
+            # Step 9: Publish new tickers to Redis
             if truly_new_tickers and self.redis_client:
                 await self.redis_client.publish_new_tickers(
                     list(truly_new_tickers),
@@ -577,7 +597,7 @@ class DataCollectionService:
                     },
                 )
 
-            # Publish screener update with combined results
+            # Step 10: Publish screener update with combined results
             if self.redis_client:
                 await self.redis_client.publish_screener_update(
                     final_stocks, "multi_strategy"
@@ -593,7 +613,8 @@ class DataCollectionService:
 
             logger.info(
                 f"Multi-strategy FinViz scan completed: {len(final_stocks)} total stocks, "
-                f"{len(truly_new_tickers)} new tickers from {successful_screeners} successful screeners"
+                f"{len(truly_new_tickers)} new tickers, {len(self._active_tickers)} active tickers "
+                f"from {successful_screeners} successful screeners"
             )
 
         except Exception as e:
@@ -651,6 +672,16 @@ class DataCollectionService:
             selected_tickers = fallback_tickers[
                 : min(len(fallback_tickers), self.config.max_active_tickers)
             ]
+
+            # Update timestamps for fallback tickers
+            if self.redis_client and selected_tickers:
+                current_time = datetime.now(timezone.utc)
+                await self.redis_client.batch_update_ticker_timestamps(
+                    selected_tickers, current_time
+                )
+                logger.debug(
+                    f"Updated timestamps for {len(selected_tickers)} fallback tickers"
+                )
 
             async with self._ticker_lock:
                 previously_active = self._active_tickers.copy()
@@ -1413,6 +1444,122 @@ class DataCollectionService:
         """Get list of currently active tickers."""
         async with self._ticker_lock:
             return list(self._active_tickers)
+
+    async def cleanup_expired_tickers(self, expiry_hours: float = 1.0) -> List[str]:
+        """
+        Manually cleanup tickers that haven't been seen from screener for specified hours.
+
+        Args:
+            expiry_hours: Hours after which a ticker should be removed
+
+        Returns:
+            List of removed ticker symbols
+        """
+        if not self.redis_client:
+            logger.warning("Redis client not available for ticker cleanup")
+            return []
+
+        try:
+            logger.info(
+                f"Starting manual cleanup of tickers not seen for {expiry_hours} hours"
+            )
+
+            # Get expired tickers from Redis
+            removed_tickers = await self.redis_client.cleanup_expired_tickers(
+                expiry_hours
+            )
+
+            if removed_tickers:
+                # Update local active tickers set
+                async with self._ticker_lock:
+                    self._active_tickers.difference_update(removed_tickers)
+
+                logger.info(
+                    f"Manual cleanup removed {len(removed_tickers)} expired tickers: {removed_tickers}"
+                )
+
+                # Update stats
+                self._stats["manual_cleanups"] = (
+                    self._stats.get("manual_cleanups", 0) or 0
+                ) + 1
+                self._stats["last_manual_cleanup"] = int(
+                    datetime.now(timezone.utc).timestamp()
+                )
+            else:
+                logger.info("No expired tickers found during manual cleanup")
+
+            return removed_tickers
+
+        except Exception as e:
+            logger.error(f"Manual ticker cleanup failed: {e}")
+            return []
+
+    async def get_ticker_statistics(self) -> Dict[str, Any]:
+        """
+        Get statistics about ticker management and cleanup.
+
+        Returns:
+            Dictionary containing ticker statistics
+        """
+        try:
+            stats = {}
+
+            # Basic counts
+            async with self._ticker_lock:
+                stats["active_tickers_count"] = len(self._active_tickers)
+                stats["active_tickers"] = list(self._active_tickers)
+
+            # Get ticker age information from Redis
+            if self.redis_client:
+                try:
+                    expired_count = len(
+                        await self.redis_client.get_expired_tickers(1.0)
+                    )
+                    stats["expired_tickers_count"] = expired_count
+
+                    # Get timestamps for all active tickers
+                    ticker_ages = {}
+                    current_time = datetime.now(timezone.utc)
+
+                    for ticker in stats["active_tickers"]:
+                        last_seen = await self.redis_client.get_ticker_last_seen(ticker)
+                        if last_seen:
+                            age_hours = (
+                                current_time - last_seen
+                            ).total_seconds() / 3600
+                            ticker_ages[ticker] = {
+                                "last_seen": last_seen.isoformat(),
+                                "age_hours": round(age_hours, 2),
+                            }
+                        else:
+                            ticker_ages[ticker] = {"last_seen": None, "age_hours": None}
+
+                    stats["ticker_ages"] = ticker_ages
+
+                except Exception as e:
+                    logger.error(f"Error getting ticker age information: {e}")
+                    stats["ticker_ages"] = {}
+                    stats["expired_tickers_count"] = 0
+
+            # Service stats
+            stats["total_screener_runs"] = self._stats.get("screener_runs", 0)
+            stats["last_finviz_scan"] = self._stats.get("last_finviz_scan")
+            stats["manual_cleanups"] = self._stats.get("manual_cleanups", 0)
+            stats["last_manual_cleanup"] = self._stats.get("last_manual_cleanup")
+
+            if stats["last_finviz_scan"]:
+                last_scan_dt = datetime.fromtimestamp(
+                    stats["last_finviz_scan"], timezone.utc
+                )
+                stats["last_finviz_scan_ago_minutes"] = round(
+                    (datetime.now(timezone.utc) - last_scan_dt).total_seconds() / 60, 1
+                )
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Error getting ticker statistics: {e}")
+            return {"error": str(e)}
 
     async def run_custom_screener(
         self,
