@@ -1,2 +1,1 @@
 scipy==1.16.1
-alpaca-py
