@@ -1502,7 +1502,7 @@ class DataCollectionService:
             Dictionary containing ticker statistics
         """
         try:
-            stats = {}
+            stats: Dict[str, Any] = {}
 
             # Basic counts
             async with self._ticker_lock:
@@ -1518,13 +1518,14 @@ class DataCollectionService:
                     stats["expired_tickers_count"] = expired_count
 
                     # Get timestamps for all active tickers
-                    ticker_ages = {}
+                    ticker_ages: Dict[str, Dict[str, Any]] = {}
                     current_time = datetime.now(timezone.utc)
 
-                    for ticker in stats["active_tickers"]:
+                    active_tickers_list = stats["active_tickers"]
+                    for ticker in active_tickers_list:
                         last_seen = await self.redis_client.get_ticker_last_seen(ticker)
                         if last_seen:
-                            age_hours = (
+                            age_hours: float = (
                                 current_time - last_seen
                             ).total_seconds() / 3600
                             ticker_ages[ticker] = {
@@ -1543,13 +1544,15 @@ class DataCollectionService:
 
             # Service stats
             stats["total_screener_runs"] = self._stats.get("screener_runs", 0)
-            stats["last_finviz_scan"] = self._stats.get("last_finviz_scan")
+            last_finviz_scan = self._stats.get("last_finviz_scan")
+            stats["last_finviz_scan"] = last_finviz_scan
             stats["manual_cleanups"] = self._stats.get("manual_cleanups", 0)
-            stats["last_manual_cleanup"] = self._stats.get("last_manual_cleanup")
+            last_manual_cleanup = self._stats.get("last_manual_cleanup")
+            stats["last_manual_cleanup"] = last_manual_cleanup
 
-            if stats["last_finviz_scan"]:
+            if last_finviz_scan:
                 last_scan_dt = datetime.fromtimestamp(
-                    stats["last_finviz_scan"], timezone.utc
+                    last_finviz_scan, timezone.utc
                 )
                 stats["last_finviz_scan_ago_minutes"] = round(
                     (datetime.now(timezone.utc) - last_scan_dt).total_seconds() / 60, 1

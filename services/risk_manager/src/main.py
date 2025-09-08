@@ -323,7 +323,7 @@ async def calculate_position_size(request: PositionSizingRequest):
             signal=request.signal,
         )
         logger.debug(
-            f"Position sizing result for {request.symbol}: {sizing.quantity} shares (${sizing.dollar_amount})"
+            f"Position sizing result for {request.symbol}: {sizing.recommended_shares} shares (${sizing.recommended_value})"
         )
 
         return sizing
