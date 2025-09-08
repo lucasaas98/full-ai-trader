@@ -1,4 +1,4 @@
-addAssignees: true
+addAssignees: author
 addReviewers: true
 reviewers:
     - lucasaas98
