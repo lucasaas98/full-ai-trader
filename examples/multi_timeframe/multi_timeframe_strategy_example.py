@@ -26,6 +26,7 @@ from base_strategy import (  # noqa: E402
     StrategyMode,
     TimeFrameMapper,
 )
+
 from shared.models import SignalType  # noqa: E402
 
 
