@@ -355,7 +355,7 @@ install-deps: ## Install Python dependencies locally (for development)
 	@echo "Creating virtual environment..."
 	@python3 -m venv venv
 	@echo "Activating virtual environment..."
-	@venv/bin/activate
+	@source venv/bin/activate
 	@echo "Installing Python dependencies..."
 	@pip install -r requirements.txt
 	@pip install -r requirements.ci.txt
