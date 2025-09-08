@@ -36,7 +36,7 @@ from shared.config import Config  # noqa: E402
 def setup_logging(name):
     """Simple logging setup without complex dependencies"""
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
     return logging.getLogger(name)
@@ -58,7 +58,11 @@ class DatabaseManager:
 
     async def initialize(self):
         """Initialize database connection pool"""
+        logger.debug("Initializing database connection pool")
         config = Config()
+        logger.debug(
+            f"Database config: host={config.database.host}, port={config.database.port}, database={config.database.database}"
+        )
         try:
             self.pool = await asyncpg.create_pool(
                 host=config.database.host,
@@ -70,26 +74,40 @@ class DatabaseManager:
                 max_size=5,
             )
             logger.info("Database pool initialized")
+            logger.debug("Database pool created with min_size=1, max_size=5")
         except Exception as e:
             logger.error(f"Failed to initialize database pool: {e}")
+            logger.debug("Database connection error details: %s", type(e).__name__)
             raise
 
     async def close(self):
         """Close database connection pool"""
+        logger.debug("Closing database connection pool")
         if self.pool:
             await self.pool.close()
             logger.info("Database pool closed")
+            logger.debug("Database pool cleanup completed")
+        else:
+            logger.debug("No database pool to close")
 
     async def get_connection(self):
         """Get database connection from pool"""
+        logger.debug("Acquiring database connection from pool")
         if not self.pool:
+            logger.debug("Pool not initialized, initializing now")
             await self.initialize()
         if not self.pool:
+            logger.error(
+                "Database pool still not initialized after initialization attempt"
+            )
             raise HTTPException(status_code=500, detail="Database pool not initialized")
         try:
-            return await self.pool.acquire()
+            conn = await self.pool.acquire()
+            logger.debug("Database connection acquired successfully")
+            return conn
         except Exception as e:
             logger.error(f"Failed to acquire database connection: {e}")
+            logger.debug(f"Connection acquisition error details: {type(e).__name__}")
             raise HTTPException(status_code=500, detail="Database connection failed")
 
 
@@ -113,13 +131,21 @@ class ExportRequest:
 
 class ExportService:
     def __init__(self, db_manager: DatabaseManager):
+        logger.debug("Initializing ExportService")
         self.db = db_manager
         self.exports_dir = Path("/tmp/exports")
         self.exports_dir.mkdir(exist_ok=True)
+        logger.debug(f"Exports directory created/verified at: {self.exports_dir}")
 
     async def export_tradenote_format(self, request: ExportRequest) -> str:
         """Export trades in TradeNote compatible format"""
         logger.info(f"Starting TradeNote export: {request}")
+        logger.debug(
+            f"Export request details - format: {request.format}, start_date: {request.start_date}, end_date: {request.end_date}"
+        )
+        logger.debug(
+            f"Export filters - symbols: {request.symbols}, strategies: {request.strategies}"
+        )
 
         conn = await self.db.get_connection()
         try:
@@ -169,7 +195,9 @@ class ExportService:
 
             query += " ORDER BY t.executed_at DESC"
 
+            logger.debug(f"Executing TradeNote query with {len(params)} parameters")
             rows = await conn.fetch(query, *params)
+            logger.debug(f"Query returned {len(rows)} rows")
 
             # Convert to TradeNote format
             tradenote_data = []
@@ -193,12 +221,17 @@ class ExportService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"tradenote_export_{timestamp}.csv"
             filepath = self.exports_dir / filename
+            logger.debug(f"Generated filename: {filename}")
+            logger.debug(f"Full filepath: {filepath}")
 
             # Write CSV file
             if tradenote_data:
+                logger.debug(f"Writing {len(tradenote_data)} records to CSV")
                 df = pd.DataFrame(tradenote_data)
                 df.to_csv(filepath, index=False)
+                logger.debug("CSV file written successfully")
             else:
+                logger.debug("No data found, creating empty CSV with headers")
                 # Create empty file with headers
                 headers = [
                     "Date",
@@ -213,17 +246,23 @@ class ExportService:
                     "Notes",
                 ]
                 pd.DataFrame(columns=headers).to_csv(filepath, index=False)
+                logger.debug("Empty CSV file created with headers")
 
             logger.info(f"TradeNote export completed: {filepath}")
             return str(filepath)
 
         finally:
             if conn and self.db.pool:
+                logger.debug("Releasing database connection")
                 await self.db.pool.release(conn)
+                logger.debug("Database connection released")
 
     async def export_performance_report(self, request: ExportRequest) -> str:
         """Export comprehensive performance report"""
         logger.info(f"Starting performance report export: {request}")
+        logger.debug(
+            f"Performance report filters - start_date: {request.start_date}, end_date: {request.end_date}"
+        )
 
         conn = await self.db.get_connection()
         try:
@@ -255,7 +294,11 @@ class ExportService:
                 params.append(request.end_date)
                 param_count += 1
 
+            logger.debug(
+                f"Executing portfolio summary query with {len(params)} parameters"
+            )
             portfolio_row = await conn.fetchrow(portfolio_query, *params)
+            logger.debug("Portfolio summary query completed")
 
             # Calculate performance metrics
             total_trades = portfolio_row["total_trades"] or 0
@@ -299,10 +342,15 @@ class ExportService:
                     strategy_param_count += 1
 
                 strategy_query += " GROUP BY s.name ORDER BY total_pnl DESC"
+                logger.debug(
+                    f"Executing strategy query with {len(strategy_params)} parameters"
+                )
                 strategy_rows = await conn.fetch(strategy_query, *strategy_params)
             else:
                 strategy_query += " GROUP BY s.name ORDER BY total_pnl DESC"
+                logger.debug("Executing strategy query without date filters")
                 strategy_rows = await conn.fetch(strategy_query)
+            logger.debug(f"Strategy breakdown query returned {len(strategy_rows)} rows")
 
             strategy_breakdown = []
             for row in strategy_rows:
@@ -348,10 +396,15 @@ class ExportService:
                     timeline_param_count += 1
 
                 timeline_query += " GROUP BY DATE(executed_at) ORDER BY trade_date"
+                logger.debug(
+                    f"Executing timeline query with {len(timeline_params)} parameters"
+                )
                 timeline_rows = await conn.fetch(timeline_query, *timeline_params)
             else:
                 timeline_query += " GROUP BY DATE(executed_at) ORDER BY trade_date"
+                logger.debug("Executing timeline query without date filters")
                 timeline_rows = await conn.fetch(timeline_query)
+            logger.debug(f"Portfolio timeline query returned {len(timeline_rows)} rows")
 
             portfolio_timeline = []
             for row in timeline_rows:
@@ -395,20 +448,27 @@ class ExportService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"performance_report_{timestamp}.json"
             filepath = self.exports_dir / filename
+            logger.debug(f"Generated performance report filename: {filename}")
 
+            logger.debug("Writing performance report to file")
             async with aiofiles.open(filepath, "w") as f:
                 await f.write(json.dumps(report, indent=2))
+            logger.debug("Performance report file written successfully")
 
             logger.info(f"Performance report export completed: {filepath}")
             return str(filepath)
 
         finally:
             if conn and self.db.pool:
+                logger.debug("Releasing database connection (performance report)")
                 await self.db.pool.release(conn)
 
     async def export_tax_report(self, request: ExportRequest) -> str:
         """Export tax reporting data"""
         logger.info(f"Starting tax report export: {request}")
+        logger.debug(
+            f"Tax report date range: {request.start_date} to {request.end_date}"
+        )
 
         conn = await self.db.get_connection()
         try:
@@ -447,7 +507,9 @@ class ExportService:
 
             query += " ORDER BY p.closed_at DESC"
 
+            logger.debug(f"Executing tax report query with {len(params)} parameters")
             rows = await conn.fetch(query, *params)
+            logger.debug(f"Tax report query returned {len(rows)} closed positions")
 
             # Calculate tax lots
             tax_lots = []
@@ -502,20 +564,30 @@ class ExportService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"tax_report_{timestamp}.json"
             filepath = self.exports_dir / filename
+            logger.debug(f"Generated tax report filename: {filename}")
+            logger.debug(
+                f"Tax summary - Short term: ${total_short_term_gain:.2f}, Long term: ${total_long_term_gain:.2f}"
+            )
 
+            logger.debug("Writing tax report to file")
             async with aiofiles.open(filepath, "w") as f:
                 await f.write(json.dumps(tax_report, indent=2))
+            logger.debug("Tax report file written successfully")
 
             logger.info(f"Tax report export completed: {filepath}")
             return str(filepath)
 
         finally:
             if conn and self.db.pool:
+                logger.debug("Releasing database connection (tax report)")
                 await self.db.pool.release(conn)
 
     async def export_audit_trail(self, request: ExportRequest) -> str:
         """Export comprehensive audit trail"""
         logger.info(f"Starting audit trail export: {request}")
+        logger.debug(
+            f"Audit trail date range: {request.start_date} to {request.end_date}"
+        )
 
         conn = await self.db.get_connection()
         try:
@@ -596,7 +668,9 @@ class ExportService:
 
             query += " ORDER BY timestamp DESC"
 
+            logger.debug(f"Executing audit trail query with {len(params)} parameters")
             rows = await conn.fetch(query, *params)
+            logger.debug(f"Audit trail query returned {len(rows)} events")
 
             # Format audit trail
             audit_events = []
@@ -636,20 +710,25 @@ class ExportService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"audit_trail_{timestamp}.json"
             filepath = self.exports_dir / filename
+            logger.debug(f"Generated audit trail filename: {filename}")
 
+            logger.debug("Writing audit trail to file")
             async with aiofiles.open(filepath, "w") as f:
                 await f.write(json.dumps(audit_report, indent=2))
+            logger.debug("Audit trail file written successfully")
 
             logger.info(f"Audit trail export completed: {filepath}")
             return str(filepath)
 
         finally:
             if conn and self.db.pool:
+                logger.debug("Releasing database connection (audit trail)")
                 await self.db.pool.release(conn)
 
     async def export_portfolio_analysis(self, request: ExportRequest) -> str:
         """Export detailed portfolio analysis"""
         logger.info(f"Starting portfolio analysis export: {request}")
+        logger.debug("Fetching current positions and risk metrics")
 
         conn = await self.db.get_connection()
         try:
@@ -671,7 +750,9 @@ class ExportService:
                 ORDER BY p.unrealized_pnl DESC
             """
 
+            logger.debug("Executing positions query")
             position_rows = await conn.fetch(positions_query)
+            logger.debug(f"Found {len(position_rows)} open positions")
 
             # Risk metrics by symbol
             risk_query = """
@@ -689,7 +770,9 @@ class ExportService:
                 ORDER BY total_volume DESC
             """
 
+            logger.debug("Executing risk metrics query")
             risk_rows = await conn.fetch(risk_query)
+            logger.debug(f"Found risk metrics for {len(risk_rows)} symbols")
 
             # Compile analysis
             current_positions = []
@@ -761,27 +844,39 @@ class ExportService:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"portfolio_analysis_{timestamp}.json"
             filepath = self.exports_dir / filename
+            logger.debug(f"Generated portfolio analysis filename: {filename}")
+            logger.debug(
+                f"Portfolio summary - Market value: ${total_market_value:.2f}, P&L: ${total_unrealized_pnl:.2f}"
+            )
 
+            logger.debug("Writing portfolio analysis to file")
             async with aiofiles.open(filepath, "w") as f:
                 await f.write(json.dumps(analysis_report, indent=2))
+            logger.debug("Portfolio analysis file written successfully")
 
             logger.info(f"Portfolio analysis export completed: {filepath}")
             return str(filepath)
 
         finally:
             if conn and self.db.pool:
+                logger.debug("Releasing database connection (portfolio analysis)")
                 await self.db.pool.release(conn)
 
     async def create_export_archive(
         self, filepaths: List[str], archive_name: str
     ) -> str:
         """Create a compressed archive of multiple export files"""
+        logger.debug(f"Creating export archive: {archive_name}")
+        logger.debug(f"Files to archive: {filepaths}")
         archive_path = self.exports_dir / f"{archive_name}.zip"
 
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zipf:
             for filepath in filepaths:
                 if os.path.exists(filepath):
+                    logger.debug(f"Adding file to archive: {filepath}")
                     zipf.write(filepath, os.path.basename(filepath))
+                else:
+                    logger.warning(f"File not found for archive: {filepath}")
 
         logger.info(f"Export archive created: {archive_path}")
         return str(archive_path)
@@ -807,6 +902,7 @@ app = FastAPI(
 
 async def get_export_service() -> ExportService:
     """Dependency to get export service instance"""
+    logger.debug("Creating ExportService instance")
     return ExportService(db_manager)
 
 
@@ -814,20 +910,25 @@ async def verify_token(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> str:
     """Verify JWT token"""
+    logger.debug("Verifying authentication token")
     # Simplified token verification
     token = credentials.credentials
+    logger.debug(f"Token length: {len(token) if token else 0}")
     # In production, verify JWT signature and claims
     return token
 
 
 async def startup_event():
     """Initialize services on startup"""
+    logger.info("Starting export service initialization")
     try:
         # Initialize database
+        logger.debug("Initializing database manager")
         await db_manager.initialize()
 
         # Initialize metrics collection
         try:
+            logger.debug("Initializing metrics collector")
             from monitoring.metrics import MetricsCollector
             from shared.config import get_config
 
@@ -837,30 +938,38 @@ async def startup_event():
             logger.info("Metrics collector initialized")
         except Exception as e:
             logger.warning(f"Metrics initialization failed: {e}")
+            logger.debug(f"Metrics error details: {type(e).__name__}")
 
         # Create exports directory
+        logger.debug("Creating exports directory")
         exports_dir = Path("/tmp/exports")
         exports_dir.mkdir(exist_ok=True)
+        logger.debug(f"Exports directory ready at: {exports_dir}")
 
         logger.info("Export service startup completed")
 
     except Exception as e:
         logger.error(f"Startup failed: {e}")
+        logger.debug(f"Startup error details: {type(e).__name__}")
         raise
 
 
 async def shutdown_event():
     """Cleanup on shutdown"""
+    logger.info("Starting export service shutdown")
     try:
+        logger.debug("Closing database manager")
         await db_manager.close()
         logger.info("Export service shutdown completed")
     except Exception as e:
         logger.error(f"Shutdown error: {e}")
+        logger.debug(f"Shutdown error details: {type(e).__name__}")
 
 
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    logger.debug("Health check requested")
     return {
         "status": "healthy",
         "service": "export_service",
@@ -878,6 +987,12 @@ async def export_tradenote(
     token: str = Depends(verify_token),
 ):
     """Export trades in TradeNote compatible format"""
+    logger.debug(
+        f"TradeNote export request - start_date: {start_date}, end_date: {end_date}"
+    )
+    logger.debug(
+        f"TradeNote export filters - symbols: {symbols}, strategies: {strategies}"
+    )
     try:
         request = ExportRequest(
             format="tradenote",
@@ -886,8 +1001,10 @@ async def export_tradenote(
             symbols=symbols.split(",") if symbols else None,
             strategies=strategies.split(",") if strategies else None,
         )
+        logger.debug(f"Created ExportRequest: {request}")
 
         file_path = await service.export_tradenote_format(request)
+        logger.debug(f"Export completed, returning file: {file_path}")
         return FileResponse(
             path=file_path,
             filename=f"tradenote_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
@@ -895,6 +1012,7 @@ async def export_tradenote(
         )
     except Exception as e:
         logger.error(f"TradeNote export failed: {e}")
+        logger.debug(f"TradeNote export error details: {type(e).__name__}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -905,5 +1023,7 @@ if __name__ == "__main__":
     host = "0.0.0.0"
 
     logger.info(f"Starting Export Service on {host}:{port}")
+    logger.debug(f"Service configuration - host: {host}, port: {port}")
+    logger.debug("Starting uvicorn server")
 
     uvicorn.run(app, host=host, port=port, log_level="info")

@@ -28,7 +28,7 @@ from shared.models import Notification  # noqa: E402
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -71,10 +71,14 @@ class NotificationService:
         """Initialize all service components."""
         try:
             logger.info("Initializing Notification Service...")
+            logger.debug(f"Config loaded: {self.config}")
 
             # Initialize Redis connection using environment variable
             redis_url = os.getenv("REDIS_URL", "redis://redis:6379")
             logger.info(f"Connecting to Redis at: {redis_url}")
+            logger.debug(
+                "Redis connection parameters: encoding=utf-8, decode_responses=True, retry_on_timeout=True"
+            )
 
             self._redis = await redis.from_url(
                 redis_url,
@@ -84,46 +88,65 @@ class NotificationService:
             )
 
             # Test Redis connection
+            logger.debug("Testing Redis connection...")
             await self._redis.ping()
             logger.info("Redis connection established")
+            logger.debug("Redis ping successful")
 
             # Initialize notification manager
+            logger.debug("Initializing notification manager...")
             self.notification_manager = NotificationManager(self.config)
             await self.notification_manager.startup()
             logger.info("Notification manager initialized")
+            logger.debug("Notification manager startup completed")
 
             # Create pubsub instance
+            logger.debug("Creating Redis PubSub instance...")
             self._pubsub = self._redis.pubsub()
+            logger.debug("PubSub instance created")
 
             # Subscribe to channels
+            logger.debug("Starting channel subscription process...")
             await self._subscribe_to_channels()
 
             logger.info("Notification Service initialized successfully")
+            logger.debug("All initialization steps completed")
 
         except Exception as e:
             logger.error(f"Failed to initialize service: {e}")
+            logger.debug(f"Initialization error details: {type(e).__name__}: {str(e)}")
             raise
 
     async def _subscribe_to_channels(self):
         """Subscribe to Redis channels."""
         try:
+            logger.debug("Starting channel subscription process...")
             if not self._pubsub:
+                logger.error("PubSub not initialized")
                 raise ValueError("PubSub not initialized")
 
-            for channel in self.channels:
+            logger.debug(f"Total channels to subscribe: {len(self.channels)}")
+            for i, channel in enumerate(self.channels):
+                logger.debug(
+                    f"Processing channel {i + 1}/{len(self.channels)}: {channel}"
+                )
                 if "*" in channel:
                     # Pattern subscription
+                    logger.debug(f"Using pattern subscription for: {channel}")
                     await self._pubsub.psubscribe(channel)
                     logger.info(f"Pattern subscribed to: {channel}")
                 else:
                     # Regular subscription
+                    logger.debug(f"Using regular subscription for: {channel}")
                     await self._pubsub.subscribe(channel)
                     logger.info(f"Subscribed to channel: {channel}")
 
             logger.info(f"Subscribed to {len(self.channels)} channels")
+            logger.debug("Channel subscription process completed")
 
         except Exception as e:
             logger.error(f"Failed to subscribe to channels: {e}")
+            logger.debug(f"Subscription error details: {type(e).__name__}: {str(e)}")
             raise
 
     async def start(self):
@@ -131,50 +154,82 @@ class NotificationService:
         try:
             self._running = True
             logger.info("Starting Notification Service...")
+            logger.debug(f"Service running state set to: {self._running}")
 
             # Start message processing
+            logger.debug("Creating message processing task...")
             message_task = asyncio.create_task(self._process_messages())
             self._tasks.add(message_task)
+            logger.debug("Message processing task created and added")
 
             # Start health check task
+            logger.debug("Creating health check task...")
             health_task = asyncio.create_task(self._health_check_loop())
             self._tasks.add(health_task)
+            logger.debug("Health check task created and added")
 
             # Start daily summary task
+            logger.debug("Creating daily summary task...")
             summary_task = asyncio.create_task(self._daily_summary_loop())
             self._tasks.add(summary_task)
+            logger.debug("Daily summary task created and added")
 
             logger.info("Notification Service started")
+            logger.debug(f"Total tasks running: {len(self._tasks)}")
 
             # Wait for tasks to complete
+            logger.debug("Waiting for tasks to complete...")
             await asyncio.gather(*self._tasks, return_exceptions=True)
 
         except Exception as e:
             logger.error(f"Error in notification service: {e}")
+            logger.debug(f"Service error details: {type(e).__name__}: {str(e)}")
             raise
 
     async def _process_messages(self):
         """Process messages from Redis channels."""
         try:
             logger.info("Starting message processing...")
+            logger.debug("Initializing message processing loop...")
 
             if not self._pubsub:
                 logger.error("PubSub not initialized")
                 return
 
+            logger.debug("Beginning to listen for Redis messages...")
+            message_count = 0
             async for message in self._pubsub.listen():
+                logger.debug(
+                    f"Received raw message (#{message_count + 1}): type={message.get('type')}"
+                )
+
                 if not self._running:
+                    logger.debug("Service not running, breaking from message loop")
                     break
 
                 if message["type"] in ["message", "pmessage"]:
+                    message_count += 1
+                    logger.debug(f"Processing message #{message_count}")
                     try:
                         await self._handle_message(message)
+                        logger.debug(f"Successfully processed message #{message_count}")
                     except Exception as e:
-                        logger.error(f"Error handling message: {e}")
+                        logger.error(f"Error handling message #{message_count}: {e}")
+                        logger.debug(
+                            f"Message handling error details: {type(e).__name__}: {str(e)}"
+                        )
+                else:
+                    logger.debug(f"Skipping message type: {message['type']}")
 
         except Exception as e:
             logger.error(f"Message processing error: {e}")
+            logger.debug(
+                f"Message processing error details: {type(e).__name__}: {str(e)}"
+            )
             if self._running:
+                logger.debug(
+                    "Service still running, restarting message processing after 5 second delay"
+                )
                 # Restart after delay
                 await asyncio.sleep(5)
                 asyncio.create_task(self._process_messages())
@@ -184,55 +239,91 @@ class NotificationService:
         try:
             channel = message.get("channel", "")
             data_str = message.get("data", "{}")
+            logger.debug(f"Handling message from channel: {channel}")
 
             # Parse message data
             try:
                 data = json.loads(data_str) if isinstance(data_str, str) else data_str
+                logger.debug(
+                    f"Parsed message data type: {type(data)}, keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
+                )
             except json.JSONDecodeError:
                 logger.warning(f"Failed to parse message data: {data_str}")
+                logger.debug(f"Raw data that failed parsing: {repr(data_str)}")
                 return
 
             logger.debug(f"Received message on {channel}: {data.get('symbol', 'N/A')}")
 
             # Route message to appropriate handler
             if channel.startswith("executions:"):
+                logger.debug(f"Routing to execution handler for channel: {channel}")
                 await self._handle_execution(data)
             elif channel.startswith("execution_errors:"):
+                logger.debug(
+                    f"Routing to execution error handler for channel: {channel}"
+                )
                 await self._handle_execution_error(data)
             elif channel.startswith("alerts:"):
+                logger.debug(f"Routing to alert handler for channel: {channel}")
                 await self._handle_alert(data)
             elif channel == "risk:alerts":
+                logger.debug("Routing to risk alert handler")
                 await self._handle_risk_alert(data)
             elif channel == "portfolio:updates":
+                logger.debug("Routing to portfolio update handler")
                 await self._handle_portfolio_update(data)
             elif channel == "system:status":
+                logger.debug("Routing to system status handler")
                 await self._handle_system_status(data)
             elif channel == "market:alerts":
+                logger.debug("Routing to market alert handler")
                 await self._handle_market_alert(data)
             elif channel.startswith("signals:"):
+                logger.debug(f"Routing to signal handler for channel: {channel}")
                 await self._handle_signal(data)
             elif channel == "screener:updates":
+                logger.debug("Routing to screener update handler")
                 await self._handle_screener_update(data)
             else:
                 logger.debug(f"Unhandled channel: {channel}")
+                logger.debug(
+                    "Available handlers: executions, execution_errors, alerts, risk, portfolio, system, market, signals, screener"
+                )
 
         except Exception as e:
             logger.error(f"Failed to handle message: {e}")
+            logger.debug(
+                f"Message handling error details: {type(e).__name__}: {str(e)}"
+            )
+            logger.debug(
+                f"Failed message channel: {message.get('channel')}, data preview: {str(message.get('data', ''))[:100]}"
+            )
 
     async def _handle_execution(self, data: Dict[str, Any]):
         """Handle trade execution notification."""
         try:
+            logger.debug("Processing execution notification")
             # Extract execution details
             symbol = data.get("symbol", "UNKNOWN")
             success = data.get("success", False)
             result = data.get("result", {})
 
+            logger.debug(
+                f"Execution details - Symbol: {symbol}, Success: {success}, Result keys: {list(result.keys()) if isinstance(result, dict) else 'N/A'}"
+            )
+
             if not success:
+                logger.debug(
+                    "Execution not successful, skipping (handled by error handler)"
+                )
                 return  # Failed executions are handled separately
 
             # Check rate limiting
-            if self._is_rate_limited(f"execution_{symbol}"):
+            rate_key = f"execution_{symbol}"
+            if self._is_rate_limited(rate_key):
+                logger.debug(f"Rate limited execution notification for {symbol}")
                 return
+            logger.debug(f"Rate limiting passed for execution {symbol}")
 
             # Extract trade details from result
             trade_data = {
@@ -271,13 +362,21 @@ class NotificationService:
     async def _handle_execution_error(self, data: Dict[str, Any]):
         """Handle trade execution error notification."""
         try:
+            logger.debug("Processing execution error notification")
             symbol = data.get("symbol", "UNKNOWN")
             error = data.get("error", "Unknown error")
             strategy = data.get("strategy", "Unknown")
 
+            logger.debug(
+                f"Execution error details - Symbol: {symbol}, Error: {error}, Strategy: {strategy}"
+            )
+
             # Check rate limiting
-            if self._is_rate_limited(f"exec_error_{symbol}"):
+            rate_key = f"exec_error_{symbol}"
+            if self._is_rate_limited(rate_key):
+                logger.debug(f"Rate limited execution error notification for {symbol}")
                 return
+            logger.debug(f"Rate limiting passed for execution error {symbol}")
 
             # Send critical alert
             title = f"❌ Trade Execution Failed: {symbol}"
@@ -300,13 +399,21 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_alert(self, data: Dict[str, Any]):
         """Handle general system alert."""
         try:
+            logger.debug("Processing system alert")
             alert_type = data.get("type", "unknown")
             severity = data.get("severity", "info")
             message = data.get("message", "System alert")
 
+            logger.debug(
+                f"Alert details - Type: {alert_type}, Severity: {severity}, Message preview: {message[:50]}..."
+            )
+
             # Check rate limiting
-            if self._is_rate_limited(f"alert_{alert_type}"):
+            rate_key = f"alert_{alert_type}"
+            if self._is_rate_limited(rate_key):
+                logger.debug(f"Rate limited alert notification for type: {alert_type}")
                 return
+            logger.debug(f"Rate limiting passed for alert type: {alert_type}")
 
             if (
                 not self.notification_manager
@@ -334,9 +441,15 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_risk_alert(self, data: Dict[str, Any]):
         """Handle risk management alert."""
         try:
+            logger.debug("Processing risk alert")
+            logger.debug(
+                f"Risk alert data keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
+            )
             # Check rate limiting
             if self._is_rate_limited("risk_alert"):
+                logger.debug("Rate limited risk alert notification")
                 return
+            logger.debug("Rate limiting passed for risk alert")
 
             if self.notification_manager:
                 # The NotificationManager expects specific risk event format
@@ -356,22 +469,43 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_portfolio_update(self, data: Dict[str, Any]):
         """Handle portfolio update notification."""
         try:
+            logger.debug("Processing portfolio update")
             # Only send portfolio summaries periodically (not for every update)
             update_type = data.get("type", "update")
+            logger.debug(f"Portfolio update type: {update_type}")
 
             if update_type == "daily_summary":
+                logger.debug("Processing daily portfolio summary")
                 if self.notification_manager:
                     await self.notification_manager.send_portfolio_summary(data)
                     logger.info("Sent portfolio summary notification")
+                else:
+                    logger.debug(
+                        "Notification manager not available for portfolio summary"
+                    )
             elif update_type == "significant_change":
                 # Send notification for significant changes
                 change_pct = data.get("change_percentage", 0)
+                logger.debug(f"Portfolio change percentage: {change_pct}")
                 if abs(change_pct) > 5:  # More than 5% change
+                    logger.debug(
+                        f"Significant portfolio change detected: {change_pct:.2f}%"
+                    )
                     if self.notification_manager:
                         await self.notification_manager.send_portfolio_summary(data)
                         logger.info(
                             f"Sent portfolio notification for {change_pct:.2f}% change"
                         )
+                    else:
+                        logger.debug(
+                            "Notification manager not available for significant change notification"
+                        )
+                else:
+                    logger.debug(
+                        f"Portfolio change not significant enough: {change_pct:.2f}%"
+                    )
+            else:
+                logger.debug(f"Portfolio update type '{update_type}' not handled")
 
         except Exception as e:
             logger.error(f"Failed to handle portfolio update: {e}")
@@ -379,14 +513,25 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_system_status(self, data: Dict[str, Any]):
         """Handle system status update."""
         try:
+            logger.debug("Processing system status update")
             status = data.get("status", "unknown")
             service = data.get("service", "unknown")
+            logger.debug(f"System status - Service: {service}, Status: {status}")
 
             # Only notify on status changes or errors
             if status in ["error", "degraded", "maintenance"]:
+                logger.debug(f"Status requires notification: {status}")
                 # Check rate limiting
-                if self._is_rate_limited(f"system_{service}"):
+                rate_key = f"system_{service}"
+                if self._is_rate_limited(rate_key):
+                    logger.debug(
+                        f"Rate limited system status notification for {service}"
+                    )
                     return
+                logger.debug(f"Rate limiting passed for system status {service}")
+            else:
+                logger.debug(f"Status '{status}' does not require notification")
+                return
 
                 if (
                     self.notification_manager
@@ -409,9 +554,15 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_market_alert(self, data: Dict[str, Any]):
         """Handle market condition alert."""
         try:
+            logger.debug("Processing market alert")
+            logger.debug(
+                f"Market alert data keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
+            )
             # Check rate limiting
             if self._is_rate_limited("market_alert"):
+                logger.debug("Rate limited market alert notification")
                 return
+            logger.debug("Rate limiting passed for market alert")
 
             if self.notification_manager and self.notification_manager.gotify_client:
                 title = f"Market Alert: {data.get('alert_type', 'UNKNOWN')}"
@@ -428,17 +579,27 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
     async def _handle_signal(self, data: Dict[str, Any]):
         """Handle trading signal notification."""
         try:
+            logger.debug("Processing trading signal")
             # Only notify for high-confidence signals
             confidence = data.get("confidence", 0)
-            if confidence < 0.8:  # Skip low confidence signals
-                return
-
             symbol = data.get("symbol", "UNKNOWN")
             signal_type = data.get("signal_type", "unknown")
 
-            # Check rate limiting
-            if self._is_rate_limited(f"signal_{symbol}"):
+            logger.debug(
+                f"Signal details - Symbol: {symbol}, Type: {signal_type}, Confidence: {confidence}"
+            )
+
+            if confidence < 0.8:  # Skip low confidence signals
+                logger.debug(f"Signal confidence too low ({confidence}), skipping")
                 return
+            logger.debug("Signal confidence sufficient for notification")
+
+            # Check rate limiting
+            rate_key = f"signal_{symbol}"
+            if self._is_rate_limited(rate_key):
+                logger.debug(f"Rate limited signal notification for {symbol}")
+                return
+            logger.debug(f"Rate limiting passed for signal {symbol}")
 
             title = f"📊 Trading Signal: {symbol}"
             message = f"""
@@ -460,15 +621,24 @@ Strategy: {data.get('strategy_name', 'Unknown')}
     async def _handle_screener_update(self, data: Dict[str, Any]):
         """Handle screener update notifications."""
         try:
+            logger.debug("Processing screener update")
             screener_type = data.get("screener_type", "unknown")
             stocks_data = data.get("data", [])
             timestamp = data.get("timestamp")
             count = data.get("count", len(stocks_data))
 
+            logger.debug(
+                f"Screener update - Type: {screener_type}, Count: {count}, Data length: {len(stocks_data)}"
+            )
+
             # Rate limiting check
             rate_key = f"screener_update_{screener_type}"
             if self._is_rate_limited(rate_key):
+                logger.debug(
+                    f"Rate limited screener update notification for {screener_type}"
+                )
                 return
+            logger.debug(f"Rate limiting passed for screener update {screener_type}")
 
             # Create notification message
             title = f"🔍 Screener Update: {screener_type.replace('_', ' ').title()}"
@@ -532,130 +702,229 @@ Strategy: {data.get('strategy_name', 'Unknown')}
 
         if last_sent:
             elapsed = (now - last_sent).total_seconds()
+            logger.debug(
+                f"Rate limit check for '{key}': elapsed={elapsed:.1f}s, cooldown={self._notification_cooldown}s"
+            )
             if elapsed < self._notification_cooldown:
+                logger.debug(
+                    f"Rate limiting '{key}' - {elapsed:.1f}s < {self._notification_cooldown}s"
+                )
                 return True
 
         self._last_notifications[key] = now
+        logger.debug(f"Rate limit passed for '{key}' - updating timestamp")
         return False
 
     async def _health_check_loop(self):
         """Periodic health check."""
+        logger.debug("Starting health check loop")
         while self._running:
             try:
+                logger.debug("Health check sleeping for 5 minutes...")
                 await asyncio.sleep(300)  # Check every 5 minutes
+
+                if not self._running:
+                    logger.debug("Service not running, exiting health check loop")
+                    break
+
+                logger.debug("Performing health check...")
 
                 # Check Redis connection
                 if self._redis:
+                    logger.debug("Testing Redis connection...")
                     await self._redis.ping()
+                    logger.debug("Redis health check passed")
+                else:
+                    logger.warning("Redis connection not available for health check")
 
                 # Check notification manager
                 if (
                     self.notification_manager
                     and self.notification_manager.gotify_client
                 ):
+                    logger.debug("Testing notification manager connection...")
                     await self.notification_manager.gotify_client.test_connection()
+                    logger.debug("Notification manager health check passed")
+                else:
+                    logger.warning(
+                        "Notification manager not available for health check"
+                    )
 
                 logger.debug("Health check passed")
 
             except Exception as e:
                 logger.error(f"Health check failed: {e}")
+                logger.debug(
+                    f"Health check error details: {type(e).__name__}: {str(e)}"
+                )
                 # Try to reconnect
                 try:
+                    logger.debug(
+                        "Attempting to reinitialize after health check failure..."
+                    )
                     await self.initialize()
+                    logger.debug(
+                        "Reinitialization after health check failure successful"
+                    )
                 except Exception as reconnect_error:
                     logger.error(f"Failed to reconnect: {reconnect_error}")
+                    logger.debug(
+                        f"Reconnection error details: {type(reconnect_error).__name__}: {str(reconnect_error)}"
+                    )
 
     async def _daily_summary_loop(self):
         """Send daily summary notifications."""
+        logger.debug("Starting daily summary loop")
         while self._running:
             try:
                 # Calculate time until next summary (e.g., 9 PM UTC)
                 now = datetime.now(timezone.utc)
                 target_hour = 21  # 9 PM UTC
+                logger.debug(f"Current time: {now}, Target hour: {target_hour}")
 
                 if now.hour >= target_hour:
                     # Already past today's summary time, wait for tomorrow
                     next_summary = now.replace(
                         hour=target_hour, minute=0, second=0, microsecond=0
                     ) + timedelta(days=1)
+                    logger.debug("Past today's summary time, scheduling for tomorrow")
                 else:
                     # Today's summary time hasn't passed yet
                     next_summary = now.replace(
                         hour=target_hour, minute=0, second=0, microsecond=0
                     )
+                    logger.debug("Today's summary time not reached yet")
 
                 wait_seconds = (next_summary - now).total_seconds()
+                logger.debug(
+                    f"Next summary at: {next_summary}, waiting {wait_seconds:.1f} seconds"
+                )
+
                 await asyncio.sleep(wait_seconds)
 
+                if not self._running:
+                    logger.debug("Service not running, exiting daily summary loop")
+                    break
+
+                logger.debug("Time for daily summary, attempting to send...")
                 # Send daily summary
                 if self.notification_manager:
+                    logger.debug("Sending daily summary via notification manager")
                     await self.notification_manager.send_daily_summary()
                     logger.info("Sent daily summary notification")
+                else:
+                    logger.warning(
+                        "Notification manager not available for daily summary"
+                    )
 
             except Exception as e:
                 logger.error(f"Failed to send daily summary: {e}")
+                logger.debug(
+                    f"Daily summary error details: {type(e).__name__}: {str(e)}"
+                )
+                logger.debug("Waiting 1 hour before retrying daily summary")
                 await asyncio.sleep(3600)  # Wait an hour before retrying
 
     async def shutdown(self):
         """Shutdown the notification service."""
         try:
             logger.info("Shutting down Notification Service...")
+            logger.debug("Starting shutdown process...")
             self._running = False
+            logger.debug(f"Service running state set to: {self._running}")
 
             # Cancel all tasks
-            for task in self._tasks:
+            logger.debug(f"Cancelling {len(self._tasks)} tasks...")
+            for i, task in enumerate(self._tasks):
+                logger.debug(
+                    f"Cancelling task {i + 1}/{len(self._tasks)}: {task.get_name() if hasattr(task, 'get_name') else 'unnamed'}"
+                )
                 task.cancel()
+            logger.debug("All tasks cancelled")
 
             # Wait for tasks to complete
             if self._tasks:
+                logger.debug("Waiting for tasks to complete...")
                 await asyncio.gather(*self._tasks, return_exceptions=True)
+                logger.debug("All tasks completed")
+            else:
+                logger.debug("No tasks to wait for")
 
             # Close pubsub
             if self._pubsub:
+                logger.debug("Closing Redis PubSub...")
                 await self._pubsub.unsubscribe()
                 await self._pubsub.close()
+                logger.debug("PubSub closed")
+            else:
+                logger.debug("No PubSub to close")
 
             # Close Redis connection
             if self._redis:
+                logger.debug("Closing Redis connection...")
                 await self._redis.close()
+                logger.debug("Redis connection closed")
+            else:
+                logger.debug("No Redis connection to close")
 
             # Shutdown notification manager
             if self.notification_manager:
+                logger.debug("Shutting down notification manager...")
                 await self.notification_manager.shutdown()
+                logger.debug("Notification manager shutdown complete")
+            else:
+                logger.debug("No notification manager to shutdown")
 
             logger.info("Notification Service shutdown complete")
+            logger.debug("All shutdown steps completed successfully")
 
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
+            logger.debug(f"Shutdown error details: {type(e).__name__}: {str(e)}")
 
 
 async def main():
     """Main entry point for the notification service."""
+    logger.debug("Starting main function")
     service = NotificationService()
+    logger.debug("NotificationService instance created")
 
     # Setup signal handlers
     def signal_handler(sig, frame):
         logger.info(f"Received signal {sig}")
+        logger.debug(f"Signal handler called with signal: {sig}, frame: {frame}")
         asyncio.create_task(service.shutdown())
 
+    logger.debug("Setting up signal handlers...")
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+    logger.debug("Signal handlers configured for SIGINT and SIGTERM")
 
     try:
+        logger.debug("Attempting to initialize service...")
         # Initialize service
         await service.initialize()
+        logger.debug("Service initialization completed")
 
+        logger.debug("Attempting to start service...")
         # Start service
         await service.start()
+        logger.debug("Service start completed")
 
     except KeyboardInterrupt:
         logger.info("Received keyboard interrupt")
+        logger.debug("KeyboardInterrupt caught in main")
     except Exception as e:
         logger.error(f"Service error: {e}")
+        logger.debug(f"Main function error details: {type(e).__name__}: {str(e)}")
     finally:
+        logger.debug("Entering finally block - ensuring service shutdown")
         await service.shutdown()
+        logger.debug("Main function completed")
 
 
 if __name__ == "__main__":
+    logger.debug("Script started - running main function")
     # Run the service
     asyncio.run(main())
+    logger.debug("Script completed")

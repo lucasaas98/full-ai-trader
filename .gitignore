@@ -63,6 +63,7 @@ desktop.ini
 logs/
 data/logs/*.log*
 data/logs/*.txt
+all_logs/
 
 # Data files
 data/parquet/*.parquet

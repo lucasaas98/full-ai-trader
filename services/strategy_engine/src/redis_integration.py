@@ -1312,6 +1312,33 @@ class RedisStrategyEngine:
             self.logger.error(f"Error getting signal history for {symbol}: {e}")
             return []
 
+    async def get_active_tickers(self) -> List[str]:
+        """
+        Get active tickers from Redis (those currently being tracked by the screener).
+
+        Returns:
+            List of active ticker symbols from the screener
+        """
+        try:
+            if not self.redis:
+                self.logger.warning("Redis not available for getting active tickers")
+                return []
+
+            # Get active tickers from Redis set (same key used by data collector)
+            tickers = self.redis.smembers("active_tickers")
+            if hasattr(tickers, "__await__"):
+                tickers = await tickers
+            ticker_list = list(tickers) if tickers else []
+
+            self.logger.debug(
+                f"Retrieved {len(ticker_list)} active tickers from Redis: {ticker_list}"
+            )
+            return ticker_list
+
+        except Exception as e:
+            self.logger.error(f"Error getting active tickers from Redis: {e}")
+            return []
+
     async def get_system_metrics(self) -> Dict[str, Any]:
         """Get comprehensive system metrics."""
         try:

@@ -59,6 +59,7 @@ class RedisKeys:
     SCREENER_CACHE_PREFIX = "screener_cache:"
     LAST_UPDATE_PREFIX = "last_update:"
     DATA_STATS_PREFIX = "data_stats:"
+    TICKER_LAST_SEEN_PREFIX = "ticker_last_seen:"
 
 
 class RedisClient:
@@ -134,9 +135,12 @@ class RedisClient:
             )
 
             # Also update the active tickers list
-            sadd_result = self.redis.sadd(RedisKeys.TICKER_LIST, *tickers)
-            if hasattr(sadd_result, "__await__"):
-                await sadd_result
+            result = self.redis.sadd(RedisKeys.TICKER_LIST, *tickers)
+            if hasattr(result, "__await__"):
+                await result  # type: ignore
+
+            # Update timestamps for these tickers
+            await self.batch_update_ticker_timestamps(tickers)
 
             logger.info(f"Published {len(tickers)} new tickers to Redis")
 
@@ -366,8 +370,8 @@ class RedisClient:
         try:
             tickers = self.redis.smembers(RedisKeys.TICKER_LIST)
             if hasattr(tickers, "__await__"):
-                tickers = await tickers
-            return list(tickers) if tickers else []
+                tickers = await tickers  # type: ignore
+            return list(tickers) if tickers else []  # type: ignore
 
         except Exception as e:
             logger.error(f"Failed to get active tickers: {e}")
@@ -385,9 +389,9 @@ class RedisClient:
 
         try:
             # Remove from active tickers set
-            srem_result = self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
-            if hasattr(srem_result, "__await__"):
-                await srem_result
+            result = self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
+            if hasattr(result, "__await__"):
+                await result  # type: ignore
 
             # Clear cached price data
             price_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker.upper()}"
@@ -960,6 +964,217 @@ class RedisClient:
         except Exception as e:
             logger.error(f"Failed to increment rate limit counter for {service}: {e}")
             return 0
+
+    async def update_ticker_last_seen(
+        self, ticker: str, timestamp: Optional[datetime] = None
+    ) -> None:
+        """
+        Update the last seen timestamp for a ticker from the screener.
+
+        Args:
+            ticker: Ticker symbol
+            timestamp: Timestamp when ticker was last seen (defaults to now)
+        """
+        if not self.redis:
+            return
+
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+
+        key = f"{RedisKeys.TICKER_LAST_SEEN_PREFIX}{ticker.upper()}"
+
+        try:
+            await self.redis.set(
+                key, timestamp.isoformat(), ex=7200
+            )  # Expire after 2 hours
+            logger.debug(f"Updated last seen timestamp for {ticker}")
+        except Exception as e:
+            logger.error(f"Failed to update last seen timestamp for {ticker}: {e}")
+
+    async def get_ticker_last_seen(self, ticker: str) -> Optional[datetime]:
+        """
+        Get the last seen timestamp for a ticker.
+
+        Args:
+            ticker: Ticker symbol
+
+        Returns:
+            Last seen timestamp or None if not found
+        """
+        if not self.redis:
+            return None
+
+        key = f"{RedisKeys.TICKER_LAST_SEEN_PREFIX}{ticker.upper()}"
+
+        try:
+            timestamp_str = await self.redis.get(key)
+            if timestamp_str:
+                return datetime.fromisoformat(timestamp_str)
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get last seen timestamp for {ticker}: {e}")
+            return None
+
+    async def get_expired_tickers(self, expiry_hours: float = 1.0) -> List[str]:
+        """
+        Get tickers that haven't been seen from the screener within the expiry period.
+
+        Args:
+            expiry_hours: Hours after which a ticker is considered expired
+
+        Returns:
+            List of expired ticker symbols
+        """
+        if not self.redis:
+            return []
+
+        try:
+            # Get all active tickers
+            active_tickers = await self.get_active_tickers()
+            if not active_tickers:
+                return []
+
+            expired_tickers = []
+            current_time = datetime.now(timezone.utc)
+
+            for ticker in active_tickers:
+                last_seen = await self.get_ticker_last_seen(ticker)
+                if last_seen is None:
+                    # If no timestamp exists, consider it expired
+                    expired_tickers.append(ticker)
+                    logger.debug(
+                        f"Ticker {ticker} has no last seen timestamp - marking as expired"
+                    )
+                else:
+                    # Check if ticker has expired
+                    time_since_seen = current_time - last_seen
+                    if time_since_seen.total_seconds() > (expiry_hours * 3600):
+                        expired_tickers.append(ticker)
+                        logger.debug(
+                            f"Ticker {ticker} expired - last seen {time_since_seen} ago"
+                        )
+
+            if expired_tickers:
+                logger.info(
+                    f"Found {len(expired_tickers)} expired tickers: {expired_tickers}"
+                )
+
+            return expired_tickers
+
+        except Exception as e:
+            logger.error(f"Failed to get expired tickers: {e}")
+            return []
+
+    async def cleanup_expired_tickers(self, expiry_hours: float = 1.0) -> List[str]:
+        """
+        Remove tickers that haven't been seen from the screener within the expiry period.
+
+        Args:
+            expiry_hours: Hours after which a ticker should be removed
+
+        Returns:
+            List of removed ticker symbols
+        """
+        if not self.redis:
+            return []
+
+        try:
+            expired_tickers = await self.get_expired_tickers(expiry_hours)
+            if not expired_tickers:
+                return []
+
+            removed_tickers = []
+            for ticker in expired_tickers:
+                try:
+                    # Remove from active tickers set
+                    result = self.redis.srem(RedisKeys.TICKER_LIST, ticker.upper())
+                    if hasattr(result, "__await__"):
+                        await result  # type: ignore
+
+                    # Clean up associated data
+                    await self._cleanup_ticker_data(ticker)
+                    removed_tickers.append(ticker)
+
+                except Exception as e:
+                    logger.error(f"Failed to remove expired ticker {ticker}: {e}")
+
+            if removed_tickers:
+                logger.info(
+                    f"Cleaned up {len(removed_tickers)} expired tickers: {removed_tickers}"
+                )
+
+            return removed_tickers
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup expired tickers: {e}")
+            return []
+
+    async def _cleanup_ticker_data(self, ticker: str):
+        """
+        Clean up all data associated with a ticker.
+
+        Args:
+            ticker: Ticker symbol to clean up
+        """
+        if not self.redis:
+            return
+
+        try:
+            ticker = ticker.upper()
+
+            # Clear cached price data
+            price_key = f"{RedisKeys.PRICE_CACHE_PREFIX}{ticker}"
+            await self.redis.delete(price_key)
+
+            # Clear last seen timestamp
+            last_seen_key = f"{RedisKeys.TICKER_LAST_SEEN_PREFIX}{ticker}"
+            await self.redis.delete(last_seen_key)
+
+            # Clear cached market data
+            pattern = f"market_data:{ticker}:*"
+            keys = await self.redis.keys(pattern)
+            if keys:
+                await self.redis.delete(*keys)
+
+            # Clear any other cached data for this ticker
+            screener_key = f"{RedisKeys.SCREENER_CACHE_PREFIX}{ticker}"
+            await self.redis.delete(screener_key)
+
+            logger.debug(f"Cleaned up data for ticker {ticker}")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup data for ticker {ticker}: {e}")
+
+    async def batch_update_ticker_timestamps(
+        self, tickers: List[str], timestamp: Optional[datetime] = None
+    ) -> None:
+        """
+        Update last seen timestamps for multiple tickers efficiently.
+
+        Args:
+            tickers: List of ticker symbols
+            timestamp: Timestamp to use for all tickers (defaults to now)
+        """
+        if not self.redis or not tickers:
+            return
+
+        if timestamp is None:
+            timestamp = datetime.now(timezone.utc)
+
+        try:
+            # Use pipeline for efficient batch operations
+            pipe = self.redis.pipeline()
+            timestamp_str = timestamp.isoformat()
+
+            for ticker in tickers:
+                key = f"{RedisKeys.TICKER_LAST_SEEN_PREFIX}{ticker.upper()}"
+                pipe.set(key, timestamp_str, ex=7200)  # Expire after 2 hours
+
+            await pipe.execute()
+            logger.debug(f"Updated timestamps for {len(tickers)} tickers")
+
+        except Exception as e:
+            logger.error(f"Failed to batch update ticker timestamps: {e}")
 
 
 # Utility functions

@@ -1,3 +1,4 @@
+SHELL := /bin/bash
 # Makefile for Automated Trading System
 # Provides commands for building, testing, and managing the trading system
 
@@ -83,11 +84,7 @@ status: ## Show service status
 	@echo "=============================="
 	@docker-compose ps
 
-logs: ## Show logs for all services
-	@docker-compose logs -f
 
-logs-service: ## Show logs for specific service (usage: make logs-service SERVICE=data_collector)
-	@docker-compose logs -f $(SERVICE)
 
 health: ## Check health of all services
 	@echo "Checking service health..."
@@ -399,6 +396,29 @@ version: ## Show version information
 	@echo "Docker Compose: $$(docker-compose --version)"
 	@echo "Docker: $$(docker --version)"
 	@echo "Python: $$(python3 --version)"
+
+logs-service: ## Show logs for specific service (usage: make logs-service SERVICE=data_collector)
+	@echo "Getting logs for $(SERVICE)"
+	@docker compose logs $(SERVICE) > all_logs/$(SERVICE).log
+	@echo "✓ Logs for $(SERVICE) retrieved"
+
+logs:
+	@echo "Getting the logs for the whole system"
+	@echo "Getting data_collector logs"
+	@docker compose logs data_collector > all_logs/data_collector.log
+	@echo "Getting notification_service logs"
+	@docker compose logs notification_service > all_logs/notification_service.log
+	@echo "Getting risk_manager logs"
+	@docker compose logs risk_manager > all_logs/risk_manager.log
+	@echo "Getting maintenance_service logs"
+	@docker compose logs maintenance_service > all_logs/maintenance_service.log
+	@echo "Getting export_service logs"
+	@docker compose logs export_service > all_logs/export_service.log
+	@echo "Getting strategy_engine logs"
+	@docker compose logs strategy_engine > all_logs/strategy_engine.log
+	@echo "Getting trade_executor logs"
+	@docker compose logs trade_executor > all_logs/trade_executor.log
+	@echo "✓ Logs retrieved"
 
 # =============================================================================
 # QUICK COMMANDS

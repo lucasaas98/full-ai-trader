@@ -56,6 +56,8 @@ class DataCollectorHTTPServer:
         # Add data collection endpoints
         app.router.add_post("/market-data/update", self.update_market_data)
         app.router.add_post("/finviz/scan", self.trigger_finviz_scan)
+        app.router.add_post("/tickers/cleanup", self.cleanup_expired_tickers)
+        app.router.add_get("/tickers/statistics", self.get_ticker_statistics)
 
         # Add data access endpoints for other services
         app.router.add_get("/market-data/historical/{symbol}", self.get_historical_data)
@@ -591,6 +593,85 @@ class DataCollectorHTTPServer:
 
         except Exception as e:
             self.logger.error(f"Error triggering FinViz scan: {e}")
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+    async def cleanup_expired_tickers(self, request: web.Request) -> web.Response:
+        """
+        Cleanup tickers that haven't been seen from screener for specified hours.
+
+        Query parameters:
+        - hours: Number of hours after which to expire tickers (default: 1.0)
+        """
+        try:
+            # Get expiry hours from query parameters
+            expiry_hours = float(request.query.get("hours", 1.0))
+
+            if expiry_hours < 0.1 or expiry_hours > 24:
+                return web.json_response(
+                    {
+                        "status": "error",
+                        "message": "hours parameter must be between 0.1 and 24",
+                    },
+                    status=400,
+                )
+
+            # Trigger the cleanup
+            if hasattr(self.data_service, "cleanup_expired_tickers"):
+                removed_tickers = await self.data_service.cleanup_expired_tickers(
+                    expiry_hours
+                )
+
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "message": "Ticker cleanup completed",
+                        "removed_tickers": removed_tickers,
+                        "removed_count": len(removed_tickers),
+                        "expiry_hours": expiry_hours,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+            else:
+                return web.json_response(
+                    {"status": "error", "message": "Ticker cleanup not available"},
+                    status=503,
+                )
+
+        except ValueError:
+            return web.json_response(
+                {
+                    "status": "error",
+                    "message": "Invalid hours parameter - must be a number",
+                },
+                status=400,
+            )
+        except Exception as e:
+            self.logger.error(f"Error during ticker cleanup: {e}")
+            return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+    async def get_ticker_statistics(self, request: web.Request) -> web.Response:
+        """
+        Get ticker management statistics.
+        """
+        try:
+            if hasattr(self.data_service, "get_ticker_statistics"):
+                stats = await self.data_service.get_ticker_statistics()
+
+                return web.json_response(
+                    {
+                        "status": "success",
+                        "data": stats,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+            else:
+                return web.json_response(
+                    {"status": "error", "message": "Ticker statistics not available"},
+                    status=503,
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error getting ticker statistics: {e}")
             return web.json_response({"status": "error", "message": str(e)}, status=500)
 
     async def get_historical_data(self, request: web.Request) -> web.Response:

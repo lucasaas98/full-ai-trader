@@ -67,7 +67,7 @@ def setup_logging():
         handlers.append(logging.FileHandler(log_config.file_path))
 
     logging.basicConfig(
-        level=getattr(logging, log_config.level),
+        level=logging.DEBUG,
         format=log_config.format,
         handlers=handlers,
     )
@@ -95,15 +95,21 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Risk Management Service...")
+    logger.debug("Initializing application components...")
 
     try:
         # Initialize configuration
         config = get_config()
+        logger.debug(
+            f"Configuration loaded: risk.max_position_size={config.risk.max_position_size}"
+        )
 
         # Initialize database manager
         global database_manager
         database_manager = RiskDatabaseManager()
+        logger.debug("Initializing database manager...")
         await database_manager.initialize()
+        logger.debug("Database manager initialized successfully")
 
         # Initialize risk limits
         risk_limits = RiskLimits(
@@ -118,18 +124,29 @@ async def lifespan(app: FastAPI):
 
         # Initialize service components
         global risk_manager, position_sizer, portfolio_monitor, alert_manager, alpaca_client
+        logger.debug("Initializing core service components...")
         risk_manager = RiskManager()
+        logger.debug("Risk manager initialized")
         position_sizer = PositionSizer(risk_limits)
+        logger.debug("Position sizer initialized")
         portfolio_monitor = PortfolioMonitor(risk_limits)
+        logger.debug("Portfolio monitor initialized")
         alert_manager = AlertManager()
+        logger.debug("Alert manager initialized")
 
         # Initialize Alpaca client
+        logger.debug("Initializing Alpaca client...")
         alpaca_client = AlpacaRiskClient()
+        logger.debug("Alpaca client initialized")
 
         # Start background tasks
+        logger.debug("Starting background tasks...")
         asyncio.create_task(alert_manager.process_alert_queue())
+        logger.debug("Alert processing task started")
         asyncio.create_task(periodic_portfolio_monitoring())
+        logger.debug("Portfolio monitoring task started")
         asyncio.create_task(daily_cleanup_task())
+        logger.debug("Daily cleanup task started")
 
         logger.info("Risk Management Service started successfully")
 
@@ -207,6 +224,7 @@ class RiskOverrideRequest(BaseModel):
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
+    logger.debug("Health check requested")
     try:
         # Check database connection
         db_healthy = (
@@ -243,12 +261,18 @@ async def health_check():
 @app.post("/validate-trade", response_model=TradeValidationResponse)
 async def validate_trade(request: TradeValidationRequest):
     """Validate a trade request against risk parameters."""
+    logger.debug(
+        f"Trade validation request for {request.order_request.symbol}: {request.order_request.quantity} shares"
+    )
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         is_valid, filters = await risk_manager.validate_trade_request(
             request.order_request, request.portfolio, request.signal
+        )
+        logger.debug(
+            f"Trade validation result for {request.order_request.symbol}: valid={is_valid}, filters={len(filters)}"
         )
 
         # Convert filters to dict format
@@ -283,6 +307,9 @@ async def validate_trade(request: TradeValidationRequest):
 @app.post("/calculate-position-size", response_model=PositionSizing)
 async def calculate_position_size(request: PositionSizingRequest):
     """Calculate optimal position size for a trade."""
+    logger.debug(
+        f"Position sizing request for {request.symbol} at ${request.current_price}"
+    )
     try:
         if not position_sizer:
             raise HTTPException(
@@ -294,6 +321,9 @@ async def calculate_position_size(request: PositionSizingRequest):
             current_price=request.current_price,
             portfolio=request.portfolio,
             signal=request.signal,
+        )
+        logger.debug(
+            f"Position sizing result for {request.symbol}: {sizing.recommended_shares} shares (${sizing.recommended_value})"
         )
 
         return sizing
@@ -307,6 +337,9 @@ async def calculate_position_size(request: PositionSizingRequest):
 @app.get("/portfolio-metrics", response_model=PortfolioMetrics)
 async def get_portfolio_metrics(portfolio: PortfolioState):
     """Get current portfolio risk metrics."""
+    logger.debug(
+        f"Portfolio metrics request for portfolio with {len(portfolio.positions)} positions"
+    )
     try:
         if not portfolio_monitor:
             raise HTTPException(
@@ -314,10 +347,14 @@ async def get_portfolio_metrics(portfolio: PortfolioState):
             )
 
         metrics = await portfolio_monitor.calculate_detailed_metrics(portfolio)
+        logger.debug(
+            f"Portfolio metrics calculated: exposure=${metrics.total_exposure}, volatility={metrics.volatility}"
+        )
 
         # Store metrics in database
         if database_manager:
             await database_manager.store_portfolio_metrics(metrics)
+            logger.debug("Portfolio metrics stored in database")
 
         return metrics
 
@@ -331,11 +368,15 @@ async def monitor_portfolio(
     portfolio: PortfolioState, background_tasks: BackgroundTasks
 ):
     """Monitor portfolio and generate alerts."""
+    logger.debug(
+        f"Portfolio monitoring request for portfolio value ${portfolio.total_equity}"
+    )
     try:
         if not portfolio_monitor or not alert_manager:
             raise HTTPException(status_code=503, detail="Services not initialized")
 
         metrics, alerts = await portfolio_monitor.monitor_portfolio(portfolio)
+        logger.debug(f"Portfolio monitoring completed: {len(alerts)} alerts generated")
 
         # Store portfolio snapshot
         if database_manager:
@@ -347,10 +388,12 @@ async def monitor_portfolio(
         # Send alerts
         if alerts:
             background_tasks.add_task(alert_manager.send_bulk_alerts, alerts)
+            logger.debug(f"Queued {len(alerts)} alerts for sending")
 
         # Update risk manager state
         if risk_manager:
             risk_manager.set_portfolio_snapshot(portfolio)
+            logger.debug("Risk manager portfolio snapshot updated")
 
         return {
             "status": "monitoring_complete",
@@ -370,16 +413,21 @@ async def update_trailing_stops(
     portfolio: PortfolioState, market_prices: Dict[str, Decimal]
 ):
     """Update trailing stops for all positions."""
+    logger.debug(
+        f"Updating trailing stops for {len(portfolio.positions)} positions with {len(market_prices)} price updates"
+    )
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         events = await risk_manager.update_trailing_stops(portfolio, market_prices)
+        logger.debug(f"Trailing stops update generated {len(events)} events")
 
         # Store events in database
         if database_manager and events:
             for event in events:
                 await database_manager.store_risk_event(event)
+            logger.debug(f"Stored {len(events)} risk events in database")
 
         # Send alerts for triggered stops
         if events and alert_manager:
@@ -412,6 +460,9 @@ async def update_trailing_stops(
 @app.get("/stop-loss-levels/{symbol}")
 async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
     """Calculate stop loss and take profit levels for a position."""
+    logger.debug(
+        f"Stop loss calculation request for {symbol} at ${entry_price} ({side})"
+    )
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
@@ -446,11 +497,13 @@ async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
 @app.post("/emergency-stop")
 async def activate_emergency_stop(reason: str):
     """Activate emergency stop for all trading."""
+    logger.debug(f"Emergency stop activation requested: {reason}")
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         risk_manager.activate_emergency_stop(reason)
+        logger.debug("Emergency stop activated in risk manager")
 
         # Create emergency event
         event = RiskEvent(
@@ -486,11 +539,13 @@ async def activate_emergency_stop(reason: str):
 @app.post("/deactivate-emergency-stop")
 async def deactivate_emergency_stop(authorized_by: str):
     """Deactivate emergency stop (requires authorization)."""
+    logger.debug(f"Emergency stop deactivation requested by {authorized_by}")
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
 
         risk_manager.deactivate_emergency_stop()
+        logger.debug("Emergency stop deactivated in risk manager")
 
         logger.warning(f"Emergency stop deactivated by {authorized_by}")
 
@@ -516,6 +571,9 @@ async def get_risk_events(
     limit: int = 100,
 ):
     """Get risk events with filtering."""
+    logger.debug(
+        f"Risk events query: start={start_date}, end={end_date}, type={event_type}, severity={severity}, symbol={symbol}"
+    )
     try:
         if not database_manager:
             raise HTTPException(
@@ -545,6 +603,7 @@ async def get_risk_events(
 @app.get("/risk-statistics")
 async def get_risk_statistics(days: int = 30):
     """Get risk statistics for the specified period."""
+    logger.debug(f"Risk statistics request for {days} days")
     try:
         if not database_manager:
             raise HTTPException(
@@ -563,6 +622,7 @@ async def get_risk_statistics(days: int = 30):
 @app.get("/daily-report")
 async def get_daily_report(date: Optional[str] = None):
     """Generate or retrieve daily risk report."""
+    logger.debug(f"Daily report request for date: {date}")
     try:
         if not portfolio_monitor or not database_manager:
             raise HTTPException(status_code=503, detail="Services not initialized")
@@ -657,6 +717,7 @@ async def get_daily_report(date: Optional[str] = None):
 @app.get("/alerts")
 async def get_alerts(acknowledged: bool = False, limit: int = 50):
     """Get risk alerts."""
+    logger.debug(f"Alerts request: acknowledged={acknowledged}, limit={limit}")
     try:
         if not database_manager:
             raise HTTPException(
@@ -679,6 +740,7 @@ async def get_alerts(acknowledged: bool = False, limit: int = 50):
 @app.post("/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: str, acknowledged_by: str):
     """Acknowledge a risk alert."""
+    logger.debug(f"Alert acknowledgment request: {alert_id} by {acknowledged_by}")
     try:
         if not database_manager:
             raise HTTPException(
@@ -712,6 +774,7 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str):
 @app.get("/risk-limits")
 async def get_risk_limits():
     """Get current risk limits configuration."""
+    logger.debug("Risk limits configuration request")
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
@@ -806,6 +869,7 @@ async def update_prometheus_metrics():
 @app.put("/risk-limits")
 async def update_risk_limits(limits: Dict):
     """Update risk limits configuration."""
+    logger.debug(f"Risk limits update request: {limits}")
     try:
         if not risk_manager:
             raise HTTPException(status_code=503, detail="Risk manager not initialized")
@@ -818,6 +882,7 @@ async def update_risk_limits(limits: Dict):
                 else:
                     setattr(risk_manager.risk_limits, key, value)
 
+        logger.debug(f"Risk limits updated in memory: {limits}")
         logger.info(f"Risk limits updated: {limits}")
 
         return {
@@ -856,6 +921,7 @@ async def get_metrics():
 @app.post("/test-notifications")
 async def test_notifications():
     """Test all notification channels."""
+    logger.debug("Notification test request")
     try:
         if not alert_manager:
             raise HTTPException(status_code=503, detail="Alert manager not initialized")
@@ -875,6 +941,7 @@ async def test_notifications():
 @app.get("/system-status")
 async def get_system_status():
     """Get comprehensive system status."""
+    logger.debug("System status request")
     try:
         status = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -916,33 +983,42 @@ async def get_system_status():
 # Background tasks
 async def periodic_portfolio_monitoring():
     """Periodic portfolio monitoring task."""
+    logger.debug("Starting periodic portfolio monitoring task")
     while True:
         try:
             await asyncio.sleep(300)  # Check every 5 minutes
+            logger.debug("Executing periodic portfolio monitoring cycle")
 
             # Fetch real portfolio data from Alpaca and store it
             await sync_portfolio_data()
 
         except Exception as e:
             logger.error(f"Error in periodic monitoring: {e}")
+            logger.debug("Retrying periodic monitoring in 5 minutes")
             await asyncio.sleep(300)
 
 
 async def sync_portfolio_data():
     """Fetch portfolio data from Alpaca and store in database."""
+    logger.debug("Starting portfolio data sync from Alpaca")
     try:
         if not alpaca_client:
             logger.warning("Alpaca client not available for portfolio sync")
             return False
 
         # Get current portfolio state from Alpaca
+        logger.debug("Fetching portfolio state from Alpaca")
         portfolio = await alpaca_client.get_portfolio_state(force_refresh=True)
         if not portfolio:
             logger.error("Failed to fetch portfolio data from Alpaca")
             return False
+        logger.debug(
+            f"Portfolio data received: ${portfolio.total_equity} equity, {len(portfolio.positions)} positions"
+        )
 
         # Store portfolio snapshot in database
         if database_manager:
+            logger.debug("Storing portfolio snapshot in database")
             await database_manager.store_portfolio_snapshot(portfolio)
             logger.info(
                 f"Portfolio snapshot stored: ${portfolio.total_equity} equity, {len(portfolio.positions)} positions"
@@ -950,6 +1026,7 @@ async def sync_portfolio_data():
 
         # Calculate and store metrics if we have a portfolio monitor
         if portfolio_monitor:
+            logger.debug("Calculating detailed portfolio metrics")
             metrics = await portfolio_monitor.calculate_detailed_metrics(portfolio)
             if database_manager:
                 await database_manager.store_portfolio_metrics(metrics)
@@ -965,6 +1042,7 @@ async def sync_portfolio_data():
 @app.post("/sync-portfolio")
 async def sync_portfolio_endpoint():
     """Endpoint to manually trigger portfolio data sync from Alpaca."""
+    logger.debug("Manual portfolio sync requested")
     try:
         success = await sync_portfolio_data()
         if success:
@@ -983,6 +1061,7 @@ async def sync_portfolio_endpoint():
 
 async def daily_cleanup_task():
     """Daily cleanup task."""
+    logger.debug("Starting daily cleanup task")
     while True:
         try:
             # Wait until next day
@@ -993,21 +1072,26 @@ async def daily_cleanup_task():
             wait_seconds = (next_day - now).total_seconds()
 
             await asyncio.sleep(wait_seconds)
+            logger.debug("Executing daily cleanup cycle")
 
             # Reset daily counters
             if risk_manager:
                 risk_manager.reset_daily_counters()
+                logger.debug("Risk manager daily counters reset")
 
             if portfolio_monitor:
                 portfolio_monitor.reset_monitoring_state()
+                logger.debug("Portfolio monitor state reset")
 
             # Cleanup old data
             if database_manager:
+                logger.debug("Starting database cleanup")
                 deleted_count = await database_manager.cleanup_old_data()
                 logger.info(f"Daily cleanup completed: {deleted_count} records deleted")
 
         except Exception as e:
             logger.error(f"Error in daily cleanup: {e}")
+            logger.debug("Retrying daily cleanup in 1 hour")
             await asyncio.sleep(3600)  # Retry in 1 hour
 
 
@@ -1015,6 +1099,9 @@ async def _generate_trade_recommendations(
     request: TradeValidationRequest, filters
 ) -> Dict:
     """Generate recommendations for fixing trade validation issues."""
+    logger.debug(
+        f"Generating trade recommendations for {len([f for f in filters if not f.passed])} failed filters"
+    )
     recommendations = {}
 
     failed_filters = [f for f in filters if not f.passed]
@@ -1056,6 +1143,9 @@ async def _generate_trade_recommendations(
 def signal_handler(signum, frame):
     """Handle shutdown signals."""
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    logger.debug(
+        "Signal handler triggered, cleanup will be managed by lifespan context"
+    )
     # The lifespan context manager will handle cleanup
 
 
@@ -1066,26 +1156,33 @@ class RiskManagerApp:
         """Initialize the Risk Manager application."""
         self.app = app
         self._initialized = False
+        logger.debug("RiskManagerApp instance created")
 
     async def initialize(self):
         """Initialize the application."""
+        logger.debug("Initializing RiskManagerApp...")
         if not self._initialized:
             # Initialize database if needed
             global database_manager
             if database_manager is None:
+                logger.debug("Creating database manager for app wrapper")
                 database_manager = RiskDatabaseManager()
                 await database_manager.initialize()
             self._initialized = True
+            logger.debug("RiskManagerApp initialized successfully")
 
     async def start(self):
         """Start the Risk Manager service."""
+        logger.debug("Starting RiskManagerApp...")
         await self.initialize()
 
     async def stop(self):
         """Stop the Risk Manager service."""
+        logger.debug("Stopping RiskManagerApp...")
         if database_manager:
             await database_manager.close()
         self._initialized = False
+        logger.debug("RiskManagerApp stopped")
 
     def get_app(self):
         """Get the FastAPI application instance."""
@@ -1099,11 +1196,13 @@ if __name__ == "__main__":
 
     # Get configuration
     config = get_config()
+    logger.info("Starting Risk Manager service from main...")
 
     # Run the application
     import os
 
     port = int(os.environ.get("SERVICE_PORT", 9103))
+    logger.info(f"Starting Risk Manager service on port {port}")
     uvicorn.run(
         "src.main:app",
         host="0.0.0.0",
