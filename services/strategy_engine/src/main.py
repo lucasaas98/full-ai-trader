@@ -25,14 +25,20 @@ from pydantic import BaseModel, Field
 # Add shared module to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
 
-from shared.models import FinVizData  # noqa: E402
+from shared.clients.data_collector_client import DataCollectorClient  # noqa: E402
+from shared.models import FinVizData, TimeFrame  # noqa: E402
 
 from .backtesting_engine import (  # noqa: E402
     BacktestConfig,
     BacktestingEngine,
     BacktestMode,
 )
-from .base_strategy import BaseStrategy, StrategyConfig, StrategyMode  # noqa: E402
+from .base_strategy import (  # noqa: E402
+    BaseStrategy,
+    StrategyConfig,
+    StrategyMode,
+    TimeFrameMapper,
+)
 from .fundamental_analysis import (  # noqa: E402
     FundamentalAnalysisEngine,
     FundamentalStrategy,
@@ -68,6 +74,16 @@ class StrategyCreateRequest(BaseModel):
     symbols: List[str] = Field(..., description="Symbols to trade")
     parameters: Dict[str, Any] = Field(
         default_factory=dict, description="Strategy parameters"
+    )
+    # Phase 3: Enhanced Strategy Configuration Support
+    primary_timeframe: Optional[str] = Field(
+        None, description="Primary timeframe for the strategy (e.g., '1h', '1d')"
+    )
+    additional_timeframes: Optional[List[str]] = Field(
+        None, description="Additional timeframes for multi-timeframe analysis"
+    )
+    custom_timeframes: Optional[List[str]] = Field(
+        None, description="Custom timeframes list (overrides mode-based defaults)"
     )
 
 
@@ -124,6 +140,9 @@ class StrategyEngineService:
         self.backtesting_engine: Optional[BacktestingEngine] = None
         self.regime_manager: Optional[RegimeAwareStrategyManager] = None
 
+        # Data collector client for market data
+        self.data_collector_client: Optional[DataCollectorClient] = None
+
         # Analysis engines
         self.technical_engine = TechnicalAnalysisEngine()
         self.fundamental_engine = FundamentalAnalysisEngine()
@@ -157,6 +176,15 @@ class StrategyEngineService:
         try:
             self.logger.info("Initializing Strategy Engine Service")
             self.logger.debug(f"Service configuration: {self.config}")
+
+            # Initialize data collector client
+            data_collector_url = os.getenv(
+                "DATA_COLLECTOR_URL", "http://data-collector:8003"
+            )
+            self.data_collector_client = DataCollectorClient(
+                base_url=data_collector_url
+            )
+            self.logger.info(f"Initialized data collector client: {data_collector_url}")
 
             # Initialize Redis integration
             if self.config["enable_real_time"]:
@@ -214,6 +242,30 @@ class StrategyEngineService:
                 self.logger.error(f"Invalid trading mode: {request.mode}")
                 raise ValueError(f"Invalid trading mode: {request.mode}")
 
+            # Validate timeframes if provided
+            if request.primary_timeframe:
+                available, unavailable = TimeFrameMapper.validate_timeframes(
+                    [request.primary_timeframe]
+                )
+                if unavailable:
+                    raise ValueError(
+                        f"Invalid primary timeframe: {request.primary_timeframe}"
+                    )
+
+            if request.additional_timeframes:
+                available, unavailable = TimeFrameMapper.validate_timeframes(
+                    request.additional_timeframes
+                )
+                if unavailable:
+                    raise ValueError(f"Invalid additional timeframes: {unavailable}")
+
+            if request.custom_timeframes:
+                available, unavailable = TimeFrameMapper.validate_timeframes(
+                    request.custom_timeframes
+                )
+                if unavailable:
+                    raise ValueError(f"Invalid custom timeframes: {unavailable}")
+
             # Create strategy configuration
             config = StrategyConfig(
                 name=request.name,
@@ -222,6 +274,9 @@ class StrategyEngineService:
                 min_confidence=request.parameters.get("min_confidence", 60.0),
                 max_position_size=request.parameters.get("max_position_size", 0.20),
                 parameters=request.parameters,
+                primary_timeframe=request.primary_timeframe,
+                additional_timeframes=request.additional_timeframes,
+                custom_timeframes=request.custom_timeframes,
             )
 
             # Create strategy based on type
@@ -287,14 +342,48 @@ class StrategyEngineService:
             self.logger.debug(
                 f"Fetching market data for {request.symbol} with lookback period {strategy.config.lookback_period}"
             )
-            market_data = await self._get_market_data(
-                request.symbol, strategy.config.lookback_period
-            )
-            if market_data is None:
-                raise ValueError(f"No market data available for {request.symbol}")
-            self.logger.debug(
-                f"Retrieved {market_data.height} data points for {request.symbol}"
-            )
+
+            # Check if strategy supports multi-timeframe analysis
+            required_timeframes = strategy.get_required_data_timeframes()
+            if len(required_timeframes) > 1:
+                self.logger.debug(
+                    f"Strategy requires multiple timeframes: {required_timeframes}"
+                )
+                multi_tf_data = await self._get_multi_timeframe_data(
+                    request.symbol, required_timeframes, strategy.config.lookback_period
+                )
+                if not multi_tf_data:
+                    raise ValueError(
+                        f"No multi-timeframe data available for {request.symbol}"
+                    )
+
+                # Use primary timeframe as main market_data for backward compatibility
+                primary_tf = required_timeframes[0]
+                market_data = multi_tf_data.get(primary_tf)
+                if market_data is None:
+                    # Fall back to any available timeframe
+                    market_data = (
+                        next(iter(multi_tf_data.values())) if multi_tf_data else None
+                    )
+
+                if market_data is None:
+                    raise ValueError(
+                        f"No primary timeframe data available for {request.symbol}"
+                    )
+
+                self.logger.debug(
+                    f"Retrieved multi-timeframe data: {list(multi_tf_data.keys())}, primary: {market_data.height} points"
+                )
+            else:
+                market_data = await self._get_market_data(
+                    request.symbol, strategy.config.lookback_period, strategy
+                )
+                if market_data is None:
+                    raise ValueError(f"No market data available for {request.symbol}")
+                self.logger.debug(
+                    f"Retrieved {market_data.height} data points for {request.symbol}"
+                )
+                multi_tf_data = None
 
             # Get fundamental data for hybrid strategies
             finviz_data = None
@@ -308,12 +397,34 @@ class StrategyEngineService:
             self.logger.debug(
                 f"Analyzing {request.symbol} with strategy {request.strategy_name}"
             )
+
+            # Pass multi-timeframe data if strategy supports it and we have it
             if isinstance(strategy, HybridStrategy):
-                signal = await strategy.analyze(
-                    request.symbol, market_data, finviz_data
-                )
+                # For hybrid strategies, pass multi-timeframe data if available
+                if (
+                    multi_tf_data
+                    and hasattr(strategy, "analyze_multi_timeframe")
+                    and callable(getattr(strategy, "analyze_multi_timeframe"))
+                ):
+                    signal = await strategy.analyze_multi_timeframe(  # type: ignore
+                        request.symbol, multi_tf_data, finviz_data
+                    )
+                else:
+                    signal = await strategy.analyze(
+                        request.symbol, market_data, finviz_data
+                    )
             else:
-                signal = await strategy.analyze(request.symbol, market_data)  # type: ignore
+                # For regular strategies, pass multi-timeframe data if strategy supports it
+                if (
+                    multi_tf_data
+                    and hasattr(strategy, "analyze_multi_timeframe")
+                    and callable(getattr(strategy, "analyze_multi_timeframe"))
+                ):
+                    signal = await strategy.analyze_multi_timeframe(  # type: ignore
+                        request.symbol, multi_tf_data
+                    )
+                else:
+                    signal = await strategy.analyze(request.symbol, market_data)  # type: ignore
 
             if signal:
                 self.logger.debug(
@@ -596,84 +707,235 @@ class StrategyEngineService:
             raise HTTPException(status_code=400, detail=str(e))
 
     async def _get_market_data(
-        self, symbol: str, periods: int
+        self,
+        symbol: str,
+        periods: int,
+        strategy: Optional[Any] = None,
+        timeframes: Optional[List[str]] = None,
     ) -> Optional[pl.DataFrame]:
-        """Get market data for analysis by loading from parquet files."""
+        """Get market data for analysis using the data collector client.
+
+        Args:
+            symbol: Trading symbol
+            periods: Number of periods to load
+            strategy: Optional strategy instance to get timeframes from
+            timeframes: Optional list of data timeframes to try (overrides strategy)
+        """
         try:
-            from pathlib import Path
+            if not self.data_collector_client:
+                self.logger.error("Data collector client not initialized")
+                return None
 
             self.logger.debug(
                 f"Loading market data for {symbol}, requesting {periods} periods"
             )
-            # Direct file access approach - assume default data path
-            base_path = Path("/app/data/parquet/market_data") / symbol
 
-            if not base_path.exists():
-                self.logger.warning(
-                    f"No market data directory found for {symbol} at {base_path}"
-                )
-                return None
+            # Determine timeframes to try based on strategy or fallback to defaults
+            if timeframes:
+                # Use provided timeframes directly (assumed to be data collector format)
+                timeframes_to_try = timeframes
+                self.logger.debug(f"Using provided timeframes: {timeframes_to_try}")
+            elif strategy and hasattr(strategy, "get_required_data_timeframes"):
+                # Get timeframes from strategy (already in data collector format)
+                try:
+                    timeframes_to_try = strategy.get_required_data_timeframes()
+                    self.logger.debug(f"Using strategy timeframes: {timeframes_to_try}")
+                    if not timeframes_to_try:
+                        # Fallback if strategy returns empty list
+                        timeframes_to_try = [
+                            TimeFrame.ONE_DAY.value,
+                            TimeFrame.ONE_HOUR.value,
+                            TimeFrame.FIFTEEN_MINUTES.value,
+                        ]
+                        self.logger.debug(
+                            "Strategy returned empty timeframes, using defaults"
+                        )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error getting strategy timeframes: {e}, using defaults"
+                    )
+                    timeframes_to_try = [
+                        TimeFrame.ONE_DAY.value,
+                        TimeFrame.ONE_HOUR.value,
+                        TimeFrame.FIFTEEN_MINUTES.value,
+                    ]
+            else:
+                # Fallback to default timeframes (prefer daily, then hourly, then minutes)
+                timeframes_to_try = [
+                    TimeFrame.ONE_DAY.value,
+                    TimeFrame.ONE_HOUR.value,
+                    TimeFrame.FIFTEEN_MINUTES.value,
+                ]
+                self.logger.debug("Using default timeframes")
 
-            self.logger.debug(f"Market data directory found at {base_path}")
-
-            # Collect data from available timeframes (prefer daily, then hourly, then minutes)
-            timeframes_to_try = ["1day", "1h", "15min", "5min", "1min"]
-            combined_data = []
-
-            for tf in timeframes_to_try:
-                tf_path = base_path / tf
-                if tf_path.exists():
-                    self.logger.debug(f"Found timeframe directory: {tf_path}")
-                    # Load recent parquet files (last 6 months for better indicators)
-                    parquet_files = list(tf_path.glob("*.parquet"))
-                    parquet_files.sort()  # Sort by filename (date)
+            # Try each timeframe until we find data
+            for tf_str in timeframes_to_try:
+                try:
+                    timeframe_enum = TimeFrame(tf_str)
                     self.logger.debug(
-                        f"Found {len(parquet_files)} parquet files for {tf}"
+                        f"Attempting to load data for timeframe: {tf_str}"
                     )
 
-                    # Take the most recent files (up to 60 files for 2 months of daily data)
-                    recent_files = (
-                        parquet_files[-60:]
-                        if len(parquet_files) > 60
-                        else parquet_files
+                    # Use data collector client to load market data
+                    df = await self.data_collector_client.load_market_data(
+                        ticker=symbol, timeframe=timeframe_enum, limit=periods
                     )
 
-                    for file_path in recent_files:
-                        try:
-                            df = pl.read_parquet(file_path)
-                            if not df.is_empty():
-                                combined_data.append(df)
-                        except Exception as e:
-                            self.logger.warning(f"Error reading {file_path}: {e}")
-                            continue
+                    if df is not None and not df.is_empty():
+                        self.logger.info(
+                            f"Loaded {df.height} data points for {symbol} using timeframe {tf_str}"
+                        )
+                        self.logger.debug(
+                            f"Data date range: {str(df['timestamp'].min())} to {str(df['timestamp'].max())}"
+                        )
+                        return df
+                    else:
+                        self.logger.debug(
+                            f"No data available for {symbol} in timeframe {tf_str}"
+                        )
 
-                    # If we found data, use this timeframe
-                    if combined_data:
-                        break
+                except ValueError as e:
+                    self.logger.warning(f"Invalid timeframe {tf_str}: {e}")
+                    continue
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error loading data for {symbol} in timeframe {tf_str}: {e}"
+                    )
+                    continue
 
-            if not combined_data:
-                self.logger.warning(f"No readable market data found for {symbol}")
-                return None
-
-            self.logger.debug(f"Combined {len(combined_data)} data files for {symbol}")
-
-            # Combine all dataframes
-            full_data = pl.concat(combined_data)
-            self.logger.debug(f"Raw combined data shape: {full_data.shape}")
-
-            # Sort by timestamp and take most recent periods
-            full_data = full_data.sort("timestamp").tail(periods)
-            self.logger.debug(f"Final data shape after filtering: {full_data.shape}")
-
-            self.logger.info(f"Loaded {full_data.height} data points for {symbol}")
-            self.logger.debug(
-                f"Data date range: {str(full_data['timestamp'].min())} to {str(full_data['timestamp'].max())}"
-            )
-            return full_data
+            self.logger.warning(f"No market data found for {symbol} in any timeframe")
+            return None
 
         except Exception as e:
             self.logger.error(f"Error getting market data for {symbol}: {str(e)}")
             return None
+
+    async def _get_multi_timeframe_data(
+        self, symbol: str, timeframes: List[str], periods: int = 100
+    ) -> Dict[str, pl.DataFrame]:
+        """
+        Load data from multiple timeframes for a symbol using data collector client.
+
+        Args:
+            symbol: Trading symbol
+            timeframes: List of data timeframes to load
+            periods: Number of periods to load for each timeframe
+
+        Returns:
+            Dictionary mapping timeframe to DataFrame
+        """
+        try:
+            if not self.data_collector_client:
+                self.logger.error("Data collector client not initialized")
+                return {}
+
+            self.logger.debug(
+                f"Loading multi-timeframe data for {symbol}: {timeframes}"
+            )
+
+            results = {}
+
+            for tf_str in timeframes:
+                try:
+                    timeframe_enum = TimeFrame(tf_str)
+                    self.logger.debug(f"Loading data for timeframe: {tf_str}")
+
+                    # Use data collector client to load market data
+                    df = await self.data_collector_client.load_market_data(
+                        ticker=symbol, timeframe=timeframe_enum, limit=periods
+                    )
+
+                    if df is not None and not df.is_empty():
+                        results[tf_str] = df
+                        self.logger.debug(f"Loaded {df.height} records for {tf_str}")
+                    else:
+                        self.logger.debug(
+                            f"No data available for {symbol} in timeframe {tf_str}"
+                        )
+
+                except ValueError as e:
+                    self.logger.warning(f"Invalid timeframe {tf_str}: {e}")
+                    continue
+                except Exception as e:
+                    self.logger.warning(
+                        f"Error loading data for {symbol} in timeframe {tf_str}: {e}"
+                    )
+                    continue
+
+            self.logger.info(f"Loaded data for {len(results)} timeframes for {symbol}")
+            return results
+
+        except Exception as e:
+            self.logger.error(f"Error loading multi-timeframe data for {symbol}: {e}")
+            return {}
+
+    async def _align_multi_timeframe_data(
+        self, multi_tf_data: Dict[str, pl.DataFrame]
+    ) -> Dict[str, pl.DataFrame]:
+        """
+        Align timestamps across multiple timeframes for consistent analysis.
+
+        Args:
+            multi_tf_data: Dictionary of timeframe -> DataFrame
+
+        Returns:
+            Aligned multi-timeframe data
+        """
+        try:
+            if not multi_tf_data:
+                return {}
+
+            # Find common time range across all timeframes
+            min_timestamp = None
+            max_timestamp = None
+
+            for tf, df in multi_tf_data.items():
+                if df.is_empty():
+                    continue
+
+                tf_min = df["timestamp"].min()
+                tf_max = df["timestamp"].max()
+
+                if min_timestamp is None:
+                    min_timestamp = tf_min
+                elif (
+                    tf_min is not None
+                    and min_timestamp is not None
+                    and tf_min > min_timestamp
+                ):
+                    min_timestamp = tf_min
+
+                if max_timestamp is None:
+                    max_timestamp = tf_max
+                elif (
+                    tf_max is not None
+                    and max_timestamp is not None
+                    and tf_max < max_timestamp
+                ):
+                    max_timestamp = tf_max
+
+            if min_timestamp is None or max_timestamp is None:
+                return multi_tf_data
+
+            # Filter all timeframes to common range
+            aligned_data = {}
+            for tf, df in multi_tf_data.items():
+                if not df.is_empty():
+                    aligned_df = df.filter(
+                        (pl.col("timestamp") >= min_timestamp)
+                        & (pl.col("timestamp") <= max_timestamp)
+                    )
+                    if not aligned_df.is_empty():
+                        aligned_data[tf] = aligned_df
+
+            self.logger.debug(
+                f"Aligned {len(aligned_data)} timeframes to range {min_timestamp} - {max_timestamp}"
+            )
+            return aligned_data
+
+        except Exception as e:
+            self.logger.error(f"Error aligning multi-timeframe data: {e}")
+            return multi_tf_data
 
     async def _get_historical_data(
         self, symbol: str, start_date: datetime, end_date: datetime
@@ -1163,6 +1425,11 @@ class StrategyEngineService:
                 self.logger.debug("Shutting down Redis engine")
                 await self.redis_engine.shutdown()
 
+            # Shutdown data collector client
+            if self.data_collector_client:
+                self.logger.debug("Shutting down data collector client")
+                await self.data_collector_client.close()
+
             # Save strategy states
             for strategy in self.active_strategies.values():
                 if hasattr(strategy, "save_state"):
@@ -1259,6 +1526,102 @@ async def health_check():
         "active_strategies": len(service.active_strategies),
         "redis_available": service.redis_engine is not None,
     }
+
+
+# Phase 5: Timeframe validation and management endpoints
+@app.get("/timeframes/available")
+async def get_available_timeframes():
+    """Get all available timeframes for strategies and data loading."""
+    return {
+        "status": "success",
+        "strategy_timeframes": TimeFrameMapper.get_available_strategy_timeframes(),
+        "data_timeframes": TimeFrameMapper.get_available_data_timeframes(),
+        "mapping": {
+            tf: (
+                TimeFrameMapper.strategy_to_data([tf])[0]
+                if TimeFrameMapper.strategy_to_data([tf])
+                else None
+            )
+            for tf in TimeFrameMapper.get_available_strategy_timeframes()
+        },
+    }
+
+
+@app.post("/timeframes/validate")
+async def validate_timeframes(timeframes: List[str]):
+    """Validate a list of strategy timeframes."""
+    try:
+        available, unavailable = TimeFrameMapper.validate_timeframes(timeframes)
+        data_timeframes = TimeFrameMapper.strategy_to_data(available)
+
+        return {
+            "status": "success",
+            "requested": timeframes,
+            "available": available,
+            "unavailable": unavailable,
+            "data_timeframes": data_timeframes,
+            "all_valid": len(unavailable) == 0,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/strategies/{strategy_name}/timeframes")
+async def get_strategy_timeframes(strategy_name: str):
+    """Get timeframe information for a specific strategy."""
+    try:
+        if strategy_name not in service.active_strategies:
+            raise HTTPException(status_code=404, detail="Strategy not found")
+
+        strategy = service.active_strategies[strategy_name]
+        availability_info = strategy.validate_timeframe_availability()
+
+        return {
+            "status": "success",
+            "strategy_name": strategy_name,
+            "timeframe_info": availability_info,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/timeframes/check/{symbol}")
+async def check_symbol_timeframes(symbol: str):
+    """Check available timeframes for a specific symbol using data collector client."""
+    try:
+        if not service.data_collector_client:
+            raise HTTPException(
+                status_code=500, detail="Data collector client not available"
+            )
+
+        available_timeframes = []
+
+        # Test each timeframe by attempting to load a small amount of data
+        for tf_str in TimeFrameMapper.get_available_data_timeframes():
+            try:
+                timeframe_enum = TimeFrame(tf_str)
+                df = await service.data_collector_client.load_market_data(
+                    ticker=symbol, timeframe=timeframe_enum, limit=1
+                )
+
+                if df is not None and not df.is_empty():
+                    available_timeframes.append(tf_str)
+
+            except Exception as e:
+                logger.debug(f"Timeframe {tf_str} not available for {symbol}: {e}")
+                continue
+
+        strategy_timeframes = TimeFrameMapper.data_to_strategy(available_timeframes)
+
+        return {
+            "status": "success",
+            "symbol": symbol,
+            "available_data_timeframes": available_timeframes,
+            "available_strategy_timeframes": strategy_timeframes,
+            "data_available": len(available_timeframes) > 0,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/strategies")
