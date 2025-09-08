@@ -141,7 +141,10 @@ class MultiTimeframeMovingAverageStrategy(BaseStrategy):
 
             total_confidence = 0.0
             final_action = SignalType.HOLD
-            metadata: Dict[str, Any] = {"timeframe_analysis": {}, "method": "multi_timeframe"}
+            metadata: Dict[str, Any] = {
+                "timeframe_analysis": {},
+                "method": "multi_timeframe",
+            }
 
             # Analyze each timeframe
             for data_tf, strategy_tf in tf_mapping.items():
