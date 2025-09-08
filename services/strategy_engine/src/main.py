@@ -436,6 +436,7 @@ class StrategyEngineService:
             # Format signal for output
             signal_generator = HybridSignalGenerator()
             # Convert to HybridSignal if needed
+            hybrid_signal: Optional[HybridSignal] = None
             if not isinstance(signal, HybridSignal) and signal:
                 hybrid_signal = HybridSignal(
                     action=signal.action,
@@ -448,12 +449,15 @@ class StrategyEngineService:
                     timestamp=signal.timestamp,
                     metadata=signal.metadata,
                 )
-            else:
+            elif isinstance(signal, HybridSignal):
                 hybrid_signal = signal
 
-            formatted_signal = signal_generator.generate_formatted_signal(
-                request.symbol, hybrid_signal, strategy.config.mode.value
-            )
+            if hybrid_signal:
+                formatted_signal = signal_generator.generate_formatted_signal(
+                    request.symbol, hybrid_signal, strategy.config.mode.value
+                )
+            else:
+                formatted_signal = {"error": "No signal generated"}
 
             # Add analysis details if requested
             if request.include_analysis:
@@ -901,7 +905,7 @@ class StrategyEngineService:
                 elif (
                     tf_min is not None
                     and min_timestamp is not None
-                    and tf_min > min_timestamp
+                    and tf_min > min_timestamp  # type: ignore
                 ):
                     min_timestamp = tf_min
 
@@ -910,7 +914,7 @@ class StrategyEngineService:
                 elif (
                     tf_max is not None
                     and max_timestamp is not None
-                    and tf_max < max_timestamp
+                    and tf_max < max_timestamp  # type: ignore
                 ):
                     max_timestamp = tf_max
 
@@ -929,7 +933,7 @@ class StrategyEngineService:
                         aligned_data[tf] = aligned_df
 
             self.logger.debug(
-                f"Aligned {len(aligned_data)} timeframes to range {min_timestamp} - {max_timestamp}"
+                f"Aligned {len(aligned_data)} timeframes to range {str(min_timestamp)} - {str(max_timestamp)}"
             )
             return aligned_data
 
