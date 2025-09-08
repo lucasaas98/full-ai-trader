@@ -1551,9 +1551,7 @@ class DataCollectionService:
             stats["last_manual_cleanup"] = last_manual_cleanup
 
             if last_finviz_scan:
-                last_scan_dt = datetime.fromtimestamp(
-                    last_finviz_scan, timezone.utc
-                )
+                last_scan_dt = datetime.fromtimestamp(last_finviz_scan, timezone.utc)
                 stats["last_finviz_scan_ago_minutes"] = round(
                     (datetime.now(timezone.utc) - last_scan_dt).total_seconds() / 60, 1
                 )
