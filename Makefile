@@ -199,18 +199,24 @@ test-coverage: ## Run tests with coverage report
 # =============================================================================
 
 lint: ## Run linting checks
+	@echo "Starting virtual environment..."
+	@source venv/bin/activate
 	@echo "Running linting checks..."
 	@flake8 . --exclude=venv --ignore=E501,W503,E203
 	@mypy . --install-types --ignore-missing-imports --check-untyped-defs
 	@echo "✓ Linting checks completed"
 
 format: ## Format code
+	@echo "Starting virtual environment..."
+	@source venv/bin/activate
 	@echo "Formatting code..."
 	@black .
 	@isort .
 	@echo "✓ Code formatted"
 
 format-check:
+	@echo "Starting virtual environment..."
+	@source venv/bin/activate
 	@echo "Running format checks..."
 	@black --check .
 	@isort --check-only .
