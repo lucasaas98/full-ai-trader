@@ -87,7 +87,7 @@ class RealBacktestConfig:
 class HistoricalDataFeeder:
     """Feeds historical data to simulate live data flow."""
 
-    def __init__(self, data_store, config: RealBacktestConfig):
+    def __init__(self, data_store: Any, config: RealBacktestConfig):
         self.data_store = data_store
         self.config = config
         self.logger = logging.getLogger(f"{__name__}.HistoricalDataFeeder")
@@ -164,8 +164,8 @@ class MockAIStrategy:
     """Mock AI strategy for backtesting when real strategy can't be loaded."""
 
     async def generate_signal(
-        self, symbol: str, current_data, historical_data, market_context
-    ):
+        self, symbol: str, current_data: Any, historical_data: Any, market_context: Any
+    ) -> Dict[str, Any]:
         """Generate a mock signal for testing."""
         import random
 
@@ -188,7 +188,7 @@ class MockAIStrategy:
 class MockRedisClient:
     """Mock Redis client for backtesting to simulate live data flow."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data_cache = {}
         self.logger = logging.getLogger(f"{__name__}.MockRedisClient")
 

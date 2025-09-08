@@ -298,7 +298,7 @@ class OrphanedOrdersCleaner:
         }
 
 
-async def main():
+async def main() -> None:
     parser = argparse.ArgumentParser(
         description="Clean up orphaned orders from old Alpaca account"
     )
@@ -370,3 +370,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+o.run(main())

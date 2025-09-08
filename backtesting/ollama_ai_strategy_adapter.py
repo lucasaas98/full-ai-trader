@@ -613,7 +613,7 @@ Focus on high-probability setups and proper risk management.
             metadata={"ai_model": self.ollama_model, "parsed_from_text": True},
         )
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         if self.ollama_client:
             await self.ollama_client.close()
@@ -637,4 +637,10 @@ Focus on high-probability setups and proper risk management.
     def __str__(self):
         return (
             f"OllamaAIStrategyAdapter(model={self.ollama_model}, url={self.ollama_url})"
+        )
+  )
+    )
+"
+        )
+rl})"
         )
