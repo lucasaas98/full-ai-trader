@@ -1,1 +1,4 @@
 addAssignees: author
+addReviewers: true
+reviewers:
+    - lucasaas98

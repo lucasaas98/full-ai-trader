@@ -4,7 +4,11 @@ on:
         types: [opened, ready_for_review]
 
 jobs:
-    add-assignees:
+    add-reviews:
         runs-on: ubuntu-latest
         steps:
-            - uses: kentaro-m/auto-assign-action@v1.2.5
+            - name: Check out Git repository
+              uses: actions/checkout@v4
+
+            - name: Run auto-assign-action
+              uses: kentaro-m/auto-assign-action@v2.0.0
