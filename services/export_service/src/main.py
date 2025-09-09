@@ -33,7 +33,7 @@ from shared.config import Config  # noqa: E402
 
 
 # Simplified logging setup
-def setup_logging(name):
+def setup_logging(name: str):
     """Simple logging setup without complex dependencies"""
     logging.basicConfig(
         level=logging.DEBUG,
@@ -56,7 +56,7 @@ class DatabaseManager:
     def __init__(self):
         self.pool = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection pool"""
         logger.debug("Initializing database connection pool")
         config = Config()
@@ -80,7 +80,7 @@ class DatabaseManager:
             logger.debug("Database connection error details: %s", type(e).__name__)
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connection pool"""
         logger.debug("Closing database connection pool")
         if self.pool:
@@ -918,7 +918,7 @@ async def verify_token(
     return token
 
 
-async def startup_event():
+async def startup_event() -> None:
     """Initialize services on startup"""
     logger.info("Starting export service initialization")
     try:
@@ -954,7 +954,7 @@ async def startup_event():
         raise
 
 
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Cleanup on shutdown"""
     logger.info("Starting export service shutdown")
     try:
@@ -967,7 +967,7 @@ async def shutdown_event():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict:
     """Health check endpoint"""
     logger.debug("Health check requested")
     return {

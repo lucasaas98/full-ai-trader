@@ -1,0 +1,231 @@
+Running linting checks...
+services/scheduler/src/api.py:128: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:198: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:198: note: Use "-> None" if function does not return a value
+services/scheduler/src/api.py:221: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:221: note: Use "-> None" if function does not return a value
+services/scheduler/src/api.py:245: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:266: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:277: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:288: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:299: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:312: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:323: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:334: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:360: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:371: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:393: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:412: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:432: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:445: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:456: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:467: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:482: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:495: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:520: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:533: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:544: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:558: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:588: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:622: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:636: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:677: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:697: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:733: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:753: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:786: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:820: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:855: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:887: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:928: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:953: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:979: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1005: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1026: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1050: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1071: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1163: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1182: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1182: note: Use "-> None" if function does not return a value
+services/scheduler/src/api.py:1255: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1269: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1303: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1316: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1329: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1344: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1361: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1387: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1400: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1416: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1445: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1458: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1471: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1485: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1507: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1521: error: Function is missing a type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1541: error: Function is missing a type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1550: error: Function is missing a type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1564: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1564: note: Use "-> None" if function does not return a value
+services/scheduler/src/api.py:1571: error: Function is missing a return type annotation  [no-untyped-def]
+services/scheduler/src/api.py:1571: note: Use "-> None" if function does not return a value
+services/risk_manager/src/portfolio_monitor.py:473: error: Function is missing a return type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:490: error: Function is missing a return type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:753: error: Function is missing a return type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:1401: error: Function is missing a type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:1405: error: Function is missing a type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:2056: error: Function is missing a return type annotation  [no-untyped-def]
+services/risk_manager/src/portfolio_monitor.py:2056: note: Use "-> None" if function does not return a value
+services/data_collector/src/twelvedata_client.py:51: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/twelvedata_client.py:51: note: Use "-> None" if function does not return a value
+services/data_collector/src/twelvedata_client.py:113: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/twelvedata_client.py:120: error: Function is missing a type annotation  [no-untyped-def]
+services/data_collector/src/twelvedata_client.py:652: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+services/data_collector/src/twelvedata_client.py:923: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/twelvedata_client.py:923: note: Use "-> None" if function does not return a value
+services/data_collector/src/http_server.py:24: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+services/data_collector/src/http_server.py:89: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:89: note: Use "-> None" if function does not return a value
+services/data_collector/src/http_server.py:105: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:105: note: Use "-> None" if function does not return a value
+services/data_collector/src/http_server.py:120: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:120: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+services/data_collector/src/http_server.py:129: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:129: error: Function is missing a type annotation for one or more arguments  [no-untyped-def]
+services/data_collector/src/http_server.py:429: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:429: note: Use "-> None" if function does not return a value
+services/data_collector/src/http_server.py:483: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/http_server.py:483: note: Use "-> None" if function does not return a value
+services/data_collector/src/data_store.py:112: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:112: note: Use "-> None" if function does not return a value
+services/data_collector/src/data_store.py:676: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:819: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:869: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:993: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:1225: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:1395: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:1395: note: Use "-> None" if function does not return a value
+services/data_collector/src/data_store.py:1492: error: Function is missing a type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:1595: error: Function is missing a return type annotation  [no-untyped-def]
+services/data_collector/src/data_store.py:1595: note: Use "-> None" if function does not return a value
+scripts/analyze_optimization_results.py:53: error: Function is missing a return type annotation  [no-untyped-def]
+scripts/analyze_optimization_results.py:53: note: Use "-> None" if function does not return a value
+scripts/analyze_optimization_results.py:614: error: Function is missing a return type annotation  [no-untyped-def]
+scripts/analyze_optimization_results.py:668: error: Function is missing a return type annotation  [no-untyped-def]
+backtesting/simple_data_store.py:171: error: Function is missing a return type annotation  [no-untyped-def]
+backtesting/simple_data_store.py:249: error: Function is missing a return type annotation  [no-untyped-def]
+backtesting/simple_data_store.py:249: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:46: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:51: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:66: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:75: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:75: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:108: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:108: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:144: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:144: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:178: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:178: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:206: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:206: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:255: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:255: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:291: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:304: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:331: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:347: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:369: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:369: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_performance.py:405: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:417: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:435: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:446: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_performance.py:497: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:52: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:57: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:89: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:123: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:156: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:161: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:177: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:192: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:211: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:211: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:225: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:225: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:245: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:272: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:286: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:301: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:316: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:316: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:345: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:411: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:435: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:435: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:466: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:466: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:495: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:502: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:532: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:578: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:593: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:610: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:610: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:641: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:641: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:668: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:668: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:692: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:692: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:721: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:721: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:759: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:759: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_extended.py:814: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_extended.py:828: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:41: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:41: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:66: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:66: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:84: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:84: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:100: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:100: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:125: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:125: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:134: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:134: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:153: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:153: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:175: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:175: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:201: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:201: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:209: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:209: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:250: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:250: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:276: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:276: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:289: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:289: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:307: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:307: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:343: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:343: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:372: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:372: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:391: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:391: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:419: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:419: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:446: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:451: error: Function is missing a type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:466: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:466: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:487: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:487: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:509: error: Function is missing a return type annotation  [no-untyped-def]
+tests/test_ai_strategy_errors.py:509: note: Use "-> None" if function does not return a value
+tests/test_ai_strategy_errors.py:525: error: Function is missing a type annotation  [no-untyped-def]

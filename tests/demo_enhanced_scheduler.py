@@ -26,7 +26,7 @@ from services.data_collector.src.scheduler_service import (  # noqa: E402
 from shared.models import TimeFrame  # noqa: E402
 
 
-def demonstrate_basic_usage():
+def demonstrate_basic_usage() -> None:
     """Demonstrate basic usage of the enhanced function."""
     print("=" * 60)
     print("BASIC USAGE DEMONSTRATION")
@@ -65,7 +65,7 @@ def demonstrate_basic_usage():
     print()
 
 
-def demonstrate_volatility_adjustment():
+def demonstrate_volatility_adjustment() -> None:
     """Demonstrate how market volatility affects interval calculations."""
     print("=" * 60)
     print("MARKET VOLATILITY ADJUSTMENT DEMONSTRATION")
@@ -100,7 +100,7 @@ def demonstrate_volatility_adjustment():
         print()
 
 
-def demonstrate_priority_weights():
+def demonstrate_priority_weights() -> None:
     """Demonstrate how priority weights affect scheduling."""
     print("=" * 60)
     print("PRIORITY WEIGHTS DEMONSTRATION")
@@ -154,7 +154,7 @@ def demonstrate_priority_weights():
         print()
 
 
-def demonstrate_rate_limit_constraints():
+def demonstrate_rate_limit_constraints() -> None:
     """Demonstrate how different API rate limits affect scheduling."""
     print("=" * 60)
     print("API RATE LIMIT CONSTRAINTS DEMONSTRATION")
@@ -206,7 +206,7 @@ def demonstrate_rate_limit_constraints():
         print()
 
 
-def demonstrate_scaling_behavior():
+def demonstrate_scaling_behavior() -> None:
     """Demonstrate how the algorithm scales with ticker count."""
     print("=" * 60)
     print("SCALING BEHAVIOR DEMONSTRATION")
@@ -250,8 +250,8 @@ def demonstrate_scaling_behavior():
     print()
 
 
-def demonstrate_real_world_scenarios():
-    """Demonstrate real-world trading scenarios."""
+def demonstrate_real_world_scenario() -> None:
+    """Demonstrate realistic trading scenario."""
     print("=" * 60)
     print("REAL-WORLD TRADING SCENARIOS")
     print("=" * 60)
@@ -326,14 +326,16 @@ def demonstrate_real_world_scenarios():
         print()
 
 
-def demonstrate_algorithm_improvements():
+def demonstrate_algorithm_improvements() -> None:
     """Show the improvements over the original simple calculation."""
     print("=" * 60)
     print("ALGORITHM IMPROVEMENTS COMPARISON")
     print("=" * 60)
 
     # Simulate the old simple calculation
-    def simple_calculate_optimal_intervals(api_rate_limits, active_tickers, timeframes):
+    def simple_calculate_optimal_intervals(
+        api_rate_limits: dict, active_tickers: list, timeframes: list
+    ) -> dict:
         """Original simple implementation for comparison."""
         base_intervals = {
             TimeFrame.FIVE_MINUTES: 300,
@@ -408,7 +410,7 @@ def demonstrate_algorithm_improvements():
         print()
 
 
-def demonstrate_rate_limit_safety():
+def demonstrate_rate_limit_safety() -> None:
     """Demonstrate rate limit safety and burst handling."""
     print("=" * 60)
     print("RATE LIMIT SAFETY DEMONSTRATION")
@@ -448,7 +450,7 @@ def demonstrate_rate_limit_safety():
     print()
 
 
-def demonstrate_batch_optimization():
+def demonstrate_batch_optimization() -> None:
     """Demonstrate dynamic batch size optimization."""
     print("=" * 60)
     print("BATCH SIZE OPTIMIZATION DEMONSTRATION")
@@ -491,7 +493,7 @@ def demonstrate_batch_optimization():
     print()
 
 
-def benchmark_performance():
+def benchmark_performance() -> None:
     """Benchmark the enhanced algorithm performance."""
     print("=" * 60)
     print("PERFORMANCE BENCHMARK")
@@ -539,7 +541,7 @@ def benchmark_performance():
         print()
 
 
-def main():
+def main() -> int:
     """Run all demonstrations."""
     print("ENHANCED INTERVAL CALCULATION ALGORITHM DEMONSTRATION")
     print("=" * 80)

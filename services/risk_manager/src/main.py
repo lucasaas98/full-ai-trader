@@ -13,7 +13,7 @@ import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import uvicorn
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Response
@@ -50,7 +50,7 @@ from .risk_manager import RiskManager  # noqa: E402
 
 
 # Configure logging
-def setup_logging():
+def setup_logging() -> None:
     """Set up logging configuration."""
     config = get_config()
     log_config = config.logging
@@ -86,7 +86,7 @@ alpaca_client: Optional[AlpacaRiskClient] = None
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     global risk_manager, position_sizer, portfolio_monitor, alert_manager, database_manager
 
@@ -220,9 +220,9 @@ class RiskOverrideRequest(BaseModel):
     authorized_by: str
 
 
-# Health check endpoint
+# Health check endpoints
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint."""
     logger.debug("Health check requested")
     try:
@@ -259,7 +259,7 @@ async def health_check():
 
 # Risk validation endpoints
 @app.post("/validate-trade", response_model=TradeValidationResponse)
-async def validate_trade(request: TradeValidationRequest):
+async def validate_trade(request: TradeValidationRequest) -> Dict[str, Any]:
     """Validate a trade request against risk parameters."""
     logger.debug(
         f"Trade validation request for {request.order_request.symbol}: {request.order_request.quantity} shares"
@@ -305,7 +305,7 @@ async def validate_trade(request: TradeValidationRequest):
 
 
 @app.post("/calculate-position-size", response_model=PositionSizing)
-async def calculate_position_size(request: PositionSizingRequest):
+async def calculate_position_size(request: PositionSizingRequest) -> Dict[str, Any]:
     """Calculate optimal position size for a trade."""
     logger.debug(
         f"Position sizing request for {request.symbol} at ${request.current_price}"
@@ -334,8 +334,8 @@ async def calculate_position_size(request: PositionSizingRequest):
 
 
 # Portfolio monitoring endpoints
-@app.get("/portfolio-metrics", response_model=PortfolioMetrics)
-async def get_portfolio_metrics(portfolio: PortfolioState):
+@app.post("/portfolio-metrics", response_model=PortfolioMetrics)
+async def get_portfolio_metrics(portfolio: PortfolioState) -> Dict[str, Any]:
     """Get current portfolio risk metrics."""
     logger.debug(
         f"Portfolio metrics request for portfolio with {len(portfolio.positions)} positions"
@@ -458,7 +458,9 @@ async def update_trailing_stops(
 
 
 @app.get("/stop-loss-levels/{symbol}")
-async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
+async def get_stop_loss_levels(
+    symbol: str, entry_price: Decimal, side: str
+) -> Dict[str, Any]:
     """Calculate stop loss and take profit levels for a position."""
     logger.debug(
         f"Stop loss calculation request for {symbol} at ${entry_price} ({side})"
@@ -495,7 +497,7 @@ async def get_stop_loss_levels(symbol: str, entry_price: Decimal, side: str):
 
 # Emergency controls
 @app.post("/emergency-stop")
-async def activate_emergency_stop(reason: str):
+async def activate_emergency_stop(reason: str) -> Dict[str, Any]:
     """Activate emergency stop for all trading."""
     logger.debug(f"Emergency stop activation requested: {reason}")
     try:
@@ -537,7 +539,7 @@ async def activate_emergency_stop(reason: str):
 
 
 @app.post("/deactivate-emergency-stop")
-async def deactivate_emergency_stop(authorized_by: str):
+async def deactivate_emergency_stop(authorized_by: str) -> Dict[str, Any]:
     """Deactivate emergency stop (requires authorization)."""
     logger.debug(f"Emergency stop deactivation requested by {authorized_by}")
     try:
@@ -569,7 +571,7 @@ async def get_risk_events(
     severity: Optional[str] = None,
     symbol: Optional[str] = None,
     limit: int = 100,
-):
+) -> Dict[str, Any]:
     """Get risk events with filtering."""
     logger.debug(
         f"Risk events query: start={start_date}, end={end_date}, type={event_type}, severity={severity}, symbol={symbol}"
@@ -601,7 +603,7 @@ async def get_risk_events(
 
 
 @app.get("/risk-statistics")
-async def get_risk_statistics(days: int = 30):
+async def get_risk_statistics(days: int = 30) -> Dict[str, Any]:
     """Get risk statistics for the specified period."""
     logger.debug(f"Risk statistics request for {days} days")
     try:
@@ -620,7 +622,7 @@ async def get_risk_statistics(days: int = 30):
 
 
 @app.get("/daily-report")
-async def get_daily_report(date: Optional[str] = None):
+async def get_daily_report(date: Optional[str] = None) -> Dict[str, Any]:
     """Generate or retrieve daily risk report."""
     logger.debug(f"Daily report request for date: {date}")
     try:
@@ -715,7 +717,7 @@ async def get_daily_report(date: Optional[str] = None):
 
 # Alert management endpoints
 @app.get("/alerts")
-async def get_alerts(acknowledged: bool = False, limit: int = 50):
+async def get_alerts(acknowledged: bool = False, limit: int = 50) -> Dict[str, Any]:
     """Get risk alerts."""
     logger.debug(f"Alerts request: acknowledged={acknowledged}, limit={limit}")
     try:
@@ -738,7 +740,7 @@ async def get_alerts(acknowledged: bool = False, limit: int = 50):
 
 
 @app.post("/alerts/{alert_id}/acknowledge")
-async def acknowledge_alert(alert_id: str, acknowledged_by: str):
+async def acknowledge_alert(alert_id: str, acknowledged_by: str) -> Dict[str, Any]:
     """Acknowledge a risk alert."""
     logger.debug(f"Alert acknowledgment request: {alert_id} by {acknowledged_by}")
     try:
@@ -772,7 +774,7 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str):
 
 # Configuration endpoints
 @app.get("/risk-limits")
-async def get_risk_limits():
+async def get_risk_reports() -> Dict[str, Any]:
     """Get current risk limits configuration."""
     logger.debug("Risk limits configuration request")
     try:
@@ -803,7 +805,7 @@ async def get_risk_limits():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def init_prometheus_metrics():
+def init_prometheus_metrics() -> None:
     """Initialize Prometheus metrics."""
     global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge
 
@@ -832,7 +834,7 @@ def init_prometheus_metrics():
     )
 
 
-async def update_prometheus_metrics():
+async def update_prometheus_metrics() -> None:
     """Update Prometheus metrics with current values."""
     global risk_events_counter, portfolio_value_gauge, positions_count_gauge, alerts_counter, service_health_gauge  # noqa: F824
 
@@ -867,7 +869,7 @@ async def update_prometheus_metrics():
 
 
 @app.put("/risk-limits")
-async def update_risk_limits(limits: Dict):
+async def update_risk_limits(limits: Dict) -> Dict[str, Any]:
     """Update risk limits configuration."""
     logger.debug(f"Risk limits update request: {limits}")
     try:
@@ -897,7 +899,7 @@ async def update_risk_limits(limits: Dict):
 
 
 @app.get("/metrics")
-async def get_metrics():
+async def metrics() -> Response:
     """Prometheus metrics endpoint."""
     try:
         # Update metrics before returning them
@@ -919,7 +921,7 @@ async def get_metrics():
 
 # Testing and diagnostics endpoints
 @app.post("/test-notifications")
-async def test_notifications():
+async def test_notifications() -> Dict[str, Any]:
     """Test all notification channels."""
     logger.debug("Notification test request")
     try:
@@ -939,7 +941,7 @@ async def test_notifications():
 
 
 @app.get("/system-status")
-async def get_system_status():
+async def get_system_status() -> Dict[str, Any]:
     """Get comprehensive system status."""
     logger.debug("System status request")
     try:
@@ -981,7 +983,7 @@ async def get_system_status():
 
 
 # Background tasks
-async def periodic_portfolio_monitoring():
+async def periodic_portfolio_monitoring() -> None:
     """Periodic portfolio monitoring task."""
     logger.debug("Starting periodic portfolio monitoring task")
     while True:
@@ -998,7 +1000,7 @@ async def periodic_portfolio_monitoring():
             await asyncio.sleep(300)
 
 
-async def sync_portfolio_data():
+async def sync_portfolio_data() -> bool:
     """Fetch portfolio data from Alpaca and store in database."""
     logger.debug("Starting portfolio data sync from Alpaca")
     try:
@@ -1040,7 +1042,7 @@ async def sync_portfolio_data():
 
 
 @app.post("/sync-portfolio")
-async def sync_portfolio_endpoint():
+async def sync_portfolio_endpoint() -> Dict[str, Any]:
     """Endpoint to manually trigger portfolio data sync from Alpaca."""
     logger.debug("Manual portfolio sync requested")
     try:
@@ -1059,7 +1061,7 @@ async def sync_portfolio_endpoint():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def daily_cleanup_task():
+async def daily_cleanup_task() -> None:
     """Daily cleanup task."""
     logger.debug("Starting daily cleanup task")
     while True:
@@ -1140,7 +1142,7 @@ async def _generate_trade_recommendations(
 
 
 # Signal handlers for graceful shutdown
-def signal_handler(signum, frame):
+def signal_handler(signum: int, frame: Any) -> None:
     """Handle shutdown signals."""
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
     logger.debug(
@@ -1158,7 +1160,7 @@ class RiskManagerApp:
         self._initialized = False
         logger.debug("RiskManagerApp instance created")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the application."""
         logger.debug("Initializing RiskManagerApp...")
         if not self._initialized:

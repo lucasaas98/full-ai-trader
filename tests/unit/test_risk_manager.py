@@ -10,6 +10,7 @@ import os
 # Import the actual RiskManager and related models
 import sys
 from decimal import Decimal
+from typing import Any, Dict
 from unittest.mock import Mock, patch
 
 import pytest
@@ -39,7 +40,7 @@ sys.path.insert(
 
 
 @pytest.fixture
-def risk_config():
+def risk_config() -> dict:
     """Risk management configuration for testing."""
     return {
         "max_position_percentage": 0.05,  # 5% max position size
@@ -56,13 +57,13 @@ def risk_config():
 
 
 @pytest.fixture
-def risk_manager(risk_config):
+def risk_manager(risk_config: dict) -> RiskManager:
     """Create RiskManager instance for testing."""
     return RiskManager(config=risk_config)
 
 
 @pytest.fixture
-def sample_portfolio():
+def sample_portfolio() -> PortfolioState:
     """Sample portfolio for testing."""
     return PortfolioState(
         account_id="test_account",
@@ -93,7 +94,7 @@ def sample_portfolio():
 
 
 @pytest.fixture
-def sample_trade_signal():
+def sample_trade_signal() -> TradeSignal:
     """Sample trade signal for testing."""
     return TradeSignal(
         symbol="MSFT",
@@ -108,7 +109,7 @@ def sample_trade_signal():
 
 
 @pytest.fixture
-def sample_order_request():
+def sample_order_request() -> OrderRequest:
     """Sample order request for testing."""
     return OrderRequest(
         symbol="MSFT",
@@ -125,7 +126,9 @@ def sample_order_request():
 class TestRiskManagerInitialization:
     """Test RiskManager initialization and configuration."""
 
-    def test_risk_manager_initialization_with_config(self, risk_config):
+    def test_risk_manager_initialization_with_config(
+        self, risk_config: Dict[str, Any]
+    ) -> None:
         """Test RiskManager initializes correctly with config."""
         risk_manager = RiskManager(config=risk_config)
 
@@ -136,7 +139,7 @@ class TestRiskManagerInitialization:
         assert risk_manager.trailing_stops == {}
         assert risk_manager.position_correlations == {}
 
-    def test_risk_manager_initialization_without_config(self):
+    def test_risk_manager_initialization_with_defaults(self) -> None:
         """Test RiskManager initializes with default config when none provided."""
         risk_manager = RiskManager()
 
@@ -144,7 +147,9 @@ class TestRiskManagerInitialization:
         assert risk_manager.daily_pnl == Decimal("0")
         assert risk_manager.emergency_stop_active is False
 
-    def test_risk_limits_configuration(self, risk_manager, risk_config):
+    def test_risk_limits_configuration(
+        self, risk_manager: RiskManager, risk_config: Dict[str, Any]
+    ) -> None:
         """Test that risk limits are properly configured."""
         # Access the actual risk limits from the manager
         limits = risk_manager.risk_limits
@@ -159,7 +164,9 @@ class TestPositionSizeCalculation:
     """Test position size calculation methods."""
 
     @pytest.mark.asyncio
-    async def test_calculate_position_size_basic(self, risk_manager, sample_portfolio):
+    async def test_calculate_position_size_basic(
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test basic position size calculation."""
         symbol = "MSFT"
         current_price = Decimal("380.0")
@@ -183,8 +190,11 @@ class TestPositionSizeCalculation:
 
     @pytest.mark.asyncio
     async def test_calculate_position_size_with_signal(
-        self, risk_manager, sample_portfolio, sample_trade_signal
-    ):
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_trade_signal: TradeSignal,
+    ) -> None:
         """Test position size calculation with trade signal."""
         current_price = Decimal("380.0")
 
@@ -209,8 +219,8 @@ class TestPositionSizeCalculation:
 
     @pytest.mark.asyncio
     async def test_position_size_respects_max_percentage(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test that position size doesn't exceed maximum percentage of portfolio."""
         symbol = "EXPENSIVE_STOCK"
         current_price = Decimal("10000.0")  # Very expensive stock
@@ -235,8 +245,8 @@ class TestPositionSizeCalculation:
 
     @pytest.mark.asyncio
     async def test_position_size_with_low_confidence(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test position size calculation with low confidence score."""
         symbol = "MSFT"
         current_price = Decimal("380.0")
@@ -263,7 +273,9 @@ class TestPositionSizeCalculation:
         assert low_conf_sizing.recommended_shares < high_conf_sizing.recommended_shares
 
     @pytest.mark.asyncio
-    async def test_position_size_calculation_edge_cases(self, risk_manager):
+    async def test_position_size_calculation_edge_cases(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test position size calculation edge cases."""
         # Empty portfolio
         empty_portfolio = PortfolioState(
@@ -292,9 +304,12 @@ class TestTradeValidation:
     """Test trade request validation methods."""
 
     @pytest.mark.asyncio
-    async def test_validate_trade_request_valid(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+    async def test_validate_order_request_valid(
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_trade_signal: TradeSignal,
+    ) -> None:
         """Test validation of a valid trade request."""
         # Mock all internal check methods to pass
         with patch.object(
@@ -402,8 +417,8 @@ class TestTradeValidation:
 
     @pytest.mark.asyncio
     async def test_validate_trade_request_emergency_stop(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+    ) -> None:
         """Test validation fails when emergency stop is active."""
         # Activate emergency stop
         risk_manager.emergency_stop_active = True
@@ -431,8 +446,8 @@ class TestTradeValidation:
 
     @pytest.mark.asyncio
     async def test_validate_trade_request_insufficient_buying_power(
-        self, risk_manager, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_order_request: OrderRequest
+    ) -> None:
         """Test validation fails with insufficient buying power."""
         # Portfolio with insufficient buying power
         poor_portfolio = PortfolioState(
@@ -511,8 +526,8 @@ class TestPortfolioMetrics:
 
     @pytest.mark.asyncio
     async def test_calculate_portfolio_metrics_basic(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test basic portfolio metrics calculation."""
         with patch.object(
             risk_manager, "_calculate_var_metrics"
@@ -546,7 +561,9 @@ class TestPortfolioMetrics:
         assert hasattr(metrics, "portfolio_beta")
 
     @pytest.mark.asyncio
-    async def test_calculate_portfolio_metrics_empty_portfolio(self, risk_manager):
+    async def test_calculate_drawdown_metrics_empty_portfolio(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test portfolio metrics calculation with empty portfolio."""
         empty_portfolio = PortfolioState(
             account_id="test",
@@ -568,8 +585,8 @@ class TestRiskLimits:
 
     @pytest.mark.asyncio
     async def test_check_position_limits_within_limits(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+    ) -> None:
         """Test position limits check when within limits."""
         risk_filter = await risk_manager._check_position_limits(
             sample_portfolio, sample_order_request
@@ -581,8 +598,8 @@ class TestRiskLimits:
 
     @pytest.mark.asyncio
     async def test_check_buying_power_sufficient(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+    ) -> None:
         """Test buying power check with sufficient funds."""
         risk_filter = await risk_manager._check_buying_power(
             sample_portfolio, sample_order_request
@@ -594,8 +611,8 @@ class TestRiskLimits:
 
     @pytest.mark.asyncio
     async def test_check_buying_power_insufficient(
-        self, risk_manager, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_order_request: OrderRequest
+    ) -> None:
         """Test buying power check with insufficient funds."""
         poor_portfolio = PortfolioState(
             account_id="test",
@@ -626,7 +643,7 @@ class TestRiskLimits:
         assert risk_filter.passed is False
         assert risk_filter.reason and "insufficient" in risk_filter.reason.lower()
 
-    def test_emergency_stop_controls(self, risk_manager):
+    def test_emergency_stop_deactivation(self, risk_manager: RiskManager) -> None:
         """Test emergency stop activation and deactivation."""
         # Initially should be False
         assert risk_manager.emergency_stop_active is False
@@ -639,7 +656,7 @@ class TestRiskLimits:
         risk_manager.deactivate_emergency_stop()
         assert risk_manager.emergency_stop_active is False
 
-    def test_daily_counters_reset(self, risk_manager):
+    def test_daily_reset(self, risk_manager: RiskManager) -> None:
         """Test daily counter reset functionality."""
         # Set some values
         risk_manager.daily_pnl = Decimal("500.0")
@@ -651,7 +668,7 @@ class TestRiskLimits:
         assert risk_manager.daily_pnl == Decimal("0")
         assert risk_manager.daily_trade_count == 0
 
-    def test_daily_pnl_update(self, risk_manager):
+    def test_daily_pnl_tracking(self, risk_manager: RiskManager) -> None:
         """Test daily PnL update."""
         initial_pnl = risk_manager.daily_pnl
         trade_pnl = Decimal("250.0")
@@ -666,8 +683,8 @@ class TestStopLossAndTakeProfit:
 
     @pytest.mark.asyncio
     async def test_calculate_stop_loss_take_profit(
-        self, risk_manager, sample_trade_signal
-    ):
+        self, risk_manager: RiskManager, sample_trade_signal: TradeSignal
+    ) -> None:
         """Test stop loss and take profit calculation."""
         current_price = Decimal("380.0")
 
@@ -687,7 +704,9 @@ class TestStopLossAndTakeProfit:
             assert hasattr(risk_manager, "calculate_stop_loss_take_profit")
 
     @pytest.mark.asyncio
-    async def test_calculate_stop_loss_take_profit_without_signal(self, risk_manager):
+    async def test_calculate_stop_loss_take_profit_with_signal(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test stop loss and take profit calculation without signal."""
         symbol = "AAPL"
         current_price = Decimal("150.0")
@@ -716,7 +735,9 @@ class TestTrailingStops:
     """Test trailing stop functionality."""
 
     @pytest.mark.asyncio
-    async def test_update_trailing_stops_empty(self, risk_manager, sample_portfolio):
+    async def test_update_daily_metrics(
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test updating trailing stops with no existing stops."""
         # Initially no trailing stops
         assert len(risk_manager.trailing_stops) == 0
@@ -731,7 +752,7 @@ class TestTrailingStops:
         # Should handle empty trailing stops gracefully
         assert isinstance(risk_manager.trailing_stops, dict)
 
-    def test_trailing_stop_creation(self, risk_manager):
+    def test_trailing_stop_management(self, risk_manager: RiskManager) -> None:
         """Test creation of trailing stop objects."""
         symbol = "AAPL"
         entry_price = Decimal("150.0")
@@ -760,7 +781,9 @@ class TestVolatilityAndCorrelation:
     """Test volatility and correlation calculations."""
 
     @pytest.mark.asyncio
-    async def test_calculate_volatility_adjustment(self, risk_manager):
+    async def test_calculate_volatility_adjustment(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test volatility adjustment calculation."""
         symbol = "AAPL"
 
@@ -774,8 +797,8 @@ class TestVolatilityAndCorrelation:
 
     @pytest.mark.asyncio
     async def test_check_correlation_within_limits(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+    ) -> None:
         """Test correlation check within limits."""
         with patch.object(risk_manager, "_get_symbol_correlation") as mock_corr:
             # Mock low correlation with existing positions
@@ -791,8 +814,8 @@ class TestVolatilityAndCorrelation:
 
     @pytest.mark.asyncio
     async def test_check_correlation_exceeds_limits(
-        self, risk_manager, sample_portfolio, sample_order_request
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+    ) -> None:
         """Test correlation check when correlation exceeds limits."""
         with patch.object(risk_manager, "_get_symbol_correlation") as mock_corr:
             # Mock high correlation with existing positions
@@ -812,8 +835,8 @@ class TestRiskViolationChecking:
 
     @pytest.mark.asyncio
     async def test_check_risk_violations_no_violations(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test risk violation check with no violations."""
         mock_metrics_obj = Mock()
         mock_metrics_obj.value_at_risk_1d = Decimal("0.01")
@@ -836,7 +859,9 @@ class TestRiskViolationChecking:
         assert len(critical_violations) == 0
 
     @pytest.mark.asyncio
-    async def test_check_risk_violations_with_violations(self, risk_manager):
+    async def test_check_risk_violations_with_violations(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test risk violation check with violations."""
         # Create portfolio with high risk
         risky_portfolio = PortfolioState(
@@ -878,7 +903,9 @@ class TestScaleOutLogic:
     """Test position scaling out logic."""
 
     @pytest.mark.asyncio
-    async def test_should_scale_out_position_profitable(self, risk_manager):
+    async def test_should_scale_out_position_profitable(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test scale out logic for profitable position."""
         profitable_position = Position(
             symbol="AAPL",
@@ -902,7 +929,9 @@ class TestScaleOutLogic:
             assert 0 < scale_percentage <= 1.0
 
     @pytest.mark.asyncio
-    async def test_should_scale_out_position_losing(self, risk_manager):
+    async def test_should_scale_out_position_unprofitable(
+        self, risk_manager: RiskManager
+    ) -> None:
         """Test scale out logic for losing position."""
         losing_position = Position(
             symbol="AAPL",
@@ -931,8 +960,8 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_calculate_position_size_zero_price(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test position size calculation with zero price."""
         # The actual implementation doesn't handle zero price gracefully and raises DivisionByZero
         with patch.object(
@@ -948,8 +977,8 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_validate_trade_request_invalid_order(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test trade validation with edge case order request."""
         # Since Pydantic validates quantity > 0, test with valid but unusual order
         edge_case_order = OrderRequest(
@@ -975,8 +1004,8 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_portfolio_metrics_calculation_error_handling(
-        self, risk_manager, sample_portfolio
-    ):
+        self, risk_manager: RiskManager, sample_portfolio: PortfolioState
+    ) -> None:
         """Test portfolio metrics calculation with potential errors."""
         with patch.object(
             risk_manager,

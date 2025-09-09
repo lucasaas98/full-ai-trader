@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AlpacaRiskClient:
     """Alpaca API client for risk management operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Alpaca client."""
         self.config = get_config()
         self.alpaca_config = self.config.alpaca
@@ -771,7 +771,7 @@ class AlpacaRiskClient:
 
         return aligned
 
-    async def _rate_limit(self):
+    async def _rate_limit(self) -> None:
         """Implement rate limiting for API requests."""
         time_since_last = datetime.now(timezone.utc) - self.last_request_time
 

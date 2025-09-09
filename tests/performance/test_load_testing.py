@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import statistics
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
+from unittest.mock import AsyncMock
 
 import aiohttp
 import numpy as np
@@ -58,14 +61,14 @@ class LoadTestRunner:
         self.session: Optional[aiohttp.ClientSession] = None
         self.results: List[Dict[str, Any]] = []
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "LoadTestRunner":
         """Async context manager entry"""
         self.session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=self.timeout)
         )
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit"""
         if self.session:
             await self.session.close()
@@ -135,7 +138,7 @@ class LoadTestRunner:
 
         semaphore = asyncio.Semaphore(concurrency)
 
-        async def limited_request(request_id: int):
+        async def limited_request(request_id: int) -> Dict[str, Any]:
             async with semaphore:
                 request_data = data_generator(request_id) if data_generator else None
                 return await self.make_request(method, endpoint, request_data)
@@ -219,13 +222,13 @@ class TradingSystemLoadTests:
     """Load tests specific to trading system components"""
 
     @pytest.fixture
-    async def load_test_runner(self):
+    async def load_test_runner(self) -> AsyncGenerator[LoadTestRunner, None]:
         """Create load test runner"""
         async with LoadTestRunner() as runner:
             yield runner
 
     @pytest.mark.performance
-    async def test_data_collector_load(self, load_test_runner):
+    async def test_data_collector_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test data collector under load"""
 
         # Test health endpoint under load
@@ -243,7 +246,7 @@ class TradingSystemLoadTests:
         assert health_analysis.requests_per_second > 100  # At least 100 RPS
 
         # Test market data endpoint under load
-        def market_data_generator(request_id: int):
+        def market_data_generator(request_id: int) -> Dict[str, str]:
             symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
             return {"symbol": symbols[request_id % len(symbols)]}
 
@@ -264,10 +267,10 @@ class TradingSystemLoadTests:
         assert market_data_analysis.p95_response_time < 2.0  # 95% under 2 seconds
 
     @pytest.mark.performance
-    async def test_strategy_engine_load(self, load_test_runner):
+    async def test_strategy_engine_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test strategy engine under load"""
 
-        def signal_generation_data(request_id: int):
+        def signal_generation_data(request_id: int) -> Dict[str, Any]:
             symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
             return {
                 "symbol": symbols[request_id % len(symbols)],
@@ -293,10 +296,10 @@ class TradingSystemLoadTests:
         assert signal_analysis.requests_per_second > 10  # At least 10 RPS
 
     @pytest.mark.performance
-    async def test_risk_manager_load(self, load_test_runner):
+    async def test_risk_manager_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test risk manager under load"""
 
-        def risk_check_data(request_id: int):
+        def risk_check_data(request_id: int) -> Dict[str, Any]:
             return {
                 "signal": {
                     "signal_id": f"test_signal_{request_id}",
@@ -329,10 +332,10 @@ class TradingSystemLoadTests:
         assert risk_analysis.requests_per_second > 50  # At least 50 RPS
 
     @pytest.mark.performance
-    async def test_trade_executor_load(self, load_test_runner):
+    async def test_trade_executor_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test trade executor under load"""
 
-        def order_data(request_id: int):
+        def order_data(request_id: int) -> Dict[str, Any]:
             return {
                 "order": {
                     "symbol": "AAPL",
@@ -360,7 +363,7 @@ class TradingSystemLoadTests:
         assert execution_analysis.p95_response_time < 10.0  # 95% under 10 seconds
 
     @pytest.mark.performance
-    async def test_scheduler_load(self, load_test_runner):
+    async def test_portfolio_manager_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test scheduler service under load"""
 
         scheduler_results = await load_test_runner.run_concurrent_requests(
@@ -376,10 +379,12 @@ class TradingSystemLoadTests:
         assert scheduler_analysis.p95_response_time < 0.5
 
     @pytest.mark.performance
-    async def test_end_to_end_trading_flow_load(self, load_test_runner):
+    async def test_end_to_end_trading_flow_load(self, load_test_runner: LoadTestRunner) -> None:
         """Test complete trading flow under load"""
 
-        async def execute_trading_flow(session: aiohttp.ClientSession, flow_id: int):
+        async def execute_trading_flow(
+            session: aiohttp.ClientSession, flow_id: int
+        ) -> Dict[str, Any]:
             """Execute a complete trading flow"""
             flow_start = time.time()
 
@@ -464,7 +469,7 @@ class TradingSystemLoadTests:
         # Execute multiple trading flows concurrently
         semaphore = asyncio.Semaphore(10)  # Limit concurrency
 
-        async def limited_flow(flow_id: int):
+        async def limited_flow(flow_id: int) -> Dict[str, Any]:
             async with semaphore:
                 return await execute_trading_flow(load_test_runner.session, flow_id)
 
@@ -503,10 +508,12 @@ class DatabaseLoadTests:
     """Load tests for database operations"""
 
     @pytest.mark.performance
-    async def test_database_connection_pool_load(self, mock_db_manager):
+    async def test_database_connection_pool_load(
+        self, mock_db_manager: AsyncMock
+    ) -> None:
         """Test database connection pool under load"""
 
-        async def db_operation(operation_id: int):
+        async def db_operation(operation_id: int) -> Dict[str, Any]:
             """Simulate database operation"""
             start_time = time.time()
 
@@ -563,7 +570,7 @@ class DatabaseLoadTests:
         # Run 500 concurrent database operations
         semaphore = asyncio.Semaphore(20)  # Limit concurrent DB connections
 
-        async def limited_db_operation(operation_id: int):
+        async def limited_db_operation(operation_id: int) -> Dict[str, Any]:
             async with semaphore:
                 return await db_operation(operation_id)
 
@@ -582,10 +589,10 @@ class DatabaseLoadTests:
             assert avg_response_time < 0.1  # Database operations should be fast
 
     @pytest.mark.performance
-    async def test_redis_load(self, mock_redis_client):
+    async def test_redis_load(self, mock_redis_client: MagicMock) -> None:
         """Test Redis operations under load"""
 
-        async def redis_operation(operation_id: int):
+        async def redis_operation(operation_id: int) -> Dict[str, Any]:
             """Simulate Redis operation"""
             start_time = time.time()
 
@@ -633,7 +640,7 @@ class DatabaseLoadTests:
             assert avg_response_time < 0.01  # Redis should be very fast
 
     @pytest.mark.performance
-    async def test_message_queue_throughput(self, mock_redis_client):
+    async def test_message_queue_throughput(self, mock_redis_client: MagicMock) -> None:
         """Test Redis message queue throughput"""
 
         message_count = 1000
@@ -641,7 +648,9 @@ class DatabaseLoadTests:
         subscribers = 3
 
         # Publisher coroutine
-        async def publisher(publisher_id: int, messages_per_publisher: int):
+        async def publisher(
+            publisher_id: int, messages_per_publisher: int
+        ) -> Dict[str, Any]:
             published_count = 0
             start_time = time.time()
 
@@ -666,7 +675,9 @@ class DatabaseLoadTests:
             }
 
         # Subscriber coroutine
-        async def subscriber(subscriber_id: int, expected_messages: int):
+        async def subscriber(
+            subscriber_id: int, expected_messages: int
+        ) -> Dict[str, Any]:
             received_count = 0
             start_time = time.time()
             timeout_time = start_time + 30  # 30 second timeout
@@ -711,7 +722,7 @@ class MemoryLeakTests:
     """Tests for memory leak detection"""
 
     @pytest.mark.performance
-    async def test_long_running_data_collection_memory(self):
+    async def test_long_running_data_collection_memory(self) -> None:
         """Test for memory leaks in long-running data collection"""
         import gc
 
@@ -754,11 +765,11 @@ class MemoryLeakTests:
                     assert memory_growth < 100, f"Memory grew by {memory_growth:.2f}MB"
 
     @pytest.mark.performance
-    async def test_redis_connection_pool_stability(self, mock_redis_client):
+    async def test_redis_connection_pool_stability(self, mock_redis_client: MagicMock) -> None:
         """Test Redis connection pool stability under load"""
 
         # Simulate rapid connection usage
-        async def redis_stress_test(test_id: int):
+        async def redis_stress_test(test_id: int) -> int:
             for i in range(100):
                 key = f"stress_test_{test_id}_{i}"
                 value = f"value_{i}" * 100  # Larger values
@@ -781,20 +792,20 @@ class MemoryLeakTests:
         # This test mainly ensures no exceptions are raised
 
     @pytest.mark.performance
-    async def test_websocket_connection_stability(self):
+    async def test_websocket_connection_stability(self) -> None:
         """Test WebSocket connection stability under load"""
 
         class MockWebSocket:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.connected = True
                 self.message_count = 0
 
-            async def send(self, message):
+            async def send(self, message: str) -> None:
                 if not self.connected:
                     raise Exception("Connection lost")
                 self.message_count += 1
 
-            async def recv(self):
+            async def recv(self) -> str:
                 if not self.connected:
                     raise Exception("Connection lost")
                 await asyncio.sleep(0.001)
@@ -806,13 +817,13 @@ class MemoryLeakTests:
                     }
                 )
 
-            async def close(self):
+            async def close(self) -> None:
                 self.connected = False
 
         # Simulate high-frequency WebSocket usage
         mock_ws = MockWebSocket()
 
-        async def websocket_stress_test(duration_seconds: int = 30):
+        async def websocket_stress_test(duration_seconds: int = 30) -> Dict[str, float]:
             start_time = time.time()
             message_count = 0
 
@@ -849,7 +860,7 @@ class LatencyOptimizationTests:
     """Tests for latency optimization"""
 
     @pytest.mark.performance
-    async def test_signal_generation_latency(self, load_test_runner):
+    async def test_signal_generation_latency(self, load_test_runner: LoadTestRunner) -> None:
         """Test signal generation latency optimization"""
 
         # Test with different data sizes
@@ -858,7 +869,7 @@ class LatencyOptimizationTests:
 
         for data_size in data_sizes:
 
-            def signal_data_generator(request_id: int):
+            def signal_data_generator(request_id: int) -> Dict[str, Any]:
                 # Generate historical data of specified size
                 historical_data = []
                 for i in range(data_size):

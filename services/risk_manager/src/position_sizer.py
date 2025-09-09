@@ -12,7 +12,7 @@ This module provides advanced position sizing algorithms including:
 import logging
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from shared.config import get_config
 from shared.models import (
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class PositionSizer:
     """Advanced position sizing calculator."""
 
-    def __init__(self, risk_limits: RiskLimits):
+    def __init__(self, risk_limits: RiskLimits) -> None:
         """Initialize position sizer with risk limits."""
         self.risk_limits = risk_limits
         self.config = get_config()
@@ -1529,12 +1529,12 @@ class PositionSizer:
         except Exception as e:
             logger.error(f"Error logging circuit breaker event: {e}")
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "PositionSizer":
         """Async context manager entry."""
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         """Async context manager exit."""
         await self.cleanup()
         return False

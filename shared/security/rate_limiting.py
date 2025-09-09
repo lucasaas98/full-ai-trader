@@ -141,12 +141,12 @@ class RateLimiter:
             ),
         }
 
-    def add_rule(self, rule: RateLimitRule):
+    def add_rule(self, rule: RateLimitRule) -> None:
         """Add a custom rate limiting rule"""
         self.rules[rule.name] = rule
         logger.info(f"Added rate limiting rule: {rule.name}")
 
-    def remove_rule(self, rule_name: str):
+    def remove_rule(self, rule_name: str) -> None:
         """Remove a rate limiting rule"""
         if rule_name in self.rules:
             del self.rules[rule_name]
@@ -393,11 +393,11 @@ class RateLimiter:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for rate limiting"""
 
-    def __init__(self, app, rate_limiter: RateLimiter):
+    def __init__(self, app: Any, rate_limiter: RateLimiter) -> None:
         super().__init__(app)
         self.rate_limiter = rate_limiter
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         """Apply rate limiting to requests"""
         # Get applicable rules for this request
         applicable_rules = [
@@ -568,7 +568,7 @@ class CircuitBreakerRateLimiter:
             logger.error(f"Circuit breaker check failed: {e}")
             return False
 
-    async def record_success(self, endpoint: str):
+    async def record_success(self, endpoint: str) -> None:
         """Record successful request for circuit breaker"""
         circuit_key = f"circuit_breaker:{endpoint}"
 
@@ -597,7 +597,7 @@ class CircuitBreakerRateLimiter:
         except Exception as e:
             logger.error(f"Failed to record success for circuit breaker: {e}")
 
-    async def record_failure(self, endpoint: str):
+    async def record_failure(self, endpoint: str) -> None:
         """Record failed request for circuit breaker"""
         circuit_key = f"circuit_breaker:{endpoint}"
 
@@ -714,11 +714,13 @@ class TradingRateLimiter:
 
 
 # Rate limiting decorators
-def rate_limit(rule_name: str, custom_key: Optional[str] = None, increment: int = 1):
+def rate_limit(
+    rule_name: str, custom_key: Optional[str] = None, increment: int = 1
+) -> Any:
     """Decorator for function-level rate limiting"""
 
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
+    def decorator(func: Any) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Get rate limiter from context (would need to be set up)
             rate_limiter = getattr(func, "_rate_limiter", None)
             if not rate_limiter:
@@ -897,7 +899,9 @@ class RateLimitMonitor:
 
 
 # Utility functions
-async def cleanup_rate_limit_data(redis_client: redis.Redis, max_age_hours: int = 24):
+async def cleanup_rate_limit_data(
+    redis_client: redis.Redis, max_age_hours: int = 24
+) -> None:
     """Clean up old rate limiting data"""
     try:
         pattern = "rate_limit:*"

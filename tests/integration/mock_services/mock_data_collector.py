@@ -82,7 +82,7 @@ class MockDataCollector:
             "DATA_VALIDATION": "data:validation",
         }
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the mock data collector."""
         logger.info("Starting Mock Data Collector...")
 
@@ -105,7 +105,7 @@ class MockDataCollector:
             f"Mock Data Collector started with {len(self.config.available_symbols)} symbols"
         )
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the mock data collector."""
         logger.info("Stopping Mock Data Collector...")
 
@@ -125,7 +125,7 @@ class MockDataCollector:
 
         logger.info("Mock Data Collector stopped")
 
-    async def _setup_redis(self):
+    async def _setup_redis(self) -> None:
         """Setup Redis connection."""
         try:
             config = get_config()
@@ -145,7 +145,7 @@ class MockDataCollector:
             logger.error(f"Failed to setup Redis: {e}")
             self.redis_client = None
 
-    async def _load_historical_data(self):
+    async def _load_historical_data(self) -> None:
         """Load historical data from parquet files."""
         logger.info("Loading historical data...")
 
@@ -187,7 +187,7 @@ class MockDataCollector:
         total_symbols = len([s for s in self._cached_data if self._cached_data[s]])
         logger.info(f"Historical data loaded for {total_symbols} symbols")
 
-    async def _publish_data_updates(self):
+    async def _publish_data_updates(self) -> None:
         """Simulate real-time data updates."""
         while self.is_running:
             try:
@@ -210,7 +210,7 @@ class MockDataCollector:
                 logger.error(f"Error in data updates: {e}")
                 await asyncio.sleep(5)
 
-    async def _publish_symbol_update(self, symbol: str, current_time: datetime):
+    async def _publish_market_data(self, symbol: str, current_time: datetime) -> None:
         """Publish market data update for a symbol."""
         if not self.redis_client:
             return
@@ -269,7 +269,7 @@ class MockDataCollector:
         except Exception as e:
             logger.error(f"Error publishing update for {symbol}: {e}")
 
-    async def _simulate_screener(self):
+    async def _simulate_screener(self) -> None:
         """Simulate screener updates."""
         while self.is_running:
             try:
@@ -398,12 +398,12 @@ class MockDataCollector:
             "service": "mock_data_collector",
         }
 
-    async def force_screener_update(self):
+    async def force_screener_update(self) -> None:
         """Force an immediate screener update."""
         if self.config.simulate_screener and self.is_running:
             await self._simulate_screener()
 
-    async def reset_simulation_date(self, new_date: Optional[date] = None):
+    async def reset_simulation_date(self, new_date: Optional[date] = None) -> None:
         """Reset the simulation date."""
         if new_date:
             self._simulation_date = new_date
@@ -428,7 +428,7 @@ async def create_mock_data_collector(
 if __name__ == "__main__":
     import sys
 
-    async def main():
+    async def main() -> None:
         # Simple test runner
         config = MockDataCollectorConfig(
             available_symbols=["AAPL", "SPY"],

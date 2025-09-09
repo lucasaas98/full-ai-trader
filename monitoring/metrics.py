@@ -409,7 +409,7 @@ class MetricsCollector:
         self.collection_interval = 30  # seconds
         self._running = False
 
-    async def startup(self):
+    async def startup(self) -> None:
         """Initialize metrics collector"""
         try:
             # Initialize Redis connection
@@ -439,7 +439,7 @@ class MetricsCollector:
             self.logger.error(f"Failed to start metrics collector: {e}")
             raise
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Cleanup metrics collector"""
         self._running = False
 
@@ -449,7 +449,7 @@ class MetricsCollector:
         if self._db_pool:
             await self._db_pool.close()
 
-    async def start_collection(self):
+    async def start_collection(self) -> None:
         """Start periodic metrics collection"""
         self._running = True
 
@@ -461,7 +461,7 @@ class MetricsCollector:
                 self.logger.error(f"Error collecting metrics: {e}")
                 await asyncio.sleep(self.collection_interval)
 
-    async def collect_all_metrics(self):
+    async def collect_all_metrics(self) -> None:
         """Collect all system metrics"""
         await asyncio.gather(
             self.collect_service_metrics(),
@@ -474,7 +474,7 @@ class MetricsCollector:
             return_exceptions=True,
         )
 
-    async def collect_service_metrics(self):
+    async def collect_service_metrics(self) -> None:
         """Collect service health metrics"""
         services = [
             ("data_collector", 9101),
@@ -510,7 +510,7 @@ class MetricsCollector:
                 )
                 self.metrics.service_up.labels(service_name=service_name).set(0)
 
-    async def collect_portfolio_metrics(self):
+    async def collect_portfolio_metrics(self) -> None:
         """Collect portfolio-related metrics"""
         try:
             if not self._db_pool:
@@ -591,7 +591,7 @@ class MetricsCollector:
         except Exception as e:
             self.logger.error(f"Failed to collect portfolio metrics: {e}")
 
-    async def collect_system_metrics(self):
+    async def collect_system_metrics(self) -> None:
         """Collect system resource metrics"""
         try:
             # CPU usage
@@ -616,7 +616,7 @@ class MetricsCollector:
         except Exception as e:
             self.logger.error(f"Failed to collect system metrics: {e}")
 
-    async def collect_database_metrics(self):
+    async def collect_database_metrics(self) -> None:
         """Collect database metrics"""
         try:
             if not self._db_pool:
@@ -655,7 +655,7 @@ class MetricsCollector:
         except Exception as e:
             self.logger.error(f"Failed to collect database metrics: {e}")
 
-    async def collect_redis_metrics(self):
+    async def collect_redis_metrics(self) -> None:
         """Collect Redis metrics"""
         try:
             if not self._redis_client:
@@ -685,7 +685,7 @@ class MetricsCollector:
         except Exception as e:
             self.logger.error(f"Failed to collect Redis metrics: {e}")
 
-    async def collect_trading_metrics(self):
+    async def collect_trading_metrics(self) -> None:
         """Collect trading-specific metrics"""
         try:
             if not self._db_pool:
@@ -744,7 +744,7 @@ class MetricsCollector:
         except Exception as e:
             self.logger.error(f"Failed to collect trading metrics: {e}")
 
-    async def collect_risk_metrics(self):
+    async def collect_risk_metrics(self) -> None:
         """Collect risk management metrics"""
         try:
             if not self._db_pool:
@@ -789,7 +789,7 @@ class MetricsCollector:
         endpoint: str,
         status_code: int,
         duration: float,
-    ):
+    ) -> None:
         """Record API request metrics"""
         self.metrics.http_requests_total.labels(
             service=service,
@@ -809,7 +809,7 @@ class MetricsCollector:
         strategy: str,
         latency: float,
         pnl: Optional[float] = None,
-    ):
+    ) -> None:
         """Record trade execution metrics"""
         self.metrics.trades_executed_total.labels(
             symbol=symbol, side=side, strategy=strategy
@@ -824,7 +824,7 @@ class MetricsCollector:
 
     def record_signal_generation(
         self, symbol: str, strategy: str, signal_type: str, confidence: float
-    ):
+    ) -> None:
         """Record signal generation metrics"""
         self.metrics.trading_signals_generated_total.labels(
             symbol=symbol, strategy=strategy, signal_type=signal_type
@@ -839,7 +839,7 @@ class MetricsCollector:
         source: str,
         success: bool,
         error_type: Optional[str] = None,
-    ):
+    ) -> None:
         """Record market data collection metrics"""
         if success:
             self.metrics.market_data_collection_total.labels(
@@ -856,7 +856,7 @@ class MetricsCollector:
 
     def record_external_api_request(
         self, api: str, endpoint: str, duration: float, success: bool
-    ):
+    ) -> None:
         """Record external API request metrics"""
         status = "success" if success else "error"
 
@@ -874,7 +874,7 @@ class MetricsCollector:
         duration: float,
         success: bool,
         error_type: Optional[str] = None,
-    ):
+    ) -> None:
         """Record database operation metrics"""
         self.metrics.database_query_duration.labels(query_type=query_type).observe(
             duration
@@ -883,7 +883,9 @@ class MetricsCollector:
         if not success and error_type:
             self.metrics.database_errors_total.labels(error_type=error_type).inc()
 
-    def record_redis_operation(self, operation: str, duration: float, success: bool):
+    def record_redis_operation(
+        self, operation: str, duration: float, success: bool
+    ) -> None:
         """Record Redis operation metrics"""
         status = "success" if success else "error"
 
@@ -895,7 +897,7 @@ class MetricsCollector:
             duration
         )
 
-    def update_portfolio_metrics(self, portfolio_state: PortfolioState):
+    def update_portfolio_metrics(self, portfolio_state: PortfolioState) -> None:
         """Update portfolio metrics from portfolio state"""
         self.metrics.portfolio_total_value.set(float(portfolio_state.total_equity))
         self.metrics.portfolio_cash.set(float(portfolio_state.cash))
@@ -918,12 +920,12 @@ class MetricsCollector:
 
             self.metrics.max_position_concentration.set(max_concentration)
 
-    def record_risk_event(self, event_type: str, severity: str):
+    def record_risk_event(self, event_type: str, severity: str) -> None:
         """Record risk event"""
         self.metrics.risk_limit_violations_total.labels(violation_type=event_type).inc()
 
     @asynccontextmanager
-    async def measure_duration(self, metric_name: str, labels: Dict[str, str]):
+    async def measure_duration(self, metric_name: str, labels: Dict[str, str]) -> Any:
         """Context manager to measure operation duration"""
         start_time = time.time()
         try:
@@ -982,11 +984,11 @@ class AlertManager:
                 config.notifications.gotify_url, config.notifications.gotify_token
             )
 
-    def add_alert_rule(self, rule: Dict[str, Any]):
+    def add_alert_rule(self, rule: Dict[str, Any]) -> None:
         """Add alert rule"""
         self.alert_rules.append(rule)
 
-    async def check_alerts(self):
+    async def check_alerts(self) -> None:
         """Check all alert rules"""
         for rule in self.alert_rules:
             try:
@@ -996,7 +998,7 @@ class AlertManager:
                     f"Failed to evaluate alert rule {rule.get('name', 'unknown')}: {e}"
                 )
 
-    async def _evaluate_alert_rule(self, rule: Dict[str, Any]):
+    async def _evaluate_alert_rule(self, rule: Dict[str, Any]) -> None:
         """Evaluate a single alert rule"""
         rule_name = rule["name"]
         condition = rule["condition"]
@@ -1059,7 +1061,7 @@ class AlertManager:
             self.logger.error(f"Failed to get metric value for {metric_name}: {e}")
             return None
 
-    async def _fire_alert(self, alert_data: Dict[str, Any]):
+    async def _fire_alert(self, alert_data: Dict[str, Any]) -> None:
         """Fire an alert"""
         message = f"ALERT: {alert_data['rule_name']} - Current: {alert_data['current_value']}, Threshold: {alert_data['threshold']}"
 
@@ -1073,6 +1075,6 @@ class AlertManager:
 
         self.logger.warning(f"Alert fired: {message}")
 
-    async def _clear_alert(self, alert_key: str):
+    async def _clear_alert(self, alert_key: str) -> None:
         """Clear an alert"""
         self.logger.info(f"Alert cleared: {alert_key}")

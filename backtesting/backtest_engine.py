@@ -447,7 +447,7 @@ class BacktestEngine:
         strategy: StrategyInterface,
         symbols: List[str],
         historical_data: Dict[str, List[MarketData]],
-    ):
+    ) -> None:
         """Run the actual simulation"""
         # Get all unique timestamps and sort them
         all_timestamps = set()
@@ -496,7 +496,7 @@ class BacktestEngine:
 
     async def _update_position_prices(
         self, market_data: Dict[str, List[MarketData]], current_time: datetime
-    ):
+    ) -> None:
         """Update current prices for all positions"""
         for symbol, position in self.current_positions.items():
             if symbol in market_data and market_data[symbol]:
@@ -505,7 +505,7 @@ class BacktestEngine:
 
     async def _check_exit_conditions(
         self, market_data: Dict[str, List[MarketData]], current_time: datetime
-    ):
+    ) -> None:
         """Check stop loss, take profit, and other exit conditions"""
         positions_to_close = []
 
@@ -562,7 +562,7 @@ class BacktestEngine:
 
     async def _execute_signal(
         self, signal: TradeSignal, market_data: Dict[str, List[MarketData]]
-    ):
+    ) -> None:
         """Execute a trading signal"""
         symbol = signal.symbol
 
@@ -590,7 +590,9 @@ class BacktestEngine:
         elif signal.signal_type == SignalType.SELL:
             await self._execute_sell_signal(signal, execution_price)
 
-    async def _execute_buy_signal(self, signal: TradeSignal, execution_price: float):
+    async def _execute_buy_signal(
+        self, signal: TradeSignal, execution_price: float
+    ) -> None:
         """Execute buy signal"""
         symbol = signal.symbol
 
@@ -656,7 +658,9 @@ class BacktestEngine:
             f"Opened position: {symbol} x{quantity} @ ${execution_price:.2f}"
         )
 
-    async def _execute_sell_signal(self, signal: TradeSignal, execution_price: float):
+    async def _execute_sell_signal(
+        self, signal: TradeSignal, execution_price: float
+    ) -> None:
         """Execute sell signal"""
         symbol = signal.symbol
 
@@ -805,7 +809,7 @@ class BacktestEngine:
 
     async def _record_portfolio_snapshot(
         self, timestamp: datetime, market_data: Dict[str, List[MarketData]]
-    ):
+    ) -> None:
         """Record current portfolio state"""
         # Update position values
         total_position_value = 0.0
@@ -1351,7 +1355,7 @@ class WalkForwardAnalysis:
 
 
 # Example usage demonstrating the implemented features
-async def example_backtest():
+async def example_backtest() -> Optional[BacktestResult]:
     """Example demonstrating how to use the backtest engine with existing data infrastructure"""
     from services.data_collector.src.data_store import DataStore, DataStoreConfig
 
@@ -1429,7 +1433,7 @@ async def example_backtest():
         return None
 
 
-async def example_walk_forward_analysis():
+async def example_walk_forward_analysis() -> Optional[Dict[str, Any]]:
     """Example of walk-forward analysis using the implemented features"""
     from services.data_collector.src.data_store import DataStore, DataStoreConfig
 

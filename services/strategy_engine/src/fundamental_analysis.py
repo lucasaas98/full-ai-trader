@@ -63,7 +63,7 @@ class FundamentalMetrics:
 class FundamentalAnalyzer:
     """Core fundamental analysis engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize fundamental analyzer."""
         self.logger = logging.getLogger("fundamental_analyzer")
 
@@ -548,7 +548,7 @@ class FundamentalAnalyzer:
         except Exception:
             return None
 
-    def _safe_float(self, value) -> Optional[float]:
+    def _safe_float(self, value: Any) -> Optional[float]:
         """Safely convert a value to float."""
         if value is None:
             return None
@@ -1001,7 +1001,9 @@ class FinVizDataProcessor:
         """
         try:
 
-            def safe_float(value, default=None):
+            def safe_float(
+                value: any, default: Optional[float] = None
+            ) -> Optional[float]:
                 """Safely convert value to float."""
                 if value in [None, "", "-", "N/A"]:
                     return default
@@ -1182,7 +1184,7 @@ class FinVizDataProcessor:
 class SectorAnalyzer:
     """Analyze sector and industry performance and rotation."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize sector analyzer."""
         self.logger = logging.getLogger("sector_analyzer")
 
@@ -1290,7 +1292,7 @@ class SectorAnalyzer:
 class FundamentalScreener:
     """Screen stocks based on fundamental criteria."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize fundamental screener."""
         self.logger = logging.getLogger("fundamental_screener")
 
@@ -1460,7 +1462,7 @@ class FundamentalScreener:
 class FundamentalAnalysisEngine:
     """Main fundamental analysis engine."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize fundamental analysis engine."""
         self.logger = logging.getLogger("fundamental_analysis")
         self.analyzer = FundamentalAnalyzer()

@@ -165,7 +165,7 @@ class MockAIStrategy:
 
     async def generate_signal(
         self, symbol: str, current_data: Any, historical_data: Any, market_context: Any
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Generate a mock signal for testing."""
         import random
 
@@ -189,7 +189,7 @@ class MockRedisClient:
     """Mock Redis client for backtesting to simulate live data flow."""
 
     def __init__(self) -> None:
-        self.data_cache = {}
+        self.data_cache: Dict[str, Any] = {}
         self.logger = logging.getLogger(f"{__name__}.MockRedisClient")
 
     async def publish(self, channel: str, data: Any) -> None:

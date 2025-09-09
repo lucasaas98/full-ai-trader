@@ -1413,7 +1413,7 @@ class RiskManager:
             logger.error(f"Error getting ATR for {symbol}: {e}")
             return 0.02  # Default ATR
 
-    async def _initialize_data_client(self):
+    async def _initialize_data_client(self) -> None:
         """Initialize HTTP client for data collector service."""
         try:
             from shared.clients import DataCollectorClient
@@ -1477,27 +1477,27 @@ class RiskManager:
             logger.error(f"Error calculating returns: {e}")
             return None
 
-    def reset_daily_counters(self):
+    def reset_daily_counters(self) -> None:
         """Reset daily trading counters (call at market open)."""
         self.daily_pnl = Decimal("0")
         self.daily_trade_count = 0
         logger.info("Daily risk counters reset")
 
-    def activate_emergency_stop(self, reason: str):
+    def activate_emergency_stop(self, reason: str) -> None:
         """Activate emergency stop."""
         self.emergency_stop_active = True
         logger.critical(f"Emergency stop activated: {reason}")
 
-    def deactivate_emergency_stop(self):
+    def deactivate_emergency_stop(self) -> None:
         """Deactivate emergency stop (manual intervention required)."""
         self.emergency_stop_active = False
         logger.warning("Emergency stop deactivated")
 
-    def update_daily_pnl(self, trade_pnl: Decimal):
+    def update_daily_pnl(self, trade_pnl: Decimal) -> None:
         """Update daily P&L tracking."""
         self.daily_pnl += trade_pnl
         self.daily_trade_count += 1
 
-    def set_portfolio_snapshot(self, portfolio: PortfolioState):
+    def set_portfolio_snapshot(self, portfolio: PortfolioState) -> None:
         """Set portfolio snapshot for comparison."""
         self.last_portfolio_snapshot = portfolio

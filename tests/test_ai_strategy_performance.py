@@ -12,6 +12,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -43,12 +44,12 @@ class TestPerformanceMetrics:
     """Test performance characteristics of the AI strategy."""
 
     @pytest.mark.benchmark
-    def test_context_building_performance(self, benchmark):
+    def test_context_building_performance(self, benchmark: Any) -> None:
         """Benchmark context building performance."""
         # Create large dataset
         data = create_large_dataset(1000)
 
-        def build_context():
+        def build_context() -> dict[str, Any]:
             return DataContextBuilder.build_master_context(
                 ticker="TEST",
                 data=data,
@@ -63,7 +64,7 @@ class TestPerformanceMetrics:
         assert "current_price" in result
 
     @pytest.mark.benchmark
-    def test_rsi_calculation_performance(self, benchmark):
+    def test_rsi_calculation_performance(self, benchmark: Any) -> None:
         """Benchmark RSI calculation performance."""
         data = create_large_dataset(500)
 
@@ -72,7 +73,7 @@ class TestPerformanceMetrics:
         assert 0 <= result <= 100
 
     @pytest.mark.asyncio
-    async def test_cache_performance(self):
+    async def test_cache_performance(self) -> None:
         """Test cache performance with many entries."""
         cache = ResponseCache(ttl=300)
 
@@ -105,7 +106,7 @@ class TestPerformanceMetrics:
         assert read_time < 0.5  # Reads should be faster
 
     @pytest.mark.asyncio
-    async def test_consensus_performance_with_many_models(self):
+    async def test_consensus_performance_with_many_models(self) -> None:
         """Test consensus building performance with many responses."""
         responses = []
         for i in range(10):
@@ -141,7 +142,7 @@ class TestMemoryUsage:
     """Test memory usage and leak detection."""
 
     @pytest.mark.asyncio
-    async def test_memory_cleanup_after_analysis(self):
+    async def test_memory_cleanup_after_analysis(self) -> None:
         """Test that memory is properly cleaned up after analysis."""
         config = StrategyConfig(
             name="test",
@@ -175,7 +176,7 @@ class TestMemoryUsage:
         # Memory increase should be reasonable (less than 50MB)
         assert memory_increase < 50
 
-    def test_data_buffer_memory_limits(self):
+    def test_data_buffer_memory_limits(self) -> None:
         """Test that data buffers don't grow unbounded."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -203,7 +204,7 @@ class TestSystemIntegration:
     """Test full system integration scenarios."""
 
     @pytest.mark.asyncio
-    async def test_full_pipeline_execution(self):
+    async def test_full_pipeline_execution(self) -> None:
         """Test complete pipeline from data ingestion to signal generation."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -233,7 +234,7 @@ class TestSystemIntegration:
                 ):
                     # Simulate price update
                     for i in range(50):
-                        await integration._handle_price_update(
+                        await integration._handle_screener_update(
                             {
                                 "ticker": "TEST",
                                 "timestamp": (
@@ -252,7 +253,7 @@ class TestSystemIntegration:
                     assert len(integration.price_data_buffer["TEST"]) == 50
 
     @pytest.mark.asyncio
-    async def test_concurrent_ticker_processing(self):
+    async def test_concurrent_ticker_processing(self) -> None:
         """Test processing multiple tickers concurrently."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -288,7 +289,7 @@ class TestSystemIntegration:
                 assert elapsed < 5.0
 
     @pytest.mark.asyncio
-    async def test_error_recovery_in_pipeline(self):
+    async def test_error_recovery_in_pipeline(self) -> None:
         """Test that pipeline recovers from errors."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -301,7 +302,7 @@ class TestSystemIntegration:
                 # Make first analysis fail
                 call_count = 0
 
-                async def analyze_with_error(ticker, data):
+                async def analyze_with_error(ticker: str, data: Any) -> Any:
                     nonlocal call_count
                     call_count += 1
                     if call_count == 1:
@@ -328,7 +329,7 @@ class TestCostOptimization:
     """Test cost optimization strategies."""
 
     @pytest.mark.asyncio
-    async def test_model_selection_based_on_confidence(self):
+    async def test_model_selection_based_on_confidence(self) -> None:
         """Test that appropriate models are selected based on confidence needs."""
         config = {
             "models": {
@@ -344,7 +345,7 @@ class TestCostOptimization:
         # Track which model is used
         models_used = []
 
-        async def mock_query(prompt, model, **kwargs):
+        async def mock_query(prompt: str, model: Any, **kwargs: Any) -> Any:
             models_used.append(model)
             return AIResponse(
                 model=model,
@@ -366,7 +367,7 @@ class TestCostOptimization:
         assert models_used[-1] == AIModel.OPUS
 
     @pytest.mark.asyncio
-    async def test_cache_hit_rate(self):
+    async def test_cache_hit_rate(self) -> None:
         """Test cache hit rate for similar queries."""
         cache = ResponseCache(ttl=300)
 
@@ -402,7 +403,7 @@ class TestRealTimePerformance:
     """Test real-time performance characteristics."""
 
     @pytest.mark.asyncio
-    async def test_latency_requirements(self):
+    async def test_latency_requirements(self) -> None:
         """Test that system meets latency requirements."""
         config = StrategyConfig(
             name="test",
@@ -414,7 +415,7 @@ class TestRealTimePerformance:
             strategy = AIStrategyEngine(config)
 
         # Mock fast AI response
-        async def fast_analyze(ticker, data):
+        async def fast_analyze(ticker: str, data: Any) -> Any:
             await asyncio.sleep(0.01)  # Simulate 10ms API call
             return Signal(action=SignalType.BUY, confidence=70, position_size=0.05)
 
@@ -432,7 +433,7 @@ class TestRealTimePerformance:
         assert signal.action == SignalType.BUY
 
     @pytest.mark.asyncio
-    async def test_throughput_under_load(self):
+    async def test_throughput_under_load(self) -> None:
         """Test system throughput under heavy load."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -443,7 +444,7 @@ class TestRealTimePerformance:
                 )
 
                 # Mock fast analysis
-                async def fast_analyze(ticker, data):
+                async def fast_analyze(ticker: str, data: Any) -> Any:
                     await asyncio.sleep(0.001)
                     return Signal(
                         action=SignalType.BUY, confidence=70, position_size=0.05
@@ -494,7 +495,7 @@ def create_large_dataset(num_rows: int) -> pl.DataFrame:
     )
 
 
-def mock_open(read_data=""):
+def mock_open(read_data: str = "") -> Any:
     """Helper to mock file open."""
     m = MagicMock()
     m.__enter__ = MagicMock(

@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 class SimpleDatabaseManager:
     """Simple database manager using asyncpg for lightweight database operations."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Any = None) -> None:
         """Initialize database manager."""
         self.config = config or get_config()
         self.pool = None
         self._initialized = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection pool."""
         if self._initialized:
             return
@@ -63,6 +63,8 @@ class SimpleDatabaseManager:
             )
 
             # Test connection
+            if self.pool is None:
+                raise RuntimeError("Database pool not initialized")
             async with self.pool.acquire() as conn:
                 await conn.fetchval("SELECT 1")
 
@@ -404,19 +406,19 @@ class SimpleDatabaseManager:
             logger.error(f"Failed to get row count for {table_name}: {e}")
             return 0
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connection pool."""
         if self.pool:
             await self.pool.close()
             logger.info("Database connection pool closed")
             self._initialized = False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "SimpleDatabaseManager":
         """Async context manager entry."""
         await self.initialize()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()
 

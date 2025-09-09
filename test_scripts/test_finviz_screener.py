@@ -28,7 +28,7 @@ from services.data_collector.src.finviz_screener import (  # noqa: E402
 FINVIZ_API_KEY = os.getenv("FINVIZ_API_KEY", "0b8a5f2f-8cdc-4995-bf37-ee41210d772a")
 
 
-async def test_basic_screener():
+async def test_basic_screener() -> None:
     """Test basic screener with minimal filters."""
     print("\n" + "=" * 60)
     print("TEST 1: Basic Screener (Minimal Filters)")
@@ -67,7 +67,7 @@ async def test_basic_screener():
         pass
 
 
-async def test_momentum_screener():
+async def test_momentum_screener() -> None:
     """Test the momentum screener configuration."""
     print("\n" + "=" * 60)
     print("TEST 2: Momentum Screener (Default Parameters)")
@@ -95,7 +95,7 @@ async def test_momentum_screener():
         pass
 
 
-async def test_high_volume_breakouts():
+async def test_high_volume_breakouts() -> None:
     """Test high volume breakout screener."""
     print("\n" + "=" * 60)
     print("TEST 3: High Volume Breakouts")
@@ -122,7 +122,7 @@ async def test_high_volume_breakouts():
         pass
 
 
-async def test_large_cap_stocks():
+async def test_large_cap_stocks() -> None:
     """Test screener with large cap stocks only."""
     print("\n" + "=" * 60)
     print("TEST 4: Large Cap Stocks (>10B)")
@@ -160,7 +160,7 @@ async def test_large_cap_stocks():
         pass
 
 
-async def test_raw_api_call():
+async def test_raw_api_call() -> None:
     """Test raw API call to FinViz without any processing."""
     print("\n" + "=" * 60)
     print("TEST 5: Raw API Call (Direct HTTP Request)")
@@ -215,7 +215,7 @@ async def test_raw_api_call():
             print(f"Unexpected error: {e}")
 
 
-async def test_all_screener_types():
+async def test_all_screener_types() -> None:
     """Test all 6 screener types that the data collector uses."""
     print("\n" + "=" * 60)
     print("TEST 6: All Screener Types (As Used in Data Collector)")
@@ -265,7 +265,7 @@ async def test_all_screener_types():
         print(f"{status} {name}: {count}")
 
 
-async def main():
+async def main() -> None:
     """Run all tests."""
     print("=" * 60)
     print("FINVIZ SCREENER TEST SUITE")

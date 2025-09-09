@@ -76,7 +76,7 @@ class TechnicalIndicators:
         weights = np.arange(1, period + 1)
         weights = weights / weights.sum()
 
-        def weighted_mean(values):
+        def weighted_mean(values: pl.Series) -> float | None:
             if len(values) < period:
                 return None
             return np.dot(values[-period:], weights)
@@ -1404,7 +1404,7 @@ class VolatilityAnalyzer:
 class TechnicalAnalysisEngine:
     """Main technical analysis engine that orchestrates all components."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the technical analysis engine."""
         self.logger = logging.getLogger("technical_analysis")
         self.indicators = TechnicalIndicators()

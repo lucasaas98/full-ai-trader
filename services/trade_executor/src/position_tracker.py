@@ -60,7 +60,7 @@ class PositionTracker:
         self._running = False
         self._price_callbacks: Dict[str, List] = {}
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database and Redis connections."""
         try:
             # Initialize database connection pool
@@ -88,7 +88,7 @@ class PositionTracker:
             logger.error(f"Failed to initialize PositionTracker: {e}")
             raise
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         try:
             self._running = False
@@ -100,7 +100,7 @@ class PositionTracker:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
-    async def _load_positions_cache(self):
+    async def _load_positions_cache(self) -> None:
         """Load active positions into cache."""
         try:
             if not self._db_pool:
@@ -222,7 +222,7 @@ class PositionTracker:
 
     async def update_position_price(
         self, symbol: str, current_price: Decimal, quote_data: Optional[Dict] = None
-    ):
+    ) -> None:
         """
         Update position with current price and recalculate metrics.
 
@@ -306,7 +306,7 @@ class PositionTracker:
         bid_price: Optional[Decimal] = None,
         ask_price: Optional[Decimal] = None,
         volume: Optional[int] = None,
-    ):
+    ) -> None:
         """Update position snapshot using database function."""
         try:
             if not self._db_pool:
@@ -328,7 +328,7 @@ class PositionTracker:
 
     async def _check_exit_conditions(
         self, symbol: str, position: Dict[str, Any], current_price: Decimal
-    ):
+    ) -> None:
         """Check if position should be exited based on stop loss or take profit."""
         try:
             quantity = position["quantity"]
@@ -366,7 +366,7 @@ class PositionTracker:
 
     async def _trigger_position_exit(
         self, symbol: str, position: Dict[str, Any], reason: str, current_price: Decimal
-    ):
+    ) -> None:
         """Trigger position exit."""
         try:
             # Update position status to closing
@@ -882,7 +882,7 @@ class PositionTracker:
             logger.error(f"Failed to get performance summary: {e}")
             return {}
 
-    async def start_real_time_tracking(self):
+    async def start_real_time_tracking(self) -> None:
         """Start real-time position tracking."""
         self._running = True
 
@@ -892,7 +892,7 @@ class PositionTracker:
             logger.info("No positions to track")
             return
 
-        async def price_update_callback(data_type: str, data: Dict[str, Any]):
+        async def price_update_callback(data_type: str, data: Dict[str, Any]) -> None:
             """Handle real-time price updates."""
             try:
                 if data_type == "quote":
@@ -914,7 +914,7 @@ class PositionTracker:
 
     async def _publish_position_update(
         self, symbol: str, position_data: Dict[str, Any], action: str
-    ):
+    ) -> None:
         """Publish position update to Redis."""
         try:
             update_message = {
@@ -963,7 +963,7 @@ class PositionTracker:
             logger.error(f"Failed to get position {position_id}: {e}")
             return None
 
-    async def _update_position_status(self, position_id: UUID, status: str):
+    async def _update_position_status(self, position_id: UUID, status: str) -> None:
         """Update position status."""
         try:
             if not self._db_pool:
@@ -982,7 +982,9 @@ class PositionTracker:
         except Exception as e:
             logger.error(f"Failed to update position status {position_id}: {e}")
 
-    async def _update_position_quantity(self, position_id: UUID, new_quantity: int):
+    async def _update_position_quantity(
+        self, position_id: UUID, new_quantity: int
+    ) -> None:
         """Update position quantity."""
         try:
             if not self._db_pool:
@@ -1446,7 +1448,7 @@ class PositionTracker:
             logger.error(f"Failed to analyze drawdown: {e}")
             return {}
 
-    async def monitor_position_risks(self):
+    async def monitor_position_risks(self) -> None:
         """Monitor positions for risk conditions."""
         while self._running:
             try:
@@ -1499,7 +1501,7 @@ class PositionTracker:
                 logger.error(f"Error in position risk monitoring: {e}")
                 await asyncio.sleep(300)  # Wait 5 minutes on error
 
-    async def cleanup_old_snapshots(self, days_to_keep: int = 7):
+    async def cleanup_old_snapshots(self, days_to_keep: int = 7) -> None:
         """
         Clean up old position snapshots to manage database size.
 

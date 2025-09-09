@@ -1106,7 +1106,7 @@ class HybridStrategy(BaseStrategy):
 class HybridSignalGenerator:
     """Generate formatted signals for the trading system."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize signal generator."""
         self.logger = logging.getLogger("hybrid_signal_generator")
 
@@ -1291,7 +1291,7 @@ class HybridStrategyFactory:
 class HybridStrategyValidator:
     """Validate hybrid strategy signals and configurations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize strategy validator."""
         self.logger = logging.getLogger("hybrid_validator")
 

@@ -75,7 +75,7 @@ class RedisClient:
         self._pool: Optional[redis.ConnectionPool] = None
         self.redis: Optional[redis.Redis] = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Establish connection to Redis."""
         try:
             self.redis = redis.Redis.from_url(
@@ -95,23 +95,23 @@ class RedisClient:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Close Redis connection."""
         if self.redis:
             await self.redis.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "RedisClient":
         """Async context manager entry."""
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.disconnect()
 
     async def publish_new_tickers(
         self, tickers: List[str], metadata: Optional[Dict[str, Any]] = None
-    ):
+    ) -> bool:
         """
         Publish new ticker selections to Redis channel.
 
@@ -143,17 +143,18 @@ class RedisClient:
             await self.batch_update_ticker_timestamps(tickers)
 
             logger.info(f"Published {len(tickers)} new tickers to Redis")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to publish new tickers: {e}")
-            raise
+            return False
 
     async def publish_price_update(
         self,
         ticker: str,
         price_data: Union[MarketData, Dict[str, Any]],
         ttl: int = 300,  # 5 minutes default
-    ):
+    ) -> bool:
         """
         Publish price update for a specific ticker.
 
@@ -192,14 +193,15 @@ class RedisClient:
             await self.redis.setex(cache_key, ttl, json.dumps(data_dict, default=str))
 
             logger.debug(f"Published price update for {ticker}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to publish price update for {ticker}: {e}")
-            raise
+            return False
 
     async def publish_screener_update(
         self, screener_data: List[FinVizData], screener_type: str = "momentum"
-    ):
+    ) -> bool:
         """
         Publish screener update to Redis.
 
@@ -256,10 +258,11 @@ class RedisClient:
             )
 
             logger.info(f"Published screener update with {len(data_list)} items")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to publish screener update: {e}")
-            raise
+            return False
 
     async def cache_market_data(
         self,
@@ -267,7 +270,7 @@ class RedisClient:
         timeframe: TimeFrame,
         data: List[MarketData],
         ttl: int = 3600,  # 1 hour default
-    ):
+    ) -> bool:
         """
         Cache market data in Redis.
 
@@ -278,7 +281,7 @@ class RedisClient:
             ttl: Time to live in seconds
         """
         if not self.redis or not data:
-            return
+            return False
 
         cache_key = f"market_data:{ticker.upper()}:{timeframe.value}"
 
@@ -300,9 +303,11 @@ class RedisClient:
             await self.redis.setex(cache_key, ttl, json.dumps(data_list, default=str))
 
             logger.debug(f"Cached {len(data)} records for {ticker} {timeframe}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to cache market data for {ticker}: {e}")
+            return False
 
     async def get_cached_market_data(
         self, ticker: str, timeframe: TimeFrame
@@ -377,7 +382,7 @@ class RedisClient:
             logger.error(f"Failed to get active tickers: {e}")
             return []
 
-    async def remove_ticker(self, ticker: str):
+    async def remove_ticker(self, ticker: str) -> None:
         """
         Remove ticker from active list and clear its cached data.
 
@@ -410,7 +415,7 @@ class RedisClient:
 
     async def update_last_update_time(
         self, ticker: str, timeframe: TimeFrame, timestamp: Optional[datetime] = None
-    ):
+    ) -> None:
         """
         Update last update time for a ticker/timeframe combination.
 
@@ -464,7 +469,7 @@ class RedisClient:
 
     async def publish_data_validation_alert(
         self, ticker: str, issues: List[str], severity: str = "warning"
-    ):
+    ) -> None:
         """
         Publish data validation alert.
 
@@ -502,7 +507,7 @@ class RedisClient:
         timeframe: TimeFrame,
         stats: Dict[str, Any],
         ttl: int = 7200,  # 2 hours default
-    ):
+    ) -> None:
         """
         Cache data statistics in Redis.
 
@@ -555,7 +560,7 @@ class RedisClient:
 
     async def set_system_status(
         self, component: str, status: str, details: Optional[Dict[str, Any]] = None
-    ):
+    ) -> None:
         """
         Set system component status in Redis.
 
@@ -612,7 +617,7 @@ class RedisClient:
 
     async def batch_cache_prices(
         self, price_data: Dict[str, MarketData], ttl: int = 300
-    ):
+    ) -> None:
         """
         Cache multiple price updates in batch.
 
@@ -706,7 +711,7 @@ class RedisClient:
         timeframe: TimeFrame,
         record_count: int,
         update_type: str = "new_data",
-    ):
+    ) -> None:
         """
         Publish market data update notification.
 
@@ -741,7 +746,7 @@ class RedisClient:
 
     async def subscribe_to_channel(
         self, channel: str, callback: Callable, pattern: bool = False
-    ):
+    ) -> None:
         """
         Subscribe to Redis channel with callback.
 
@@ -821,7 +826,7 @@ class RedisClient:
 
         return health_info
 
-    async def clear_cache(self, pattern: Optional[str] = None):
+    async def clear_cache(self, pattern: Optional[str] = None) -> None:
         """
         Clear cached data.
 
@@ -858,7 +863,7 @@ class RedisClient:
         except Exception as e:
             logger.error(f"Failed to clear cache: {e}")
 
-    async def get_cache_statistics(self) -> Dict[str, Any]:
+    async def get_data_statistics(self) -> Dict[str, Any]:
         """
         Get cache usage statistics.
 
@@ -900,7 +905,7 @@ class RedisClient:
 
     async def set_rate_limit_counter(
         self, service: str, count: int, window_seconds: int = 60
-    ):
+    ) -> None:
         """
         Set rate limit counter for a service.
 
@@ -1109,7 +1114,7 @@ class RedisClient:
             logger.error(f"Failed to cleanup expired tickers: {e}")
             return []
 
-    async def _cleanup_ticker_data(self, ticker: str):
+    async def _cleanup_ticker_data(self, ticker: str) -> None:
         """
         Clean up all data associated with a ticker.
 
@@ -1182,7 +1187,7 @@ async def publish_ticker_discovery(
     redis_client: RedisClient,
     discovered_tickers: List[str],
     source: str = "finviz_screener",
-):
+) -> None:
     """
     Convenience function to publish ticker discovery.
 
@@ -1198,7 +1203,7 @@ async def publish_ticker_discovery(
 
 async def cache_latest_prices(
     redis_client: RedisClient, market_data: List[MarketData], ttl: int = 300
-):
+) -> None:
     """
     Cache latest prices from market data.
 
@@ -1226,7 +1231,7 @@ async def cache_latest_prices(
 # Example usage
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         config = RedisConfig(host="localhost", port=6379, db=0, password=None)
 
         async with RedisClient(config) as redis_client:
@@ -1256,7 +1261,7 @@ if __name__ == "__main__":
             print(f"Cached prices: {cached_prices}")
 
             # Cache statistics
-            cache_stats = await redis_client.get_cache_statistics()
+            cache_stats = await redis_client.get_data_statistics()
             print(f"Cache statistics: {cache_stats}")
 
     asyncio.run(main())

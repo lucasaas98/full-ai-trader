@@ -4,6 +4,7 @@ import json
 # Add parent directory to path for imports
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -25,7 +26,7 @@ class TestDataCollectorApp:
     """Test suite for DataCollectorApp"""
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> Mock:
         """Mock configuration for testing"""
         config = Mock(spec=Config)
         config.twelve_data_api_key = "test_api_key"
@@ -41,7 +42,7 @@ class TestDataCollectorApp:
         return config
 
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self) -> AsyncMock:
         """Mock Redis client"""
         redis_mock = AsyncMock()
         redis_mock.publish = AsyncMock()
@@ -51,7 +52,7 @@ class TestDataCollectorApp:
         return redis_mock
 
     @pytest.fixture
-    def mock_db_pool(self):
+    def mock_db_pool(self) -> AsyncMock:
         """Mock database connection pool"""
         pool_mock = AsyncMock()
         connection_mock = AsyncMock()
@@ -65,7 +66,9 @@ class TestDataCollectorApp:
         return pool_mock
 
     @pytest.fixture
-    async def service(self, mock_config, mock_redis, mock_db_pool):
+    async def service(
+        self, mock_config: Mock, mock_redis: AsyncMock, mock_db_pool: AsyncMock
+    ) -> AsyncGenerator[DataCollectorApp, None]:
         """Create DataCollectorApp instance for testing"""
         with patch("main.redis.from_url", return_value=mock_redis), patch(
             "main.asyncpg.create_pool", return_value=mock_db_pool
@@ -76,7 +79,7 @@ class TestDataCollectorApp:
             await service.stop()
 
     @pytest.mark.asyncio
-    async def test_fetch_twelve_data_success(self, service):
+    async def test_fetch_twelve_data_success(self, service: DataCollectorApp) -> None:
         """Test successful data fetch from TwelveData API"""
         mock_response_data = {
             "values": [
@@ -109,7 +112,9 @@ class TestDataCollectorApp:
             assert result[0].volume == 1000000
 
     @pytest.mark.asyncio
-    async def test_fetch_twelve_data_api_error(self, service):
+    async def test_fetch_twelve_data_http_error(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of TwelveData API errors"""
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
@@ -122,7 +127,9 @@ class TestDataCollectorApp:
             assert result == []
 
     @pytest.mark.asyncio
-    async def test_fetch_twelve_data_network_error(self, service):
+    async def test_fetch_twelve_data_parsing_error(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of network errors"""
         with patch(
             "httpx.AsyncClient.get", side_effect=httpx.RequestError("Network error")
@@ -131,7 +138,9 @@ class TestDataCollectorApp:
             assert result == []
 
     @pytest.mark.asyncio
-    async def test_fetch_twelve_data_invalid_response(self, service):
+    async def test_fetch_twelve_data_invalid_response(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of invalid JSON response"""
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
@@ -143,7 +152,7 @@ class TestDataCollectorApp:
             assert result == []
 
     @pytest.mark.asyncio
-    async def test_fetch_finviz_data_success(self, service):
+    async def test_fetch_finviz_success(self, service: DataCollectorApp) -> None:
         """Test successful FinViz data fetch"""
         mock_html = """
         <html>
@@ -180,7 +189,7 @@ class TestDataCollectorApp:
             assert result.pe_ratio == 25.5
 
     @pytest.mark.asyncio
-    async def test_fetch_finviz_data_parse_error(self, service):
+    async def test_fetch_finviz_error(self, service: DataCollectorApp) -> None:
         """Test handling of FinViz parsing errors"""
         with patch("httpx.AsyncClient.get") as mock_get:
             mock_response = Mock()
@@ -192,7 +201,9 @@ class TestDataCollectorApp:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_store_market_data_success(self, service):
+    async def test_store_market_data_success(
+        self, service: DataCollectorApp, mock_db_pool: AsyncMock
+    ) -> None:
         """Test successful market data storage"""
         market_data = MarketData(
             symbol="AAPL",
@@ -217,7 +228,9 @@ class TestDataCollectorApp:
         service.db_pool.acquire.return_value.__aenter__.return_value.execute.assert_called()
 
     @pytest.mark.asyncio
-    async def test_store_market_data_database_error(self, service):
+    async def test_store_market_data_database_error(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of database errors during storage"""
         market_data = MarketData(
             symbol="AAPL",
@@ -240,7 +253,7 @@ class TestDataCollectorApp:
         await service.store_market_data([market_data])
 
     @pytest.mark.asyncio
-    async def test_publish_to_redis_success(self, service):
+    async def test_publish_to_redis_success(self, service: DataCollectorApp) -> None:
         """Test successful Redis publication"""
         market_data = MarketData(
             symbol="AAPL",
@@ -259,7 +272,7 @@ class TestDataCollectorApp:
         service.redis_client.publish.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_collect_data_for_symbols(self, service):
+    async def test_collect_data_for_symbols(self, service: DataCollectorApp) -> None:
         """Test data collection for multiple symbols"""
         symbols = ["AAPL", "GOOGL", "MSFT"]
 
@@ -292,7 +305,7 @@ class TestDataCollectorApp:
             assert mock_publish.call_count >= len(symbols)
 
     @pytest.mark.asyncio
-    async def test_rate_limiting(self, service):
+    async def test_rate_limiting(self, service: DataCollectorApp) -> None:
         """Test rate limiting functionality"""
         # This would test the actual rate limiting implementation
         # depending on how it's implemented in the service
@@ -311,7 +324,7 @@ class TestDataCollectorApp:
         # Should take some time due to rate limiting
         assert end_time - start_time > 1.0
 
-    def test_parse_twelve_data_response_valid(self, service):
+    def test_parse_twelve_data_response_valid(self, service: DataCollectorApp) -> None:
         """Test parsing valid TwelveData response"""
         response_data = {
             "values": [
@@ -335,7 +348,9 @@ class TestDataCollectorApp:
         assert result[0].symbol == "AAPL"
         assert result[0].open == 195.00
 
-    def test_parse_twelve_data_response_invalid_data(self, service):
+    def test_parse_twelve_data_response_invalid_data(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test parsing TwelveData response with invalid data"""
         response_data = {
             "values": [
@@ -358,7 +373,7 @@ class TestDataCollectorApp:
         # Should skip invalid entries
         assert len(result) == 0
 
-    def test_parse_twelve_data_response_empty(self, service):
+    def test_parse_twelve_data_response_empty(self, service: DataCollectorApp) -> None:
         """Test parsing empty TwelveData response"""
         response_data = {"values": [], "status": "ok"}
 
@@ -367,7 +382,7 @@ class TestDataCollectorApp:
         )
         assert len(result) == 0
 
-    def test_parse_finviz_data_valid_html(self, service):
+    def test_parse_finviz_data_valid_html(self, service: DataCollectorApp) -> None:
         """Test parsing valid FinViz HTML"""
         html_content = """
         <html>
@@ -397,7 +412,7 @@ class TestDataCollectorApp:
         assert result.market_cap == "3.00T"
         assert result.pe_ratio == 25.5
 
-    def test_parse_finviz_data_invalid_html(self, service):
+    def test_parse_finviz_data_invalid_html(self, service: DataCollectorApp) -> None:
         """Test parsing invalid FinViz HTML"""
         html_content = "<html><body>No data table</body></html>"
 
@@ -405,7 +420,9 @@ class TestDataCollectorApp:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_data_validation_filters_invalid_data(self, service):
+    async def test_data_validation_filters_invalid_data(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test that invalid data is filtered out"""
         invalid_data = [
             MarketData(
@@ -428,7 +445,7 @@ class TestDataCollectorApp:
             mock_acquire.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_concurrent_data_collection(self, service):
+    async def test_concurrent_data_collection(self, service: DataCollectorApp) -> None:
         """Test concurrent data collection for multiple symbols"""
         symbols = ["AAPL", "GOOGL", "MSFT", "AMZN", "TSLA"]
 
@@ -444,7 +461,9 @@ class TestDataCollectorApp:
             assert mock_fetch.call_count == len(symbols)
 
     @pytest.mark.asyncio
-    async def test_error_recovery_continues_collection(self, service):
+    async def test_error_recovery_continues_collection(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test that errors in one symbol don't stop collection of others"""
         symbols = ["AAPL", "INVALID_SYMBOL", "GOOGL"]
 
@@ -464,7 +483,9 @@ class TestDataCollectorApp:
             # Should have stored data for valid symbols (2 out of 3)
             assert mock_store.call_count == 2
 
-    def test_data_transformation_preserves_precision(self, service):
+    def test_data_transformation_preserves_precision(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test that decimal precision is preserved during data transformation"""
         raw_data = {
             "datetime": "2023-12-01 16:00:00",
@@ -483,7 +504,9 @@ class TestDataCollectorApp:
         assert market_data.close == 196.555555
 
     @pytest.mark.asyncio
-    async def test_health_check_healthy_service(self, service):
+    async def test_health_check_healthy_service(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test health check for healthy service"""
         # Mock healthy dependencies
         service.redis_client.ping = AsyncMock(return_value=True)
@@ -498,7 +521,9 @@ class TestDataCollectorApp:
         assert health["database"] == "connected"
 
     @pytest.mark.asyncio
-    async def test_health_check_unhealthy_redis(self, service):
+    async def test_health_check_unhealthy_redis(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test health check with unhealthy Redis"""
         service.redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
         service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
@@ -511,7 +536,9 @@ class TestDataCollectorApp:
         assert health["redis"] == "disconnected"
 
     @pytest.mark.asyncio
-    async def test_health_check_unhealthy_database(self, service):
+    async def test_health_check_unhealthy_database(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test health check with unhealthy database"""
         service.redis_client.ping = AsyncMock(return_value=True)
         service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
@@ -528,17 +555,19 @@ class TestDataCollectorAPI:
     """Test suite for Data Collector API endpoints"""
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         """Create test client"""
         return TestClient(app)
 
     @pytest.fixture
-    def mock_service(self):
+    def mock_data_service(self) -> Mock:
         """Mock DataCollectorApp"""
         with patch("main.data_collector_service") as mock:
             yield mock
 
-    def test_health_endpoint_healthy(self, client, mock_service):
+    def test_health_endpoint_healthy(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test health endpoint when service is healthy"""
         mock_service.get_health.return_value = {
             "status": "healthy",
@@ -555,7 +584,9 @@ class TestDataCollectorAPI:
         data = response.json()
         assert data["status"] == "healthy"
 
-    def test_health_endpoint_unhealthy(self, client, mock_service):
+    def test_health_endpoint_unhealthy(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test health endpoint when service is unhealthy"""
         mock_service.get_health.return_value = {
             "status": "unhealthy",
@@ -572,7 +603,7 @@ class TestDataCollectorAPI:
         data = response.json()
         assert data["status"] == "unhealthy"
 
-    def test_status_endpoint(self, client, mock_service):
+    def test_status_endpoint(self, client: TestClient, mock_service: Mock) -> None:
         """Test status endpoint"""
         mock_service.get_status.return_value = {
             "service": "data_collector",
@@ -588,7 +619,9 @@ class TestDataCollectorAPI:
         data = response.json()
         assert data["service"] == "data_collector"
 
-    def test_collect_market_data_endpoint_success(self, client, mock_service):
+    def test_collect_market_data_endpoint_success(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test market data collection endpoint success"""
         mock_service.collect_data_for_symbols.return_value = None
 
@@ -601,7 +634,9 @@ class TestDataCollectorAPI:
         data = response.json()
         assert data["status"] == "success"
 
-    def test_collect_market_data_endpoint_invalid_request(self, client, mock_service):
+    def test_collect_market_data_endpoint_invalid_request(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test market data collection endpoint with invalid request"""
         response = client.post(
             "/collect/market-data",
@@ -613,7 +648,7 @@ class TestDataCollectorAPI:
 
         assert response.status_code == 422
 
-    def test_get_symbols_endpoint(self, client, mock_service):
+    def test_get_symbols_endpoint(self, client: TestClient, mock_service: Mock) -> None:
         """Test get symbols endpoint"""
         mock_service.get_tracked_symbols.return_value = ["AAPL", "GOOGL", "MSFT"]
 
@@ -623,7 +658,9 @@ class TestDataCollectorAPI:
         data = response.json()
         assert len(data["symbols"]) == 3
 
-    def test_get_latest_data_endpoint_success(self, client, mock_service):
+    def test_get_latest_data_endpoint_success(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test get latest data endpoint success"""
         market_data = MarketData(
             symbol="AAPL",
@@ -645,7 +682,9 @@ class TestDataCollectorAPI:
         data = response.json()
         assert data["symbol"] == "AAPL"
 
-    def test_get_latest_data_endpoint_not_found(self, client, mock_service):
+    def test_get_latest_data_endpoint_not_found(
+        self, client: TestClient, mock_service: Mock
+    ) -> None:
         """Test get latest data endpoint when data not found"""
         mock_service.get_latest_data.return_value = None
 
@@ -657,7 +696,7 @@ class TestDataCollectorAPI:
 class TestDataValidation:
     """Test suite for data validation and transformation"""
 
-    def test_market_data_validation_valid(self):
+    def test_market_data_validation_valid(self) -> None:
         """Test valid market data passes validation"""
         data = MarketData(
             symbol="AAPL",
@@ -674,7 +713,7 @@ class TestDataValidation:
         # Should not raise validation error
         assert data.symbol == "AAPL"
 
-    def test_market_data_validation_high_low_constraint(self):
+    def test_market_data_validation_high_low_constraint(self) -> None:
         """Test that high must be >= low constraint"""
         with pytest.raises(ValueError):
             MarketData(
@@ -689,7 +728,7 @@ class TestDataValidation:
                 adjusted_close=Decimal("196.80"),
             )
 
-    def test_market_data_validation_negative_volume(self):
+    def test_market_data_validation_negative_volume(self) -> None:
         """Test that negative volume is invalid"""
         with pytest.raises(ValueError):
             MarketData(
@@ -704,7 +743,7 @@ class TestDataValidation:
                 adjusted_close=Decimal("196.80"),
             )
 
-    def test_market_data_validation_zero_prices(self):
+    def test_market_data_validation_zero_prices(self) -> None:
         """Test that zero prices are invalid"""
         with pytest.raises(ValueError):
             MarketData(
@@ -719,7 +758,7 @@ class TestDataValidation:
                 adjusted_close=Decimal("196.80"),
             )
 
-    def test_finviz_data_validation_valid(self):
+    def test_finviz_data_validation_valid(self) -> None:
         """Test that valid FinViz data passes validation"""
         data = FinVizData(
             ticker="AAPL",
@@ -743,7 +782,7 @@ class TestMetricsAndMonitoring:
     """Test suite for metrics collection and monitoring"""
 
     @pytest.fixture
-    def mock_prometheus_metrics(self):
+    def mock_prometheus_metrics(self) -> Mock:
         """Mock Prometheus metrics"""
         with patch("main.prometheus_client") as mock_prometheus:
             yield mock_prometheus
@@ -867,7 +906,9 @@ class TestMetricsAndMonitoring:
         assert health["status"] in ["healthy", "unhealthy", "degraded"]
 
     @pytest.mark.asyncio
-    async def test_service_statistics_tracking(self, service, mock_prometheus_metrics):
+    async def test_service_statistics_tracking(
+        self, service: DataCollectorApp, mock_prometheus_metrics: Mock
+    ) -> None:
         """Test that service statistics are properly tracked"""
         # Mock data service with comprehensive stats
         mock_data_service = Mock()
@@ -907,7 +948,9 @@ class TestErrorHandling:
     """Test suite for error handling and resilience"""
 
     @pytest.mark.asyncio
-    async def test_graceful_shutdown(self, mock_config, mock_redis, mock_db_pool):
+    async def test_graceful_shutdown(
+        self, mock_config: Mock, mock_redis: AsyncMock, mock_db_pool: AsyncMock
+    ) -> None:
         """Test graceful service shutdown"""
         with patch("main.redis.from_url", return_value=mock_redis), patch(
             "main.asyncpg.create_pool", return_value=mock_db_pool
@@ -922,7 +965,9 @@ class TestErrorHandling:
             mock_redis.close.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_retry_mechanism_on_temporary_failure(self, service):
+    async def test_retry_mechanism_on_temporary_failure(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test retry mechanism for temporary API failures"""
         # Mock temporary failure followed by success
         call_count = 0
@@ -943,7 +988,9 @@ class TestErrorHandling:
             assert call_count == 2
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_on_persistent_failures(self, service):
+    async def test_circuit_breaker_on_persistent_failures(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test circuit breaker pattern for persistent failures"""
         # Mock persistent failures
         failure_count = 0
@@ -971,7 +1018,7 @@ class TestErrorHandling:
                     await service.data_service._update_price_data(TimeFrame.ONE_HOUR)
 
     @pytest.mark.asyncio
-    async def test_database_connection_failure_handling(self, service):
+    async def test_database_connection_pooling(self, service: DataCollectorApp) -> None:
         """Test handling of database connection failures"""
         # Mock database connection failure
         mock_data_store = Mock()
@@ -1009,7 +1056,9 @@ class TestErrorHandling:
                 assert "Database connection lost" in str(e)
 
     @pytest.mark.asyncio
-    async def test_redis_connection_failure_recovery(self, service):
+    async def test_redis_publication_failure_recovery(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test Redis connection failure and recovery"""
         # Mock Redis client with connection issues
         mock_redis = Mock()
@@ -1034,7 +1083,7 @@ class TestErrorHandling:
             assert any("Redis" in error for error in health["errors"])
 
     @pytest.mark.asyncio
-    async def test_api_rate_limit_handling(self, service):
+    async def test_duplicate_symbol_handling(self, service: DataCollectorApp) -> None:
         """Test proper handling of API rate limit errors"""
         # Mock rate limit exceeded response
         rate_limit_error = httpx.HTTPStatusError(
@@ -1056,7 +1105,9 @@ class TestErrorHandling:
                 await service.data_service._update_price_data(TimeFrame.ONE_HOUR)
 
     @pytest.mark.asyncio
-    async def test_data_validation_error_handling(self, service):
+    async def test_data_validation_error_handling(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of data validation errors"""
         # Mock invalid data that fails validation
         invalid_data = MarketData(
@@ -1082,7 +1133,9 @@ class TestErrorHandling:
                 MarketData.model_validate(invalid_data.model_dump())
 
     @pytest.mark.asyncio
-    async def test_service_recovery_after_failure(self, service):
+    async def test_service_recovery_after_failure(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test service recovery mechanisms after failures"""
         # Mock a service that fails then recovers
         service.data_service = Mock()
@@ -1102,7 +1155,9 @@ class TestErrorHandling:
         assert service.data_service._stats["errors"] == 0
 
     @pytest.mark.asyncio
-    async def test_configuration_validation_errors(self, service):
+    async def test_configuration_validation_errors(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test handling of configuration validation errors"""
         # Test invalid configuration handling
         with patch("src.main.DataCollectionConfig") as mock_config_class:
@@ -1113,7 +1168,7 @@ class TestErrorHandling:
                 service._load_configuration()
 
     @pytest.mark.asyncio
-    async def test_concurrent_error_handling(self, service):
+    async def test_concurrent_error_handling(self, service: DataCollectorApp) -> None:
         """Test error handling in concurrent operations"""
         # Mock multiple concurrent operations with some failures
         mock_data_service = Mock()
@@ -1150,7 +1205,9 @@ class TestDataFlow:
     """Test suite for end-to-end data flow"""
 
     @pytest.mark.asyncio
-    async def test_complete_data_collection_flow(self, service):
+    async def test_complete_data_collection_flow(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test complete data collection flow from API to storage"""
         # Mock the entire data flow: API -> parsing -> validation -> storage -> Redis
 
@@ -1234,7 +1291,9 @@ class TestDataFlow:
         assert service.data_service._stats["total_records_saved"] == 1
 
     @pytest.mark.asyncio
-    async def test_data_consistency_validation_flow(self, service):
+    async def test_data_consistency_validation_flow(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test data consistency validation across the pipeline"""
         # Mock data for different timeframes of the same ticker
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -1312,7 +1371,9 @@ class TestDataFlow:
         assert one_hour_result[0].close == five_min_result[-1].close
 
     @pytest.mark.asyncio
-    async def test_finviz_to_twelvedata_integration_flow(self, service):
+    async def test_finviz_to_twelvedata_integration_flow(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test integration between FinViz screener and TwelveData collection"""
         # Mock FinViz screener results
         mock_finviz_data = [
@@ -1411,7 +1472,9 @@ class TestDataFlow:
         mock_data_store.save_market_data.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_data_pipeline_with_redis_notifications(self, service):
+    async def test_data_pipeline_with_redis_notifications(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test data pipeline with Redis notification flow"""
         # Mock the complete pipeline with Redis notifications
 
@@ -1492,7 +1555,9 @@ class TestDataFlow:
         mock_redis.cache_data_statistics.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_data_consistency_across_timeframes(self, service):
+    async def test_data_consistency_across_timeframes(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test data consistency when collecting different timeframes"""
         # Create test data for multiple timeframes that should be consistent
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -1586,7 +1651,7 @@ class TestDataFlow:
         assert one_hour_result[0].close == fifteen_min_result[-1].close
 
     @pytest.mark.asyncio
-    async def test_end_to_end_screener_data_flow(self, service):
+    async def test_end_to_end_data_flow(self, service: DataCollectorApp) -> None:
         """Test end-to-end flow from screener to price data collection"""
         # Mock FinViz screener data
         screener_data = [
@@ -1714,7 +1779,7 @@ class TestDataFlow:
         assert mock_redis.publish_market_data_update.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_historical_data_backfill_flow(self, service):
+    async def test_historical_data_backfill(self, service: DataCollectorApp) -> None:
         """Test historical data backfill flow for new tickers"""
         # Mock data store with no existing data
         mock_data_store = Mock()
@@ -1808,7 +1873,9 @@ class TestPerformance:
     """Test suite for performance characteristics"""
 
     @pytest.mark.asyncio
-    async def test_bulk_data_processing_performance(self, service):
+    async def test_bulk_data_processing_performance(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test performance of bulk data processing"""
         import time
 
@@ -1878,7 +1945,7 @@ class TestPerformance:
         assert max(save_times) < 2.0  # No single batch should take more than 2 seconds
 
     @pytest.mark.asyncio
-    async def test_memory_usage_under_load(self, service):
+    async def test_performance_under_load(self, service: DataCollectorApp) -> None:
         """Test memory usage under high load"""
         import gc
 
@@ -2014,7 +2081,7 @@ class TestPerformance:
         )  # All data points processed (100 tickers * 1000 points)
 
     @pytest.mark.asyncio
-    async def test_concurrent_request_handling(self, service):
+    async def test_concurrent_request_handling(self, service: DataCollectorApp) -> None:
         """Test handling of concurrent API requests"""
         import time
 
@@ -2100,7 +2167,7 @@ class TestPerformance:
         assert service.data_service._stats["api_calls"] == 10
 
     @pytest.mark.asyncio
-    async def test_batch_processing_efficiency(self, service):
+    async def test_batch_processing_efficiency(self, service: DataCollectorApp) -> None:
         """Test efficiency of batch processing vs individual requests"""
         import time
 
@@ -2190,7 +2257,7 @@ class TestPerformance:
         assert individual_time > 0.4  # Individual requests should take longer
 
     @pytest.mark.asyncio
-    async def test_rate_limiting_performance(self, service):
+    async def test_rate_limiting_performance(self, service: DataCollectorApp) -> None:
         """Test rate limiting doesn't significantly impact performance"""
         import time
 
@@ -2264,7 +2331,9 @@ class TestPerformance:
             )  # Later requests should be slower
 
     @pytest.mark.asyncio
-    async def test_large_dataset_processing_efficiency(self, service):
+    async def test_large_dataset_processing_efficiency(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test efficiency when processing large datasets"""
         import time
 
@@ -2347,7 +2416,9 @@ class TestPerformance:
         assert avg_time_per_record < 0.001  # Less than 1ms per record
 
     @pytest.mark.asyncio
-    async def test_concurrent_data_collection_performance(self, service):
+    async def test_concurrent_data_collection_performance(
+        self, service: DataCollectorApp
+    ) -> None:
         """Test performance of concurrent data collection across multiple timeframes"""
         import time
 

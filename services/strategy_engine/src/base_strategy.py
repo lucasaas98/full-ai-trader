@@ -183,7 +183,7 @@ class StrategyConfig:
     additional_timeframes: Optional[List[str]] = None
     custom_timeframes: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.parameters is None:
             self.parameters = {}
 

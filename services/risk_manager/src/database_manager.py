@@ -16,7 +16,12 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 from shared.config import get_config
 from shared.models import (
@@ -34,14 +39,14 @@ logger = logging.getLogger(__name__)
 class RiskDatabaseManager:
     """Manages database operations for risk management."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize database manager."""
         self.config = get_config()
         self.db_config = self.config.database
-        self.engine = None
-        self.session_factory = None
+        self.engine: Optional[AsyncEngine] = None
+        self.session_factory: Optional[async_sessionmaker[AsyncSession]] = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection and create tables."""
         try:
             # Create async engine
@@ -70,13 +75,13 @@ class RiskDatabaseManager:
             logger.error(f"Error initializing database manager: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connections."""
         if self.engine:
             await self.engine.dispose()
             logger.info("Database connections closed")
 
-    async def _create_risk_tables(self):
+    async def _create_risk_tables(self) -> None:
         """Create additional risk management tables."""
         # Split SQL into individual statements for asyncpg compatibility
         sql_statements = [
@@ -1201,11 +1206,12 @@ class RiskDatabaseManager:
                 events_by_severity: Dict[str, int] = {}
 
                 for row in events_rows:
+                    count_value = int(row.count) if hasattr(row, 'count') else row[2]
                     events_by_type[row.event_type] = (
-                        events_by_type.get(row.event_type, 0) + row.count
+                        events_by_type.get(row.event_type, 0) + count_value
                     )
                     events_by_severity[row.severity] = (
-                        events_by_severity.get(row.severity, 0) + row.count
+                        events_by_severity.get(row.severity, 0) + count_value
                     )
 
                 # Compile statistics

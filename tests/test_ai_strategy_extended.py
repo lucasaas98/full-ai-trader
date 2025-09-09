@@ -9,6 +9,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -49,12 +50,12 @@ class TestResponseCache:
     """Extended tests for ResponseCache functionality."""
 
     @pytest.fixture
-    def cache(self):
+    def cache(self) -> Any:
         """Create a ResponseCache instance."""
         return ResponseCache(ttl=5)  # 5 second TTL for testing
 
     @pytest.mark.asyncio
-    async def test_cache_expiration(self, cache):
+    async def test_cache_expiration(self, cache: Any) -> None:
         """Test that cached responses expire after TTL."""
         # Create a response
         response = AIResponse(
@@ -86,7 +87,7 @@ class TestResponseCache:
             assert cached is None
 
     @pytest.mark.asyncio
-    async def test_cache_key_generation(self, cache):
+    async def test_cache_key_generation(self, cache: Any) -> None:
         """Test that different prompts generate different cache keys."""
         response1 = AIResponse(
             model=AIModel.HAIKU,
@@ -120,7 +121,7 @@ class TestResponseCache:
         assert cached2.response["decision"] == "SELL"
 
     @pytest.mark.asyncio
-    async def test_cache_cleanup(self, cache):
+    async def test_cache_cleanup(self, cache: Any) -> None:
         """Test automatic cleanup of expired entries."""
         # Add multiple entries with different timestamps
         for i in range(5):
@@ -153,12 +154,12 @@ class TestCostTracker:
     """Extended tests for cost tracking functionality."""
 
     @pytest.fixture
-    def tracker(self):
+    def tracker(self) -> Any:
         """Create a CostTracker instance."""
         return CostTracker({"daily_limit_usd": 5.0, "monthly_limit_usd": 100.0})
 
     @pytest.mark.asyncio
-    async def test_daily_reset(self, tracker):
+    async def test_daily_reset(self, tracker: Any) -> None:
         """Test that daily costs reset at day boundary."""
         # Record some costs
         await tracker.record(2.0)
@@ -174,7 +175,7 @@ class TestCostTracker:
         assert tracker.monthly_costs == 2.0
 
     @pytest.mark.asyncio
-    async def test_monthly_reset(self, tracker):
+    async def test_monthly_reset(self, tracker: Any) -> None:
         """Test that monthly costs reset at month boundary."""
         # Record some costs
         await tracker.record(50.0)
@@ -189,7 +190,7 @@ class TestCostTracker:
         assert tracker.monthly_costs == 0.0
 
     @pytest.mark.asyncio
-    async def test_cost_limit_estimation(self, tracker):
+    async def test_cost_limit_estimation(self, tracker: Any) -> None:
         """Test cost estimation for different models."""
         # Should allow Haiku (cheap)
         assert await tracker.can_proceed(AIModel.HAIKU) is True
@@ -208,7 +209,7 @@ class TestRateLimiter:
     """Extended tests for rate limiting."""
 
     @pytest.mark.asyncio
-    async def test_multiple_models_independent(self):
+    async def test_multiple_models_independent(self) -> None:
         """Test that rate limits are independent per model."""
         limiter = RateLimiter()
 
@@ -222,7 +223,7 @@ class TestRateLimiter:
         assert elapsed < 0.1
 
     @pytest.mark.asyncio
-    async def test_rate_limit_enforcement(self):
+    async def test_rate_limit_enforcement(self) -> None:
         """Test that rate limits are enforced correctly."""
         limiter = RateLimiter()
 
@@ -242,7 +243,7 @@ class TestDataContextBuilder:
     """Extended tests for data context building."""
 
     @pytest.fixture
-    def complex_data(self):
+    def complex_data(self) -> Any:
         """Create complex market data for testing."""
         # Generate 100 days of data with trend and volatility
         np.random.seed(42)
@@ -269,7 +270,7 @@ class TestDataContextBuilder:
             }
         )
 
-    def test_rsi_extremes(self, complex_data):
+    def test_rsi_edge_cases(self, complex_data: Any) -> None:
         """Test RSI calculation at extremes."""
         # All up moves
         up_data = complex_data.with_columns(pl.col("close").cum_sum().alias("close"))
@@ -283,7 +284,7 @@ class TestDataContextBuilder:
         rsi_down = DataContextBuilder._calculate_rsi(down_data)
         assert rsi_down < 30  # Should be oversold
 
-    def test_support_resistance_detection(self, complex_data):
+    def test_support_resistance_detection(self, complex_data: Any) -> None:
         """Test support and resistance level detection."""
         support, resistance = DataContextBuilder._calculate_support_resistance(
             complex_data
@@ -298,7 +299,7 @@ class TestDataContextBuilder:
         # They should be different
         assert support != resistance
 
-    def test_pattern_identification_comprehensive(self, complex_data):
+    def test_pattern_identification_comprehensive(self, complex_data: Any) -> None:
         """Test comprehensive pattern identification."""
         patterns = DataContextBuilder._identify_patterns(complex_data)
 
@@ -313,7 +314,7 @@ class TestDataContextBuilder:
         uptrend_patterns = DataContextBuilder._identify_patterns(uptrend_data)
         assert "Uptrend" in uptrend_patterns or "breakout" in uptrend_patterns.lower()
 
-    def test_context_with_missing_data(self):
+    def test_context_with_missing_data(self) -> None:
         """Test context building with missing or None values."""
         # Create minimal data
         minimal_data = pl.DataFrame(
@@ -342,7 +343,7 @@ class TestConsensusEngine:
     """Extended tests for consensus building."""
 
     @pytest.fixture
-    def diverse_responses(self):
+    def diverse_responses(self) -> Any:
         """Create diverse AI responses for testing."""
         return [
             AIResponse(
@@ -408,7 +409,7 @@ class TestConsensusEngine:
         ]
 
     @pytest.mark.asyncio
-    async def test_weighted_consensus(self, diverse_responses):
+    async def test_weighted_consensus(self, diverse_responses: Any) -> None:
         """Test weighted consensus with multiple disagreeing models."""
         config = {
             "consensus": {
@@ -432,7 +433,7 @@ class TestConsensusEngine:
         assert "total_responses" in decision.consensus_details
 
     @pytest.mark.asyncio
-    async def test_unanimous_consensus(self):
+    async def test_unanimous_consensus(self) -> None:
         """Test consensus when all models agree."""
         unanimous_responses = [
             AIResponse(
@@ -463,7 +464,7 @@ class TestConsensusEngine:
         assert decision.entry_price == 100.0
 
     @pytest.mark.asyncio
-    async def test_insufficient_responses(self):
+    async def test_insufficient_responses(self) -> None:
         """Test handling of insufficient responses."""
         single_response = [
             AIResponse(
@@ -492,14 +493,14 @@ class TestAIStrategyEngineIntegration:
     """Integration tests for AIStrategyEngine."""
 
     @pytest.fixture
-    def mock_anthropic_client(self):
+    def mock_anthropic_client(self) -> Any:
         """Create a mock Anthropic client."""
         client = AsyncMock()
         client.query = AsyncMock()
         return client
 
     @pytest.fixture
-    def strategy_engine(self, mock_anthropic_client):
+    def strategy_engine(self, mock_anthropic_client: Any) -> Any:
         """Create an AIStrategyEngine with mocked dependencies."""
         config = StrategyConfig(
             name="test_ai_strategy",
@@ -529,7 +530,7 @@ class TestAIStrategyEngineIntegration:
                 return engine
 
     @pytest.mark.asyncio
-    async def test_analyze_with_cache_hit(self, strategy_engine):
+    async def test_analyze_with_cache_hit(self, strategy_engine: Any) -> None:
         """Test analyze method with cache hit."""
         # Create sample data
         data = create_sample_data(50)
@@ -575,7 +576,7 @@ class TestAIStrategyEngineIntegration:
         assert signal1.confidence == signal2.confidence
 
     @pytest.mark.asyncio
-    async def test_analyze_error_handling(self, strategy_engine):
+    async def test_analyze_error_handling(self, strategy_engine: Any) -> None:
         """Test error handling in analyze method."""
         data = create_sample_data(50)
 
@@ -590,7 +591,7 @@ class TestAIStrategyEngineIntegration:
         assert "error" in signal.metadata
 
     @pytest.mark.asyncio
-    async def test_market_context_update(self, strategy_engine):
+    async def test_market_context_update(self, strategy_engine: Any) -> None:
         """Test market context update functionality."""
         # Initially no market context
         assert strategy_engine.market_context is None
@@ -607,7 +608,7 @@ class TestAIStrategyEngineIntegration:
 class TestAIModels:
     """Tests for AI model data structures."""
 
-    def test_decision_to_dict(self):
+    def test_decision_to_dict(self) -> None:
         """Test conversion of AIDecisionRecord to dictionary."""
         # Create a mock decision object with the required attributes
         decision = type(
@@ -638,7 +639,7 @@ class TestAIModels:
         assert "timestamp" in result
         assert isinstance(result["key_risks"], list)
 
-    def test_performance_summary_edge_cases(self):
+    def test_performance_summary_edge_cases(self) -> None:
         """Test performance summary with edge cases."""
         # Empty lists
         summary = create_performance_summary([], [])
@@ -665,7 +666,7 @@ class TestAIModels:
         assert summary.total_decisions == 1
         assert summary.win_rate == 0
 
-    def test_ai_context_creation(self):
+    def test_ai_response_creation(self) -> None:
         """Test AIContext dataclass creation."""
         context = AIContext(
             ticker="TEST",
@@ -689,7 +690,7 @@ class TestAIIntegrationAdvanced:
     """Advanced integration tests."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_analysis(self):
+    async def test_concurrent_analysis(self) -> None:
         """Test concurrent analysis of multiple tickers."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -718,7 +719,7 @@ class TestAIIntegrationAdvanced:
                     assert mock_analyze.call_count == len(tickers)
 
     @pytest.mark.asyncio
-    async def test_position_limit_enforcement(self):
+    async def test_position_limit_enforcement(self) -> None:
         """Test that position limits are properly enforced."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -756,7 +757,7 @@ class TestAIIntegrationAdvanced:
                 assert can_add is True
 
     @pytest.mark.asyncio
-    async def test_exit_strategy_triggers(self):
+    async def test_exit_strategy_triggers(self) -> None:
         """Test various exit strategy triggers."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -811,7 +812,7 @@ def create_sample_data(num_rows: int) -> pl.DataFrame:
     )
 
 
-def mock_open(read_data=""):
+def mock_open(read_data: str = "") -> Any:
     """Helper to mock file open."""
     m = MagicMock()
     m.__enter__ = MagicMock(
@@ -825,7 +826,7 @@ def mock_open(read_data=""):
 
 
 @pytest.fixture(autouse=True)
-def reset_singletons():
+def reset_singletons() -> None:
     """Reset any singleton instances between tests."""
     yield
     # Cleanup if needed

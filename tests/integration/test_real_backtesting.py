@@ -10,6 +10,7 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Any, Dict
 
 import pytest
 
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def data_store():
+def data_store() -> DataStore:
     """Create DataStore instance for testing."""
     config = DataStoreConfig(
         base_path="data/parquet", batch_size=1000, retention_days=365
@@ -49,7 +50,7 @@ def data_store():
 
 
 @pytest.fixture
-def sample_backtest_config():
+def sample_backtest_config() -> RealBacktestConfig:
     """Create sample backtesting configuration."""
     # Use the last 30 days for testing
     end_date = datetime.now(timezone.utc)
@@ -68,7 +69,7 @@ def sample_backtest_config():
 
 
 @pytest.fixture
-def mock_redis():
+def mock_redis() -> MockRedisClient:
     """Create mock Redis client."""
     return MockRedisClient()
 
@@ -77,7 +78,9 @@ class TestRealBacktestEngine:
     """Test the real backtesting engine functionality."""
 
     @pytest.mark.asyncio
-    async def test_engine_initialization(self, sample_backtest_config):
+    async def test_engine_initialization(
+        self, sample_backtest_config: RealBacktestConfig
+    ) -> None:
         """Test that the backtest engine initializes correctly."""
         engine = RealBacktestEngine(sample_backtest_config)
 
@@ -92,7 +95,9 @@ class TestRealBacktestEngine:
         assert engine.ai_strategy is not None
 
     @pytest.mark.asyncio
-    async def test_historical_data_feeder(self, data_store, sample_backtest_config):
+    async def test_historical_data_feeder(
+        self, data_store: DataStore, sample_backtest_config: Dict[str, Any]
+    ) -> None:
         """Test the historical data feeding functionality."""
         feeder = HistoricalDataFeeder(data_store, sample_backtest_config)
 
@@ -113,7 +118,7 @@ class TestRealBacktestEngine:
             assert data.volume >= 0
 
     @pytest.mark.asyncio
-    async def test_mock_redis_functionality(self, mock_redis):
+    async def test_mock_redis_functionality(self, mock_redis: MockRedisClient) -> None:
         """Test the mock Redis client for backtesting."""
         # Test basic operations
         await mock_redis.set("test_key", "test_value", ex=60)
@@ -128,7 +133,9 @@ class TestRealBacktestEngine:
         assert len(mock_redis.data_cache) == 0
 
     @pytest.mark.asyncio
-    async def test_position_management(self, sample_backtest_config):
+    async def test_backtest_with_date_range(
+        self, sample_backtest_config: Dict[str, Any]
+    ) -> None:
         """Test position opening and closing logic."""
         engine = RealBacktestEngine(sample_backtest_config)
         await engine.initialize_ai_strategy()
@@ -172,7 +179,9 @@ class TestRealBacktestEngine:
         assert commission > 0
 
     @pytest.mark.asyncio
-    async def test_portfolio_value_calculation(self, sample_backtest_config):
+    async def test_portfolio_state_management(
+        self, sample_backtest_config: Dict[str, Any]
+    ) -> None:
         """Test portfolio value calculation with positions."""
         engine = RealBacktestEngine(sample_backtest_config)
 
@@ -197,7 +206,9 @@ class TestRealBacktestEngine:
         assert portfolio_value == expected_value
 
     @pytest.mark.asyncio
-    async def test_simple_backtest_run(self, sample_backtest_config):
+    async def test_run_full_backtest_basic(
+        self, sample_backtest_config: RealBacktestConfig
+    ) -> None:
         """Test running a simple backtest."""
         # Use a shorter time period for faster testing
         config = sample_backtest_config
@@ -237,7 +248,9 @@ class TestRealBacktestEngine:
             pytest.skip(f"Backtest skipped due to data availability: {e}")
 
     @pytest.mark.asyncio
-    async def test_backtest_with_screener_data(self, sample_backtest_config):
+    async def test_backtest_with_multiple_symbols(
+        self, sample_backtest_config: RealBacktestConfig
+    ) -> None:
         """Test backtesting with screener data integration."""
         config = sample_backtest_config
         config.enable_screener_data = True
@@ -276,7 +289,7 @@ class TestRealBacktestEngine:
             pytest.skip(f"Screener test skipped due to data: {e}")
 
     @pytest.mark.asyncio
-    async def test_convenience_functions(self):
+    async def test_convenience_functions(self) -> None:
         """Test the convenience functions for running backtests."""
         try:
             # Test monthly backtest function
@@ -299,7 +312,7 @@ class TestRealBacktestEngine:
             pytest.skip(f"Convenience test skipped: {e}")
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, sample_backtest_config):
+    async def test_error_handling(self, sample_backtest_config: RealBacktestConfig) -> None:
         """Test error handling in various scenarios."""
 
         # Test with invalid date range
@@ -320,7 +333,7 @@ class TestRealBacktestEngine:
             logger.info(f"Expected error with future dates: {e}")
 
     @pytest.mark.asyncio
-    async def test_backtest_metrics_calculation(self):
+    async def test_backtest_metrics_calculation(self) -> None:
         """Test the calculation of various backtest metrics."""
         # Create a simple config for testing metrics
         config = RealBacktestConfig(
@@ -392,7 +405,7 @@ class TestBacktestIntegration:
     """Integration tests that test the complete system flow."""
 
     @pytest.mark.asyncio
-    async def test_data_availability_check(self, data_store):
+    async def test_data_quality_checks(self, data_store: DataStore) -> None:
         """Test that we have sufficient data for backtesting."""
         # Check for AAPL data (commonly used in tests)
         try:
@@ -416,7 +429,7 @@ class TestBacktestIntegration:
             logger.warning(f"Data availability check failed: {e}")
 
     @pytest.mark.asyncio
-    async def test_full_system_integration(self):
+    async def test_full_system_integration(self) -> None:
         """Test the complete backtesting system with real components."""
         # This test runs the full system but with a very short time period
         # to ensure it works end-to-end
@@ -455,7 +468,7 @@ class TestPerformanceAndScalability:
     """Test performance characteristics of the backtesting system."""
 
     @pytest.mark.asyncio
-    async def test_backtest_performance(self):
+    async def test_backtest_performance(self) -> None:
         """Test that backtesting completes in reasonable time."""
         config = RealBacktestConfig(
             start_date=datetime(2025, 8, 15, tzinfo=timezone.utc),
@@ -484,7 +497,7 @@ class TestPerformanceAndScalability:
             pytest.skip(f"Performance test skipped: {e}")
 
     @pytest.mark.asyncio
-    async def test_memory_usage(self):
+    async def test_memory_usage(self) -> None:
         """Test that memory usage remains reasonable during backtesting."""
         import os
 

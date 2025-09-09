@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from queue import Queue
-from typing import Any, Dict, List, Optional, Union, cast
+from typing import Any, Dict, Iterator, List, Optional, Union, cast
 
 import aiofiles
 import numpy as np
@@ -116,7 +116,7 @@ class TradeLogEntry:
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging."""
 
-    def __init__(self, context: LogContext):
+    def __init__(self, context: LogContext) -> None:
         super().__init__()
         self.context = context
 
@@ -175,13 +175,13 @@ class AsyncFileHandler(logging.Handler):
         # Start writer thread
         self._start_writer_thread()
 
-    def _start_writer_thread(self):
+    def _start_writer_thread(self) -> None:
         """Start the async writer thread."""
         self.writer_thread = threading.Thread(target=self._writer_loop, daemon=True)
         if self.writer_thread:
             self.writer_thread.start()
 
-    def _writer_loop(self):
+    def _writer_loop(self) -> None:
         """Main writer loop running in separate thread."""
         while not self.stop_event.is_set():
             try:
@@ -198,7 +198,7 @@ class AsyncFileHandler(logging.Handler):
             except Exception as e:
                 print(f"Error in log writer thread: {e}", file=sys.stderr)
 
-    def _write_to_file(self, log_entry: str):
+    def _write_to_file(self, log_entry: str) -> None:
         """Write log entry to file with rotation."""
         # Check if rotation is needed
         if self.current_size > self.max_bytes:
@@ -209,7 +209,7 @@ class AsyncFileHandler(logging.Handler):
             f.write(log_entry + "\n")
             self.current_size += len(log_entry.encode("utf-8")) + 1
 
-    def _rotate_files(self):
+    def _rotate_files(self) -> None:
         """Rotate log files."""
         if not os.path.exists(self.filename):
             return
@@ -254,7 +254,9 @@ class AsyncFileHandler(logging.Handler):
 class ElasticsearchHandler(logging.Handler):
     """Handler for sending logs to Elasticsearch."""
 
-    def __init__(self, es_host: str, es_port: int, index_prefix: str = "trading-logs"):
+    def __init__(
+        self, es_host: str, es_port: int, index_prefix: str = "trading-logs"
+    ) -> None:
         super().__init__()
         self.es_host = es_host
         self.es_port = es_port
@@ -265,7 +267,7 @@ class ElasticsearchHandler(logging.Handler):
         self.flush_interval = 30  # seconds
         self.last_flush = time.time()
 
-    async def _get_es_client(self):
+    async def _get_es_client(self) -> Any:
         """Get Elasticsearch client."""
         if not self.es_client:
             try:
@@ -310,7 +312,7 @@ class ElasticsearchHandler(logging.Handler):
         date_suffix = datetime.now().strftime("%Y-%m-%d")
         return f"{self.index_prefix}-{date_suffix}"
 
-    async def _flush_buffer(self):
+    async def _flush_buffer(self) -> None:
         """Flush buffer to Elasticsearch."""
         if not self.buffer:
             return
@@ -377,7 +379,7 @@ class StructuredLogger:
         log_file: Optional[str],
         elasticsearch_config: Optional[Dict[str, Any]],
         console_output: bool,
-    ):
+    ) -> None:
         """Setup logging handlers."""
 
         # Console handler
@@ -402,14 +404,16 @@ class StructuredLogger:
             es_handler.setFormatter(self.formatter)
             self.logger.addHandler(es_handler)
 
-    def set_context(self, **kwargs) -> None:
+    def set_context(self, **kwargs: Any) -> None:
         """Update logging context."""
         for key, value in kwargs.items():
             if hasattr(self.context, key):
                 setattr(self.context, key, value)
 
     @contextmanager
-    def operation_context(self, operation_name: str, **context_data):
+    def operation_context(
+        self, operation_name: str, **context_data: Any
+    ) -> Iterator[None]:
         """Context manager for operation-specific logging."""
         operation_id = str(uuid.uuid4())[:8]
         original_context = dict(self.context.__dict__)
@@ -427,7 +431,7 @@ class StructuredLogger:
                 data={"operation_id": operation_id, "operation": operation_name},
             )
 
-            yield operation_id
+            yield
 
             duration_ms = (time.time() - start_time) * 1000
             self.info(
@@ -455,7 +459,7 @@ class StructuredLogger:
         data: Optional[Dict[str, Any]] = None,
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Log debug message."""
         self._log(LogLevel.DEBUG, message, data, category, tags)
 
@@ -465,7 +469,7 @@ class StructuredLogger:
         data: Optional[Dict[str, Any]] = None,
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Log info message."""
         self._log(LogLevel.INFO, message, data, category, tags)
 
@@ -475,7 +479,7 @@ class StructuredLogger:
         data: Optional[Dict[str, Any]] = None,
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Log warning message."""
         self._log(LogLevel.WARNING, message, data, category, tags)
         warnings_count = int(
@@ -490,7 +494,7 @@ class StructuredLogger:
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
         exception: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Log error message."""
         extra_data: Dict[str, Any] = {"data": data, "category": category, "tags": tags}
 
@@ -512,7 +516,7 @@ class StructuredLogger:
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
         exception: Optional[Exception] = None,
-    ):
+    ) -> None:
         """Log critical message."""
         extra_data: Dict[str, Any] = {"data": data, "category": category, "tags": tags}
 
@@ -530,7 +534,7 @@ class StructuredLogger:
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Log audit message."""
         # Temporarily update context for audit
         original_user = self.context.user_id
@@ -555,7 +559,7 @@ class StructuredLogger:
         data: Optional[Dict[str, Any]] = None,
         category: LogCategory = LogCategory.SYSTEM,
         tags: Optional[List[str]] = None,
-    ):
+    ) -> None:
         """Internal logging method."""
         extra_data = {"data": data, "category": category, "tags": tags}
 
@@ -672,12 +676,12 @@ class TradingLogger(StructuredLogger):
 class LogAggregator:
     """Log aggregation and search functionality."""
 
-    def __init__(self, log_directory: str):
+    def __init__(self, log_directory: str) -> None:
         self.log_directory = Path(log_directory)
         self.log_files: List[Path] = []
         self._scan_log_files()
 
-    def _scan_log_files(self):
+    def _scan_log_files(self) -> None:
         """Scan for available log files."""
         self.log_files = []
 
@@ -1021,7 +1025,7 @@ class LogAggregator:
 class AuditTrailManager:
     """Audit trail management for compliance and security."""
 
-    def __init__(self, logger: StructuredLogger):
+    def __init__(self, logger: StructuredLogger) -> None:
         self.logger = logger
         self.audit_events: List[Dict[str, Any]] = []
         self.sensitive_fields = {
@@ -1044,7 +1048,7 @@ class AuditTrailManager:
         details: Optional[Dict[str, Any]] = None,
         ip_address: Optional[str] = None,
         session_id: Optional[str] = None,
-    ):
+    ) -> None:
         """Log user action for audit trail."""
         audit_data = {
             "user_id": user_id,
@@ -1069,7 +1073,7 @@ class AuditTrailManager:
         event_type: str,
         event_data: Dict[str, Any],
         severity: LogLevel = LogLevel.INFO,
-    ):
+    ) -> None:
         """Log system event for audit trail."""
         audit_data = {
             "event_type": event_type,
@@ -1089,7 +1093,7 @@ class AuditTrailManager:
         event_type: str,
         trade_data: Dict[str, Any],
         user_id: Optional[str] = None,
-    ):
+    ) -> None:
         """Log trade-related event for audit trail."""
         audit_data = {
             "trade_id": trade_id,
@@ -1112,7 +1116,7 @@ class AuditTrailManager:
         new_values: Dict[str, Any],
         user_id: str,
         session_id: str,
-    ):
+    ) -> None:
         """Log configuration changes for audit trail."""
         audit_data = {
             "config_section": config_section,
@@ -1250,7 +1254,7 @@ class LogRetentionManager:
             except Exception as e:
                 print(f"Error processing log file {log_file}: {e}", file=sys.stderr)
 
-    async def _compress_file(self, file_path: Path):
+    async def _compress_file(self, file_path: Path) -> None:
         """Compress log file."""
         compressed_path = file_path.with_suffix(file_path.suffix + ".gz")
 
@@ -1319,18 +1323,20 @@ class LogRetentionManager:
 class PerformanceLoggingMixin:
     """Mixin for performance-aware logging."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
-        self.performance_tracking = {}
+        self.performance_tracking: Dict[str, Any] = {}
 
     @contextmanager
-    def log_performance(self, operation_name: str, threshold_ms: float = 1000.0):
+    def log_performance(
+        self, operation_name: str, threshold_ms: float = 1000.0
+    ) -> Iterator[None]:
         """Context manager for performance logging."""
         start_time = time.time()
         operation_id = str(uuid.uuid4())[:8]
 
         try:
-            yield operation_id
+            yield
         finally:
             duration_ms = (time.time() - start_time) * 1000
 
@@ -1469,7 +1475,7 @@ class LoggingConfig:
 class LogSearchEngine:
     """Advanced log search and analysis engine."""
 
-    def __init__(self, aggregator: LogAggregator):
+    def __init__(self, aggregator: LogAggregator) -> None:
         self.aggregator = aggregator
         self.search_cache: Dict[str, Any] = {}
         self.cache_ttl = 300  # 5 minutes
@@ -1713,7 +1719,7 @@ class LogSearchEngine:
 class SecurityLogAnalyzer:
     """Analyze logs for security events and anomalies."""
 
-    def __init__(self, log_aggregator: LogAggregator):
+    def __init__(self, log_aggregator: LogAggregator) -> None:
         self.aggregator = log_aggregator
         self.security_patterns = [
             r"failed.*login.*attempt",
@@ -2078,7 +2084,7 @@ class SecurityLogAnalyzer:
 class LogDashboard:
     """Real-time log dashboard for monitoring."""
 
-    def __init__(self, search_engine: LogSearchEngine):
+    def __init__(self, search_engine: LogSearchEngine) -> None:
         self.search_engine = search_engine
         self.dashboard_data: Dict[str, Any] = {}
         self.refresh_interval = 30  # seconds
@@ -2300,13 +2306,13 @@ class LogDashboard:
 
 
 # Performance monitoring decorator
-def log_performance(operation_name: str, threshold_ms: float = 1000.0):
+def log_performance(operation_name: str, threshold_ms: float = 1000.0) -> Any:
     """Decorator for automatic performance logging."""
 
-    def decorator(func):
+    def decorator(func: Any) -> Any:
         if asyncio.iscoroutinefunction(func):
 
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Try to get logger from instance
                 logger = None
                 if args and hasattr(args[0], "logger"):
@@ -2349,7 +2355,7 @@ def log_performance(operation_name: str, threshold_ms: float = 1000.0):
             return async_wrapper
         else:
 
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 logger = None
                 if args and hasattr(args[0], "logger"):
                     logger = args[0].logger
@@ -2413,7 +2419,7 @@ def create_audit_manager(logger: StructuredLogger) -> AuditTrailManager:
 @contextmanager
 def trade_logging_context(
     logger: TradingLogger, trade_id: str, symbol: str, user_id: Optional[str] = None
-):
+) -> Iterator[None]:
     """Context manager for trade-specific logging."""
     original_context = dict(logger.context.__dict__)
 
@@ -2455,7 +2461,7 @@ def trade_logging_context(
 @contextmanager
 def api_logging_context(
     logger: TradingLogger, api_name: str, endpoint: str, method: str = "GET"
-):
+) -> Iterator[str]:
     """Context manager for API request logging."""
     request_id = str(uuid.uuid4())[:8]
     start_time = time.time()

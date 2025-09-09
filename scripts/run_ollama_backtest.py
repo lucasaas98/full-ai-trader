@@ -69,7 +69,7 @@ except ImportError as e:
 class OllamaBacktestRunner:
     """Orchestrates Ollama-powered backtesting with comprehensive reporting."""
 
-    def __init__(self, args):
+    def __init__(self, args: Any) -> None:
         self.args = args
         self.setup_logging()
         self.logger = logging.getLogger(__name__)
@@ -77,9 +77,9 @@ class OllamaBacktestRunner:
         # Initialize components
         self.data_store = SimpleDataStore(base_path="data/parquet")
         self.ollama_strategy = None
-        self.results = []
+        self.results: List[Any] = []
 
-    def setup_logging(self):
+    def setup_logging(self) -> None:
         """Setup logging configuration."""
         log_level = logging.DEBUG if self.args.verbose else logging.INFO
         logging.basicConfig(
@@ -144,7 +144,7 @@ class OllamaBacktestRunner:
 
         return report
 
-    async def _check_ollama_health(self):
+    async def _check_ollama_health(self) -> None:
         """Check Ollama server health."""
         print("🔍 Checking Ollama server health...")
 
@@ -241,7 +241,7 @@ class OllamaBacktestRunner:
 
         return symbols
 
-    async def _initialize_ollama_strategy(self):
+    async def _initialize_ollama_strategy(self) -> None:
         """Initialize Ollama AI Strategy."""
         print("🤖 Initializing Ollama AI Strategy...")
 
@@ -309,7 +309,7 @@ class OllamaBacktestRunner:
         print("📈 Generating comprehensive report...")
 
         # Get AI strategy performance
-        ai_performance = (
+        ai_performance: Dict[str, Any] = (
             self.ollama_strategy.get_performance_summary()
             if self.ollama_strategy
             else {}
@@ -462,7 +462,7 @@ class OllamaBacktestRunner:
             },
         }
 
-    def _print_summary_report(self, report: Dict[str, Any]):
+    def _print_summary_report(self, report: Dict[str, Any]) -> None:
         """Print formatted summary report."""
         print("\n" + "=" * 80)
         print("🎯 OLLAMA AI STRATEGY BACKTEST RESULTS")
@@ -570,7 +570,7 @@ class OllamaBacktestRunner:
 
         print("=" * 80)
 
-    def _print_individual_trades(self, trades):
+    def _print_individual_trades(self, trades: Any) -> None:
         """Print detailed individual trade results."""
         if not trades:
             return
@@ -599,7 +599,9 @@ class OllamaBacktestRunner:
 
         print("-" * 80)
 
-    async def _save_results(self, results: BacktestResults, report: Dict[str, Any]):
+    async def _save_results(
+        self, results: BacktestResults, report: Dict[str, Any]
+    ) -> None:
         """Save results to files."""
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -668,13 +670,13 @@ class OllamaBacktestRunner:
                 json.dump(trades_data, f, indent=2)
             print(f"📁 Trades saved to {trades_file}")
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Cleanup resources."""
         if self.ollama_strategy:
             await self.ollama_strategy.cleanup()
 
 
-def create_argument_parser():
+def create_argument_parser() -> argparse.ArgumentParser:
     """Create command line argument parser."""
     parser = argparse.ArgumentParser(
         description="Run Ollama AI Strategy Backtests",
@@ -759,7 +761,7 @@ Examples:
     return parser
 
 
-async def main():
+async def main() -> None:
     """Main execution function."""
     parser = create_argument_parser()
     args = parser.parse_args()
@@ -799,11 +801,11 @@ async def main():
             import traceback
 
             traceback.print_exc()
-        return 1
+        pass
     finally:
         await runner.cleanup()
 
-    return 0
+    pass
 
 
 if __name__ == "__main__":

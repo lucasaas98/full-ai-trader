@@ -128,7 +128,7 @@ class HybridAIClient:
             except Exception:
                 return False
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the client connection."""
         if hasattr(self.client, "close"):
             await self.client.close()
@@ -590,16 +590,16 @@ Consider risk management and only recommend high-confidence trades."""
             "backend_type": "ollama" if self.use_ollama else "anthropic",
         }
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the strategy engine."""
         if self.ai_client:
             await self.ai_client.close()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "HybridAIStrategyEngine":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()
 

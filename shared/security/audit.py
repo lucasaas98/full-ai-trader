@@ -59,6 +59,7 @@ class AuditEventType(Enum):
     BACKUP_RESTORED = "backup_restored"
     SECURITY_EVENT = "security_event"
     ERROR_EVENT = "error_event"
+    OPERATION = "operation"
 
 
 class AuditSeverity(Enum):
@@ -115,13 +116,13 @@ class AuditLogger:
         self.batch_lock = asyncio.Lock()
         self._batch_task: Optional[asyncio.Task] = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize audit logging system"""
         await self._ensure_audit_table()
         self._batch_task = asyncio.create_task(self._batch_processor())
         logger.info("Audit logging system initialized")
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown audit logging system"""
         if self._batch_task:
             self._batch_task.cancel()
@@ -136,7 +137,7 @@ class AuditLogger:
 
         logger.info("Audit logging system shutdown")
 
-    async def _ensure_audit_table(self):
+    async def _ensure_audit_table(self) -> None:
         """Ensure audit logs table exists"""
         create_table_sql = """
         CREATE TABLE IF NOT EXISTS audit_logs (
@@ -181,7 +182,7 @@ class AuditLogger:
         async with self.db_pool.acquire() as conn:
             await conn.execute(create_table_sql)
 
-    async def log_event(self, event: AuditEvent):
+    async def log_event(self, event: AuditEvent) -> None:
         """Log an audit event (async, batched)"""
         async with self.batch_lock:
             self.pending_events.append(event)
@@ -196,7 +197,7 @@ class AuditLogger:
         except Exception as e:
             logger.error(f"Failed to store audit event in Redis: {e}")
 
-    async def _batch_processor(self):
+    async def _batch_processor(self) -> None:
         """Background task to process batched audit events"""
         while True:
             try:
@@ -211,7 +212,7 @@ class AuditLogger:
             except Exception as e:
                 logger.error(f"Error in audit batch processor: {e}")
 
-    async def _flush_batch(self):
+    async def _flush_batch(self) -> None:
         """Flush pending events to database"""
         if not self.pending_events:
             return
@@ -334,12 +335,12 @@ class AuditLogger:
 class AuditMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware for automatic audit logging"""
 
-    def __init__(self, app, audit_logger: AuditLogger, service_name: str):
+    def __init__(self, app: Any, audit_logger: AuditLogger, service_name: str) -> None:
         super().__init__(app)
         self.audit_logger = audit_logger
         self.service_name = service_name
 
-    async def dispatch(self, request: Request, call_next):
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
         """Process request and log audit event"""
         start_time = dt.datetime.now(timezone.utc)
         request_id = f"{self.service_name}_{start_time.strftime('%Y%m%d_%H%M%S_%f')}"
@@ -513,8 +514,7 @@ class TradeAuditor:
         user_id: str = "system",
         success: bool = True,
         error_message: Optional[str] = None,
-        execution_details: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log trade execution event"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -533,7 +533,6 @@ class TradeAuditor:
                 "quantity": quantity,
                 "price": price,
                 "strategy_id": strategy_id,
-                "execution_details": execution_details,
             },
         )
 
@@ -548,7 +547,7 @@ class TradeAuditor:
         old_price: Optional[float],
         new_price: float,
         user_id: str = "system",
-    ):
+    ) -> None:
         """Log position changes"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -585,9 +584,8 @@ class TradeAuditor:
         proposed_quantity: float,
         approved_quantity: float,
         risk_score: float,
-        risk_factors: Dict[str, Any],
         user_id: str = "system",
-    ):
+    ) -> None:
         """Log risk management decisions"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -607,7 +605,6 @@ class TradeAuditor:
                 "symbol": symbol,
                 "decision": decision,
                 "risk_score": risk_score,
-                "risk_factors": risk_factors,
                 "quantity_reduction": proposed_quantity - approved_quantity,
             },
         )
@@ -629,7 +626,7 @@ class ConfigAuditor:
         change_reason: str,
         user_id: str,
         service_name: str = "config_manager",
-    ):
+    ) -> None:
         """Log configuration changes"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -666,7 +663,7 @@ class SecurityAuditor:
         success: bool,
         method: str = "api_key",
         error_message: Optional[str] = None,
-    ):
+    ) -> None:
         """Log authentication attempts"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -692,7 +689,7 @@ class SecurityAuditor:
         user_id: Optional[str] = None,
         ip_address: Optional[str] = None,
         additional_data: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log general security events"""
         event = AuditEvent(
             timestamp=dt.datetime.now(timezone.utc),
@@ -712,7 +709,7 @@ class SecurityAuditor:
 
 
 @asynccontextmanager
-async def create_audit_context(db_pool: asyncpg.Pool, redis_client: redis.Redis):
+async def create_audit_context(db_pool: asyncpg.Pool, redis_client: redis.Redis) -> Any:
     """Create audit logging context manager"""
     audit_logger = AuditLogger(db_pool, redis_client)
     await audit_logger.initialize()
@@ -740,14 +737,15 @@ def create_security_auditor(audit_logger: AuditLogger) -> SecurityAuditor:
 
 # Decorator for auditing function calls
 def audit_operation(
-    event_type: AuditEventType,
+    operation: str,
+    audit_logger: AuditLogger,
     severity: AuditSeverity = AuditSeverity.MEDIUM,
     entity_type: Optional[str] = None,
-):
+) -> Any:
     """Decorator to automatically audit function calls"""
 
-    def decorator(func):
-        async def wrapper(*args, **kwargs):
+    def decorator(func: Any) -> Any:
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             start_time = dt.datetime.now(timezone.utc)
             success = True
             error_message = None
@@ -770,7 +768,7 @@ def audit_operation(
 
                     event = AuditEvent(
                         timestamp=start_time,
-                        event_type=event_type,
+                        event_type=AuditEventType.OPERATION,
                         severity=severity,
                         service_name=getattr(func, "_service_name", "unknown"),
                         action=func.__name__,
@@ -846,7 +844,7 @@ async def get_audit_summary(audit_logger: AuditLogger, days: int = 7) -> Dict[st
 
 async def cleanup_old_audit_logs(
     db_pool: asyncpg.Pool, retention_days: int = 2555  # 7 years default
-):
+) -> None:
     """Clean up old audit logs beyond retention period"""
     cutoff_date = dt.datetime.now(timezone.utc) - TimeDelta(days=retention_days)
 
@@ -1002,7 +1000,7 @@ class AuditEventBuilder:
 _global_audit_logger: Optional[AuditLogger] = None
 
 
-def set_global_audit_logger(audit_logger: AuditLogger):
+def set_global_audit_logger(audit_logger: AuditLogger) -> None:
     """Set global audit logger instance"""
     global _global_audit_logger
     _global_audit_logger = audit_logger
@@ -1024,7 +1022,7 @@ async def audit_async(
     success: bool = True,
     error_message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> None:
     """Convenience function for async audit logging"""
     audit_logger = get_global_audit_logger()
     if audit_logger:
@@ -1055,7 +1053,7 @@ def audit_sync(
     success: bool = True,
     error_message: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
-):
+) -> None:
     """Convenience function for sync audit logging (creates async task)"""
     asyncio.create_task(
         audit_async(

@@ -54,7 +54,7 @@ class MultiTimeFrameDataFetcher:
     timeframes, ensuring data alignment and quality for analysis.
     """
 
-    def __init__(self, redis_client=None, data_store=None):
+    def __init__(self, redis_client: Any = None, data_store: Any = None) -> None:
         """
         Initialize multi-timeframe data fetcher.
 
@@ -246,7 +246,9 @@ class MultiTimeFrameDataFetcher:
             )
             return None
 
-    async def _cache_data(self, symbol: str, timeframe: str, data: pl.DataFrame):
+    async def _cache_data(
+        self, symbol: str, timeframe: str, data: pl.DataFrame
+    ) -> None:
         """Cache data to Redis."""
         try:
             if not self.redis_client or data.is_empty():
@@ -562,7 +564,7 @@ class MultiTimeFrameDataFetcher:
 
 # Convenience function for easy integration
 def create_multi_timeframe_fetcher(
-    redis_client=None, data_store=None
+    redis_client: Any = None, data_store: Any = None
 ) -> MultiTimeFrameDataFetcher:
     """
     Create multi-timeframe data fetcher with optional dependencies.

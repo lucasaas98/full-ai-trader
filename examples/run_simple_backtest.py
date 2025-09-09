@@ -38,7 +38,7 @@ except ImportError as e:
     sys.exit(1)
 
 
-def setup_logging():
+def setup_logging() -> None:
     """Set up basic logging."""
     logging.basicConfig(
         level=logging.INFO,
@@ -46,44 +46,44 @@ def setup_logging():
     )
 
 
-def format_currency(amount):
+def format_currency(amount: float) -> str:
     """Format currency for display."""
     return f"${amount:,.2f}"
 
 
-def format_percentage(value):
+def format_percentage(value: float) -> str:
     """Format percentage for display."""
     return f"{value:.2%}"
 
 
-def display_simple_results(results, config):
+def display_simple_results(results: dict, config: dict) -> None:
     """Display backtest results in a simple format."""
     print("\n" + "=" * 60)
     print("BACKTEST RESULTS SUMMARY")
     print("=" * 60)
 
-    print(f"\nPeriod: {config.start_date.date()} to {config.end_date.date()}")
-    print(f"Initial Capital: {format_currency(float(config.initial_capital))}")
+    print(f"\nPeriod: {results['start_date'].date()} to {results['end_date'].date()}")
+    print(f"Initial Capital: {format_currency(float(results['initial_capital']))}")
     print(
-        f"Final Portfolio Value: {format_currency(float(results.final_portfolio_value))}"
+        f"Final Portfolio Value: {format_currency(float(results['final_portfolio_value']))}"
     )
-    print(f"Total Return: {format_percentage(results.total_return)}")
+    print(f"Total Return: {format_percentage(results['total_return'])}")
 
-    if results.total_trades > 0:
+    if results["total_trades"] > 0:
         print("\nTrading Activity:")
-        print(f"  Total Trades: {results.total_trades}")
-        print(f"  Win Rate: {format_percentage(results.win_rate)}")
-        print(f"  AI Calls: {results.total_ai_calls}")
-        print(f"  Signals Generated: {results.signals_generated}")
-        print(f"  Signals Executed: {results.signals_executed}")
+        print(f"  Total Trades: {results['total_trades']}")
+        print(f"  Win Rate: {format_percentage(results['win_rate'])}")
+        print(f"  AI Calls: {results['total_ai_calls']}")
+        print(f"  Signals Generated: {results['signals_generated']}")
+        print(f"  Signals Executed: {results['signals_executed']}")
     else:
         print("\nNo trades were executed during this period.")
 
-    print(f"\nExecution Time: {results.execution_time_seconds:.2f} seconds")
+    print(f"\nExecution Time: {results['execution_time_seconds']:.2f} seconds")
     print("=" * 60)
 
 
-async def run_simple_example():
+async def run_simple_example() -> None:
     """Run a simple backtesting example."""
     print("Starting Simple Backtesting Example")
     print("=====================================")
@@ -176,7 +176,7 @@ async def run_simple_example():
         traceback.print_exc()
 
 
-async def run_data_availability_check():
+async def run_data_availability_check() -> None:
     """Check what data is available for backtesting."""
     print("\nChecking Data Availability")
     print("==========================")
@@ -264,7 +264,7 @@ async def run_data_availability_check():
         print(f"Data availability check failed: {e}")
 
 
-async def main():
+async def main() -> None:
     """Main execution function."""
     setup_logging()
 

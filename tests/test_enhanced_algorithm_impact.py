@@ -10,6 +10,7 @@ better than the original simple implementation.
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -23,7 +24,7 @@ from services.data_collector.src.scheduler_service import (  # noqa: E402
 )
 
 
-def test_extreme_rate_limiting_scenarios():
+def test_extreme_rate_limiting_scenarios() -> None:
     """Test scenarios where rate limiting really matters."""
     print("=" * 70)
     print("EXTREME RATE LIMITING SCENARIOS")
@@ -83,7 +84,7 @@ def test_extreme_rate_limiting_scenarios():
     print()
 
 
-def test_volatility_impact_on_constraints():
+def test_volatility_impact_on_constraints() -> None:
     """Test how volatility interacts with constraints."""
     print("Scenario 2: High volatility meets strict constraints")
     print("-" * 50)
@@ -122,7 +123,7 @@ def test_volatility_impact_on_constraints():
     print()
 
 
-def test_priority_weight_extremes():
+def test_priority_weight_extremes() -> None:
     """Test extreme priority weight scenarios."""
     print("Scenario 3: Extreme priority weight differentiation")
     print("-" * 52)
@@ -165,7 +166,7 @@ def test_priority_weight_extremes():
     print()
 
 
-def test_mixed_api_complexity():
+def test_mixed_api_complexity() -> None:
     """Test complex multi-API scenarios."""
     print("Scenario 4: Complex multi-API environment")
     print("-" * 42)
@@ -221,7 +222,7 @@ def test_mixed_api_complexity():
     print()
 
 
-def test_scaling_behavior_extremes():
+def test_scaling_behavior_extremes() -> None:
     """Test extreme scaling scenarios."""
     print("Scenario 5: Extreme scaling scenarios")
     print("-" * 37)
@@ -281,7 +282,7 @@ def test_scaling_behavior_extremes():
     print()
 
 
-def test_algorithm_intelligence():
+def test_algorithm_intelligence() -> None:
     """Test scenarios that show algorithm intelligence."""
     print("Scenario 6: Algorithm intelligence showcase")
     print("-" * 43)
@@ -367,13 +368,15 @@ def test_algorithm_intelligence():
         print()
 
 
-def test_comparative_analysis():
+def test_comparative_analysis() -> None:
     """Compare old vs new algorithm in challenging scenarios."""
     print("=" * 70)
     print("OLD vs ENHANCED ALGORITHM COMPARISON")
     print("=" * 70)
 
-    def old_simple_algorithm(api_rate_limits, active_tickers, timeframes):
+    def old_simple_algorithm(
+        api_rate_limits: Any, active_tickers: int, timeframes: list
+    ) -> dict:
         """Original simple implementation."""
         base_intervals = {
             TimeFrame.FIVE_MINUTES: 300,
@@ -475,7 +478,7 @@ def test_comparative_analysis():
         print()
 
 
-def test_edge_case_robustness():
+def test_edge_case_robustness() -> None:
     """Test robustness with extreme edge cases."""
     print("=" * 70)
     print("EDGE CASE ROBUSTNESS TESTING")
@@ -538,7 +541,7 @@ def test_edge_case_robustness():
         print()
 
 
-def demonstrate_key_features():
+def demonstrate_key_features() -> None:
     """Demonstrate the key enhanced features."""
     print("=" * 70)
     print("KEY ENHANCED FEATURES DEMONSTRATION")
@@ -627,7 +630,7 @@ def demonstrate_key_features():
     print()
 
 
-def run_comprehensive_test():
+def run_comprehensive_test() -> None:
     """Run comprehensive test of all features."""
     print("=" * 70)
     print("COMPREHENSIVE FEATURE TEST")
@@ -708,7 +711,7 @@ def run_comprehensive_test():
     print()
 
 
-def main():
+def main() -> int:
     """Run all demonstrations."""
     print("ENHANCED INTERVAL CALCULATION ALGORITHM")
     print("Comprehensive Testing and Demonstration")

@@ -116,7 +116,7 @@ class SystemMonitor:
         self.performance_history: Dict[str, List[Any]] = defaultdict(list)
         self.last_performance_check = datetime.now()
 
-    async def start_monitoring(self):
+    async def start_monitoring(self) -> None:
         """Start all monitoring tasks."""
         if self.is_monitoring:
             logger.warning("Monitoring already started")
@@ -130,8 +130,8 @@ class SystemMonitor:
             self._system_resource_monitor,
             self._service_health_monitor,
             self._api_rate_limit_monitor,
-            self._database_monitor,
-            self._redis_monitor,
+            self._database_health_monitor,
+            self._risk_monitor,
             self._alert_processor,
             self._metrics_cleanup,
         ]
@@ -142,7 +142,7 @@ class SystemMonitor:
 
         logger.info("System monitoring started")
 
-    async def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         """Stop all monitoring tasks."""
         logger.info("Stopping system monitoring...")
         self.is_monitoring = False
@@ -158,7 +158,7 @@ class SystemMonitor:
         self.monitoring_tasks.clear()
         logger.info("System monitoring stopped")
 
-    async def _system_resource_monitor(self):
+    async def _system_resource_monitor(self) -> None:
         """Monitor system resources (CPU, memory, disk, network)."""
         while self.is_monitoring:
             try:
@@ -223,7 +223,7 @@ class SystemMonitor:
                 logger.error(f"System resource monitoring error: {e}")
                 await asyncio.sleep(60)
 
-    async def _service_health_monitor(self):
+    async def _service_health_monitor(self) -> None:
         """Monitor health and performance of trading services."""
         while self.is_monitoring:
             try:
@@ -252,7 +252,7 @@ class SystemMonitor:
 
     async def _monitor_service_performance(
         self, service_name: str, base_url: str, timestamp: datetime
-    ):
+    ) -> Dict[str, Any]:
         """Monitor performance metrics for a specific service."""
         try:
             # Health check with timing
@@ -289,6 +289,12 @@ class SystemMonitor:
                         except Exception:
                             pass  # Metrics endpoint might not exist
 
+                    return {
+                        "healthy": is_healthy,
+                        "response_time": response_time,
+                        "timestamp": timestamp.isoformat(),
+                    }
+
                 except asyncio.TimeoutError:
                     await self._record_metric(
                         f"service_{service_name}_healthy", 0, timestamp
@@ -297,14 +303,24 @@ class SystemMonitor:
                         f"service_{service_name}_response_time", 5000, timestamp
                     )
                     logger.warning(f"Health check timeout for {service_name}")
+                    return {
+                        "healthy": False,
+                        "response_time": 5000,
+                        "timestamp": timestamp.isoformat(),
+                    }
 
         except Exception as e:
             logger.error(f"Failed to monitor service {service_name}: {e}")
             await self._record_metric(f"service_{service_name}_healthy", 0, timestamp)
+            return {
+                "healthy": False,
+                "response_time": 0,
+                "timestamp": timestamp.isoformat(),
+            }
 
     async def _process_service_metrics(
         self, service_name: str, metrics: Dict[str, Any], timestamp: datetime
-    ):
+    ) -> None:
         """Process and store service-specific metrics."""
         try:
             # Store service metrics
@@ -351,7 +367,7 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"Failed to process service metrics for {service_name}: {e}")
 
-    async def _api_rate_limit_monitor(self):
+    async def _api_rate_limit_monitor(self) -> None:
         """Monitor API rate limits for external services."""
         while self.is_monitoring:
             try:
@@ -377,7 +393,7 @@ class SystemMonitor:
 
     async def _check_api_rate_limits(
         self, api_name: str, base_url: str, timestamp: datetime
-    ):
+    ) -> None:
         """Check rate limits for a specific API."""
         try:
             # Get rate limit info from Redis
@@ -425,7 +441,7 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"Failed to check rate limits for {api_name}: {e}")
 
-    async def _database_monitor(self):
+    async def _database_health_monitor(self) -> None:
         """Monitor database connection pools and performance."""
         while self.is_monitoring:
             try:
@@ -462,7 +478,7 @@ class SystemMonitor:
                 logger.error(f"Database monitoring loop error: {e}")
                 await asyncio.sleep(60)
 
-    async def _redis_monitor(self):
+    async def _risk_monitor(self) -> None:
         """Monitor Redis performance and queue lengths."""
         while self.is_monitoring:
             try:
@@ -515,7 +531,7 @@ class SystemMonitor:
                 logger.error(f"Redis monitoring error: {e}")
                 await asyncio.sleep(60)
 
-    async def _monitor_redis_queues(self, timestamp: datetime):
+    async def _monitor_redis_queues(self, timestamp: datetime) -> None:
         """Monitor Redis queue lengths and performance."""
         try:
             # Task queues
@@ -571,7 +587,7 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"Queue monitoring error: {e}")
 
-    async def _alert_processor(self):
+    async def _alert_processor(self) -> None:
         """Process and manage alerts."""
         while self.is_monitoring:
             try:
@@ -594,17 +610,18 @@ class SystemMonitor:
                     await self._notify_alert_resolved(alert)
 
                 # Clean up old resolved alerts
-                await self._cleanup_old_alerts()
+                self._cleanup_old_alerts()
 
                 await asyncio.sleep(30)  # Process every 30 seconds
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"Alert processing error: {e}")
-                await asyncio.sleep(60)
+                logger.error(f"Alert processing failed: {e}")
+                await asyncio.sleep(10)
+                return
 
-    async def _metrics_cleanup(self):
+    async def _metrics_cleanup(self) -> None:
         """Clean up old metrics data."""
         while self.is_monitoring:
             try:
@@ -639,7 +656,7 @@ class SystemMonitor:
         value: float,
         timestamp: datetime,
         tags: Optional[Dict[str, str]] = None,
-    ):
+    ) -> None:
         """Record a metric point."""
         try:
             if tags is None:
@@ -668,7 +685,7 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"Failed to record metric {metric_name}: {e}")
 
-    async def _check_resource_thresholds(self, timestamp: datetime):
+    async def _check_resource_thresholds(self, timestamp: datetime) -> None:
         """Check if any resource thresholds are exceeded."""
         for metric_name, threshold in self.thresholds.items():
             if not threshold.enabled:
@@ -723,7 +740,7 @@ class SystemMonitor:
         message: str,
         source: str,
         metadata: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Create a new system alert."""
         if metadata is None:
             metadata = {}
@@ -812,7 +829,7 @@ class SystemMonitor:
 
         return False
 
-    async def _notify_alert_resolved(self, alert: Alert):
+    async def _notify_alert_resolved(self, alert: Alert) -> None:
         """Notify that an alert has been resolved."""
         logger.info(f"Alert resolved: {alert.message}")
 
@@ -833,7 +850,7 @@ class SystemMonitor:
             ),
         )
 
-    async def _cleanup_old_alerts(self):
+    def _cleanup_old_alerts(self) -> int:
         """Clean up old resolved alerts."""
         cutoff_time = datetime.now() - timedelta(hours=24)
 
@@ -845,7 +862,9 @@ class SystemMonitor:
         for alert_id in alerts_to_remove:
             del self.active_alerts[alert_id]
 
-    def register_alert_callback(self, callback: Callable):
+        return len(alerts_to_remove)
+
+    def register_alert_callback(self, callback: Callable) -> None:
         """Register callback for new alerts."""
         self.alert_callbacks.append(callback)
 
@@ -932,7 +951,7 @@ class SystemMonitor:
         )
         return alerts
 
-    async def clear_alerts(self, severity: Optional[AlertSeverity] = None):
+    async def clear_alerts(self, severity: Optional[AlertSeverity] = None) -> None:
         """Clear alerts with optional severity filtering."""
         alerts_to_remove = []
 
@@ -1059,7 +1078,7 @@ class SystemMonitor:
 
     def set_threshold(
         self, metric_name: str, warning: float, critical: float, duration: int = 60
-    ):
+    ) -> None:
         """Set or update threshold for a metric."""
         self.thresholds[metric_name] = Threshold(
             warning=warning, critical=critical, duration=duration
@@ -1068,13 +1087,13 @@ class SystemMonitor:
             f"Updated threshold for {metric_name}: warning={warning}, critical={critical}"
         )
 
-    def disable_threshold(self, metric_name: str):
+    def disable_threshold(self, metric_name: str) -> None:
         """Disable threshold checking for a metric."""
         if metric_name in self.thresholds:
             self.thresholds[metric_name].enabled = False
             logger.info(f"Disabled threshold for {metric_name}")
 
-    def enable_threshold(self, metric_name: str):
+    def enable_threshold(self, metric_name: str) -> None:
         """Enable threshold checking for a metric."""
         if metric_name in self.thresholds:
             self.thresholds[metric_name].enabled = True
@@ -1121,7 +1140,7 @@ class SystemMonitor:
             ** 0.5,
         }
 
-    async def force_metric_collection(self):
+    async def force_metric_collection(self) -> None:
         """Force immediate collection of all metrics."""
         logger.info("Forcing immediate metric collection...")
 
@@ -1156,7 +1175,7 @@ class SystemMonitor:
 
         logger.info("Forced metric collection completed")
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Graceful shutdown of the monitor."""
         logger.info("Shutting down system monitor...")
         await self.stop_monitoring()

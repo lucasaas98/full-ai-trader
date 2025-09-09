@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 class IntegrationTestRunner:
     """Manages integration test lifecycle."""
 
-    def __init__(self, args):
+    def __init__(self, args: Any) -> None:
         self.args = args
         self.project_root = project_root
         self.test_data_dir = self.project_root / "integration_test_data"
@@ -152,7 +152,7 @@ class IntegrationTestRunner:
         logger.info("✅ Environment validation passed")
         return True
 
-    def _validate_credentials(self):
+    def _validate_credentials(self) -> None:
         """Validate that integration credentials are different from production."""
         # Load integration environment
         env_vars = {}
@@ -352,7 +352,7 @@ class IntegrationTestRunner:
             with open(results_file, "w") as f:
                 json.dump(test_results, f, indent=2)
 
-    def _generate_report(self, test_passed: bool):
+    def _generate_report(self, test_passed: bool) -> None:
         """Generate integration test report."""
         logger.info("📊 Generating integration test report...")
 
@@ -423,7 +423,7 @@ class IntegrationTestRunner:
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
-    def _cleanup_infrastructure(self):
+    def _cleanup_infrastructure(self) -> None:
         """Clean up Docker infrastructure."""
         logger.info("🧹 Cleaning up integration test infrastructure...")
 
@@ -444,7 +444,9 @@ class IntegrationTestRunner:
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
 
-    def _run_docker_compose(self, args: List[str], check: bool = True):
+    def _run_docker_compose(
+        self, args: List[str], check: bool = True
+    ) -> subprocess.CompletedProcess:
         """Run docker compose command."""
         cmd = [
             "docker",
@@ -472,7 +474,7 @@ class IntegrationTestRunner:
         return subprocess.run(cmd, cwd=self.project_root, env=env, check=check)
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Integration Test Runner")
 

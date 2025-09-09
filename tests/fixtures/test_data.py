@@ -18,7 +18,7 @@ sys.path.append("/app/shared")
 from typing import Tuple  # noqa: E402
 
 
-def _safe_float_convert(value) -> float:
+def _safe_float_convert(value: Any) -> float:
     """Safely convert pandas/numpy values to float."""
     if pd.isna(value):
         return 0.0
@@ -27,7 +27,7 @@ def _safe_float_convert(value) -> float:
     return float(value)
 
 
-def _safe_index_to_int(index_value) -> int:
+def _safe_index_to_int(index_value: Any) -> int:
     """Safely convert pandas index value to int."""
     try:
         if hasattr(index_value, "item"):

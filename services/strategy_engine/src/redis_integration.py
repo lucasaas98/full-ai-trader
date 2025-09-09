@@ -297,7 +297,7 @@ class RedisDataSubscriber:
         finally:
             self._running = False
 
-    async def _listen_to_subscription(self, sub_type: str, pubsub) -> None:
+    async def _listen_to_subscription(self, sub_type: str, pubsub: Any) -> None:
         """Listen to a specific subscription."""
         try:
             callback = self._callbacks.get(sub_type)

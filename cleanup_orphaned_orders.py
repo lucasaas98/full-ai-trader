@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 class OrphanedOrdersCleaner:
     """Clean up orders that don't exist in Alpaca but are in our database."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.alpaca_api_key = os.getenv("ALPACA_API_KEY")
         self.alpaca_secret_key = os.getenv("ALPACA_SECRET_KEY")
         self.alpaca_base_url = os.getenv(
@@ -60,26 +60,26 @@ class OrphanedOrdersCleaner:
         if not all([self.alpaca_api_key, self.alpaca_secret_key, self.db_password]):
             raise ValueError("Missing required environment variables")
 
-    async def get_database_connection(self):
+    async def get_database_connection(self) -> asyncpg.Connection:
         """Get database connection."""
         try:
             conn = await asyncpg.connect(
                 host=self.db_host,
                 port=self.db_port,
                 database=self.db_name,
-                user=self.db_user,
-                password=self.db_password,
+                user=self.db_user or "",
+                password=self.db_password or "",
             )
             return conn
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise
 
-    def get_alpaca_headers(self):
+    def get_alpaca_headers(self) -> Dict[str, str]:
         """Get headers for Alpaca API requests."""
         return {
-            "APCA-API-KEY-ID": self.alpaca_api_key,
-            "APCA-API-SECRET-KEY": self.alpaca_secret_key,
+            "APCA-API-KEY-ID": self.alpaca_api_key or "",
+            "APCA-API-SECRET-KEY": self.alpaca_secret_key or "",
             "Content-Type": "application/json",
         }
 
@@ -110,7 +110,7 @@ class OrphanedOrdersCleaner:
             return False
 
     async def get_all_database_orders(
-        self, conn, days_back: int = 30
+        self, conn: Any, days_back: int = 30
     ) -> List[Dict[str, Any]]:
         """Get all orders from database within the specified time range."""
         cutoff_date = datetime.now() - timedelta(days=days_back)
@@ -370,4 +370,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-o.run(main())

@@ -36,7 +36,7 @@ class PerformanceTracker:
     - TradeNote export compatibility
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize performance tracker."""
         self.config = get_config()
         self._db_pool = None
@@ -44,7 +44,7 @@ class PerformanceTracker:
         self._performance_cache: Dict[str, Any] = {}
         self._running = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database and Redis connections."""
         try:
             self._db_pool = await asyncpg.create_pool(
@@ -67,7 +67,7 @@ class PerformanceTracker:
             logger.error(f"Failed to initialize PerformanceTracker: {e}")
             raise
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         try:
             self._running = False
@@ -254,11 +254,11 @@ class PerformanceTracker:
 
     async def _store_daily_performance(
         self, target_date: date, metrics: Dict[str, Any]
-    ):
+    ) -> Dict[str, Any]:
         """Store daily performance metrics in database."""
         try:
             if not self._db_pool:
-                return 0.0
+                return metrics
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -302,6 +302,9 @@ class PerformanceTracker:
 
         except Exception as e:
             logger.error(f"Failed to store daily performance: {e}")
+            return metrics
+
+        return metrics
 
     async def _get_portfolio_value_for_date(self, target_date: date) -> Decimal:
         """Get portfolio value for specific date."""
@@ -1100,7 +1103,9 @@ class PerformanceTracker:
             logger.error(f"Failed to get recent trades: {e}")
             return []
 
-    async def update_daily_metrics(self, target_date: Optional[date] = None):
+    async def update_daily_metrics(
+        self, target_date: Optional[date] = None
+    ) -> Dict[str, Any]:
         """
         Update daily performance metrics.
 
@@ -1131,9 +1136,11 @@ class PerformanceTracker:
                 )
 
             logger.info(f"Daily metrics updated for {target_date}")
+            return metrics
 
         except Exception as e:
             logger.error(f"Failed to update daily metrics for {target_date}: {e}")
+            return {}
 
     async def calculate_trade_quality_score(self, position_id: UUID) -> float:
         """
@@ -1351,11 +1358,11 @@ class PerformanceTracker:
             logger.error(f"Failed to get current portfolio metrics: {e}")
             return {}
 
-    async def start_performance_monitoring(self):
+    async def start_performance_monitoring(self) -> None:
         """Start background performance monitoring and updates."""
         self._running = True
 
-        async def performance_monitor():
+        async def performance_monitor() -> None:
             """Background task for performance updates."""
             while self._running:
                 try:
@@ -1376,7 +1383,9 @@ class PerformanceTracker:
         asyncio.create_task(performance_monitor())
         logger.info("Performance monitoring started")
 
-    async def _cleanup_old_performance_data(self, days_to_keep: int = 365):
+    async def _cleanup_old_performance_data(
+        self, days_to_keep: int = 365
+    ) -> Dict[str, Any]:
         """Clean up old performance data."""
         try:
             if not self._db_pool:
@@ -1398,6 +1407,9 @@ class PerformanceTracker:
 
         except Exception as e:
             logger.error(f"Failed to cleanup old performance data: {e}")
+            return {}
+
+        return {"deleted_records": deleted_count if deleted_count else 0}
 
     async def export_csv_report(
         self,

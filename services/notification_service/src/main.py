@@ -41,7 +41,7 @@ class NotificationService:
     and other events, then sends appropriate notifications through Gotify.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the notification service."""
         self.config: Config = get_config()
         self.notification_manager: Optional[NotificationManager] = None
@@ -67,7 +67,7 @@ class NotificationService:
         self._last_notifications: Dict[str, datetime] = {}
         self._notification_cooldown = 60  # seconds between similar notifications
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all service components."""
         try:
             logger.info("Initializing Notification Service...")
@@ -117,7 +117,7 @@ class NotificationService:
             logger.debug(f"Initialization error details: {type(e).__name__}: {str(e)}")
             raise
 
-    async def _subscribe_to_channels(self):
+    async def _subscribe_to_channels(self) -> None:
         """Subscribe to Redis channels."""
         try:
             logger.debug("Starting channel subscription process...")
@@ -149,7 +149,7 @@ class NotificationService:
             logger.debug(f"Subscription error details: {type(e).__name__}: {str(e)}")
             raise
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the notification service."""
         try:
             self._running = True
@@ -186,7 +186,7 @@ class NotificationService:
             logger.debug(f"Service error details: {type(e).__name__}: {str(e)}")
             raise
 
-    async def _process_messages(self):
+    async def _process_messages(self) -> None:
         """Process messages from Redis channels."""
         try:
             logger.info("Starting message processing...")
@@ -234,7 +234,7 @@ class NotificationService:
                 await asyncio.sleep(5)
                 asyncio.create_task(self._process_messages())
 
-    async def _handle_message(self, message: Dict[str, Any]):
+    async def _handle_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """Handle individual Redis message."""
         try:
             channel = message.get("channel", "")
@@ -299,7 +299,7 @@ class NotificationService:
                 f"Failed message channel: {message.get('channel')}, data preview: {str(message.get('data', ''))[:100]}"
             )
 
-    async def _handle_execution(self, data: Dict[str, Any]):
+    async def _handle_execution(self, data: Dict[str, Any]) -> None:
         """Handle trade execution notification."""
         try:
             logger.debug("Processing execution notification")
@@ -359,7 +359,7 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Failed to handle execution: {e}")
 
-    async def _handle_execution_error(self, data: Dict[str, Any]):
+    async def _handle_execution_error(self, data: Dict[str, Any]) -> None:
         """Handle trade execution error notification."""
         try:
             logger.debug("Processing execution error notification")
@@ -396,7 +396,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle execution error: {e}")
 
-    async def _handle_alert(self, data: Dict[str, Any]):
+    async def _handle_alert(self, data: Dict[str, Any]) -> None:
         """Handle general system alert."""
         try:
             logger.debug("Processing system alert")
@@ -438,7 +438,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle alert: {e}")
 
-    async def _handle_risk_alert(self, data: Dict[str, Any]):
+    async def _handle_risk_alert(self, data: Dict[str, Any]) -> None:
         """Handle risk management alert."""
         try:
             logger.debug("Processing risk alert")
@@ -466,7 +466,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle risk alert: {e}")
 
-    async def _handle_portfolio_update(self, data: Dict[str, Any]):
+    async def _handle_portfolio_update(self, data: Dict[str, Any]) -> None:
         """Handle portfolio update notification."""
         try:
             logger.debug("Processing portfolio update")
@@ -510,7 +510,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle portfolio update: {e}")
 
-    async def _handle_system_status(self, data: Dict[str, Any]):
+    async def _handle_system_status(self, data: Dict[str, Any]) -> None:
         """Handle system status update."""
         try:
             logger.debug("Processing system status update")
@@ -551,7 +551,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle system status: {e}")
 
-    async def _handle_market_alert(self, data: Dict[str, Any]):
+    async def _handle_market_alert(self, data: Dict[str, Any]) -> None:
         """Handle market condition alert."""
         try:
             logger.debug("Processing market alert")
@@ -576,7 +576,7 @@ Time: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}
         except Exception as e:
             logger.error(f"Failed to handle market alert: {e}")
 
-    async def _handle_signal(self, data: Dict[str, Any]):
+    async def _handle_signal(self, data: Dict[str, Any]) -> None:
         """Handle trading signal notification."""
         try:
             logger.debug("Processing trading signal")
@@ -618,7 +618,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
         except Exception as e:
             logger.error(f"Failed to handle signal: {e}")
 
-    async def _handle_screener_update(self, data: Dict[str, Any]):
+    async def _handle_screener_update(self, data: Dict[str, Any]) -> None:
         """Handle screener update notifications."""
         try:
             logger.debug("Processing screener update")
@@ -715,7 +715,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
         logger.debug(f"Rate limit passed for '{key}' - updating timestamp")
         return False
 
-    async def _health_check_loop(self):
+    async def _health_check_loop(self) -> None:
         """Periodic health check."""
         logger.debug("Starting health check loop")
         while self._running:
@@ -772,7 +772,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                         f"Reconnection error details: {type(reconnect_error).__name__}: {str(reconnect_error)}"
                     )
 
-    async def _daily_summary_loop(self):
+    async def _daily_summary_loop(self) -> None:
         """Send daily summary notifications."""
         logger.debug("Starting daily summary loop")
         while self._running:
@@ -825,7 +825,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
                 logger.debug("Waiting 1 hour before retrying daily summary")
                 await asyncio.sleep(3600)  # Wait an hour before retrying
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the notification service."""
         try:
             logger.info("Shutting down Notification Service...")
@@ -890,7 +890,7 @@ async def main():
     logger.debug("NotificationService instance created")
 
     # Setup signal handlers
-    def signal_handler(sig, frame):
+    def signal_handler(sig: int, frame: Any) -> None:
         logger.info(f"Received signal {sig}")
         logger.debug(f"Signal handler called with signal: {sig}, frame: {frame}")
         asyncio.create_task(service.shutdown())

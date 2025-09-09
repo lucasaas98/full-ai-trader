@@ -27,7 +27,7 @@ sys.path.append("/app/services/scheduler/src")
 
 # Mock MarketHoursManager class
 class MarketHoursManager:
-    def __init__(self, timezone="US/Eastern"):
+    def __init__(self, timezone: str = "US/Eastern") -> None:
         self.timezone = timezone
         self.pre_market_start = None
         self.market_open = None
@@ -36,12 +36,14 @@ class MarketHoursManager:
 
 # Mock config classes that match TradingScheduler expectations
 class MockSchedulerConfig:
-    def __init__(self, tz="US/Eastern"):
+    def __init__(self, tz: str = "US/Eastern") -> None:
         self.timezone = tz
 
 
 class MockRedisConfig:
-    def __init__(self, url="redis://localhost:6379/0", max_connections=10):
+    def __init__(
+        self, url: str = "redis://localhost:6379/0", max_connections: int = 10
+    ) -> None:
         self.url = url
         self.max_connections = max_connections
         self.host = "localhost"
@@ -51,7 +53,7 @@ class MockRedisConfig:
 
 
 class MockConfig:
-    def __init__(self, timezone="US/Eastern"):
+    def __init__(self, timezone: str = "US/Eastern") -> None:
         self.scheduler = MockSchedulerConfig(timezone)
         self.redis = MockRedisConfig()
 
@@ -60,7 +62,7 @@ class TestTradingScheduler:
     """Unit tests for TradingScheduler class - testing actual functionality."""
 
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self) -> AsyncMock:
         """Mock Redis client."""
         mock_redis = AsyncMock()
         mock_redis.ping.return_value = True
@@ -72,19 +74,19 @@ class TestTradingScheduler:
         return mock_redis
 
     @pytest.fixture
-    def scheduler_config(self):
+    def scheduler_config(self) -> MockConfig:
         """Scheduler configuration for testing."""
         return MockConfig(timezone="US/Eastern")
 
     @pytest.fixture
-    def scheduler(self, mock_redis, scheduler_config):
+    def scheduler(self, mock_redis, scheduler_config) -> TradingScheduler:
         """Create TradingScheduler instance for testing."""
         with patch("redis.asyncio.from_url", return_value=mock_redis):
             scheduler = TradingScheduler(scheduler_config)
             return scheduler
 
     @pytest.mark.unit
-    def test_scheduler_initialization(self, scheduler_config):
+    def test_scheduler_initialization(self, scheduler_config: dict) -> None:
         """Test scheduler initialization with correct attributes."""
         with patch("redis.asyncio.from_url") as mock_redis_factory:
             mock_redis = AsyncMock()
@@ -101,7 +103,9 @@ class TestTradingScheduler:
             assert hasattr(scheduler, "market_hours")
 
     @pytest.mark.asyncio
-    async def test_scheduler_startup_initialization(self, scheduler, mock_redis):
+    async def test_scheduler_startup_initialization(
+        self, scheduler: "TradingScheduler", mock_redis: AsyncMock
+    ) -> None:
         """Test scheduler initialization process."""
         # Test that initialize method can be called without errors
         with patch("services.scheduler.src.scheduler.SystemMonitor"), patch(
@@ -118,19 +122,23 @@ class TestMarketHoursService:
     """Unit tests for MarketHoursService class - fixed to match actual implementation."""
 
     @pytest.fixture
-    def market_service(self):
+    def market_service(self) -> MarketHoursService:
         """Create MarketHoursService instance for testing."""
         return MarketHoursService(timezone_name="US/Eastern")
 
     @pytest.mark.unit
-    def test_market_service_initialization(self, market_service):
+    def test_market_service_initialization(
+        self, market_service: MarketHoursService
+    ) -> None:
         """Test market hours service initialization."""
         # Test that service is properly initialized
         assert isinstance(market_service, MarketHoursService)
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_current_market_session_detection(self, market_service):
+    async def test_current_market_session_detection(
+        self, market_service: MarketHoursService
+    ) -> None:
         """Test that get_current_session returns a valid MarketSession."""
         # Test that the method exists and returns a valid session type
         session = await market_service.get_current_session()
@@ -144,7 +152,9 @@ class TestMarketHoursService:
         ]
 
     @pytest.mark.unit
-    def test_is_market_open_no_parameters(self, market_service):
+    def test_is_market_open_no_parameters(
+        self, market_service: MarketHoursService
+    ) -> None:
         """Test market open detection using actual method signature."""
         # The actual method doesn't take parameters, it uses current time
         result = market_service.is_market_open()
@@ -153,7 +163,9 @@ class TestMarketHoursService:
         assert isinstance(result, bool)
 
     @pytest.mark.unit
-    def test_market_calendar_integration(self, market_service):
+    def test_market_calendar_integration(
+        self, market_service: MarketHoursService
+    ) -> None:
         """Test that market calendar methods work."""
         test_date = datetime(2024, 1, 15).date()  # Monday
 
@@ -170,7 +182,7 @@ class TestScheduledTask:
     """Unit tests for ScheduledTask dataclass."""
 
     @pytest.mark.unit
-    def test_scheduled_task_creation(self):
+    def test_scheduler_task_management(self) -> None:
         """Test ScheduledTask dataclass creation."""
 
         def dummy_function():
@@ -193,7 +205,7 @@ class TestScheduledTask:
         assert task.retry_count == 0
 
     @pytest.mark.unit
-    def test_scheduled_task_with_custom_values(self):
+    def test_scheduled_task_with_custom_values(self) -> None:
         """Test ScheduledTask with custom values."""
 
         def dummy_function():
@@ -221,7 +233,7 @@ class TestServiceInfo:
     """Unit tests for ServiceInfo dataclass."""
 
     @pytest.mark.unit
-    def test_service_info_creation(self):
+    def test_service_info_creation(self) -> None:
         """Test ServiceInfo dataclass creation."""
         service = ServiceInfo(
             name="test_service",
@@ -243,7 +255,7 @@ class TestMarketHoursManager:
     """Unit tests for MarketHoursManager class."""
 
     @pytest.mark.unit
-    def test_market_hours_manager_initialization(self):
+    def test_market_hours_manager_initialization(self) -> None:
         """Test MarketHoursManager initialization."""
         manager = MarketHoursManager(timezone="America/New_York")
 
@@ -253,7 +265,7 @@ class TestMarketHoursManager:
         assert hasattr(manager, "market_open")
 
     @pytest.mark.unit
-    def test_market_hours_manager_with_different_timezone(self):
+    def test_market_hours_manager_with_different_timezone(self) -> None:
         """Test MarketHoursManager with different timezone."""
         manager = MarketHoursManager(timezone="America/Chicago")
 
@@ -265,7 +277,7 @@ class TestEnumsAndConstants:
     """Test enum classes and constants."""
 
     @pytest.mark.unit
-    def test_market_session_enum(self):
+    def test_market_session_enum(self) -> None:
         """Test MarketSession enum values."""
         assert MarketSession.PRE_MARKET == "pre_market"
         assert MarketSession.REGULAR == "regular"
@@ -273,7 +285,7 @@ class TestEnumsAndConstants:
         assert MarketSession.CLOSED == "closed"
 
     @pytest.mark.unit
-    def test_service_status_enum(self):
+    def test_task_status_enum(self) -> None:
         """Test ServiceStatus enum values."""
         assert ServiceStatus.STARTING == "starting"
         assert ServiceStatus.RUNNING == "running"
@@ -283,7 +295,7 @@ class TestEnumsAndConstants:
         assert ServiceStatus.MAINTENANCE == "maintenance"
 
     @pytest.mark.unit
-    def test_task_priority_enum(self):
+    def test_task_priority_enum(self) -> None:
         """Test TaskPriority enum values."""
         assert TaskPriority.CRITICAL == "critical"
         assert TaskPriority.HIGH == "high"
@@ -295,12 +307,12 @@ class TestSchedulerBasicOperations:
     """Test basic scheduler operations that should work."""
 
     @pytest.fixture
-    def scheduler_config(self):
+    def scheduler_config(self) -> MockConfig:
         """Scheduler configuration for testing."""
         return MockConfig(timezone="US/Eastern")
 
     @pytest.mark.unit
-    def test_scheduler_task_registry(self, scheduler_config):
+    def test_scheduler_task_registry(self, scheduler_config: MockConfig) -> None:
         """Test that scheduler can manage task registry."""
         with patch("redis.asyncio.from_url"):
             scheduler = TradingScheduler(scheduler_config)
@@ -309,7 +321,7 @@ class TestSchedulerBasicOperations:
             assert len(scheduler.tasks) == 0
 
             # Should be able to add tasks to registry
-            def dummy_task():
+            def dummy_task() -> None:
                 pass
 
             task = ScheduledTask(
@@ -325,7 +337,7 @@ class TestSchedulerBasicOperations:
             assert "test" in scheduler.tasks
 
     @pytest.mark.unit
-    def test_scheduler_service_registry(self, scheduler_config):
+    def test_scheduler_service_registry(self, scheduler_config: MockConfig) -> None:
         """Test that scheduler can manage service registry."""
         with patch("redis.asyncio.from_url"):
             scheduler = TradingScheduler(scheduler_config)

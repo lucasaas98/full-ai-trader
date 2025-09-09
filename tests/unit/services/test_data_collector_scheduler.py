@@ -44,7 +44,9 @@ class TestCalculateOptimalIntervals:
         ]
 
     @pytest.mark.unit
-    def test_basic_interval_calculation(self, basic_api_limits, all_timeframes):
+    def test_basic_interval_calculation(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test basic interval calculation with default parameters."""
         active_tickers = 20
 
@@ -70,7 +72,9 @@ class TestCalculateOptimalIntervals:
         assert intervals[TimeFrame.FIFTEEN_MINUTES] <= intervals[TimeFrame.ONE_HOUR]
 
     @pytest.mark.unit
-    def test_high_volatility_adjustment(self, basic_api_limits, all_timeframes):
+    def test_high_volatility_adjustment(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test that high volatility leads to more frequent updates."""
         active_tickers = 30
 
@@ -95,7 +99,9 @@ class TestCalculateOptimalIntervals:
             assert high_vol_intervals[timeframe] <= normal_intervals[timeframe]
 
     @pytest.mark.unit
-    def test_low_volatility_adjustment(self, basic_api_limits, all_timeframes):
+    def test_scalability_validation(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test that low volatility leads to less frequent updates."""
         active_tickers = 30
 
@@ -120,7 +126,7 @@ class TestCalculateOptimalIntervals:
             assert low_vol_intervals[timeframe] >= normal_intervals[timeframe]
 
     @pytest.mark.unit
-    def test_priority_weights_effect(self, basic_api_limits):
+    def test_priority_weights_effect(self, basic_api_limits: dict) -> None:
         """Test that priority weights affect interval calculation."""
         active_tickers = 25
         timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
@@ -152,7 +158,7 @@ class TestCalculateOptimalIntervals:
         )
 
     @pytest.mark.unit
-    def test_rate_limit_constraints(self, all_timeframes):
+    def test_extreme_constraints(self, all_timeframes: list) -> None:
         """Test that rate limits are properly respected."""
         active_tickers = 100
 
@@ -171,7 +177,7 @@ class TestCalculateOptimalIntervals:
             assert interval >= 300  # At least 5 minutes
 
     @pytest.mark.unit
-    def test_empty_api_limits(self, all_timeframes):
+    def test_multiple_api_limits(self, all_timeframes: list) -> None:
         """Test behavior with empty API limits."""
         active_tickers = 20
 
@@ -185,7 +191,9 @@ class TestCalculateOptimalIntervals:
             assert 30 <= interval <= 86400
 
     @pytest.mark.unit
-    def test_zero_tickers(self, basic_api_limits, all_timeframes):
+    def test_edge_case_zero_tickers(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test behavior with zero active tickers."""
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
@@ -199,7 +207,7 @@ class TestCalculateOptimalIntervals:
             assert 30 <= interval <= 86400
 
     @pytest.mark.unit
-    def test_no_timeframes(self, basic_api_limits):
+    def test_no_timeframes(self, basic_api_limits: dict) -> None:
         """Test behavior with empty timeframes list."""
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits, active_tickers=20, timeframes=[]
@@ -209,7 +217,9 @@ class TestCalculateOptimalIntervals:
         assert intervals == {}
 
     @pytest.mark.unit
-    def test_extreme_volatility_values(self, basic_api_limits, all_timeframes):
+    def test_extreme_parameter_boundaries(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test behavior with extreme volatility values."""
         active_tickers = 25
 
@@ -249,7 +259,7 @@ class TestRealWorldScenarios:
         ]
 
     @pytest.mark.unit
-    def test_retail_trader_scenario(self, all_timeframes):
+    def test_retail_trader_scenario(self, all_timeframes: list) -> None:
         """Test scenario for a retail trader with limited API access."""
         intervals = calculate_optimal_intervals(
             api_rate_limits={"basic_api": 100},  # Limited free tier
@@ -269,8 +279,8 @@ class TestRealWorldScenarios:
         assert intervals[TimeFrame.FIVE_MINUTES] <= 1800  # Max 30 minutes
 
     @pytest.mark.unit
-    def test_institutional_trader_scenario(self, all_timeframes):
-        """Test scenario for institutional trader with premium APIs."""
+    def test_institutional_trader_scenario(self, all_timeframes: list) -> None:
+        """Test scenario for institutional trader with high-tier API access."""
         intervals = calculate_optimal_intervals(
             api_rate_limits={"enterprise_api": 5000, "backup_api": 2000},
             active_tickers=500,  # Large portfolio
@@ -287,7 +297,7 @@ class TestRealWorldScenarios:
         assert intervals[TimeFrame.FIVE_MINUTES] <= 600  # Max 10 minutes
 
     @pytest.mark.unit
-    def test_mixed_api_provider_scenario(self, all_timeframes):
+    def test_mixed_api_provider_scenario(self, all_timeframes: list) -> None:
         """Test scenario with mixed API providers having different rate limits."""
         mixed_limits = {
             "alpha_vantage": 25,  # Most restrictive
@@ -338,7 +348,7 @@ class TestBackwardCompatibility:
         ]
 
     @pytest.mark.unit
-    def test_function_signature_compatibility(self):
+    def test_function_signature_compatibility(self) -> None:
         """Test that the enhanced function signature is backward compatible."""
         from inspect import signature
 
@@ -357,7 +367,9 @@ class TestBackwardCompatibility:
         assert enhanced_params["priority_weights"].default is None
 
     @pytest.mark.unit
-    def test_backward_compatibility_basic_usage(self, basic_api_limits, all_timeframes):
+    def test_backward_compatibility_basic_usage(
+        self, basic_api_limits, all_timeframes
+    ) -> None:
         """Test that basic usage patterns still work as expected."""
         # This simulates how the function was called before enhancement
         intervals = calculate_optimal_intervals(
@@ -376,8 +388,8 @@ class TestBackwardCompatibility:
 
     @pytest.mark.unit
     def test_enhanced_features_dont_break_basics(
-        self, basic_api_limits, all_timeframes
-    ):
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test that enhanced features don't break basic functionality."""
         active_tickers = 25
 
@@ -409,7 +421,9 @@ class TestBackwardCompatibility:
             ), f"Enhanced version changed basic behavior too much: {diff_ratio}"
 
     @pytest.mark.unit
-    def test_return_type_consistency(self, basic_api_limits, all_timeframes):
+    def test_interval_calculation_consistency(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Test that return type and structure remain consistent."""
         intervals = calculate_optimal_intervals(
             api_rate_limits=basic_api_limits,
@@ -445,7 +459,7 @@ class TestEdgeCasesAndValidation:
         ]
 
     @pytest.mark.unit
-    def test_edge_case_validation(self, all_timeframes):
+    def test_edge_case_validation(self, all_timeframes: list) -> None:
         """Test various edge cases and boundary conditions."""
         edge_cases = [
             # (active_tickers, api_limits, volatility, description)
@@ -475,7 +489,7 @@ class TestEdgeCasesAndValidation:
                 pytest.fail(f"Edge case '{description}' raised exception: {e}")
 
     @pytest.mark.unit
-    def test_algorithm_determinism(self, all_timeframes):
+    def test_algorithm_determinism(self, all_timeframes: list) -> None:
         """Test that the algorithm is deterministic and reproducible."""
         test_params = {
             "api_rate_limits": {"api": 500},
@@ -501,7 +515,7 @@ class TestEdgeCasesAndValidation:
             assert results[0] == results[i], "Algorithm should be deterministic"
 
     @pytest.mark.unit
-    def test_extreme_priority_weights(self, all_timeframes):
+    def test_extreme_priority_weights(self, all_timeframes: list) -> None:
         """Test that extreme priority weights are handled gracefully."""
         active_tickers = 20
 
@@ -525,7 +539,7 @@ class TestEdgeCasesAndValidation:
             assert 30 <= interval <= 86400
 
     @pytest.mark.unit
-    def test_base_interval_respect(self, all_timeframes):
+    def test_base_interval_respect(self, all_timeframes: list) -> None:
         """Test that base intervals are always respected."""
         active_tickers = 5  # Very few tickers
 
@@ -556,7 +570,7 @@ class TestPerformanceAndScalability:
         ]
 
     @pytest.mark.unit
-    def test_large_ticker_count_scaling(self, all_timeframes):
+    def test_large_ticker_count_scaling(self, all_timeframes: list) -> None:
         """Test that algorithm scales well with large ticker counts."""
         api_limits = {"api": 800}
 
@@ -580,7 +594,7 @@ class TestPerformanceAndScalability:
                 assert intervals[TimeFrame.FIVE_MINUTES] >= 300
 
     @pytest.mark.unit
-    def test_calculation_performance(self, all_timeframes):
+    def test_calculation_performance(self, all_timeframes: list) -> None:
         """Test that calculation completes in reasonable time."""
         import time
 
@@ -606,7 +620,7 @@ class TestPerformanceAndScalability:
         assert avg_time < 0.001, f"Calculation took too long: {avg_time:.4f}s"
 
     @pytest.mark.unit
-    def test_memory_efficiency(self, all_timeframes):
+    def test_memory_efficiency(self, all_timeframes: list) -> None:
         """Test that the algorithm is memory efficient."""
         import tracemalloc
 
@@ -649,7 +663,9 @@ class TestAlgorithmValidation:
         ]
 
     @pytest.mark.unit
-    def test_rate_limit_math_validation(self, basic_api_limits, all_timeframes):
+    def test_api_rate_limit_compliance(
+        self, basic_api_limits: dict, all_timeframes: list
+    ) -> None:
         """Validate that the algorithm's rate limit calculations are mathematically sound."""
         active_tickers = 80
 
@@ -684,7 +700,7 @@ class TestAlgorithmValidation:
             ), f"Rate limit violation for {timeframe}: {requests_per_minute} > {safe_rate}"
 
     @pytest.mark.unit
-    def test_priority_weight_monotonicity(self, basic_api_limits):
+    def test_priority_weight_monotonicity(self, basic_api_limits) -> None:
         """Test that higher priority weights consistently lead to shorter or equal intervals."""
         active_tickers = 40
         timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
@@ -720,7 +736,7 @@ class TestAlgorithmValidation:
             assert 0.8 <= ratio <= 1.2, f"Priority weights not monotonic: {ratio}"
 
     @pytest.mark.unit
-    def test_consistency_across_runs(self, basic_api_limits, all_timeframes):
+    def test_consistency_across_runs(self, basic_api_limits, all_timeframes) -> None:
         """Test that the function returns consistent results for identical inputs."""
         test_params = {
             "api_rate_limits": basic_api_limits,
@@ -740,7 +756,9 @@ class TestAlgorithmValidation:
             assert results[0] == results[i], "Algorithm should be deterministic"
 
     @pytest.mark.unit
-    def test_algorithm_bounds_enforcement(self, basic_api_limits, all_timeframes):
+    def test_minimum_interval_enforcement(
+        self, basic_api_limits, all_timeframes
+    ) -> None:
         """Test that all algorithm outputs are within expected bounds."""
         # Test various extreme scenarios
         extreme_scenarios = [
@@ -784,7 +802,7 @@ class TestDocumentationExamples:
     """Test examples that would be used in documentation."""
 
     @pytest.mark.unit
-    def test_basic_usage_example(self):
+    def test_basic_usage_example(self) -> None:
         """Test basic usage example for documentation."""
         # Basic usage - what most users would do
         intervals = calculate_optimal_intervals(
@@ -797,7 +815,7 @@ class TestDocumentationExamples:
         assert all(30 <= interval <= 86400 for interval in intervals.values())
 
     @pytest.mark.unit
-    def test_advanced_usage_example(self):
+    def test_advanced_usage_example(self) -> None:
         """Test advanced usage example with all parameters."""
         # Advanced usage - power user configuration
         intervals = calculate_optimal_intervals(
@@ -818,7 +836,7 @@ class TestDocumentationExamples:
         assert intervals[TimeFrame.FIVE_MINUTES] >= 300  # Still respects base interval
 
     @pytest.mark.unit
-    def test_resource_constrained_example(self):
+    def test_resource_constrained_example(self) -> None:
         """Test resource-constrained environment example."""
         # Limited resources - free tier APIs
         intervals = calculate_optimal_intervals(

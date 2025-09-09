@@ -68,27 +68,27 @@ logging.basicConfig(
 class MockRedisClient:
     """Mock Redis client for testing."""
 
-    def __init__(self):
-        self.data = {}
+    def __init__(self) -> None:
+        self.data: dict[str, Any] = {}
 
-    async def ping(self):
+    async def ping(self) -> bool:
         return True
 
-    async def setex(self, key, ttl, value):
+    async def setex(self, key: str, ttl: int, value: str) -> bool:
         self.data[key] = value
         return True
 
-    async def lrange(self, key, start, end):
+    async def lrange(self, key: str, start: int, end: int) -> list[str]:
         return []
 
-    async def get(self, key):
+    async def get(self, key: str) -> Optional[str]:
         return self.data.get(key)
 
-    async def delete(self, key):
+    async def delete(self, key: str) -> int:
         self.data.pop(key, None)
         return True
 
-    async def close(self):
+    async def close(self) -> None:
         pass
 
 
@@ -97,13 +97,13 @@ class MockResult:
 
     def __init__(
         self,
-        success=True,
-        message="",
-        duration=1.0,
-        bytes_freed=0,
-        files_processed=0,
-        details=None,
-    ):
+        success: bool = True,
+        message: str = "",
+        duration: float = 1.0,
+        bytes_freed: int = 0,
+        files_processed: int = 0,
+        details: Optional[dict] = None,
+    ) -> None:
         self.success = success
         self.message = message
         self.duration = duration
@@ -129,15 +129,15 @@ class MaintenanceManagerProtocol(Protocol):
 class MockMaintenanceManager:
     """Mock maintenance manager for testing."""
 
-    def __init__(self):
-        self.maintenance_tasks = {}
+    def __init__(self) -> None:
+        self.maintenance_tasks: dict = {}
         self.is_running = False
         self.current_task = None
         self.monitor = None
         self.redis = MockRedisClient()
         self.config = {"demo": True}
 
-    async def register_tasks(self):
+    async def register_tasks(self) -> None:
         self.maintenance_tasks = {
             "log_cleanup": True,
             "temp_file_cleanup": True,
@@ -146,7 +146,7 @@ class MockMaintenanceManager:
             "system_health_check": True,
         }
 
-    async def run_task(self, task_name):
+    async def run_task(self, task_name: str) -> "MockResult":
         return MockResult(
             success=True,
             message=f"Mock execution of {task_name}",
@@ -156,31 +156,31 @@ class MockMaintenanceManager:
             details={"files_cleaned": 5, "space_freed": "1KB"},
         )
 
-    async def run_all_tasks(self):
+    async def run_all_tasks_demo(self) -> Dict[str, Any]:
         return {task: await self.run_task(task) for task in self.maintenance_tasks}
 
-    async def run_smart_maintenance(self):
+    async def run_smart_maintenance(self) -> Dict[str, Any]:
         return {}
 
-    def get_maintenance_schedule(self):
+    def get_maintenance_schedule(self) -> Dict[str, Any]:
         return {}
 
-    async def get_next_scheduled_tasks(self, hours=24):
+    async def get_next_scheduled_tasks(self, hours: int = 24) -> list[Dict[str, Any]]:
         return []
 
-    async def get_maintenance_history(self, limit=100):
+    async def get_maintenance_history(self, limit: int = 100) -> list[Dict[str, Any]]:
         return []
 
-    async def pause_scheduled_task(self, task_id):
+    async def pause_scheduled_task(self, task_id: str) -> None:
         pass
 
-    async def resume_scheduled_task(self, task_id):
+    async def resume_scheduled_task(self, task_id: str) -> None:
         pass
 
-    async def _safe_redis_lrange(self, key, start, end):
+    async def _safe_redis_lrange(self, key: str, start: int, end: int) -> list[str]:
         return []
 
-    def _format_bytes(self, bytes_value):
+    def _format_bytes(self, bytes_value: int) -> str:
         """Format bytes in human readable format."""
         if bytes_value < 1024:
             return f"{bytes_value} B"
@@ -195,13 +195,15 @@ class MockMaintenanceManager:
 class MockReportGenerator:
     """Mock report generator for testing."""
 
-    async def generate_daily_report(self):
+    async def generate_daily_report(self) -> Dict[str, Any]:
         return {"status": "success", "tasks_completed": 5}
 
-    async def generate_weekly_report(self):
+    async def generate_weekly_report(self) -> Dict[str, Any]:
         return {"status": "success", "weekly_summary": "All good"}
 
-    async def export_report_to_file(self, report, format_type):
+    async def export_report_to_file(
+        self, report: Dict[str, Any], format_type: str
+    ) -> str:
         return f"/tmp/mock_report.{format_type}"
 
 
@@ -221,7 +223,7 @@ class MaintenanceSystemDemo:
         self.report_generator: Optional[Any] = None
         self.demo_results: Dict[str, Any] = {}
 
-    async def setup_demo_environment(self):
+    async def setup_demo_environment(self) -> bool:
         """Setup complete demo environment with realistic data."""
         console.print(
             "[bold blue]🚀 Setting up maintenance system demo environment...[/bold blue]"
@@ -251,7 +253,7 @@ class MaintenanceSystemDemo:
             console.print(f"[red]❌ Demo setup failed: {e}[/red]")
             return False
 
-    async def _create_demo_data_structure(self):
+    async def _create_demo_data_structure(self) -> None:
         """Create comprehensive demo data structure."""
         # Create directory structure
         directories = [
@@ -281,7 +283,7 @@ class MaintenanceSystemDemo:
         await self._create_temporary_files()
         await self._create_old_export_files()
 
-    async def _create_realistic_log_files(self):
+    async def _create_realistic_log_files(self) -> None:
         """Create realistic log files for testing."""
         # pandas import not needed
 
@@ -322,7 +324,7 @@ class MaintenanceSystemDemo:
             old_time = (datetime.now() - timedelta(days=days_ago)).timestamp()
             os.utime(old_log, (old_time, old_time))
 
-    async def _create_realistic_parquet_files(self):
+    async def _create_realistic_parquet_files(self) -> None:
         """Create realistic parquet files for testing."""
         import numpy as np
         import pandas as pd
@@ -399,7 +401,7 @@ class MaintenanceSystemDemo:
                     filename_1d = f"{date.strftime('%Y-%m-%d')}_1d.parquet"
                     df_1d.to_parquet(symbol_dir / filename_1d, index=False)
 
-    async def _create_temporary_files(self):
+    async def _create_temporary_files(self) -> None:
         """Create temporary files for cleanup testing."""
         if self.demo_dir is None:
             return
@@ -424,7 +426,7 @@ class MaintenanceSystemDemo:
                 with open(cache_file, "w") as f:
                     f.write(f"Cache data {i}" * 50)
 
-    async def _create_old_export_files(self):
+    async def _create_old_export_files(self) -> None:
         """Create old export files for cleanup testing."""
         if self.demo_dir is None:
             return
@@ -442,11 +444,11 @@ class MaintenanceSystemDemo:
             old_time = (datetime.now() - timedelta(days=days_ago)).timestamp()
             os.utime(export_file, (old_time, old_time))
 
-    async def _setup_demo_config(self):
+    async def _setup_demo_config(self) -> None:
         """Setup demo configuration."""
 
         class DemoConfig:
-            def __init__(self, demo_dir: Path):
+            def __init__(self, demo_dir: Path) -> None:
                 self.data = DemoDataConfig(demo_dir)
                 self.logging = DemoLoggingConfig()
                 self.backup = DemoBackupConfig()
@@ -460,19 +462,19 @@ class MaintenanceSystemDemo:
                 self.export_path = str(demo_dir / "data/exports")
 
         class DemoLoggingConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.max_file_size = 1024 * 1024  # 1MB
                 self.backup_count = 5
                 self.level = "INFO"
 
         class DemoBackupConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.remote_enabled = False
                 self.compression_level = 6
                 self.retention_days = 7
 
         class DemoRedisConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.url = "redis://localhost:6379/0"
                 self.host = "localhost"
                 self.port = 6379
@@ -481,7 +483,7 @@ class MaintenanceSystemDemo:
                 self.max_connections = 10
 
         class DemoSchedulerConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.timezone = "America/New_York"
 
         if self.demo_dir is not None:
@@ -489,7 +491,7 @@ class MaintenanceSystemDemo:
         else:
             self.demo_config = DemoConfig(Path("/tmp"))
 
-    async def _setup_redis(self):
+    async def _setup_redis(self) -> None:
         """Setup Redis connection or mock."""
         try:
             import redis.asyncio as redis
@@ -509,7 +511,7 @@ class MaintenanceSystemDemo:
             console.print(f"[yellow]⚠️  Redis not available, using mock: {e}[/yellow]")
             self.redis_client = MockRedisClient()
 
-    async def _populate_redis_demo_data(self):
+    async def _populate_redis_demo_data(self) -> None:
         """Populate Redis with realistic demo data."""
         try:
             # Add sample positions
@@ -603,8 +605,8 @@ class MaintenanceSystemDemo:
         except Exception as e:
             console.print(f"[yellow]⚠️  Redis data population failed: {e}[/yellow]")
 
-    async def _initialize_maintenance_system(self):
-        """Initialize the complete maintenance system."""
+    async def _initialize_maintenance_system(self) -> None:
+        """Initialize the maintenance system."""
         # Always ensure maintenance_manager is initialized
         self.maintenance_manager = MockMaintenanceManager()
 
@@ -661,7 +663,7 @@ class MaintenanceSystemDemo:
             self.report_generator = MockReportGenerator()
             # Don't raise the exception, continue with mock components
 
-    async def run_interactive_demo(self):
+    async def run_interactive_mode(self) -> None:
         """Run interactive demonstration of maintenance capabilities."""
         console.print("[bold blue]🎮 Interactive Maintenance System Demo[/bold blue]")
 
@@ -670,10 +672,10 @@ class MaintenanceSystemDemo:
             ("2", "Run Individual Tasks", self._demo_individual_tasks),
             ("3", "Complete Maintenance Cycle", self._demo_full_cycle),
             ("4", "Smart Maintenance", self._demo_smart_maintenance),
-            ("5", "Scheduling Demo", self._demo_scheduling),
+            ("5", "Scheduling Demo", self._demo_task_scheduling),
             ("6", "Monitoring & Metrics", self._demo_monitoring),
             ("7", "Reporting & Analytics", self._demo_reporting),
-            ("8", "Error Handling", self._demo_error_handling),
+            ("8", "Error Handling", self.demonstrate_error_handling),
             ("9", "Performance Benchmark", self._demo_performance),
             ("0", "Complete System Demo", self._demo_complete_system),
             ("q", "Quit", None),
@@ -699,7 +701,7 @@ class MaintenanceSystemDemo:
             else:
                 console.print("[red]Invalid option selected[/red]")
 
-    async def _demo_health_check(self):
+    async def _demo_health_check(self) -> None:
         """Demonstrate system health checking."""
         console.print("[bold yellow]🏥 System Health Check Demo[/bold yellow]")
 
@@ -722,7 +724,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_individual_tasks(self):
+    async def _demo_individual_tasks(self) -> None:
         """Demonstrate individual maintenance tasks."""
         console.print("[bold yellow]🔧 Individual Maintenance Tasks Demo[/bold yellow]")
 
@@ -768,7 +770,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_full_cycle(self):
+    async def _demo_full_cycle(self) -> None:
         """Demonstrate complete maintenance cycle."""
         console.print("[bold yellow]🔄 Complete Maintenance Cycle Demo[/bold yellow]")
 
@@ -819,7 +821,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_smart_maintenance(self):
+    async def _demo_smart_maintenance(self) -> None:
         """Demonstrate intelligent maintenance capabilities."""
         console.print("[bold yellow]🧠 Smart Maintenance Demo[/bold yellow]")
 
@@ -874,8 +876,8 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_scheduling(self):
-        """Demonstrate maintenance scheduling capabilities."""
+    async def _demo_task_scheduling(self) -> None:
+        """Demonstrate task scheduling capabilities."""
         console.print("[bold yellow]📅 Maintenance Scheduling Demo[/bold yellow]")
 
         # Show current schedule
@@ -922,7 +924,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_monitoring(self):
+    async def _demo_monitoring(self) -> None:
         """Demonstrate monitoring capabilities."""
         console.print("[bold yellow]📊 Monitoring & Metrics Demo[/bold yellow]")
 
@@ -987,8 +989,9 @@ class MaintenanceSystemDemo:
             console.print("[yellow]Monitoring system not available[/yellow]")
 
         console.input("\nPress Enter to continue...")
+        return
 
-    async def _demo_reporting(self):
+    async def _demo_reporting(self) -> Dict[str, Any]:
         """Demonstrate reporting capabilities."""
         console.print("[bold yellow]📈 Reporting & Analytics Demo[/bold yellow]")
 
@@ -1060,7 +1063,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_error_handling(self):
+    async def demonstrate_error_handling(self) -> None:
         """Demonstrate error handling and recovery."""
         console.print("[bold yellow]⚠️  Error Handling & Recovery Demo[/bold yellow]")
 
@@ -1087,7 +1090,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_performance(self):
+    async def _demo_performance(self) -> None:
         """Demonstrate performance benchmarking."""
         console.print("[bold yellow]⚡ Performance Benchmark Demo[/bold yellow]")
 
@@ -1187,7 +1190,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_complete_system(self):
+    async def _demo_complete_system(self) -> None:
         """Run complete system demonstration."""
         console.print("[bold yellow]🎯 Complete System Demo[/bold yellow]")
 
@@ -1306,7 +1309,7 @@ class MaintenanceSystemDemo:
                     pass
         return {"success": False, "message": "Monitor not available"}
 
-    def _display_task_result(self, task_name: str, result: Any):
+    def _display_task_result(self, task_name: str, result: Any) -> None:
         """Display individual task result."""
         panel_style = "green" if result.success else "red"
         status_emoji = "✅" if result.success else "❌"
@@ -1323,7 +1326,7 @@ class MaintenanceSystemDemo:
 
         console.print(Panel(content, style=panel_style))
 
-    def _display_cycle_summary(self, results: Dict[str, Any]):
+    def _display_cycle_summary(self, results: Dict[str, Any]) -> None:
         """Display maintenance cycle summary."""
         console.print("\n[bold blue]📊 Maintenance Cycle Summary[/bold blue]")
 
@@ -1367,7 +1370,7 @@ class MaintenanceSystemDemo:
 
         console.print(task_table)
 
-    def _display_complete_demo_results(self, results: Dict[str, Any]):
+    def _display_complete_demo_results(self, results: Dict[str, Any]) -> None:
         """Display complete demo results."""
         console.print("\n[bold green]🎉 Complete System Demo Results[/bold green]")
 
@@ -1402,7 +1405,7 @@ class MaintenanceSystemDemo:
             bytes_value /= 1024.0
         return f"{bytes_value:.1f}PB"
 
-    async def run_automated_demo(self):
+    async def run_automated_mode(self) -> None:
         """Run automated demonstration of all capabilities."""
         console.print("[bold blue]🤖 Automated Maintenance System Demo[/bold blue]")
 
@@ -1463,12 +1466,12 @@ class MaintenanceSystemDemo:
                 progress.advance(main_task)
 
         # Generate comprehensive report
-        await self._generate_demo_report()
+        await self._generate_demo_summary()
 
         # Display final summary
-        self._display_automated_demo_summary()
+        await self._display_automated_demo_summary()
 
-    async def _generate_demo_report(self):
+    async def _generate_demo_summary(self) -> None:
         """Generate comprehensive demo report."""
         try:
             # Generate daily report
@@ -1490,7 +1493,7 @@ class MaintenanceSystemDemo:
         except Exception as e:
             console.print(f"[red]❌ Demo report generation failed: {e}[/red]")
 
-    def _display_automated_demo_summary(self):
+    async def _display_automated_demo_summary(self) -> None:
         """Display automated demo summary."""
         console.print("\n[bold green]📊 Automated Demo Summary[/bold green]")
 
@@ -1522,7 +1525,7 @@ class MaintenanceSystemDemo:
 
         console.print(summary_panel)
 
-    async def run_benchmark_demo(self):
+    async def run_benchmark_mode(self) -> Dict[str, Any]:
         """Run performance benchmark demonstration."""
         console.print("[bold blue]⚡ Performance Benchmark Demo[/bold blue]")
 
@@ -1584,7 +1587,11 @@ class MaintenanceSystemDemo:
         # Display benchmark results
         self._display_benchmark_results(benchmark_results)
 
-    def _display_benchmark_results(self, benchmark_results: Dict[str, Dict[str, Any]]):
+        return benchmark_results
+
+    def _display_benchmark_results(
+        self, benchmark_results: Dict[str, Dict[str, Any]]
+    ) -> None:
         """Display benchmark results."""
         console.print("\n[bold blue]📈 Benchmark Results[/bold blue]")
 
@@ -1616,7 +1623,7 @@ class MaintenanceSystemDemo:
 
             console.print(table)
 
-    async def cleanup_demo_environment(self):
+    async def cleanup_demo_environment(self) -> None:
         """Clean up demo environment."""
         try:
             if self.redis_client and hasattr(self.redis_client, "close"):
@@ -1632,7 +1639,7 @@ class MaintenanceSystemDemo:
             console.print(f"[red]❌ Demo cleanup failed: {e}[/red]")
 
 
-async def main():
+async def main() -> None:
     """Main demo execution function."""
     parser = argparse.ArgumentParser(description="Maintenance System Demo")
     parser.add_argument(
@@ -1654,11 +1661,11 @@ async def main():
 
         # Run appropriate demo mode
         if args.mode == "interactive":
-            await demo.run_interactive_demo()
+            await demo.run_interactive_mode()
         elif args.mode == "automated":
-            await demo.run_automated_demo()
+            await demo.run_automated_mode()
         elif args.mode == "benchmark":
-            await demo.run_benchmark_demo()
+            await demo.run_benchmark_mode()
 
         console.print("\n[bold green]🎉 Demo completed successfully![/bold green]")
 

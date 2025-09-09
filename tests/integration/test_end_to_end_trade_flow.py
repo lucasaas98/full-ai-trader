@@ -10,6 +10,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import AsyncGenerator
 from unittest.mock import AsyncMock, patch
 
 import numpy as np
@@ -261,7 +262,7 @@ class TestEndToEndTradeFlow:
     """Test complete trade flow from data to execution."""
 
     @pytest.fixture
-    async def trading_system_setup(self):
+    async def trading_system_setup(self) -> AsyncGenerator[dict, None]:
         """Setup complete trading system for integration testing."""
         # Mock Redis for pub/sub
         mock_redis = AsyncMock()
@@ -288,7 +289,9 @@ class TestEndToEndTradeFlow:
         await mock_redis.close()
 
     @pytest.mark.integration
-    async def test_complete_trade_execution_flow(self, trading_system_setup):
+    async def test_complete_trade_execution_flow(
+        self, trading_system_setup: dict
+    ) -> None:
         """Test complete flow: Data → Signal → Risk Check → Trade → Portfolio Update."""
         redis_client = trading_system_setup["redis_client"]
         db_pool = trading_system_setup["db_pool"]
@@ -433,7 +436,7 @@ class TestEndToEndTradeFlow:
         assert trade.status == OrderStatus.FILLED
 
     @pytest.mark.integration
-    async def test_sell_signal_flow(self, trading_system_setup):
+    async def test_complete_trade_flow(self, trading_system_setup: dict) -> None:
         """Test complete sell signal execution flow."""
         redis_client = trading_system_setup["redis_client"]
         assert redis_client is not None, "Redis client should be available"
@@ -508,7 +511,7 @@ class TestEndToEndTradeFlow:
             assert trade.quantity == 5
 
     @pytest.mark.integration
-    async def test_risk_rejection_flow(self, trading_system_setup):
+    async def test_risk_validation_pipeline(self, trading_system_setup: dict) -> None:
         """Test flow when risk manager rejects a signal."""
         # Generate high-risk signal
         risky_signal = TradingSignal(
@@ -567,7 +570,7 @@ class TestEndToEndTradeFlow:
             executor.execute_order.assert_not_called()
 
     @pytest.mark.integration
-    async def test_partial_fill_handling(self, trading_system_setup):
+    async def test_graceful_shutdown_handling(self, trading_system_setup) -> None:
         """Test handling of partial order fills."""
         # Create large order that gets partially filled
         large_order = Order(
@@ -631,7 +634,7 @@ class TestEndToEndTradeFlow:
             assert position.avg_cost == Decimal("150.05")
 
     @pytest.mark.integration
-    async def test_stop_loss_execution_flow(self, trading_system_setup):
+    async def test_stop_loss_execution_flow(self, trading_system_setup: dict) -> None:
         """Test stop loss order execution flow."""
         # Setup existing position
         position = PortfolioPosition(
@@ -702,7 +705,7 @@ class TestEndToEndTradeFlow:
             assert trade.side == OrderSide.SELL
 
     @pytest.mark.integration
-    async def test_multi_symbol_strategy_execution(self, trading_system_setup):
+    async def test_multi_symbol_processing(self, trading_system_setup) -> None:
         """Test strategy execution across multiple symbols."""
         symbols = trading_system_setup["test_symbols"]
         redis_client = trading_system_setup["redis_client"]
@@ -801,7 +804,7 @@ class TestEndToEndTradeFlow:
             assert all(t.status == OrderStatus.FILLED for t in trades)
 
     @pytest.mark.integration
-    async def test_error_recovery_in_trade_flow(self, trading_system_setup):
+    async def test_error_recovery_mechanisms(self, trading_system_setup) -> None:
         """Test error recovery mechanisms in trade flow."""
         redis_client = trading_system_setup["redis_client"]
         assert redis_client is not None, "Redis client should be available"
@@ -948,7 +951,7 @@ class TestEndToEndTradeFlow:
             assert len(signals_generated) == 100
 
     @pytest.mark.integration
-    async def test_portfolio_rebalancing_flow(self, trading_system_setup):
+    async def test_portfolio_rebalancing_flow(self, trading_system_setup: dict) -> None:
         """Test portfolio rebalancing workflow."""
         # Setup unbalanced portfolio
         portfolio = Portfolio(
@@ -1129,7 +1132,7 @@ class TestEndToEndTradeFlow:
             assert adjusted_signal.confidence < 0.7
 
     @pytest.mark.integration
-    async def test_order_book_integration(self, trading_system_setup):
+    async def test_ai_strategy_integration(self, trading_system_setup: dict) -> None:
         """Test integration with order book data for optimal execution."""
         # Mock order book data
         order_book = {
@@ -1170,7 +1173,9 @@ class TestEndToEndTradeFlow:
             assert signal.price < Decimal("150.04")  # Below worst ask needed
 
     @pytest.mark.integration
-    async def test_cross_service_communication_resilience(self, trading_system_setup):
+    async def test_cross_service_communication(
+        self, trading_system_setup: dict
+    ) -> None:
         """Test resilience of cross-service communication."""
         redis_client = trading_system_setup["redis_client"]
 
@@ -1215,7 +1220,7 @@ class TestEndToEndTradeFlow:
             assert len(message_queue) > 0
 
     @pytest.mark.integration
-    async def test_database_transaction_integrity(self, trading_system_setup):
+    async def test_database_consistency(self, trading_system_setup) -> None:
         """Test database transaction integrity during trade execution."""
         db_pool = trading_system_setup["db_pool"]
 
@@ -1315,7 +1320,7 @@ class TestEndToEndTradeFlow:
                 assert current_position.unrealized_pnl == expected_pnl
 
     @pytest.mark.integration
-    async def test_strategy_coordination(self, trading_system_setup):
+    async def test_scheduler_task_coordination(self, trading_system_setup) -> None:
         """Test coordination between multiple strategies."""
         symbols = ["AAPL", "GOOGL", "MSFT"]
         assert len(symbols) > 0, "Symbols list should not be empty"
@@ -1478,7 +1483,9 @@ class TestEndToEndTradeFlow:
             assert all(t.status == OrderStatus.FILLED for t in trades)
 
     @pytest.mark.integration
-    async def test_multi_timeframe_analysis_flow(self, trading_system_setup):
+    async def test_multi_timeframe_analysis_flow(
+        self, trading_system_setup: dict
+    ) -> None:
         """Test multi-timeframe analysis and signal coordination."""
         timeframes = ["1m", "5m", "15m", "1h", "1d"]
 
@@ -1582,7 +1589,7 @@ class TestEndToEndTradeFlow:
             assert signal.confidence > 0.7
 
     @pytest.mark.integration
-    async def test_latency_sensitive_execution(self, trading_system_setup):
+    async def test_multi_strategy_execution(self, trading_system_setup: dict) -> None:
         """Test latency-sensitive execution for time-critical trades."""
         # High-frequency signal requiring fast execution
         urgent_signal = TradingSignal(
@@ -1650,7 +1657,7 @@ class TestEndToEndTradeFlow:
             assert trade.execution_time_ms < 50
 
     @pytest.mark.integration
-    async def test_portfolio_risk_limit_enforcement(self, trading_system_setup):
+    async def test_risk_limit_enforcement(self, trading_system_setup) -> None:
         """Test enforcement of portfolio-level risk limits."""
         # Portfolio approaching risk limits
         high_risk_portfolio = Portfolio(
@@ -1711,7 +1718,7 @@ class TestEndToEndTradeFlow:
             assert "concentration" in assessment.rejection_reason.lower()
 
     @pytest.mark.integration
-    async def test_market_data_quality_validation(self, trading_system_setup):
+    async def test_data_freshness_validation(self, trading_system_setup: dict) -> None:
         """Test market data quality validation in the trade flow."""
         # Invalid/suspicious market data
         suspicious_data = [
@@ -1994,7 +2001,7 @@ class TestDataFlowIntegration:
         assert "strategy_engine" in unhealthy_services
 
     @pytest.mark.integration
-    async def test_configuration_hot_reload(self, trading_system_setup):
+    async def test_position_management_flow(self, trading_system_setup: dict) -> None:
         """Test hot reload of configuration across services."""
         # New configuration
         new_config = {
@@ -2117,7 +2124,7 @@ class TestDataFlowIntegration:
             )
 
     @pytest.mark.integration
-    async def test_market_session_transition_handling(self, trading_system_setup):
+    async def test_market_hours_handling(self, trading_system_setup: dict) -> None:
         """Test handling of market session transitions."""
         # Test pre-market to regular hours transition
         with patch("shared.market_hours.MarketHoursService") as mock_market:
@@ -2812,7 +2819,7 @@ class TestComplexScenarioIntegration:
             assert max_processing_time < 0.2  # Max under 200ms
 
     @pytest.mark.integration
-    async def test_disaster_recovery_integration(self, trading_system_setup):
+    async def test_disaster_recovery_procedures(self, trading_system_setup) -> None:
         """Test disaster recovery and business continuity."""
         # Simulate complete system failure
         system_failure_event = {
@@ -2876,7 +2883,7 @@ class TestComplexScenarioIntegration:
 
 # Test fixtures and utilities
 @pytest.fixture
-async def mock_external_apis():
+async def mock_external_apis() -> dict:
     """Mock external API responses for integration testing."""
     api_responses = {
         "alpha_vantage": {

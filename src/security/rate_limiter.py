@@ -73,7 +73,7 @@ class RateLimitRule:
     # Custom conditions
     conditions: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.burst_size is None:
             self.burst_size = self.requests
 
@@ -353,7 +353,7 @@ class RateLimiter:
         # Initialize default rules
         self._initialize_default_rules()
 
-    def _initialize_default_rules(self):
+    def _initialize_default_rules(self) -> None:
         """Initialize default rate limiting rules"""
         # Global API rate limit
         self.add_rule(
@@ -437,7 +437,7 @@ class RateLimiter:
             )
         )
 
-    def add_rule(self, rule: RateLimitRule):
+    def add_rule(self, rule: RateLimitRule) -> None:
         """Add a rate limiting rule"""
         self.rules[rule.name] = rule
 
@@ -475,7 +475,7 @@ class RateLimiter:
             requests=rule.requests,
         )
 
-    def remove_rule(self, rule_name: str):
+    def remove_rule(self, rule_name: str) -> None:
         """Remove a rate limiting rule"""
         if rule_name in self.rules:
             del self.rules[rule_name]
@@ -683,7 +683,7 @@ class RateLimiter:
 
     async def _log_rate_limit_violation(
         self, rule: RateLimitRule, identifier: str, result: RateLimitResult
-    ):
+    ) -> None:
         """Log rate limit violation for audit purposes"""
         violation_data = {
             "rule_name": rule.name,
@@ -765,7 +765,7 @@ class RateLimiter:
         memory_usage: float,
         active_connections: int,
         error_rate: float,
-    ):
+    ) -> None:
         """Update system load metrics for adaptive rate limiting"""
         load_data = {
             "cpu_usage": cpu_usage,
@@ -784,7 +784,7 @@ class RateLimiter:
 
     async def add_to_whitelist(
         self, user_id: Optional[str] = None, ip_address: Optional[str] = None
-    ):
+    ) -> None:
         """Add user or IP to whitelist"""
         if user_id:
             result = self.redis.sadd(f"{self.key_prefix}:whitelist:users", user_id)
@@ -798,7 +798,9 @@ class RateLimiter:
                 await result
             logger.info("IP added to whitelist", ip_address=ip_address)
 
-    async def add_to_blacklist(self, ip_address: str, duration_seconds: int = 3600):
+    async def add_to_blacklist(
+        self, ip_address: str, duration_seconds: int = 3600
+    ) -> None:
         """Add IP to blacklist for specified duration"""
         self.blacklisted_ips.add(ip_address)
         result = self.redis.sadd(f"{self.key_prefix}:blacklist:ips", ip_address)
@@ -812,7 +814,7 @@ class RateLimiter:
 
     async def remove_from_whitelist(
         self, user_id: Optional[str] = None, ip_address: Optional[str] = None
-    ):
+    ) -> None:
         """Remove user or IP from whitelist"""
         if user_id and user_id in self.whitelisted_users:
             self.whitelisted_users.remove(user_id)

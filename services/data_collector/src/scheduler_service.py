@@ -377,7 +377,7 @@ class SchedulerService:
             datetime.strptime(d, "%Y-%m-%d").date() for d in config.holidays
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the scheduler service."""
         if self.is_running:
             logger.warning("Scheduler service is already running")
@@ -390,7 +390,7 @@ class SchedulerService:
             self.is_running = True
 
             # Add health check job
-            await self._add_health_check_job()
+            await self._health_check_loop()
 
             logger.info("Scheduler service started successfully")
 
@@ -398,7 +398,7 @@ class SchedulerService:
             logger.error(f"Failed to start scheduler service: {e}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the scheduler service."""
         if not self.is_running:
             return
@@ -417,7 +417,7 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Error stopping scheduler service: {e}")
 
-    async def register_task(self, task: ScheduledTask, callback: Callable):
+    async def register_task(self, task: ScheduledTask, callback: Callable) -> None:
         """
         Register a new scheduled task.
 
@@ -438,7 +438,7 @@ class SchedulerService:
         # Schedule the task
         await self._schedule_task(task)
 
-    async def _schedule_task(self, task: ScheduledTask):
+    async def _schedule_task(self, task: ScheduledTask) -> None:
         """Schedule a task with APScheduler."""
         if not task.enabled:
             logger.info(f"Task {task.id} is disabled, skipping scheduling")
@@ -481,7 +481,7 @@ class SchedulerService:
     def _create_wrapped_callback(self, task: ScheduledTask) -> Callable:
         """Create wrapped callback with error handling and statistics."""
 
-        async def wrapped_callback():
+        async def wrapped_callback() -> None:
             task_id = task.id
             start_time = datetime.now(timezone.utc)
 
@@ -584,7 +584,7 @@ class SchedulerService:
 
         return False
 
-    async def _schedule_retry(self, task: ScheduledTask, error: Exception):
+    async def _schedule_retry(self, task: ScheduledTask, error: Exception) -> None:
         """Schedule a retry for a failed task."""
         retry_time = datetime.now(timezone.utc) + timedelta(seconds=task.retry_delay)
 
@@ -597,10 +597,10 @@ class SchedulerService:
             max_instances=1,
         )
 
-    async def _add_health_check_job(self):
+    async def _health_check_loop(self) -> None:
         """Add health check job for scheduler monitoring."""
 
-        async def health_check():
+        async def health_check() -> None:
             try:
                 stats = self.get_scheduler_stats()
                 logger.debug(
@@ -749,7 +749,7 @@ class SchedulerService:
 
         return tasks
 
-    async def enable_task(self, task_id: str):
+    async def enable_task(self, task_id: str) -> None:
         """Enable a scheduled task."""
         if task_id in self._tasks:
             self._tasks[task_id].enabled = True
@@ -762,7 +762,7 @@ class SchedulerService:
 
             logger.info(f"Enabled task: {task_id}")
 
-    async def disable_task(self, task_id: str):
+    async def disable_task(self, task_id: str) -> None:
         """Disable a scheduled task."""
         if task_id in self._tasks:
             self._tasks[task_id].enabled = False
@@ -773,7 +773,7 @@ class SchedulerService:
 
             logger.info(f"Disabled task: {task_id}")
 
-    async def run_task_now(self, task_id: str):
+    async def run_task_now(self, task_id: str) -> bool:
         """Execute a task immediately."""
         if task_id not in self._tasks or task_id not in self._callbacks:
             logger.error(f"Task {task_id} not found")
@@ -866,7 +866,7 @@ class SchedulerService:
         task_id: str,
         new_interval: Optional[int] = None,
         new_cron: Optional[str] = None,
-    ):
+    ) -> None:
         """
         Reschedule an existing task.
 
@@ -898,14 +898,14 @@ class SchedulerService:
 
         logger.info(f"Rescheduled task {task_id}")
 
-    def pause_all_market_tasks(self):
+    def pause_all_market_tasks(self) -> None:
         """Pause all market-hours-only tasks."""
         for task_id, task in self._tasks.items():
             if task.market_hours_only and self.scheduler.get_job(task_id):
                 self.scheduler.pause_job(task_id)
                 logger.info(f"Paused market task: {task_id}")
 
-    def resume_all_market_tasks(self):
+    def resume_all_market_tasks(self) -> None:
         """Resume all market-hours-only tasks."""
         for task_id, task in self._tasks.items():
             if task.market_hours_only and self.scheduler.get_job(task_id):
@@ -949,7 +949,9 @@ class SchedulerService:
             logger.error(f"Failed to schedule one-time task {name}: {e}")
             raise
 
-    def adjust_schedule_for_market_events(self, event_type: str, event_time: datetime):
+    def adjust_schedule_for_market_events(
+        self, event_type: str, event_time: datetime
+    ) -> None:
         """
         Adjust scheduling around market events.
 
@@ -1031,7 +1033,7 @@ class SchedulerService:
             "schedule": schedule,
         }
 
-    async def optimize_task_scheduling(self):
+    async def optimize_task_scheduling(self) -> None:
         """Optimize task scheduling based on historical performance."""
         logger.info("Optimizing task scheduling based on performance data...")
 
@@ -1159,7 +1161,9 @@ class SchedulerService:
 
         return report
 
-    async def handle_market_event(self, event_type: str, event_data: Dict[str, Any]):
+    async def handle_market_event(
+        self, event_type: str, event_data: Dict[str, Any]
+    ) -> None:
         """
         Handle market events by adjusting scheduling.
 
@@ -1244,7 +1248,7 @@ class SchedulerService:
         except Exception as e:
             logger.error(f"Failed to handle market event {event_type}: {e}")
 
-    async def _resume_twelvedata_tasks(self):
+    async def _resume_twelvedata_tasks(self) -> None:
         """Resume TwelveData-related tasks."""
         for task_id in self._tasks:
             if "price_update" in task_id:
@@ -1294,7 +1298,7 @@ class SchedulerService:
             "paused": paused_jobs,
         }
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on destruction."""
         if hasattr(self, "scheduler") and self.scheduler.running:
             self.scheduler.shutdown(wait=False)
@@ -1459,7 +1463,7 @@ def calculate_optimal_intervals(
 # Example usage
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         config = SchedulerConfig(
             market_open_time="09:30",
             market_close_time="16:00",
@@ -1470,11 +1474,11 @@ if __name__ == "__main__":
         scheduler = SchedulerService(config)
 
         # Example callback functions
-        async def dummy_finviz_scan():
+        async def dummy_finviz_scan() -> None:
             logger.info("Running FinViz scan...")
             await asyncio.sleep(2)
 
-        async def dummy_price_update():
+        async def dummy_price_update() -> None:
             logger.info("Updating prices...")
             await asyncio.sleep(1)
 

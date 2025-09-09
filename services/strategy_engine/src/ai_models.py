@@ -361,7 +361,7 @@ class PerformanceReport:
 # Database initialization function
 
 
-def init_database(connection_string: str):
+def init_database(connection_string: str) -> None:
     """
     Initialize the database with AI strategy tables.
 
@@ -370,7 +370,6 @@ def init_database(connection_string: str):
     """
     engine = create_engine(connection_string)
     Base.metadata.create_all(engine)
-    return engine
 
 
 # Helper functions for data conversion

@@ -66,7 +66,7 @@ class AlpacaConfig(BaseSettings):
 
     @field_validator("base_url")
     @classmethod
-    def validate_base_url(cls, v):
+    def validate_base_url(cls, v: str) -> str:
         """Validate Alpaca base URL."""
         valid_urls = [
             "https://api.alpaca.markets",  # Live trading
@@ -126,7 +126,7 @@ class JWTConfig(BaseSettings):
 
     @field_validator("secret_key")
     @classmethod
-    def validate_secret_key(cls, v):
+    def validate_secret_key(cls, v: str) -> str:
         """Validate JWT secret key strength."""
         if not v:
             # Allow empty for configuration loading, but warn
@@ -153,7 +153,7 @@ class NotificationConfig(BaseSettings):
 
     @field_validator("email_to", mode="before")
     @classmethod
-    def parse_email_list(cls, v):
+    def parse_email_list(cls, v: str | List[str] | None) -> List[str] | None:
         """Parse comma-separated email list."""
         if isinstance(v, str):
             return [email.strip() for email in v.split(",") if email.strip()]
@@ -191,7 +191,7 @@ class RiskConfig(BaseSettings):
 
     @field_validator("max_portfolio_risk", "max_position_size", "drawdown_limit")
     @classmethod
-    def validate_percentages(cls, v):
+    def validate_percentages(cls, v: float) -> float:
         """Validate percentage values are between 0 and 1."""
         if not (0 < v <= 1):
             raise ValueError("Percentage values must be between 0 and 1")
@@ -216,9 +216,9 @@ class LoggingConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator("level")
+    @field_validator("log_level")
     @classmethod
-    def validate_log_level(cls, v):
+    def validate_log_level(cls, v: str) -> str:
         """Validate log level."""
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
@@ -283,7 +283,7 @@ class DataConfig(BaseSettings):
 
     @field_validator("fallback_data_sources", mode="before")
     @classmethod
-    def parse_data_sources(cls, v):
+    def parse_data_sources(cls, v: str | List[str] | None) -> List[str] | None:
         """Parse comma-separated data sources list."""
         if isinstance(v, str):
             return [source.strip() for source in v.split(",") if source.strip()]
@@ -372,7 +372,7 @@ class Config(BaseSettings):
 
     @field_validator("environment")
     @classmethod
-    def validate_environment(cls, v):
+    def validate_environment(cls, v: str) -> str:
         """Validate environment."""
         valid_envs = [
             "development",

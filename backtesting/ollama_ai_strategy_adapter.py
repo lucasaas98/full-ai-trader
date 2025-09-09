@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -41,7 +42,7 @@ class OllamaAIStrategyAdapter:
         ollama_model: Optional[str] = None,
         prompts_config_path: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Initialize Ollama AI Strategy.
 
@@ -96,7 +97,7 @@ class OllamaAIStrategyAdapter:
             return {}
 
     async def generate_signal(
-        self, symbol: str, current_data, historical_data, market_context
+        self, symbol: str, current_data: Any, historical_data: Any, market_context: Any
     ) -> Optional[Signal]:
         """
         Generate trading signal using Ollama AI.
@@ -150,7 +151,7 @@ class OllamaAIStrategyAdapter:
             return None
 
     def _build_analysis_prompt(
-        self, symbol: str, current_data, historical_data, market_context
+        self, symbol: str, current_data: Any, historical_data: Any, market_context: Any
     ) -> str:
         """Build comprehensive analysis prompt using production templates."""
 
@@ -233,7 +234,9 @@ class OllamaAIStrategyAdapter:
             logger.warning(f"Template formatting error: {e}, using fallback")
             return self._build_fallback_prompt(symbol, current_data, historical_data)
 
-    def _build_fallback_prompt(self, symbol: str, current_data, historical_data) -> str:
+    def _build_fallback_prompt(
+        self, symbol: str, current_data: Any, historical_data: Any
+    ) -> str:
         """Build simple fallback prompt when template fails."""
 
         current_price = (
@@ -284,7 +287,7 @@ Focus on high-probability setups and proper risk management.
 """
 
     def _calculate_technical_indicators(
-        self, historical_data, current_data
+        self, historical_data: Any, current_data: Any
     ) -> Dict[str, float]:
         """Calculate technical indicators from historical data."""
         indicators: Dict[str, float] = {}
@@ -381,7 +384,7 @@ Focus on high-probability setups and proper risk management.
         except Exception:
             return 50.0
 
-    def _simple_rsi_calculation(self, historical_data) -> float:
+    def _simple_rsi_calculation(self, historical_data: Any) -> float:
         """Simple RSI calculation for fallback."""
         if len(historical_data) < 15:
             return 50.0
@@ -398,7 +401,7 @@ Focus on high-probability setups and proper risk management.
         except Exception:
             return 50.0
 
-    def _describe_recent_candles(self, historical_data) -> str:
+    def _describe_recent_candles(self, historical_data: Any) -> str:
         """Describe recent price action."""
         if not historical_data or len(historical_data) < 3:
             return "Insufficient data for candlestick analysis"
@@ -464,7 +467,7 @@ Focus on high-probability setups and proper risk management.
             else "No clear technical patterns identified"
         )
 
-    def _format_market_context(self, market_context) -> str:
+    def _format_market_context(self, market_context: Any) -> str:
         """Format market context for prompt."""
         if not market_context:
             return "Market context unavailable"
@@ -492,7 +495,7 @@ Focus on high-probability setups and proper risk management.
             return "Market conditions: Mixed signals, moderate volatility"
 
     def _parse_ai_response(
-        self, response: OllamaResponse, symbol: str, current_data
+        self, response: OllamaResponse, symbol: str, current_data: Any
     ) -> Optional[Signal]:
         """Parse Ollama response into a trading signal."""
         try:
@@ -566,7 +569,7 @@ Focus on high-probability setups and proper risk management.
         return self._parse_text_response(response.content, symbol, current_data)
 
     def _parse_text_response(
-        self, content: str, symbol: str, current_data
+        self, content: str, symbol: str, current_data: Any
     ) -> Optional[Signal]:
         """Parse text response when JSON fails."""
         content_lower = content.lower()
@@ -607,7 +610,9 @@ Focus on high-probability setups and proper risk management.
             symbol=symbol,
             action=signal_type,
             confidence=confidence,
-            entry_price=current_price,
+            entry_price=(
+                Decimal(str(current_price)) if current_price is not None else None
+            ),
             position_size=0.05,  # Conservative default
             reasoning=f"Text analysis: {content[:100]}...",
             metadata={"ai_model": self.ollama_model, "parsed_from_text": True},
@@ -634,13 +639,7 @@ Focus on high-probability setups and proper risk management.
             "confidence_threshold": self.confidence_threshold,
         }
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f"OllamaAIStrategyAdapter(model={self.ollama_model}, url={self.ollama_url})"
-        )
-  )
-    )
-"
-        )
-rl})"
         )

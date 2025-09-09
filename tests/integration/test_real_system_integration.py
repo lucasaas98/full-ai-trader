@@ -14,6 +14,7 @@ import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
+from typing import Any, AsyncGenerator
 
 import asyncpg
 import pytest
@@ -48,7 +49,7 @@ class CredentialValidator:
     """Validates that integration test credentials are different from production."""
 
     @staticmethod
-    def validate_alpaca_credentials():
+    def validate_alpaca_credentials() -> None:
         """Ensure integration Alpaca credentials differ from production."""
         prod_key = os.getenv("ALPACA_API_KEY", "")
         integration_key = os.getenv("ALPACA_API_KEY", "")
@@ -70,7 +71,7 @@ class CredentialValidator:
             )
 
     @staticmethod
-    def validate_database_credentials():
+    def validate_database_credentials() -> None:
         """Ensure integration database is different from production."""
         db_name = os.getenv("DB_NAME", "")
 
@@ -84,7 +85,7 @@ class CredentialValidator:
 
 
 @pytest.fixture(scope="session")
-async def validate_credentials():
+async def validate_credentials() -> None:
     """Validate that we're using test credentials."""
     CredentialValidator.validate_alpaca_credentials()
     CredentialValidator.validate_database_credentials()
@@ -92,7 +93,7 @@ async def validate_credentials():
 
 
 @pytest.fixture(scope="session")
-async def redis_client():
+async def redis_client() -> redis.Redis:
     """Create Redis client for tests."""
     config = get_config()
 
@@ -116,7 +117,7 @@ async def redis_client():
 
 
 @pytest.fixture(scope="session")
-async def database_pool():
+async def database_pool() -> asyncpg.Pool:
     """Create database connection pool for tests."""
     config = get_config()
 
@@ -145,7 +146,7 @@ async def database_pool():
 
 
 @pytest.fixture(scope="session")
-async def mock_data_collector():
+async def mock_data_collector() -> MockDataCollector:
     """Create and start mock data collector."""
     config = MockDataCollectorConfig(
         historical_data_path="data/parquet",
@@ -167,7 +168,7 @@ async def mock_data_collector():
 
 
 @pytest.fixture(scope="session")
-async def service_orchestrator(mock_data_collector):
+async def service_orchestrator(mock_data_collector) -> AsyncGenerator[object, None]:
     """Create and start service orchestrator."""
     orchestrator = await create_service_orchestrator()
 
@@ -210,7 +211,9 @@ async def service_orchestrator(mock_data_collector):
 class TestRealSystemIntegration:
     """Real system integration tests."""
 
-    async def test_setup_integration_environment(self, validate_credentials):
+    async def test_setup_integration_environment(
+        self, validate_credentials: Any
+    ) -> None:
         """Test that integration environment is properly set up."""
         # Check environment variables
         assert os.getenv("INTEGRATION_TEST_MODE") == "true"
@@ -229,7 +232,7 @@ class TestRealSystemIntegration:
 
         logger.info("✅ Integration environment setup validated")
 
-    async def test_redis_connectivity(self, redis_client):
+    async def test_redis_connectivity(self, redis_client: redis.Redis) -> None:
         """Test Redis pub/sub functionality."""
         # Test basic operations
         await redis_client.set("test_key", "test_value", ex=60)
@@ -254,7 +257,7 @@ class TestRealSystemIntegration:
         await pubsub.close()
         logger.info("✅ Redis connectivity test passed")
 
-    async def test_database_connectivity(self, database_pool):
+    async def test_database_connectivity(self, database_pool: asyncpg.Pool) -> None:
         """Test database connectivity and basic operations."""
         async with database_pool.acquire() as conn:
             # Test basic query
@@ -279,8 +282,8 @@ class TestRealSystemIntegration:
         logger.info("✅ Database connectivity test passed")
 
     async def test_mock_data_collector_functionality(
-        self, mock_data_collector, redis_client
-    ):
+        self, mock_data_collector: MockDataCollector, redis_client: redis.Redis
+    ) -> None:
         """Test mock data collector publishes data correctly."""
         # Subscribe to market data updates
         pubsub = redis_client.pubsub()
@@ -314,7 +317,9 @@ class TestRealSystemIntegration:
 
         logger.info("✅ Mock data collector test passed")
 
-    async def test_service_orchestrator_startup(self, service_orchestrator):
+    async def test_service_orchestrator_startup(
+        self, service_orchestrator: Any
+    ) -> None:
         """Test that all services start up correctly."""
         status = await service_orchestrator.get_service_status()
 
@@ -333,8 +338,11 @@ class TestRealSystemIntegration:
         logger.info("✅ Service orchestrator startup test passed")
 
     async def test_end_to_end_data_flow(
-        self, mock_data_collector, service_orchestrator, redis_client
-    ):
+        self,
+        mock_data_collector: MockDataCollector,
+        service_orchestrator: Any,
+        redis_client: redis.Redis,
+    ) -> None:
         """Test complete data flow from data collector through all services."""
         # Subscribe to key channels
         pubsub = redis_client.pubsub()
@@ -392,13 +400,16 @@ class TestRealSystemIntegration:
         logger.info("✅ End-to-end data flow test passed")
 
     async def test_trading_simulation(
-        self, service_orchestrator, database_pool, redis_client
-    ):
+        self,
+        service_orchestrator: Any,
+        database_pool: asyncpg.Pool,
+        redis_client: redis.Redis,
+    ) -> None:
         """Test a complete trading simulation."""
         logger.info("🎭 Starting trading simulation test...")
 
         # Monitor orders table
-        async def count_orders():
+        async def count_orders() -> int:
             async with database_pool.acquire() as conn:
                 return await conn.fetchval("SELECT COUNT(*) FROM orders")
 
@@ -445,7 +456,9 @@ class TestRealSystemIntegration:
             await pubsub.close()
             raise
 
-    async def test_service_resilience(self, service_orchestrator, redis_client):
+    async def test_service_resilience(
+        self, service_orchestrator: Any, redis_client: redis.Redis
+    ) -> None:
         """Test system resilience and error handling."""
         logger.info("🔧 Testing service resilience...")
 
@@ -492,7 +505,7 @@ class TestRealSystemIntegration:
 
         logger.info("✅ Service resilience test passed")
 
-    async def test_graceful_shutdown(self, service_orchestrator):
+    async def test_graceful_shutdown(self, service_orchestrator: Any) -> None:
         """Test graceful shutdown of all services."""
         logger.info("🛑 Testing graceful shutdown...")
 
@@ -529,7 +542,9 @@ class TestRealSystemIntegration:
 
         logger.info("✅ Graceful shutdown test passed")
 
-    async def test_data_consistency(self, database_pool, redis_client):
+    async def test_data_consistency(
+        self, database_pool: asyncpg.Pool, redis_client: redis.Redis
+    ) -> None:
         """Test data consistency between Redis and database."""
         logger.info("🔍 Testing data consistency...")
 
@@ -556,7 +571,7 @@ class TestRealSystemIntegration:
 
         logger.info("✅ Data consistency test passed")
 
-    async def test_performance_monitoring(self, service_orchestrator):
+    async def test_performance_monitoring(self, service_orchestrator: Any) -> None:
         """Test performance monitoring and metrics collection."""
         logger.info("📊 Testing performance monitoring...")
 
@@ -576,7 +591,7 @@ class TestRealSystemIntegration:
 
         logger.info(f"✅ Performance monitoring test passed (took {elapsed_time:.2f}s)")
 
-    async def test_configuration_validation(self):
+    async def test_configuration_validation(self) -> None:
         """Test that configuration is properly loaded for integration tests."""
         config = get_config()
 
@@ -603,7 +618,7 @@ class TestRealSystemIntegration:
 
 
 @pytest.fixture
-async def sample_market_data():
+async def sample_market_data() -> list[MarketData]:
     """Generate sample market data for testing."""
     return [
         MarketData(
@@ -634,7 +649,9 @@ async def sample_market_data():
 
 
 @pytest.mark.asyncio
-async def test_market_data_processing(sample_market_data, redis_client):
+async def test_market_data_processing(
+    sample_market_data: list[MarketData], redis_client: redis.Redis
+) -> None:
     """Test market data processing pipeline."""
     # This test can be extended to test specific market data processing scenarios
     assert len(sample_market_data) == 2
@@ -657,7 +674,7 @@ async def test_market_data_processing(sample_market_data, redis_client):
 # Integration test runner and utility functions
 
 
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Configure pytest for integration tests."""
     config.addinivalue_line(
         "markers",
@@ -665,7 +682,7 @@ def pytest_configure(config):
     )
 
 
-async def run_integration_test_suite():
+async def run_integration_test_suite() -> None:
     """Run the complete integration test suite."""
     logger.info("🚀 Starting Real System Integration Test Suite")
 

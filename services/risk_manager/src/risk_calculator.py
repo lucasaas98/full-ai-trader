@@ -68,7 +68,7 @@ class RiskCalculator:
     TODO: Add comprehensive test coverage for all new risk calculation features
     """
 
-    def __init__(self, alpaca_client=None):
+    def __init__(self, alpaca_client: Any = None) -> None:
         """Initialize risk calculator."""
         self.config = get_config()
         self.alpaca_client = alpaca_client
@@ -2067,7 +2067,7 @@ class RiskCalculator:
             ),
         }
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cached data."""
         self.price_data_cache.clear()
         self.correlation_matrix_cache = None

@@ -1,0 +1,68 @@
+Running linting checks...
+tests/integration/mock_services/service_orchestrator.py:49: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:49: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:54: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:54: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:58: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:62: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:96: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:96: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:109: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:109: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:143: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:143: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:180: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:180: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:204: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:204: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:212: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:212: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:231: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:231: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:239: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:239: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:257: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:257: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:265: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:265: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:283: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:283: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:291: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:291: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:309: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:335: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:335: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:348: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:348: note: Use "-> None" if function does not return a value
+tests/integration/mock_services/service_orchestrator.py:445: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:487: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/mock_services/service_orchestrator.py:487: note: Use "-> None" if function does not return a value
+tests/integration/test_real_system_integration.py:51: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:51: note: Use "-> None" if function does not return a value
+tests/integration/test_real_system_integration.py:73: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:73: note: Use "-> None" if function does not return a value
+tests/integration/test_real_system_integration.py:87: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:87: note: Use "-> None" if function does not return a value
+tests/integration/test_real_system_integration.py:95: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:119: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:148: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:170: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:213: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:232: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:257: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:281: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:317: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:335: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:394: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:401: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:448: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:495: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:532: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:559: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:579: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:579: note: Use "-> None" if function does not return a value
+tests/integration/test_real_system_integration.py:606: error: Function is missing a return type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:637: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:660: error: Function is missing a type annotation  [no-untyped-def]
+tests/integration/test_real_system_integration.py:668: error: Function is missing a return type annotation  [no-untyped-def]
+Found 2351 errors in 139 files (checked 161 source files)

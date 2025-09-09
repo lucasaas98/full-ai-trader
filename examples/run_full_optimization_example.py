@@ -37,7 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def run_optimization_example():
+async def run_optimization_example() -> None:
     """Run the complete optimization example workflow."""
 
     print("🚀 COMPLETE TRADING STRATEGY OPTIMIZATION EXAMPLE")
@@ -369,7 +369,7 @@ async def run_optimization_example():
     print("   5. Set up regular optimization schedule (monthly)")
 
 
-async def main():
+async def main() -> int:
     """Main entry point."""
     try:
         await run_optimization_example()

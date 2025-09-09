@@ -11,7 +11,7 @@ sys.path.append("/app/shared")
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from decimal import Decimal  # noqa: E402
 from pathlib import Path  # noqa: E402
-from typing import List, Optional  # noqa: E402
+from typing import Any, AsyncGenerator, Callable, Dict, Generator, List, Optional  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 import numpy as np  # noqa: E402
@@ -34,20 +34,28 @@ from shared.models import (  # noqa: E402
 class MockDatabaseManager:
     """Mock database manager for testing"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    async def connect(self):
+    async def connect(self) -> None:
         pass
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         pass
 
 
 class MockMarketData:
     """Mock market data for testing"""
 
-    def __init__(self, symbol, timestamp, price, volume, bid=None, ask=None):
+    def __init__(
+        self,
+        symbol: str,
+        timestamp: datetime,
+        price: float,
+        volume: float,
+        bid: Optional[float] = None,
+        ask: Optional[float] = None,
+    ) -> None:
         self.symbol = symbol
         self.timestamp = timestamp
         self.price = price
@@ -59,7 +67,15 @@ class MockMarketData:
 class MockOHLCV:
     """Mock OHLCV data for testing"""
 
-    def __init__(self, timestamp, open_price, high, low, close, volume):
+    def __init__(
+        self,
+        timestamp: datetime,
+        open_price: float,
+        high: float,
+        low: float,
+        close: float,
+        volume: float,
+    ) -> None:
         self.timestamp = timestamp
         self.open = open_price
         self.high = high
@@ -69,7 +85,7 @@ class MockOHLCV:
 
 
 @pytest.fixture(scope="session")
-def event_loop():
+def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
     """Create an instance of the default event loop for the test session."""
     loop = asyncio.new_event_loop()
     yield loop
@@ -77,7 +93,7 @@ def event_loop():
 
 
 @pytest.fixture
-def mock_redis_client():
+def mock_redis_client() -> MagicMock:
     """Mock Redis client for testing"""
     mock_redis = MagicMock(spec=redis.Redis)
     mock_redis.ping.return_value = True
@@ -95,7 +111,7 @@ def mock_redis_client():
 
 
 @pytest.fixture
-async def mock_db_manager():
+async def mock_db_manager() -> AsyncMock:
     """Mock database manager for testing"""
     mock_db = AsyncMock(spec=MockDatabaseManager)
     mock_db.connect.return_value = None
@@ -110,20 +126,20 @@ async def mock_db_manager():
 
 
 @pytest.fixture
-def sample_market_data():
-    """Sample market data for testing"""
+def sample_market_data() -> MockMarketData:
+    """Create sample market data"""
     return MockMarketData(
         symbol="AAPL",
-        timestamp=datetime.now(timezone.utc),
-        price=150.50,
+        timestamp=datetime.now(),
+        price=150.25,
         volume=1000000,
-        bid=150.25,
-        ask=150.75,
+        bid=150.20,
+        ask=150.30,
     )
 
 
 @pytest.fixture
-def sample_ohlcv_data():
+def sample_ohlcv_data() -> MockOHLCV:
     """Sample OHLCV data for testing"""
     return MockOHLCV(
         timestamp=datetime.now(timezone.utc),
@@ -136,7 +152,7 @@ def sample_ohlcv_data():
 
 
 @pytest.fixture
-def sample_trading_signal():
+def sample_trade_signal() -> TradeSignal:
     """Sample trading signal for testing"""
     return TradeSignal(
         symbol="AAPL",
@@ -153,8 +169,8 @@ def sample_trading_signal():
 
 
 @pytest.fixture
-def sample_order():
-    """Sample order for testing"""
+def sample_trade() -> OrderRequest:
+    """Sample trade for testing"""
     return OrderRequest(
         symbol="AAPL",
         side=OrderSide.BUY,
@@ -168,7 +184,7 @@ def sample_order():
 
 
 @pytest.fixture
-def sample_trade():
+def sample_order() -> Trade:
     """Sample executed trade for testing"""
     from uuid import uuid4
 
@@ -187,7 +203,7 @@ def sample_trade():
 
 
 @pytest.fixture
-def sample_position():
+def sample_position() -> Position:
     """Sample position for testing"""
     return Position(
         symbol="AAPL",
@@ -201,7 +217,7 @@ def sample_position():
 
 
 @pytest.fixture
-def sample_portfolio():
+def sample_portfolio() -> PortfolioState:
     """Sample portfolio for testing"""
     return PortfolioState(
         account_id="test_account",
@@ -223,7 +239,7 @@ def sample_portfolio():
 
 
 @pytest.fixture
-def sample_historical_data():
+def sample_historical_data() -> pd.DataFrame:
     """Sample historical market data for backtesting"""
     dates = pd.date_range(start="2023-01-01", end="2023-12-31", freq="D")
 
@@ -259,7 +275,7 @@ def sample_historical_data():
 
 
 @pytest.fixture
-def temp_data_dir():
+def temp_data_dir() -> Generator[Path, None, None]:
     """Create temporary directory for test data"""
     temp_dir = tempfile.mkdtemp()
     yield Path(temp_dir)
@@ -267,7 +283,7 @@ def temp_data_dir():
 
 
 @pytest.fixture
-def mock_external_apis():
+def mock_external_api() -> Dict[str, Any]:
     """Mock external API responses"""
     return {
         "twelve_data": {
@@ -352,7 +368,7 @@ def mock_external_apis():
 
 
 @pytest.fixture
-def mock_gotify_client():
+def mock_gotify_client() -> MagicMock:
     """Mock Gotify client for notifications"""
     mock_client = MagicMock()
     mock_client.send_message.return_value = {
@@ -367,7 +383,7 @@ def mock_gotify_client():
 
 
 @pytest.fixture
-def test_config():
+def test_config() -> Dict[str, Any]:
     """Test configuration dictionary"""
     return {
         "database": {
@@ -415,21 +431,22 @@ def test_config():
 
 
 @pytest.fixture
-def trading_signal_factory():
+def trading_signal_factory() -> Callable:
     """Factory for creating trading signals with different parameters"""
 
     def create_signal(
         symbol: str = "AAPL",
-        signal_type: str = "BUY",
-        strength: float = 0.8,
+        signal_type: SignalType = SignalType.BUY,
+        confidence: float = 0.8,
         price: float = 150.50,
         strategy_name: str = "test_strategy",
-        **kwargs,
+        timestamp: Optional[datetime] = None,
+        **kwargs: Any,
     ) -> TradeSignal:
         return TradeSignal(
             symbol=symbol,
-            signal_type=SignalType.BUY if signal_type == "BUY" else SignalType.SELL,
-            confidence=strength,
+            signal_type=signal_type,
+            confidence=confidence,
             price=Decimal(str(price)),
             quantity=kwargs.get("quantity", 100),
             strategy_name=strategy_name,
@@ -443,16 +460,16 @@ def trading_signal_factory():
 
 
 @pytest.fixture
-def order_factory():
+def order_factory() -> Callable:
     """Factory for creating orders with different parameters"""
 
     def create_order(
         symbol: str = "AAPL",
-        side: str = "buy",
+        side: OrderSide = OrderSide.BUY,
+        order_type: OrderType = OrderType.MARKET,
         quantity: int = 100,
-        order_type: str = "market",
         price: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> OrderRequest:
         return OrderRequest(
             symbol=symbol,
@@ -469,15 +486,15 @@ def order_factory():
 
 
 @pytest.fixture
-def trade_factory():
+def trade_factory() -> Callable:
     """Factory for creating executed trades"""
 
     def create_trade(
         symbol: str = "AAPL",
-        side: str = "buy",
+        side: OrderSide = OrderSide.BUY,
         quantity: int = 100,
-        price: float = 150.50,
-        **kwargs,
+        price: float = 150.0,
+        **kwargs: Any,
     ) -> Trade:
         from uuid import uuid4
 
@@ -498,49 +515,55 @@ def trade_factory():
 
 
 @pytest.fixture
-def market_data_factory():
+def market_data_factory() -> Callable:
     """Factory for creating market data"""
 
     def create_market_data(
-        symbol: str = "AAPL", price: float = 150.50, volume: int = 1000000, **kwargs
+        symbol: str = "AAPL",
+        price: float = 150.0,
+        volume: float = 1000.0,
+        timestamp: Optional[datetime] = None,
+        **kwargs: Any,
     ) -> MockMarketData:
         return MockMarketData(
             symbol=symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=timestamp or datetime.now(timezone.utc),
             price=price,
             volume=volume,
-            bid=kwargs.get("bid", price - 0.05),
-            ask=kwargs.get("ask", price + 0.05),
+            bid=kwargs.get("bid", price * 0.999),
+            ask=kwargs.get("ask", price * 1.001),
         )
 
     return create_market_data
 
 
 @pytest.fixture
-def ohlcv_factory():
+def ohlcv_factory() -> Callable:
     """Factory for creating OHLCV data"""
 
     def create_ohlcv(
-        symbol: str = "AAPL", close: float = 150.50, timeframe: str = "1m", **kwargs
+        timestamp: Optional[datetime] = None,
+        open_price: float = 150.0,
+        high: float = 151.0,
+        low: float = 149.0,
+        close: float = 150.5,
+        volume: float = 1000.0,
+        **kwargs: Any,
     ) -> MockOHLCV:
-        open_price = kwargs.get("open", close * 0.999)
-        high = kwargs.get("high", max(open_price, close) * 1.001)
-        low = kwargs.get("low", min(open_price, close) * 0.999)
-
         return MockOHLCV(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=timestamp or datetime.now(timezone.utc),
             open_price=open_price,
             high=high,
             low=low,
             close=close,
-            volume=kwargs.get("volume", 1000000),
+            volume=volume,
         )
 
     return create_ohlcv
 
 
 @pytest.fixture
-def mock_prometheus_metrics():
+def mock_prometheus_metrics() -> MagicMock:
     """Mock Prometheus metrics for testing"""
     from unittest.mock import MagicMock
 
@@ -565,10 +588,10 @@ def mock_prometheus_metrics():
 
 
 @pytest.fixture
-def mock_twelve_data_api():
+def mock_twelve_data_api() -> MagicMock:
     """Mock TwelveData API responses"""
 
-    def mock_response(symbol: str = "AAPL", interval: str = "1min"):
+    def mock_response(symbol: str = "AAPL", interval: str = "1min") -> Dict[str, Any]:
         return {
             "meta": {
                 "symbol": symbol,
@@ -644,7 +667,7 @@ def mock_alpaca_api():
 
 
 @pytest.fixture
-async def clean_test_data():
+async def clean_test_data() -> AsyncGenerator[None, None]:
     """Clean up test data before and after tests"""
     # Setup: Clean any existing test data
     yield
@@ -653,10 +676,10 @@ async def clean_test_data():
 
 
 @pytest.fixture
-def performance_test_data():
+def performance_test_data() -> Callable:
     """Generate performance test data"""
 
-    def generate_data(num_symbols: int = 10, num_days: int = 30):
+    def generate_data(num_symbols: int = 10, num_days: int = 30) -> Dict[str, Any]:
         symbols = [f"TEST{i:03d}" for i in range(num_symbols)]
         data = {}
 
@@ -693,7 +716,7 @@ def performance_test_data():
 
 
 @pytest.fixture
-def load_test_config():
+def load_test_config() -> Dict[str, Any]:
     """Configuration for load testing"""
     return {
         "concurrent_users": 10,
@@ -716,7 +739,7 @@ class TestHelper:
     """Helper class for common test operations"""
 
     @staticmethod
-    def assert_trading_signal_valid(signal: TradeSignal):
+    def assert_trading_signal_valid(signal: TradeSignal) -> None:
         """Assert that a trading signal is valid"""
         assert signal.id is not None
         assert signal.symbol is not None
@@ -727,7 +750,7 @@ class TestHelper:
         assert signal.strategy_name is not None
 
     @staticmethod
-    def assert_order_valid(order: OrderRequest):
+    def assert_order_valid(order: OrderRequest) -> None:
         """Assert that an order is valid"""
         assert order.id is not None
         assert order.symbol is not None
@@ -743,7 +766,7 @@ class TestHelper:
             assert order.price and order.price > 0
 
     @staticmethod
-    def assert_trade_valid(trade: Trade):
+    def assert_trade_valid(trade: Trade) -> None:
         """Assert that a trade is valid"""
         assert trade.id is not None
         assert trade.symbol is not None
@@ -753,7 +776,7 @@ class TestHelper:
         assert trade.timestamp is not None
 
     @staticmethod
-    def assert_market_data_valid(market_data: MockMarketData):
+    def assert_market_data_valid(market_data: MockMarketData) -> None:
         """Assert that market data is valid"""
         assert market_data.symbol is not None
         assert market_data.price > 0
@@ -791,13 +814,13 @@ class TestHelper:
 
 
 @pytest.fixture
-def test_helper():
+def test_helper() -> TestHelper:
     """Provide TestHelper instance"""
     return TestHelper()
 
 
 # Performance testing markers
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     """Configure custom pytest markers"""
     config.addinivalue_line("markers", "unit: Unit tests")
     config.addinivalue_line("markers", "integration: Integration tests")
@@ -808,7 +831,7 @@ def pytest_configure(config):
 
 # Test data cleanup
 @pytest.fixture(autouse=True)
-def cleanup_test_environment():
+def cleanup_test_environment() -> Generator[None, None, None]:
     """Automatically clean up test environment"""
     # Setup
     yield
@@ -819,7 +842,7 @@ def cleanup_test_environment():
 
 
 @pytest.fixture
-def mock_environment_variables():
+def mock_environment_variables() -> Generator[Dict[str, str], None, None]:
     """Mock environment variables for testing"""
     test_env = {
         "ENVIRONMENT": "test",
@@ -845,7 +868,7 @@ def mock_environment_variables():
 
 # Database fixtures for integration tests
 @pytest.fixture
-async def test_db_connection():
+async def test_db_connection() -> None:
     """Create test database connection"""
     # This would create a test database connection
     # Implementation depends on your database setup
@@ -853,7 +876,7 @@ async def test_db_connection():
 
 
 @pytest.fixture
-def mock_websocket():
+def mock_websocket() -> MagicMock:
     """Mock WebSocket connection for testing real-time data"""
     mock_ws = AsyncMock()
     mock_ws.send.return_value = None
@@ -870,7 +893,7 @@ def mock_websocket():
 
 
 @pytest.fixture
-def benchmark_data():
+def benchmark_data() -> Dict[str, Any]:
     """Benchmark data for performance comparisons"""
     return {
         "sp500_returns": pd.Series([0.001, 0.002, -0.001, 0.003, -0.002] * 100),

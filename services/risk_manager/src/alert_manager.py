@@ -104,7 +104,7 @@ class AlertManager:
 
         return sent_count
 
-    async def _process_alert_immediately(self, alert: RiskAlert):
+    async def _process_alert_immediately(self, alert: RiskAlert) -> bool:
         """Process critical alert immediately."""
         try:
             # Send to all configured channels
@@ -136,6 +136,8 @@ class AlertManager:
 
         except Exception as e:
             logger.error(f"Error processing immediate alert: {e}")
+            return False
+        return True
 
     async def _send_alert_batch(self, alerts: List[RiskAlert]) -> int:
         """Send a batch of alerts."""
@@ -599,7 +601,7 @@ Message:
 
         return True
 
-    def _track_sent_alert(self, alert: RiskAlert):
+    def _track_sent_alert(self, alert: RiskAlert) -> None:
         """Track that an alert was sent."""
         alert_key = f"{alert.alert_type}_{alert.symbol or 'portfolio'}"
         self.last_notification_times[alert_key] = datetime.now(timezone.utc)
@@ -826,7 +828,7 @@ Message:
             "queue_size": self.alert_queue.qsize(),
         }
 
-    async def process_alert_queue(self):
+    async def process_alert_queue(self) -> None:
         """Process queued alerts in batches."""
         batch = []
         last_batch_time = datetime.now(timezone.utc)
@@ -861,7 +863,7 @@ Message:
                 logger.error(f"Error processing alert queue: {e}")
                 await asyncio.sleep(5)  # Brief pause before retrying
 
-    def clear_alert_history(self):
+    def clear_alert_history(self) -> None:
         """Clear alert history (for testing or maintenance)."""
         self.alert_history.clear()
         self.last_notification_times.clear()

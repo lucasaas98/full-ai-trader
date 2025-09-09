@@ -25,7 +25,7 @@ class TestTradeExecutorService:
     """Test suite for TradeExecutorService"""
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> Mock:
         """Mock configuration for testing"""
         config = Mock(spec=Config)
         config.alpaca_api_key = "test_api_key"
@@ -43,7 +43,7 @@ class TestTradeExecutorService:
         return config
 
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self) -> Mock:
         """Mock Redis client"""
         redis_mock = AsyncMock()
         redis_mock.publish = AsyncMock()
@@ -54,7 +54,7 @@ class TestTradeExecutorService:
         return redis_mock
 
     @pytest.fixture
-    def mock_db_pool(self):
+    def mock_db_pool(self) -> Mock:
         """Mock database connection pool"""
         pool_mock = AsyncMock()
         connection_mock = AsyncMock()
@@ -68,7 +68,7 @@ class TestTradeExecutorService:
         return pool_mock
 
     @pytest.fixture
-    def mock_alpaca_client(self):
+    def mock_alpaca_client(self) -> Mock:
         """Mock Alpaca trading client"""
         alpaca_mock = Mock()
         alpaca_mock.submit_order = Mock()
@@ -81,7 +81,7 @@ class TestTradeExecutorService:
         return alpaca_mock
 
     @pytest.fixture
-    def sample_order_request(self):
+    def sample_order_request(self) -> OrderRequest:
         """Sample order request for testing"""
         return OrderRequest(
             symbol="AAPL",
@@ -95,7 +95,7 @@ class TestTradeExecutorService:
         )
 
     @pytest.fixture
-    def sample_trade_signal(self):
+    def sample_trade_signal(self) -> TradeSignal:
         """Sample trade signal for testing"""
         return TradeSignal(
             symbol="AAPL",
@@ -111,7 +111,9 @@ class TestTradeExecutorService:
         )
 
     @pytest_asyncio.fixture
-    async def service(self, mock_config, mock_redis, mock_db_pool, mock_alpaca_client):
+    async def service(
+        self, mock_config, mock_redis, mock_db_pool, mock_alpaca_client
+    ) -> TradeExecutorService:
         """Create TradeExecutorService instance for testing"""
         with patch("main.get_config", return_value=mock_config), patch(
             "main.aioredis.from_url", return_value=mock_redis
@@ -123,7 +125,7 @@ class TestTradeExecutorService:
             yield service
 
     @pytest.mark.asyncio
-    async def test_submit_order_success(self, service, sample_order_request):
+    async def test_submit_order_success(self, service, sample_order_request) -> None:
         """Test successful order submission"""
         mock_order_response = OrderResponse(
             id=uuid4(),
@@ -156,7 +158,9 @@ class TestTradeExecutorService:
         assert response.quantity == 100
 
     @pytest.mark.asyncio
-    async def test_submit_order_alpaca_error(self, service, sample_order_request):
+    async def test_submit_order_alpaca_error(
+        self, service, sample_order_request
+    ) -> None:
         """Test order submission with Alpaca API error"""
         service.execution_engine.alpaca_client.place_order = AsyncMock(
             side_effect=Exception("Alpaca API error")
@@ -168,7 +172,9 @@ class TestTradeExecutorService:
             )
 
     @pytest.mark.asyncio
-    async def test_submit_order_insufficient_funds(self, service, sample_order_request):
+    async def test_submit_order_insufficient_funds(
+        self, service, sample_order_request
+    ) -> None:
         """Test order submission with insufficient funds"""
         mock_error = Exception("Insufficient funds")
         service.execution_engine.alpaca_client.place_order = AsyncMock(
@@ -181,7 +187,7 @@ class TestTradeExecutorService:
             )
 
     @pytest.mark.asyncio
-    async def test_submit_order_invalid_symbol(self, service):
+    async def test_submit_order_invalid_symbol(self, service) -> None:
         """Test order submission with invalid symbol"""
         invalid_order = OrderRequest(
             symbol="INVALID_SYMBOL",
@@ -202,7 +208,7 @@ class TestTradeExecutorService:
             await service.execution_engine.alpaca_client.place_order(invalid_order)
 
     @pytest.mark.asyncio
-    async def test_get_order_status_success(self, service):
+    async def test_order_status_sync(self, service) -> None:
         """Test successful order status retrieval"""
         mock_alpaca_order = Mock()
         mock_alpaca_order.id = "order_123"
@@ -228,8 +234,8 @@ class TestTradeExecutorService:
         assert order_status.filled_avg_price == 199.50
 
     @pytest.mark.asyncio
-    async def test_get_order_status_not_found(self, service):
-        """Test order status retrieval for non-existent order"""
+    async def test_order_status_not_found(self, service) -> None:
+        """Test order status retrieval with non-existent order"""
         service.execution_engine.alpaca_client.get_order_by_id = AsyncMock(
             side_effect=Exception("Order not found")
         )
@@ -240,7 +246,7 @@ class TestTradeExecutorService:
             )
 
     @pytest.mark.asyncio
-    async def test_cancel_order_success(self, service):
+    async def test_cancel_order_success(self, service) -> None:
         """Test successful order cancellation"""
         service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(
             return_value=True
@@ -256,7 +262,7 @@ class TestTradeExecutorService:
         )
 
     @pytest.mark.asyncio
-    async def test_cancel_order_already_filled(self, service):
+    async def test_cancel_order_already_filled(self, service) -> None:
         """Test cancellation of already filled order"""
         service.execution_engine.alpaca_client.cancel_order_by_id = AsyncMock(
             side_effect=Exception("Order already filled")
@@ -266,7 +272,9 @@ class TestTradeExecutorService:
             await service.execution_engine.alpaca_client.cancel_order_by_id("order_123")
 
     @pytest.mark.asyncio
-    async def test_execute_trade_signal_buy_order(self, service, sample_trade_signal):
+    async def test_execute_trade_signal_buy_order(
+        self, service, sample_trade_signal
+    ) -> None:
         """Test execution of buy trade signal"""
         # Mock the order manager's process_signal method
         mock_execution_result = {
@@ -311,7 +319,7 @@ class TestTradeExecutorService:
         assert "risk limits" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_execute_trade_signal_sell_order(self, service):
+    async def test_execute_signal_sell_limit(self, service) -> None:
         """Test execution of sell trade signal"""
         signal = TradeSignal(
             symbol="AAPL",
@@ -345,7 +353,7 @@ class TestTradeExecutorService:
         assert result["quantity"] == 100
 
     @pytest.mark.asyncio
-    async def test_execute_trade_signal_no_position_for_sell(self, service):
+    async def test_execute_trade_signal_no_position_for_sell(self, service) -> None:
         """Test sell signal execution when no position exists"""
         signal = TradeSignal(
             symbol="AAPL",
@@ -377,7 +385,7 @@ class TestTradeExecutorService:
         assert "no position" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_submit_limit_order(self, service):
+    async def test_submit_limit_order(self, service) -> None:
         """Test submission of limit order"""
         limit_order = OrderRequest(
             symbol="AAPL",
@@ -405,7 +413,7 @@ class TestTradeExecutorService:
         assert order_response.price == Decimal("195.0")
 
     @pytest.mark.asyncio
-    async def test_submit_stop_loss_order(self, service):
+    async def test_submit_stop_loss_order(self, service) -> None:
         """Test submission of stop loss order"""
         stop_order = OrderRequest(
             symbol="AAPL",
@@ -433,7 +441,7 @@ class TestTradeExecutorService:
         assert order_response.order_type == OrderType.STOP
 
     @pytest.mark.asyncio
-    async def test_submit_bracket_order(self, service):
+    async def test_submit_bracket_order(self, service) -> None:
         """Test submission of bracket order (entry + stop loss + take profit)"""
         bracket_order = OrderRequest(
             symbol="AAPL",
@@ -461,8 +469,8 @@ class TestTradeExecutorService:
         assert "bracket" in order_response.message.lower()
 
     @pytest.mark.asyncio
-    async def test_get_account_info_success(self, service):
-        """Test successful account information retrieval"""
+    async def test_get_account_info_success(self, service) -> None:
+        """Test successful account info retrieval"""
         mock_account = Mock()
         mock_account.account_number = "12345678"
         mock_account.cash = "50000.00"
@@ -485,8 +493,8 @@ class TestTradeExecutorService:
         assert account_info["buying_power"] == 100000.00
 
     @pytest.mark.asyncio
-    async def test_get_account_info_api_error(self, service):
-        """Test account information retrieval with API error"""
+    async def test_get_account_info_error(self, service) -> None:
+        """Test account info retrieval with error"""
         service.execution_engine.alpaca_client.get_account = AsyncMock(
             side_effect=Exception("API error")
         )
@@ -495,7 +503,7 @@ class TestTradeExecutorService:
             await service.execution_engine.alpaca_client.get_account()
 
     @pytest.mark.asyncio
-    async def test_get_positions_success(self, service):
+    async def test_position_sync(self, service) -> None:
         """Test successful positions retrieval"""
         mock_positions = [
             Mock(
@@ -528,7 +536,7 @@ class TestTradeExecutorService:
         assert positions[1].symbol == "GOOGL"
 
     @pytest.mark.asyncio
-    async def test_get_positions_empty(self, service):
+    async def test_get_positions_empty(self, service) -> None:
         """Test positions retrieval when no positions exist"""
         service.execution_engine.alpaca_client.get_all_positions = AsyncMock(
             return_value=[]
@@ -539,8 +547,8 @@ class TestTradeExecutorService:
         assert len(positions) == 0
 
     @pytest.mark.asyncio
-    async def test_close_position_success(self, service):
-        """Test successful position closing"""
+    async def test_close_position_success(self, service) -> None:
+        """Test successful position closure"""
         mock_close_response = Mock()
         mock_close_response.id = "close_order_123"
         mock_close_response.status = "filled"
@@ -558,7 +566,7 @@ class TestTradeExecutorService:
         )
 
     @pytest.mark.asyncio
-    async def test_close_position_partial(self, service):
+    async def test_close_position_api_error(self, service) -> None:
         """Test partial position closing"""
         mock_close_response = Mock()
         mock_close_response.id = "partial_close_123"
@@ -577,8 +585,8 @@ class TestTradeExecutorService:
         )
 
     @pytest.mark.asyncio
-    async def test_close_position_not_found(self, service):
-        """Test closing non-existent position"""
+    async def test_close_position_not_found(self, service) -> None:
+        """Test closure of non-existent position"""
         service.execution_engine.alpaca_client.close_position = AsyncMock(
             side_effect=Exception("404 Not Found")
         )
@@ -589,7 +597,7 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_order_execution_latency_tracking(
         self, service, sample_order_request
-    ):
+    ) -> None:
         """Test order execution latency tracking"""
         start_time = datetime.now(timezone.utc)
 
@@ -610,7 +618,9 @@ class TestTradeExecutorService:
         assert latency < 1000
 
     @pytest.mark.asyncio
-    async def test_order_routing_optimization(self, service, sample_order_request):
+    async def test_order_routing_optimization(
+        self, service, sample_order_request
+    ) -> None:
         """Test order routing optimization"""
         # Mock market data for routing decision
         market_data = {
@@ -633,7 +643,7 @@ class TestTradeExecutorService:
             assert routing_decision["venue"] in ["NYSE", "NASDAQ", "ARCA", "BATS"]
 
     @pytest.mark.asyncio
-    async def test_order_fragmentation_for_large_orders(self, service):
+    async def test_order_fragmentation_for_large_orders(self, service) -> None:
         """Test order fragmentation for large orders"""
         large_order = OrderRequest(
             symbol="AAPL",
@@ -673,7 +683,9 @@ class TestTradeExecutorService:
             assert sum(order.quantity for order in fragment_orders) == 10000
 
     @pytest.mark.asyncio
-    async def test_smart_order_routing_dark_pools(self, service, sample_order_request):
+    async def test_smart_order_routing_dark_pools(
+        self, service, sample_order_request
+    ) -> None:
         """Test smart order routing including dark pools"""
         # Mock liquidity analysis
         liquidity_analysis = {
@@ -691,7 +703,9 @@ class TestTradeExecutorService:
             assert routing["expected_savings"] > 0
 
     @pytest.mark.asyncio
-    async def test_order_timing_optimization(self, service, sample_order_request):
+    async def test_order_timing_optimization(
+        self, service, sample_order_request
+    ) -> None:
         """Test order timing optimization"""
         # Mock market microstructure data
         microstructure_data = {
@@ -714,7 +728,7 @@ class TestTradeExecutorService:
             ]
 
     @pytest.mark.asyncio
-    async def test_trade_reporting_and_analytics(self, service):
+    async def test_trade_reporting_and_analytics(self, service) -> None:
         """Test trade reporting and analytics"""
         mock_trades = [
             Trade(
@@ -753,7 +767,7 @@ class TestTradeExecutorService:
             assert analytics["win_rate"] == 1.0  # All profitable trades
 
     @pytest.mark.asyncio
-    async def test_order_fill_notification(self, service):
+    async def test_order_fill_notification(self, service) -> None:
         """Test order fill notification system"""
         fill_notification = {
             "order_id": "order_123",
@@ -770,7 +784,7 @@ class TestTradeExecutorService:
             mock_process.assert_called_once_with(fill_notification)
 
     @pytest.mark.asyncio
-    async def test_partial_fill_handling(self, service):
+    async def test_partial_fill_handling(self, service) -> None:
         """Test handling of partial order fills"""
         partial_fill = {
             "order_id": "order_123",
@@ -787,7 +801,9 @@ class TestTradeExecutorService:
         # Implementation would depend on specific handling logic
 
     @pytest.mark.asyncio
-    async def test_order_rejection_handling(self, service, sample_order_request):
+    async def test_order_retry_logic_on_failure(
+        self, service, sample_order_request
+    ) -> None:
         """Test handling of order rejections"""
         rejection_reasons = [
             "insufficient buying power",
@@ -809,7 +825,7 @@ class TestTradeExecutorService:
                 )
 
     @pytest.mark.asyncio
-    async def test_order_timeout_handling(self, service, sample_order_request):
+    async def test_order_timeout_handling(self, service, sample_order_request) -> None:
         """Test handling of order timeouts"""
         # Mock timeout scenario
         with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
@@ -821,7 +837,7 @@ class TestTradeExecutorService:
             assert "timeout" in order_response.message.lower()
 
     @pytest.mark.asyncio
-    async def test_order_retry_mechanism(self, service, sample_order_request):
+    async def test_order_retry_mechanism(self, service, sample_order_request) -> None:
         """Test order retry mechanism for transient failures"""
         call_count = 0
 
@@ -850,7 +866,7 @@ class TestTradeExecutorService:
         assert call_count == 3  # Should have retried 3 times
 
     @pytest.mark.asyncio
-    async def test_calculate_trading_costs(self, service):
+    async def test_calculate_trading_costs(self, service) -> None:
         """Test trading cost calculation"""
         order_details = {
             "symbol": "AAPL",
@@ -868,7 +884,9 @@ class TestTradeExecutorService:
         assert trading_costs["total_cost"] > 0
 
     @pytest.mark.asyncio
-    async def test_pre_market_trading_validation(self, service, sample_order_request):
+    async def test_pre_market_trading_validation(
+        self, service, sample_order_request
+    ) -> None:
         """Test pre-market trading validation"""
         # Mock pre-market hours
         with patch.object(

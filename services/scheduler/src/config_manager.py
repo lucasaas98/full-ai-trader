@@ -69,7 +69,7 @@ class ABTestConfig:
 class ConfigValidator:
     """Validates configuration changes."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.validation_rules = {
             "risk.max_position_size": lambda x: 0 < float(x) <= 1.0,
             "risk.max_portfolio_risk": lambda x: 0 < float(x) <= 1.0,
@@ -124,7 +124,7 @@ class ConfigurationManager:
         self.reload_interval = 30  # seconds
         self.max_rollback_entries = 10
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the configuration manager."""
         logger.info("Initializing configuration manager...")
 
@@ -167,7 +167,7 @@ class ConfigurationManager:
             logger.error(f"Failed to calculate config hash: {e}")
             return ""
 
-    async def _config_monitoring_loop(self):
+    async def _config_monitoring_loop(self) -> None:
         """Monitor configuration files for changes."""
         while self.auto_reload_enabled:
             try:
@@ -181,7 +181,7 @@ class ConfigurationManager:
                 logger.error(f"Configuration monitoring error: {e}")
                 await asyncio.sleep(60)
 
-    async def _check_file_changes(self):
+    async def _check_file_changes(self) -> None:
         """Check for file system configuration changes."""
         changes_detected = False
 
@@ -203,7 +203,7 @@ class ConfigurationManager:
         if changes_detected:
             await self.reload_configuration()
 
-    async def _check_redis_changes(self):
+    async def _check_redis_changes(self) -> None:
         """Check for Redis-based configuration changes."""
         try:
             # Check for configuration updates in Redis
@@ -354,7 +354,7 @@ class ConfigurationManager:
                 items.append((new_key, v))
         return dict(items)
 
-    async def _notify_config_changes(self, changes: List[ConfigChange]):
+    async def _notify_config_changes(self, changes: List[ConfigChange]) -> None:
         """Notify registered callbacks about configuration changes."""
         for change in changes:
             callbacks = self.change_callbacks.get(change.key, [])
@@ -369,7 +369,7 @@ class ConfigurationManager:
                 except Exception as e:
                     logger.error(f"Configuration change callback failed: {e}")
 
-    async def _create_rollback_point(self):
+    async def _create_rollback_point(self) -> None:
         """Create a rollback point for the current configuration."""
         try:
             rollback_data = {
@@ -414,7 +414,7 @@ class ConfigurationManager:
             logger.error(f"Configuration rollback failed: {e}")
             return False
 
-    def register_change_callback(self, config_key: str, callback: Callable):
+    def register_change_callback(self, config_key: str, callback: Callable) -> None:
         """Register callback for configuration changes."""
         if config_key not in self.change_callbacks:
             self.change_callbacks[config_key] = []
@@ -518,7 +518,7 @@ class ConfigurationManager:
             logger.error(f"Failed to set config value {key}: {e}")
             return False
 
-    async def _apply_redis_config_changes(self):
+    async def _apply_redis_config_changes(self) -> None:
         """Apply configuration changes from Redis."""
         try:
             # Get configuration overrides from Redis
@@ -689,7 +689,7 @@ class ConfigurationManager:
             logger.error(f"Failed to end A/B test {test_name}: {e}")
             return False
 
-    async def _load_ab_tests(self):
+    async def _load_ab_tests(self) -> None:
         """Load active A/B tests from Redis."""
         try:
             ab_test_keys = await self.redis.keys("ab_test:*")
@@ -861,7 +861,7 @@ class ConfigurationManager:
             ),
         }
 
-    async def cleanup_config_history(self, days: int = 7):
+    async def cleanup_config_history(self, days: int = 7) -> int:
         """Clean up old configuration history."""
         cutoff_date = datetime.now() - timedelta(days=days)
 
@@ -872,6 +872,7 @@ class ConfigurationManager:
 
         cleaned_count = original_count - len(self.config_history)
         logger.info(f"Cleaned up {cleaned_count} old configuration changes")
+        return cleaned_count
 
     async def validate_current_config(self) -> Dict[str, Any]:
         """Validate the current configuration."""
@@ -908,7 +909,7 @@ class ConfigurationManager:
 
         return validation_results
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the configuration manager."""
         logger.info("Shutting down configuration manager...")
 

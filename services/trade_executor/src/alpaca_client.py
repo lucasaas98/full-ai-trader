@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 import aiohttp
+from aiohttp import ClientSession
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from shared.config import get_config
@@ -61,82 +62,91 @@ try:
 except ImportError:
     # Create mock classes for development/testing
     class MockTradingClient:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def get_account(self):
+        def get_account(self, *args, **kwargs) -> None:
             return None
 
-        def get_open_position(self, symbol):
+        def get_open_position(self, symbol: str, *args, **kwargs) -> None:
             return None
 
-        def get_all_positions(self):
+        def get_all_positions(self, *args, **kwargs) -> list:
             return []
 
-        def submit_order(self, *args, **kwargs):
+        def submit_order(self, order_request, *args, **kwargs) -> None:
             return None
 
-        def cancel_order_by_id(self, order_id):
+        def cancel_order_by_id(self, order_id: str, *args, **kwargs) -> None:
             return None
 
-        def get_order_by_id(self, order_id):
+        def get_order_by_id(self, order_id: str, *args, **kwargs) -> None:
             return None
 
-        def get_orders(self, *args, **kwargs):
+        def get_orders(self, filter, *args, **kwargs) -> list:
             return []
 
-        def close_position(self, symbol_or_asset_id):
+        def close_position(self, symbol_or_asset_id: str) -> None:
             return None
 
-        def get_portfolio_history(self, *args, **kwargs):
+        def get_portfolio_history(self, *args, **kwargs) -> None:
             return None
 
-        def replace_order_by_id(self, *args, **kwargs):
+        def replace_order_by_id(self, *args, **kwargs) -> None:
             return None
 
-        def get_asset(self, symbol):
+        def get_asset(self, symbol: str) -> None:
             return None
 
-        def cancel_orders(self):
+        def cancel_orders(self) -> None:
             return None
 
     class MockStockHistoricalDataClient:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def get_stock_bars(self, request):
+        def get_stock_bars(self, request, *args, **kwargs) -> None:
             return None
 
-        def get_stock_latest_trade(self, *args, **kwargs):
+        def get_stock_quotes(self, request, *args, **kwargs) -> None:
             return None
 
-        def get_stock_latest_quote(self, *args, **kwargs):
+        def get_stock_trades(self, request, *args, **kwargs) -> None:
             return None
 
     class MockStockDataStream:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
-        async def subscribe_bars(self, *args, **kwargs):
+        async def subscribe_bars(self, handler, *symbols, **kwargs) -> None:
             pass
 
-        async def subscribe_trades(self, *args, **kwargs):
+        async def subscribe_trades(self, handler, *symbols, **kwargs) -> None:
             pass
 
-        async def subscribe_quotes(self, *args, **kwargs):
+        async def subscribe_quotes(self, handler, *symbols, **kwargs) -> None:
             pass
 
-        async def subscribe_trade_updates(self, *args, **kwargs):
+        def unsubscribe_bars(self, *symbols, **kwargs) -> None:
             pass
 
-        async def run(self):
+        def unsubscribe_trades(self, *symbols, **kwargs) -> None:
             pass
 
-        async def stop(self):
+        def unsubscribe_quotes(self, *symbols, **kwargs) -> None:
+            pass
+
+        async def subscribe_trade_updates(self, handler, *args, **kwargs) -> None:
+            pass
+
+        async def run(self) -> None:
+            pass
+
+        async def stop(self) -> None:
             pass
 
     class MockAlpacaOrder:
-        def __init__(self):
+        def __init__(self) -> None:
             self.id = "mock_order"
             self.symbol = "MOCK"
             self.side = "buy"
@@ -153,7 +163,7 @@ except ImportError:
             self.canceled_at = None
 
     class MockAlpacaPosition:
-        def __init__(self):
+        def __init__(self) -> None:
             self.symbol = "MOCK"
             self.qty = 0
             self.side = "long"
@@ -161,7 +171,7 @@ except ImportError:
             self.cost_basis = 0
 
     class MockTradeAccount:
-        def __init__(self):
+        def __init__(self) -> None:
             self.id = "mock_account"
             self.currency = "USD"
             self.equity = 0
@@ -225,35 +235,35 @@ except ImportError:
     AlpacaTimeInForce = TimeInForce  # type: ignore
 
     class MarketOrderRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class LimitOrderRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class StopOrderRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class StopLimitOrderRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class GetOrdersRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class ClosePositionRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class MockStockBarsRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     class MockStockLatestQuoteRequest:
-        def __init__(self, **kwargs):
+        def __init__(self, **kwargs) -> None:
             pass
 
     # Assign aliases
@@ -302,13 +312,13 @@ class AlpacaClient:
     - Error handling and retry logic
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Alpaca client with configuration."""
         self.config = get_config()
-        self._trading_client = None
-        self._data_client = None
-        self._stream_client = None
-        self._session = None
+        self._trading_client: Optional[TradingClient] = None
+        self._data_client: Optional[StockHistoricalDataClient] = None
+        self._stream_client: Optional[StockDataStream] = None
+        self._session: Optional[ClientSession] = None
         self._positions_cache: Dict[str, Position] = {}
         self._account_cache: Optional[TradeAccount] = None
         self._cache_expiry = datetime.now(timezone.utc)
@@ -317,7 +327,7 @@ class AlpacaClient:
         # Initialize API clients
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize the Alpaca API clients."""
         try:
             if ALPACA_AVAILABLE:
@@ -346,16 +356,21 @@ class AlpacaClient:
             self._trading_client = None
             self._data_client = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AlpacaClient":
         """Async context manager entry."""
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> None:
         """Async context manager exit."""
         await self.disconnect()
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Establish connections to Alpaca services."""
         try:
             # Create aiohttp session for async requests
@@ -375,7 +390,7 @@ class AlpacaClient:
             logger.error(f"Failed to connect to Alpaca: {e}")
             raise AlpacaAPIError(f"Connection failed: {e}", original_error=e)
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Close connections to Alpaca services."""
         try:
             if self._session:
@@ -412,7 +427,15 @@ class AlpacaClient:
             if not self._trading_client:
                 raise AlpacaAPIError("Alpaca trading client not initialized")
 
-            account = self._trading_client.get_account()
+            account_response = self._trading_client.get_account()
+
+            # Ensure we have a proper TradeAccount object
+            if isinstance(account_response, dict):
+                # Convert dict to TradeAccount if needed
+                account = TradeAccount(**account_response)
+            else:
+                account = account_response
+
             self._account_cache = account
             self._cache_expiry = datetime.now(timezone.utc) + self._cache_ttl
 
@@ -467,7 +490,15 @@ class AlpacaClient:
 
                     position = self._trading_client.get_open_position(symbol)
                     if position:
-                        position_model = self._convert_alpaca_position(position)
+                        # Handle both Position objects and dicts
+                        if isinstance(position, dict):
+                            # Convert dict to AlpacaPosition-like object
+                            position_obj = type("Position", (), position)
+                            for k, v in position.items():
+                                setattr(position_obj, k, v)
+                            position_model = self._convert_alpaca_position(position_obj)
+                        else:
+                            position_model = self._convert_alpaca_position(position)
                         self._positions_cache[symbol] = position_model
                         return [position_model]
                     else:
@@ -479,9 +510,16 @@ class AlpacaClient:
                 if not self._trading_client:
                     return []
                 positions = self._trading_client.get_all_positions()
-                position_models = [
-                    self._convert_alpaca_position(pos) for pos in positions
-                ]
+                position_models = []
+                for pos in positions:
+                    if isinstance(pos, dict):
+                        # Convert dict to AlpacaPosition-like object
+                        pos_obj = type("Position", (), pos)
+                        for k, v in pos.items():
+                            setattr(pos_obj, k, v)
+                        position_models.append(self._convert_alpaca_position(pos_obj))
+                    else:
+                        position_models.append(self._convert_alpaca_position(pos))
 
                 # Update cache
                 self._positions_cache.clear()
@@ -563,10 +601,19 @@ class AlpacaClient:
             if not alpaca_order:
                 raise AlpacaAPIError("Order submission returned None")
 
-            # Convert response
-            order_response = self._convert_alpaca_order_response(
-                alpaca_order, order_request
-            )
+            # Convert response - handle both Order objects and dicts
+            if isinstance(alpaca_order, dict):
+                # Convert dict to Order-like object
+                order_obj = type("Order", (), alpaca_order)
+                for k, v in alpaca_order.items():
+                    setattr(order_obj, k, v)
+                order_response = self._convert_alpaca_order_response(
+                    order_obj, order_request
+                )
+            else:
+                order_response = self._convert_alpaca_order_response(
+                    alpaca_order, order_request
+                )
 
             logger.info(f"Order placed successfully: {order_response.broker_order_id}")
             return order_response
@@ -836,7 +883,7 @@ class AlpacaClient:
             logger.info(f"Placing bracket order for {quantity} {symbol}")
 
             # Submit bracket order
-            alpaca_order = self._trading_client.submit_order(order_request)
+            alpaca_order = self._trading_client.submit_order(order_request)  # type: ignore
 
             if not alpaca_order:
                 raise AlpacaAPIError("Bracket order submission returned None")
@@ -846,15 +893,18 @@ class AlpacaClient:
             order_response = OrderResponse(
                 id=order_id,
                 broker_order_id=str(alpaca_order.id),
-                symbol=alpaca_order.symbol,
+                symbol=getattr(alpaca_order, "symbol", "unknown"),
                 side=side,
                 order_type=OrderType.LIMIT if entry_price else OrderType.MARKET,
                 quantity=quantity,
                 filled_quantity=0,
                 price=entry_price,
                 filled_price=None,
-                status=self._convert_alpaca_order_status(str(alpaca_order.status)),
-                submitted_at=alpaca_order.submitted_at or datetime.now(timezone.utc),
+                status=self._convert_alpaca_order_status(
+                    getattr(alpaca_order, "status", "unknown")
+                ),
+                submitted_at=getattr(alpaca_order, "submitted_at", None)
+                or datetime.now(timezone.utc),
                 filled_at=None,
                 cancelled_at=None,
                 commission=Decimal("0"),
@@ -962,7 +1012,11 @@ class AlpacaClient:
                     int(float(alpaca_order.filled_qty))
                     if alpaca_order
                     and hasattr(alpaca_order, "filled_qty")
-                    and alpaca_order.filled_qty
+                    and alpaca_order.filled_qty is not None
+                    and str(alpaca_order.filled_qty)
+                    .replace(".", "")
+                    .replace("-", "")
+                    .isdigit()
                     else 0
                 ),
                 price=(
@@ -1032,7 +1086,14 @@ class AlpacaClient:
             alpaca_status = status
 
             # Create request
-            request = GetOrdersRequest(status=alpaca_status, limit=limit)
+            if ALPACA_AVAILABLE:
+                from alpaca.trading.requests import (
+                    GetOrdersRequest as AlpacaGetOrdersRequest,
+                )
+
+                request = AlpacaGetOrdersRequest(status=alpaca_status, limit=limit)
+            else:
+                request = GetOrdersRequest(status=alpaca_status, limit=limit)
 
             alpaca_orders = self._trading_client.get_orders(request)
 
@@ -1067,7 +1128,13 @@ class AlpacaClient:
                     ),
                     filled_quantity=(
                         int(float(order.filled_qty))
-                        if order and hasattr(order, "filled_qty") and order.filled_qty
+                        if order
+                        and hasattr(order, "filled_qty")
+                        and order.filled_qty is not None
+                        and str(order.filled_qty)
+                        .replace(".", "")
+                        .replace("-", "")
+                        .isdigit()
                         else 0
                     ),
                     price=(
@@ -1174,7 +1241,11 @@ class AlpacaClient:
                     int(float(alpaca_order.filled_qty))
                     if alpaca_order
                     and hasattr(alpaca_order, "filled_qty")
-                    and alpaca_order.filled_qty
+                    and alpaca_order.filled_qty is not None
+                    and str(alpaca_order.filled_qty)
+                    .replace(".", "")
+                    .replace("-", "")
+                    .isdigit()
                     else 0
                 ),
                 price=(
@@ -1424,7 +1495,7 @@ class AlpacaClient:
                 "timestamp": datetime.now(timezone.utc),
             }
 
-    async def validate_order(self, order_request) -> Dict[str, Any]:
+    async def validate_order(self, order_request: Any) -> Dict[str, Any]:
         """
         Validate an order request.
 
@@ -1610,7 +1681,7 @@ class AlpacaClient:
             logger.error(f"Failed to check pattern day trader status: {e}")
             return False
 
-    async def start_position_stream(self, callback=None):
+    async def start_position_stream(self, callback: Optional[Any] = None) -> None:
         """
         Start streaming position updates.
 
@@ -1627,7 +1698,7 @@ class AlpacaClient:
         except Exception as e:
             logger.error(f"Failed to start position stream: {e}")
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear all cached data."""
         self._positions_cache.clear()
         self._account_cache = None

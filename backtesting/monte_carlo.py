@@ -389,7 +389,7 @@ class MonteCarloEngine:
 
         return results
 
-    def generate_report(self, results: MonteCarloResults, output_path: str):
+    def generate_report(self, results: MonteCarloResults, output_path: str) -> None:
         """Generate Monte Carlo analysis report"""
         # Create visualizations
         fig, axes = plt.subplots(2, 2, figsize=(15, 12))

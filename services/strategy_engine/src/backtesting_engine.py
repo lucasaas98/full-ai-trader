@@ -98,7 +98,7 @@ class BacktestConfig:
 class DetailedBacktestResult:
     """Comprehensive backtest results with detailed analytics."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize detailed backtest result."""
         self.config: Optional[BacktestConfig] = None
         self.strategy_name: str = ""

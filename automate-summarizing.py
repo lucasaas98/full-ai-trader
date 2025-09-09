@@ -27,7 +27,7 @@ prompt = """You are reading a file containing code with comments.
 
 
 # Define a function to summarize the contents of a file using the Ollama API
-def summarize_file(path):
+def summarize_file(path: str) -> str | None:
     with open(path, "r") as f:
         content = f.read()
         # print(f'File content: {content}')
@@ -71,7 +71,7 @@ def summarize_file(path):
         return None
 
 
-def write_summary_to_md(summary, path):
+def write_summary_to_md(summary: str, path: str) -> None:
     with open(path, "w") as f:
         f.write(summary)
 

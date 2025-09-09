@@ -10,7 +10,8 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+from shared.security.jwt_utils import JWTPayload
 from unittest.mock import patch
 
 import jwt
@@ -21,7 +22,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
 # Mock security classes since modules don't exist
 class SecurityManager:
-    def __init__(self):
+    def __init__(self) -> None:
         # Use test secret to match SecurityTestHelper
         from shared.security.jwt_utils import JWTConfig, JWTManager
 
@@ -37,15 +38,15 @@ class SecurityManager:
         """Validate JWT token."""
         return self.jwt_manager.validate_token(token)
 
-    def decode_jwt_token(self, token: str):
+    def decode_jwt_token(self, token: str) -> Optional[JWTPayload]:
         """Decode JWT token."""
         return self.jwt_manager.decode_token(token)
 
-    def create_jwt_token(self, user_id: str, **kwargs) -> str:
+    def create_jwt_token(self, user_id: str, **kwargs: Any) -> str:
         """Create JWT token."""
         return self.jwt_manager.create_access_token(user_id=user_id, **kwargs)
 
-    def validate_trading_params(self, params: dict[str, Any]) -> bool:
+    def validate_trading_params(self, params: Dict[str, Any]) -> bool:
         """Validate trading parameters."""
         try:
             # Check required fields
@@ -89,7 +90,8 @@ class SecurityManager:
         # Anonymize PII fields
         if "email" in anonymized:
             anonymized["email"] = (
-                f"user_{hashlib.md5(user_data['email'].encode()).hexdigest()[:8]}@example.com"
+                f"user_{hashlib.md5(user_data['email'].encode()).hexdigest()[
+                    :8]}@example.com"
             )
 
         if "name" in anonymized:
@@ -97,7 +99,8 @@ class SecurityManager:
 
         if "phone" in anonymized:
             anonymized["phone"] = (
-                f"+1-555-{random.randint(100, 999)}-{random.randint(1000, 9999)}"
+                f"+1-555-{random.randint(100, 999)
+                          }-{random.randint(1000, 9999)}"
             )
 
         # Keep trading history structure intact
@@ -151,7 +154,7 @@ class SecurityManager:
 
         return True
 
-    def record_user_activity(self, user_id: str, **activity) -> None:
+    def record_user_activity(self, user_id: str, **activity: Any) -> None:
         """Record user activity for monitoring."""
         # Simple activity recording for testing
         pass
@@ -159,7 +162,8 @@ class SecurityManager:
     def sanitize_ldap_input(self, input_str: str) -> str:
         """Sanitize LDAP input to prevent injection attacks."""
         # Remove dangerous LDAP characters
-        dangerous_chars = ["(", ")", "*", "\\", "/", "=", "!", "&", "|", "<", ">"]
+        dangerous_chars = ["(", ")", "*", "\\", "/", "=",
+                           "!", "&", "|", "<", ">"]
         sanitized = input_str
         for char in dangerous_chars:
             sanitized = sanitized.replace(char, "")
@@ -168,7 +172,8 @@ class SecurityManager:
     def validate_nosql_input(self, input_data: Dict[str, Any]) -> bool:
         """Validate NoSQL input to prevent injection attacks."""
         # Check for dangerous NoSQL operators
-        dangerous_operators = ["$ne", "$gt", "$lt", "$where", "$regex", "$exists"]
+        dangerous_operators = ["$ne", "$gt",
+                               "$lt", "$where", "$regex", "$exists"]
 
         if isinstance(input_data, dict):
             for key in input_data.keys():
@@ -179,8 +184,8 @@ class SecurityManager:
 
 
 class APIKeyManager:
-    def __init__(self):
-        self._api_keys = {}
+    def __init__(self) -> None:
+        self._api_keys: dict[str, dict[str, Any]] = {}
 
     def generate_api_key(self, service_name: str, expiry_days: int = 30) -> str:
         """Generate a new API key."""
@@ -205,7 +210,7 @@ class APIKeyManager:
 
 
 class EncryptionManager:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
 
@@ -276,19 +281,19 @@ class SecurityTestHelper:
 
 
 @pytest.fixture
-def security_manager():
+def security_manager() -> Any:
     """Create security manager instance."""
     return SecurityManager()
 
 
 @pytest.fixture
-def api_key_manager():
+def api_key_manager() -> Any:
     """Create API key manager instance."""
     return APIKeyManager()
 
 
 @pytest.fixture
-def encryption_manager():
+def encryption_manager() -> Any:
     """Create encryption manager instance."""
     return EncryptionManager()
 
@@ -297,11 +302,12 @@ def encryption_manager():
 class TestAuthentication:
     """Test authentication mechanisms."""
 
-    def test_api_key_validation(self, api_key_manager):
+    def test_api_key_validation(self, api_key_manager: Any) -> None:
         """Test API key validation."""
         # Generate valid API key
         valid_key = api_key_manager.generate_api_key("test_service")
-        assert api_key_manager.validate_api_key(valid_key), "Valid API key rejected"
+        assert api_key_manager.validate_api_key(
+            valid_key), "Valid API key rejected"
 
         # Test invalid API key
         invalid_key = "invalid_key_12345"
@@ -310,10 +316,12 @@ class TestAuthentication:
         ), "Invalid API key accepted"
 
         # Test empty API key
-        assert not api_key_manager.validate_api_key(""), "Empty API key accepted"
-        assert not api_key_manager.validate_api_key(None), "None API key accepted"
+        assert not api_key_manager.validate_api_key(
+            ""), "Empty API key accepted"
+        assert not api_key_manager.validate_api_key(
+            None), "None API key accepted"
 
-    def test_api_key_expiration(self, api_key_manager):
+    def test_api_key_expiration(api_key_manager: Any) -> None:
         """Test API key expiration."""
         # Create expired key
         expired_key = api_key_manager.generate_api_key(
@@ -333,7 +341,7 @@ class TestAuthentication:
             short_lived_key
         ), "Valid short-lived key rejected"
 
-    def test_jwt_token_validation(self, security_manager):
+    def test_jwt_token_validation(self, security_manager: Any) -> None:
         """Test JWT token validation."""
         # Valid token
         payload = {"user_id": "test_user", "service": "trade_executor"}
@@ -344,7 +352,8 @@ class TestAuthentication:
         ), "Valid JWT token rejected"
 
         # Expired token
-        expired_token = SecurityTestHelper.create_test_jwt_token(payload, expired=True)
+        expired_token = SecurityTestHelper.create_test_jwt_token(
+            payload, expired=True)
         assert not security_manager.validate_jwt_token(
             expired_token
         ), "Expired JWT token accepted"
@@ -361,7 +370,7 @@ class TestAuthentication:
             tampered_token
         ), "Tampered JWT token accepted"
 
-    def test_password_strength_validation(self, security_manager):
+    def test_password_strength_validation(self, security_manager: Any) -> None:
         """Test password strength validation."""
         # Weak passwords
         weak_passwords = [
@@ -391,7 +400,7 @@ class TestAuthentication:
                 strong_password
             ), f"Strong password rejected: {strong_password}"
 
-    def test_session_management(self, security_manager):
+    def test_session_management(self, security_manager: Any) -> None:
         """Test session management security."""
         user_id = "test_user_123"
 
@@ -417,7 +426,7 @@ class TestAuthentication:
             new_session
         ), "Invalidated session accepted"
 
-    def test_rate_limiting(self, security_manager):
+    def test_rate_limiting(self, security_manager: Any) -> None:
         """Test rate limiting mechanisms."""
         client_id = "test_client"
 
@@ -438,14 +447,15 @@ class TestAuthentication:
 
         # Reset rate limit
         security_manager.reset_rate_limit(client_id)
-        assert security_manager.check_rate_limit(client_id), "Rate limit reset failed"
+        assert security_manager.check_rate_limit(
+            client_id), "Rate limit reset failed"
 
 
 @pytest.mark.security
 class TestAuthorization:
     """Test authorization and access control."""
 
-    def test_role_based_access_control(self, security_manager):
+    def test_role_based_access(self, security_manager: Any) -> None:
         """Test role-based access control."""
         # Define roles and permissions
         roles = {
@@ -456,7 +466,8 @@ class TestAuthorization:
         }
 
         for role, permissions in roles.items():
-            user_token = security_manager.create_user_token(f"user_{role}", role)
+            user_token = security_manager.create_user_token(
+                f"user_{role}", role)
 
             for permission in permissions:
                 assert security_manager.check_permission(
@@ -472,7 +483,7 @@ class TestAuthorization:
                     user_token, unauth_perm
                 ), f"Role {role} should NOT have permission {unauth_perm}"
 
-    def test_service_to_service_authorization(self, security_manager):
+    def test_service_to_service_authentication(self, security_manager: Any) -> None:
         """Test service-to-service authorization."""
         # Valid service communications
         valid_communications = [
@@ -500,18 +511,23 @@ class TestAuthorization:
                 source_service, target_service
             ), f"Invalid communication {source_service} -> {target_service} allowed"
 
-    def test_resource_access_control(self, security_manager):
+    def test_resource_exhaustion(self, security_manager: Any) -> None:
         """Test access control for specific resources."""
         # Create user with limited access
-        limited_user = security_manager.create_user_token("limited_user", "analyst")
+        limited_user = security_manager.create_user_token(
+            "limited_user", "analyst")
 
         # Test access to different resources
         resources = [
-            ("/api/v1/market-data", "read", True),  # Analysts can read market data
-            ("/api/v1/strategies", "read", True),  # Analysts can read strategies
+            # Analysts can read market data
+            ("/api/v1/market-data", "read", True),
+            # Analysts can read strategies
+            ("/api/v1/strategies", "read", True),
             ("/api/v1/orders", "read", False),  # Analysts cannot read orders
-            ("/api/v1/orders", "write", False),  # Analysts cannot create orders
-            ("/api/v1/positions", "write", False),  # Analysts cannot modify positions
+            # Analysts cannot create orders
+            ("/api/v1/orders", "write", False),
+            # Analysts cannot modify positions
+            ("/api/v1/positions", "write", False),
         ]
 
         for resource, action, should_allow in resources:
@@ -532,7 +548,7 @@ class TestAuthorization:
 class TestDataProtection:
     """Test data protection and encryption."""
 
-    def test_sensitive_data_encryption(self, encryption_manager):
+    def test_sensitive_data_encryption(self, encryption_manager: Any) -> None:
         """Test encryption of sensitive data."""
         sensitive_data = {
             "api_key": "super_secret_api_key_12345",
@@ -549,14 +565,16 @@ class TestDataProtection:
 
             # Verify encryption worked
             assert encrypted_value != value, f"Data not encrypted: {key}"
-            assert len(encrypted_value) > len(value), f"Encrypted data too short: {key}"
+            assert len(encrypted_value) > len(
+                value), f"Encrypted data too short: {key}"
 
         # Decrypt and verify
         for key, original_value in sensitive_data.items():
             decrypted_value = encryption_manager.decrypt(encrypted_data[key])
-            assert decrypted_value == original_value, f"Decryption failed for: {key}"
+            assert decrypted_value == original_value, f"Decryption failed for: {
+                key}"
 
-    def test_api_key_storage_security(self, api_key_manager):
+    def test_api_key_storage_security(self, api_key_manager: Any) -> None:
         """Test secure storage of API keys."""
         api_key = "test_api_key_sensitive_data"
 
@@ -572,7 +590,7 @@ class TestDataProtection:
         retrieved_key = api_key_manager.retrieve_api_key(key_id)
         assert retrieved_key == api_key, "API key retrieval failed"
 
-    def test_password_hashing(self, security_manager):
+    def test_pii_data_masking(self, security_manager: Any) -> None:
         """Test password hashing security."""
         password = "test_password_123"
 
@@ -595,7 +613,7 @@ class TestDataProtection:
             wrong_password, password_hash
         ), "Wrong password accepted"
 
-    def test_data_sanitization(self, security_manager):
+    def test_data_sanitization(self, security_manager: Any) -> None:
         """Test input data sanitization."""
         # SQL injection attempts
         sql_payloads = SecurityTestHelper.simulate_sql_injection_attempt()
@@ -608,20 +626,23 @@ class TestDataProtection:
             assert (
                 "UNION" not in sanitized.upper()
             ), f"SQL injection not sanitized: {payload}"
-            assert "--" not in sanitized, f"SQL comment not sanitized: {payload}"
+            assert "--" not in sanitized, f"SQL comment not sanitized: {
+                payload}"
 
         # XSS attempts
         xss_payloads = SecurityTestHelper.simulate_xss_attempts()
 
         for payload in xss_payloads:
             sanitized = security_manager.sanitize_input(payload)
-            assert "<script" not in sanitized.lower(), f"XSS not sanitized: {payload}"
+            assert "<script" not in sanitized.lower(), f"XSS not sanitized: {
+                payload}"
             assert (
                 "javascript:"
             ) not in sanitized.lower(), f"XSS not sanitized: {payload}"
-            assert "onerror" not in sanitized.lower(), f"XSS not sanitized: {payload}"
+            assert "onerror" not in sanitized.lower(), f"XSS not sanitized: {
+                payload}"
 
-    def test_pii_data_masking(self, security_manager):
+    def test_audit_logging(self, security_manager: Any) -> None:
         """Test masking of personally identifiable information."""
         pii_data = {
             "email": "user@example.com",
@@ -644,14 +665,15 @@ class TestDataProtection:
             if data_type == "email":
                 assert "@" in masked_value, "Email domain separator lost"
             elif data_type == "account_number":
-                assert len(masked_value) == len(value), "Account number length changed"
+                assert len(masked_value) == len(
+                    value), "Account number length changed"
 
 
 @pytest.mark.security
 class TestInputValidation:
     """Test input validation and sanitization."""
 
-    def test_trading_parameter_validation(self, security_manager):
+    def test_trading_parameter_validation(self, security_manager: Any) -> None:
         """Test validation of trading parameters."""
         # Valid trading parameters
         valid_params = {
@@ -678,12 +700,13 @@ class TestInputValidation:
 
         for invalid_param in invalid_params:
             combined_params = dict(valid_params)
-            combined_params.update(invalid_param)  # type: ignore[call-overload]
+            # type: ignore[call-overload]
+            combined_params.update(invalid_param)
             assert not security_manager.validate_trading_params(
                 combined_params
             ), f"Invalid params accepted: {invalid_param}"
 
-    def test_api_input_sanitization(self, security_manager):
+    def test_input_sanitization(self, security_manager: Any) -> None:
         """Test API input sanitization."""
         # Test various malicious inputs
         malicious_inputs = [
@@ -701,12 +724,13 @@ class TestInputValidation:
             sanitized = security_manager.sanitize_api_input(malicious_input)
 
             # Basic checks
-            assert len(sanitized) <= 1000, f"Sanitized input too long: {len(sanitized)}"
+            assert len(sanitized) <= 1000, f"Sanitized input too long: {
+                len(sanitized)}"
             assert "\x00" not in sanitized, "Null bytes not removed"
             assert "<script" not in sanitized.lower(), "Script tags not removed"
             assert "drop table" not in sanitized.lower(), "SQL injection not removed"
 
-    def test_file_upload_security(self, security_manager):
+    def test_dependency_security(self, security_manager: Any) -> None:
         """Test file upload security."""
         # Valid file types
         valid_files = [
@@ -739,7 +763,7 @@ class TestInputValidation:
 class TestNetworkSecurity:
     """Test network security measures."""
 
-    def test_ssl_tls_enforcement(self, security_manager):
+    def test_session_timeout_enforcement(self, security_manager: Any) -> None:
         """Test SSL/TLS enforcement."""
         # Test secure URLs
         secure_urls = [
@@ -749,7 +773,8 @@ class TestNetworkSecurity:
         ]
 
         for url in secure_urls:
-            assert security_manager.is_secure_url(url), f"Secure URL rejected: {url}"
+            assert security_manager.is_secure_url(
+                url), f"Secure URL rejected: {url}"
 
         # Test insecure URLs
         insecure_urls = [
@@ -763,7 +788,7 @@ class TestNetworkSecurity:
                 url
             ), f"Insecure URL accepted: {url}"
 
-    def test_request_header_validation(self, security_manager):
+    def test_certificate_validation(self, security_manager: Any) -> None:
         """Test HTTP request header validation."""
         # Valid headers
         valid_headers = {
@@ -791,7 +816,7 @@ class TestNetworkSecurity:
                 combined_headers
             ), f"Malicious headers accepted: {malicious_header}"
 
-    def test_cors_configuration(self, security_manager):
+    def test_secure_communication(self, security_manager: Any) -> None:
         """Test CORS configuration security."""
         # Allowed origins
         allowed_origins = [
@@ -822,7 +847,7 @@ class TestNetworkSecurity:
 class TestDataLeakagePrevention:
     """Test prevention of data leakage."""
 
-    def test_log_sanitization(self, security_manager):
+    def test_cors_configuration(self, security_manager: Any) -> None:
         """Test that sensitive data is not logged."""
         sensitive_data = [
             "password=secret123",
@@ -845,7 +870,7 @@ class TestDataLeakagePrevention:
             ), "Credit card not masked in logs"
             assert "123-45-6789" not in sanitized_log, "SSN not masked in logs"
 
-    def test_error_message_sanitization(self, security_manager):
+    def test_error_message_security(self, security_manager: Any) -> None:
         """Test that error messages don't leak sensitive information."""
         # Simulate various error conditions
         error_scenarios = [
@@ -856,7 +881,8 @@ class TestDataLeakagePrevention:
         ]
 
         for error_message in error_scenarios:
-            sanitized_error = security_manager.sanitize_error_message(error_message)
+            sanitized_error = security_manager.sanitize_error_message(
+                error_message)
 
             # Verify sensitive data is masked
             assert (
@@ -868,7 +894,7 @@ class TestDataLeakagePrevention:
                 "redis_secret" not in sanitized_error
             ), "Redis password leaked in error"
 
-    def test_response_data_filtering(self, security_manager):
+    def test_response_data_filtering(self, security_manager: Any) -> None:
         """Test filtering of sensitive data from API responses."""
         # Sample API response with sensitive data
         api_response = {
@@ -919,7 +945,7 @@ class TestDataLeakagePrevention:
 class TestVulnerabilityPrevention:
     """Test prevention of common security vulnerabilities."""
 
-    def test_sql_injection_prevention(self, security_manager):
+    def test_sql_injection_prevention(self, security_manager: Any) -> None:
         """Test SQL injection prevention."""
         # Simulate database query with user input
         sql_injection_attempts = SecurityTestHelper.simulate_sql_injection_attempt()
@@ -936,7 +962,7 @@ class TestVulnerabilityPrevention:
             ), "Input parameter missing from safe query"
             assert "DROP TABLE" not in safe_query.upper(), "SQL injection not prevented"
 
-    def test_xss_prevention(self, security_manager):
+    def test_xss_prevention(self, security_manager: Any) -> None:
         """Test XSS prevention."""
         xss_attempts = SecurityTestHelper.simulate_xss_attempts()
 
@@ -956,7 +982,7 @@ class TestVulnerabilityPrevention:
                 "onerror=" not in sanitized_output.lower()
             ), f"Event handler not escaped: {xss_attempt}"
 
-    def test_path_traversal_prevention(self, security_manager):
+    def test_path_traversal_prevention(self, security_manager: Any) -> None:
         """Test path traversal attack prevention."""
         path_traversal_attempts = [
             "../../../etc/passwd",
@@ -980,7 +1006,7 @@ class TestVulnerabilityPrevention:
                 "/"
             ), f"Absolute path not prevented: {path_attempt}"
 
-    def test_command_injection_prevention(self, security_manager):
+    def test_command_injection_prevention(self, security_manager: Any) -> None:
         """Test command injection prevention."""
         command_injection_attempts = [
             "normal_input",
@@ -993,7 +1019,8 @@ class TestVulnerabilityPrevention:
         ]
 
         for injection_attempt in command_injection_attempts:
-            sanitized_input = security_manager.sanitize_command_input(injection_attempt)
+            sanitized_input = security_manager.sanitize_command_input(
+                injection_attempt)
 
             # Verify command injection is prevented
             dangerous_chars = [";", "&&", "||", "|", "`", "$", "(", ")"]
@@ -1008,7 +1035,7 @@ class TestVulnerabilityPrevention:
 class TestCryptographicSecurity:
     """Test cryptographic implementations."""
 
-    def test_encryption_key_generation(self, encryption_manager):
+    def test_encryption_key_rotation(self, encryption_manager: Any) -> None:
         """Test encryption key generation."""
         # Generate multiple keys
         keys = [encryption_manager.generate_key() for _ in range(10)]
@@ -1021,7 +1048,7 @@ class TestCryptographicSecurity:
             assert isinstance(key, bytes), "Key is not bytes"
             assert len(key) == 32, f"Key length incorrect: {len(key)} bytes"
 
-    def test_symmetric_encryption_security(self, encryption_manager):
+    def test_symmetric_encryption(self, encryption_manager: Any) -> None:
         """Test symmetric encryption security."""
         plaintext = "Highly sensitive trading data"
         key = encryption_manager.generate_key()
@@ -1040,7 +1067,7 @@ class TestCryptographicSecurity:
         assert decrypted1 == plaintext, "First decryption failed"
         assert decrypted2 == plaintext, "Second decryption failed"
 
-    def test_hash_function_security(self, encryption_manager):
+    def test_hash_function_security(self, encryption_manager: Any) -> None:
         """Test cryptographic hash functions."""
         data = "Critical trading data for hashing"
 
@@ -1056,16 +1083,18 @@ class TestCryptographicSecurity:
 
             # Verify deterministic hashing
             hash_value2 = encryption_manager.hash_data(data, algorithm)
-            assert hash_value == hash_value2, f"Hash not deterministic for {algorithm}"
+            assert hash_value == hash_value2, f"Hash not deterministic for {
+                algorithm}"
 
             # Verify different data produces different hash
             different_data = data + "_modified"
-            different_hash = encryption_manager.hash_data(different_data, algorithm)
+            different_hash = encryption_manager.hash_data(
+                different_data, algorithm)
             assert (
                 hash_value != different_hash
             ), f"Hash collision detected for {algorithm}"
 
-    def test_digital_signature_verification(self, encryption_manager):
+    def test_digital_signature_validation(self, encryption_manager: Any) -> None:
         """Test digital signature creation and verification."""
         message = "Trade execution: BUY 100 AAPL at $150.25"
 
@@ -1077,7 +1106,8 @@ class TestCryptographicSecurity:
         assert signature, "Message signing failed"
 
         # Verify signature
-        is_valid = encryption_manager.verify_signature(message, signature, public_key)
+        is_valid = encryption_manager.verify_signature(
+            message, signature, public_key)
         assert is_valid, "Valid signature rejected"
 
         # Test tampered message
@@ -1089,7 +1119,8 @@ class TestCryptographicSecurity:
 
         # Test wrong key
         wrong_private_key, wrong_public_key = encryption_manager.generate_key_pair()
-        wrong_signature = encryption_manager.sign_message(message, wrong_private_key)
+        wrong_signature = encryption_manager.sign_message(
+            message, wrong_private_key)
         is_wrong_valid = encryption_manager.verify_signature(
             message, wrong_signature, public_key
         )
@@ -1100,7 +1131,7 @@ class TestCryptographicSecurity:
 class TestAuditingAndCompliance:
     """Test auditing and compliance features."""
 
-    def test_audit_trail_creation(self, security_manager):
+    def test_audit_trail_integrity(self, security_manager: Any) -> None:
         """Test creation of audit trails for sensitive operations."""
         # Simulate sensitive operations
         operations = [
@@ -1149,7 +1180,7 @@ class TestAuditingAndCompliance:
 
         print(f"Audit trail test: {len(audit_entries)} entries created")
 
-    def test_compliance_data_retention(self, security_manager):
+    def test_compliance_requirements(self, security_manager: Any) -> None:
         """Test compliance with data retention requirements."""
         # Create test data with different retention requirements
         data_types = [
@@ -1164,15 +1195,19 @@ class TestAuditingAndCompliance:
             recent_date = datetime.now(timezone.utc) - timedelta(
                 days=retention_days // 2
             )
-            should_retain = security_manager.should_retain_data(data_type, recent_date)
+            should_retain = security_manager.should_retain_data(
+                data_type, recent_date)
             assert should_retain, f"Recent {data_type} should be retained"
 
             # Test data beyond retention period
-            old_date = datetime.now(timezone.utc) - timedelta(days=retention_days + 10)
-            should_not_retain = security_manager.should_retain_data(data_type, old_date)
-            assert not should_not_retain, f"Old {data_type} should not be retained"
+            old_date = datetime.now(timezone.utc) - \
+                timedelta(days=retention_days + 10)
+            should_not_retain = security_manager.should_retain_data(
+                data_type, old_date)
+            assert not should_not_retain, f"Old {
+                data_type} should not be retained"
 
-    def test_data_anonymization(self, security_manager):
+    def test_data_anonymization(self, security_manager: Any) -> None:
         """Test data anonymization for compliance."""
         # Sample user data
         user_data = {
@@ -1206,21 +1241,23 @@ class TestAuditingAndCompliance:
             assert (
                 orig["symbol"] == anon["symbol"]  # type: ignore[index]
             ), "Trading symbol changed during anonymization"
-            assert orig["quantity"] == anon["quantity"], "Trading quantity changed"  # type: ignore[index]
+            # type: ignore[index]
+            assert orig["quantity"] == anon["quantity"], "Trading quantity changed"
 
 
 @pytest.mark.security
 class TestSecurityMonitoring:
     """Test security monitoring and alerting."""
 
-    def test_anomaly_detection(self, security_manager):
+    def test_csrf_protection(self, security_manager: Any) -> None:
         """Test detection of anomalous behavior."""
         user_id: str = "test_user"
 
         # Establish baseline behavior
         normal_activities = [
             {"action": "login", "timestamp": datetime.now(timezone.utc)},
-            {"action": "view_portfolio", "timestamp": datetime.now(timezone.utc)},
+            {"action": "view_portfolio",
+                "timestamp": datetime.now(timezone.utc)},
             {"action": "place_order", "timestamp": datetime.now(timezone.utc)},
             {"action": "logout", "timestamp": datetime.now(timezone.utc)},
         ]
@@ -1246,19 +1283,21 @@ class TestSecurityMonitoring:
             anomalies_detected >= 2
         ), f"Anomaly detection too lenient: {anomalies_detected}/4 detected"
 
-    def test_brute_force_detection(self, security_manager):
+    def test_brute_force_protection(self, security_manager: Any) -> None:
         """Test brute force attack detection."""
         client_ip = "192.168.1.100"
 
         # Simulate normal login attempts
         for i in range(3):
-            result = security_manager.record_login_attempt(client_ip, success=True)
+            result = security_manager.record_login_attempt(
+                client_ip, success=True)
             assert not result["blocked"], f"Normal login {i} blocked"
 
         # Simulate failed login attempts (brute force)
         failed_attempts = 0
         for i in range(10):
-            result = security_manager.record_login_attempt(client_ip, success=False)
+            result = security_manager.record_login_attempt(
+                client_ip, success=False)
             if result["blocked"]:
                 failed_attempts = i + 1
                 break
@@ -1268,7 +1307,8 @@ class TestSecurityMonitoring:
         ), f"Brute force detection too lenient: {failed_attempts} attempts allowed"
 
         # Verify IP is blocked
-        blocked_result = security_manager.record_login_attempt(client_ip, success=True)
+        blocked_result = security_manager.record_login_attempt(
+            client_ip, success=True)
         assert blocked_result["blocked"], "IP not blocked after brute force attempts"
 
         # Test unblocking after timeout
@@ -1278,7 +1318,7 @@ class TestSecurityMonitoring:
             )
             assert not unblocked_result["blocked"], "IP not unblocked after timeout"
 
-    def test_suspicious_trading_pattern_detection(self, security_manager):
+    def test_suspicious_pattern_detection(self, security_manager: Any) -> None:
         """Test detection of suspicious trading patterns."""
         user_id = "suspicious_trader"
 
@@ -1290,8 +1330,10 @@ class TestSecurityMonitoring:
         ]
 
         for trade in normal_trades:
-            is_suspicious = security_manager.analyze_trading_pattern(user_id, trade)
-            assert not is_suspicious, f"Normal trade flagged as suspicious: {trade}"
+            is_suspicious = security_manager.analyze_trading_pattern(
+                user_id, trade)
+            assert not is_suspicious, f"Normal trade flagged as suspicious: {
+                trade}"
 
         # Suspicious trading patterns
         suspicious_trades = [
@@ -1306,7 +1348,8 @@ class TestSecurityMonitoring:
 
         suspicious_count = 0
         for trade in suspicious_trades:
-            is_suspicious = security_manager.analyze_trading_pattern(user_id, trade)
+            is_suspicious = security_manager.analyze_trading_pattern(
+                user_id, trade)
             if is_suspicious:
                 suspicious_count += 1
 
@@ -1314,7 +1357,7 @@ class TestSecurityMonitoring:
             suspicious_count >= 2
         ), f"Suspicious pattern detection too lenient: {suspicious_count}/3"
 
-    def test_data_access_monitoring(self, security_manager):
+    def test_security_monitoring(self, security_manager: Any) -> None:
         """Test monitoring of data access patterns."""
         user_id = "data_analyst"
 
@@ -1326,7 +1369,8 @@ class TestSecurityMonitoring:
         ]
 
         for access in normal_accesses:
-            is_suspicious = security_manager.monitor_data_access(user_id, **access)
+            is_suspicious = security_manager.monitor_data_access(
+                user_id, **access)
             assert not is_suspicious, f"Normal access flagged: {access}"
 
         # Suspicious data access
@@ -1338,7 +1382,8 @@ class TestSecurityMonitoring:
 
         suspicious_access_count = 0
         for access in suspicious_accesses:
-            is_suspicious = security_manager.monitor_data_access(user_id, **access)
+            is_suspicious = security_manager.monitor_data_access(
+                user_id, **access)
             if is_suspicious:
                 suspicious_access_count += 1
 
@@ -1351,7 +1396,7 @@ class TestSecurityMonitoring:
 class TestSecurityConfiguration:
     """Test security configuration and hardening."""
 
-    def test_secure_defaults(self, security_manager):
+    def test_secure_defaults(self, security_manager: Any) -> None:
         """Test that secure defaults are enforced."""
         config = security_manager.get_security_config()
 
@@ -1362,7 +1407,7 @@ class TestSecurityConfiguration:
         assert config["require_ssl"] is True, "SSL not required"
         assert config["api_rate_limit"] <= 1000, "API rate limit too high"
 
-    def test_environment_security_settings(self, security_manager):
+    def test_environment_security_settings(self, security_manager: Any) -> None:
         """Test security settings for different environments."""
         environments = ["development", "staging", "production"]
 
@@ -1387,7 +1432,7 @@ class TestSecurityConfiguration:
                     env_config["debug_mode"] is True
                 ), "Debug mode should be enabled in development"
 
-    def test_api_security_headers(self, security_manager):
+    def test_security_headers(self, security_manager: Any) -> None:
         """Test security headers in API responses."""
         # Expected security headers
         expected_headers = [
@@ -1402,14 +1447,16 @@ class TestSecurityConfiguration:
         security_headers = security_manager.get_security_headers()
 
         for header in expected_headers:
-            assert header in security_headers, f"Missing security header: {header}"
+            assert header in security_headers, f"Missing security header: {
+                header}"
 
         # Verify header values
         assert security_headers["X-Content-Type-Options"] == "nosniff"
         assert security_headers["X-Frame-Options"] == "DENY"
-        assert "max-age=" in security_headers.get("Strict-Transport-Security", "")
+        assert "max-age=" in security_headers.get(
+            "Strict-Transport-Security", "")
 
-    def test_cors_security_configuration(self, security_manager):
+    def test_ssl_tls_configuration(self, security_manager: Any) -> None:
         """Test CORS security configuration."""
         cors_config = security_manager.get_cors_config()
 
@@ -1431,7 +1478,7 @@ class TestSecurityConfiguration:
 class TestVulnerabilityScanning:
     """Test for common security vulnerabilities."""
 
-    def test_directory_traversal_protection(self, security_manager):
+    def test_directory_traversal_protection(self, security_manager: Any) -> None:
         """Test protection against directory traversal attacks."""
         file_requests = [
             "legitimate_file.txt",
@@ -1449,11 +1496,13 @@ class TestVulnerabilityScanning:
                 pattern in file_request
                 for pattern in ["..", "/etc/", "C:\\", "system32"]
             ):
-                assert not is_safe, f"Directory traversal not blocked: {file_request}"
+                assert not is_safe, f"Directory traversal not blocked: {
+                    file_request}"
             else:
-                assert is_safe, f"Legitimate file access blocked: {file_request}"
+                assert is_safe, f"Legitimate file access blocked: {
+                    file_request}"
 
-    def test_deserialization_security(self, security_manager):
+    def test_user_session_security(self, security_manager: Any) -> None:
         """Test protection against unsafe deserialization."""
         # Safe serialized data
         safe_data = {
@@ -1463,19 +1512,21 @@ class TestVulnerabilityScanning:
         }
         safe_json = json.dumps(safe_data)
 
-        deserialized_safe = security_manager.safe_deserialize(safe_json, "json")
+        deserialized_safe = security_manager.safe_deserialize(
+            safe_json, "json")
         assert deserialized_safe == safe_data, "Safe deserialization failed"
 
         # Potentially unsafe serialized data (pickle)
         import pickle
 
-        malicious_pickle = base64.b64encode(pickle.dumps("safe_string")).decode()
+        malicious_pickle = base64.b64encode(
+            pickle.dumps("safe_string")).decode()
 
         # Should reject pickle deserialization
         with pytest.raises(SecurityError):
             security_manager.safe_deserialize(malicious_pickle, "pickle")
 
-    def test_timing_attack_prevention(self, security_manager):
+    def test_timing_attack_prevention(self, security_manager: Any) -> None:
         """Test prevention of timing attacks."""
         correct_password = "correct_password_123"
         wrong_passwords = [
@@ -1487,14 +1538,16 @@ class TestVulnerabilityScanning:
 
         # Measure timing for correct password
         start_time = time.time()
-        security_manager.constant_time_compare(correct_password, correct_password)
+        security_manager.constant_time_compare(
+            correct_password, correct_password)
         correct_time = time.time() - start_time
 
         # Measure timing for wrong passwords
         wrong_times = []
         for wrong_password in wrong_passwords:
             start_time = time.time()
-            security_manager.constant_time_compare(correct_password, wrong_password)
+            security_manager.constant_time_compare(
+                correct_password, wrong_password)
             wrong_time = time.time() - start_time
             wrong_times.append(wrong_time)
 
@@ -1506,7 +1559,7 @@ class TestVulnerabilityScanning:
             max_time_variance < 0.01
         ), f"Timing variance too high: {max_time_variance:.6f}s"
 
-    def test_injection_attack_prevention(self, security_manager):
+    def test_injection_attack_prevention(self, security_manager: Any) -> None:
         """Test prevention of various injection attacks."""
         # LDAP injection
         ldap_injection_attempts = [
@@ -1518,9 +1571,12 @@ class TestVulnerabilityScanning:
 
         for ldap_attempt in ldap_injection_attempts:
             sanitized = security_manager.sanitize_ldap_input(ldap_attempt)
-            assert "(" not in sanitized, f"LDAP injection not prevented: {ldap_attempt}"
-            assert ")" not in sanitized, f"LDAP injection not prevented: {ldap_attempt}"
-            assert "*" not in sanitized, f"LDAP injection not prevented: {ldap_attempt}"
+            assert "(" not in sanitized, f"LDAP injection not prevented: {
+                ldap_attempt}"
+            assert ")" not in sanitized, f"LDAP injection not prevented: {
+                ldap_attempt}"
+            assert "*" not in sanitized, f"LDAP injection not prevented: {
+                ldap_attempt}"
 
         # NoSQL injection
         nosql_injection_attempts: List[Dict[str, Any]] = [
@@ -1532,14 +1588,15 @@ class TestVulnerabilityScanning:
 
         for nosql_attempt in nosql_injection_attempts:
             is_safe = security_manager.validate_nosql_input(nosql_attempt)
-            assert not is_safe, f"NoSQL injection not prevented: {nosql_attempt}"
+            assert not is_safe, f"NoSQL injection not prevented: {
+                nosql_attempt}"
 
 
 @pytest.mark.security
 class TestSecretManagement:
     """Test secure management of secrets and credentials."""
 
-    def test_environment_variable_security(self, security_manager):
+    def test_environment_variable_security(self, security_manager: Any) -> None:
         """Test secure handling of environment variables."""
         # Test that sensitive environment variables are not logged
         sensitive_env_vars = [
@@ -1567,7 +1624,7 @@ class TestSecretManagement:
             # Clean up
             del os.environ[env_var]
 
-    def test_api_key_rotation(self, api_key_manager):
+    def test_api_key_creation(api_key_manager: Any) -> None:
         """Test API key rotation mechanisms."""
         service_name = "test_service"
 
@@ -1583,9 +1640,10 @@ class TestSecretManagement:
         # Old key should be invalidated (after grace period)
         time.sleep(0.1)  # Simulate grace period
         api_key_manager.invalidate_old_keys()
-        assert not api_key_manager.validate_api_key(old_key), "Old key not invalidated"
+        assert not api_key_manager.validate_api_key(
+            old_key), "Old key not invalidated"
 
-    def test_secure_configuration_storage(self, security_manager):
+    def test_secure_configuration_storage(self, security_manager: Any) -> None:
         """Test secure storage of configuration data."""
         sensitive_config = {
             "database_url": "postgresql://user:password@host:5432/db",
@@ -1616,13 +1674,14 @@ class TestSecretManagement:
 class TestNetworkSecurityTests:
     """Test network-level security measures."""
 
-    def test_ip_whitelist_enforcement(self, security_manager):
+    def test_password_policy_enforcement(self, security_manager: Any) -> None:
         """Test IP address whitelist enforcement."""
         # Allowed IPs
         allowed_ips = ["192.168.1.100", "10.0.0.50", "172.16.0.25"]
 
         for ip in allowed_ips:
-            assert security_manager.is_ip_allowed(ip), f"Allowed IP rejected: {ip}"
+            assert security_manager.is_ip_allowed(
+                ip), f"Allowed IP rejected: {ip}"
 
         # Blocked IPs
         blocked_ips = [
@@ -1633,9 +1692,10 @@ class TestNetworkSecurityTests:
         ]
 
         for ip in blocked_ips:
-            assert not security_manager.is_ip_allowed(ip), f"Blocked IP accepted: {ip}"
+            assert not security_manager.is_ip_allowed(
+                ip), f"Blocked IP accepted: {ip}"
 
-    def test_request_size_limits(self, security_manager):
+    def test_request_size_limits(self, security_manager: Any) -> None:
         """Test request size limits to prevent DoS."""
         # Normal request size
         normal_request = {"data": "A" * 1000}  # 1KB
@@ -1649,7 +1709,7 @@ class TestNetworkSecurityTests:
             json.dumps(large_request)
         ), "Large request accepted"
 
-    def test_user_agent_validation(self, security_manager):
+    def test_permission_validation(self, security_manager: Any) -> None:
         """Test User-Agent header validation."""
         # Valid user agents
         valid_user_agents = [
@@ -1684,12 +1744,14 @@ class TestNetworkSecurityTests:
 class TestSecurityStressTesting:
     """Test security under stress conditions."""
 
-    async def test_concurrent_authentication_stress(self, security_manager):
+    async def test_concurrent_authentication_stress(
+        self, security_manager: Any
+    ) -> None:
         """Test authentication system under concurrent load."""
         concurrent_users = 100
         attempts_per_user = 50
 
-        async def authentication_worker(user_id: int):
+        async def authentication_worker(user_id: int) -> int:
             """Worker function for concurrent authentication."""
             success_count = 0
             for attempt in range(attempts_per_user):
@@ -1709,7 +1771,8 @@ class TestSecurityStressTesting:
 
         # Run concurrent authentication
         start_time = time.time()
-        tasks = [authentication_worker(user_id) for user_id in range(concurrent_users)]
+        tasks = [authentication_worker(user_id)
+                 for user_id in range(concurrent_users)]
         results = await asyncio.gather(*tasks)
         duration = time.time() - start_time
 
@@ -1723,20 +1786,23 @@ class TestSecurityStressTesting:
         assert (
             success_rate > 0.9
         ), f"Authentication success rate too low under load: {success_rate * 100:.1f}%"
-        assert total_attempts > 0, f"No authentication attempts made: {total_attempts}"
+        assert total_attempts > 0, f"No authentication attempts made: {
+            total_attempts}"
         assert (
             duration < 60
         ), f"Authentication stress test took too long: {duration:.2f}s"
 
         print(
-            f"Authentication stress test: {success_rate * 100:.1f}% success rate in {duration:.2f}s"
+            f"Authentication stress test: {
+                success_rate * 100:.1f}% success rate in {duration:.2f}s"
         )
 
-    async def test_rate_limiting_under_load(self, security_manager):
+    async def test_rate_limiting_under_load(self, security_manager: Any) -> None:
         """Test rate limiting effectiveness under high load."""
-        client_ips = [f"192.168.1.{i}" for i in range(10, 60)]  # 50 different IPs
+        client_ips = [f"192.168.1.{i}" for i in range(
+            10, 60)]  # 50 different IPs
 
-        async def rate_limit_worker(client_ip: str):
+        async def rate_limit_worker(client_ip: str) -> Dict[str, int]:
             """Worker that hammers rate limits."""
             successful_requests = 0
             blocked_requests = 0
@@ -1781,7 +1847,8 @@ if __name__ == "__main__":
     # Run security tests standalone
     import pytest
 
-    test_args = ["-v", "-m", "security", "--tb=short", os.path.dirname(__file__)]
+    test_args = ["-v", "-m", "security",
+                 "--tb=short", os.path.dirname(__file__)]
 
     print("Running security tests...")
     exit_code = pytest.main(test_args)

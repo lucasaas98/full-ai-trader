@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 class DataCollectorHTTPServer:
     """HTTP server for data collector service endpoints."""
 
-    def __init__(self, data_service=None, port: int = 9101, host: str = "0.0.0.0"):
+    def __init__(
+        self,
+        data_service: Optional[Any] = None,
+        port: int = 9101,
+        host: str = "0.0.0.0",
+    ):
         """
         Initialize the HTTP server.
 
@@ -86,7 +91,7 @@ class DataCollectorHTTPServer:
 
         return app
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the HTTP server."""
         try:
             self.app = await self.create_app()
@@ -102,7 +107,7 @@ class DataCollectorHTTPServer:
             self.logger.error(f"Failed to start HTTP server: {e}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the HTTP server."""
         try:
             if self.site:
@@ -117,7 +122,7 @@ class DataCollectorHTTPServer:
             self.logger.error(f"Error stopping HTTP server: {e}")
 
     @web.middleware
-    async def cors_handler(self, request: Request, handler):
+    async def cors_handler(self, request: Request, handler) -> Response:
         """CORS middleware."""
         response = await handler(request)
         response.headers["Access-Control-Allow-Origin"] = "*"
@@ -126,7 +131,7 @@ class DataCollectorHTTPServer:
         return response
 
     @web.middleware
-    async def error_handler(self, request: Request, handler):
+    async def error_handler(self, request: Request, handler) -> Response:
         """Error handling middleware."""
         try:
             return await handler(request)
@@ -426,7 +431,7 @@ class DataCollectorHTTPServer:
 
         return health_info
 
-    def _init_prometheus_metrics(self):
+    def _init_prometheus_metrics(self) -> None:
         """Initialize Prometheus metrics."""
         # Service status metrics
         self.active_tickers_gauge = Gauge(
@@ -480,7 +485,7 @@ class DataCollectorHTTPServer:
             ["endpoint", "method"],
         )
 
-    async def _update_prometheus_metrics(self):
+    async def _update_prometheus_metrics(self) -> None:
         """Update Prometheus metrics with current values."""
         if not self.data_service:
             return

@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def publish_daily_summary_trigger():
+async def publish_daily_summary_trigger() -> bool:
     """Publish a manual daily summary trigger via Redis."""
     redis_client = None
     try:
@@ -113,7 +113,7 @@ async def publish_daily_summary_trigger():
                 pass
 
 
-async def send_direct_notification_trigger():
+async def send_direct_notification_trigger() -> bool:
     """Send a direct trigger by publishing to the notification channels."""
     redis_client = None
     try:
@@ -189,7 +189,7 @@ async def send_direct_notification_trigger():
                 pass
 
 
-def check_environment():
+def check_environment() -> bool:
     """Check if required Redis environment variables are set."""
     redis_url = os.getenv("REDIS_URL")
     redis_host = os.getenv("REDIS_HOST")
@@ -204,7 +204,7 @@ def check_environment():
     return True
 
 
-def main():
+def main() -> None:
     """Main function."""
     print("🚀 Redis Daily Summary Trigger Script")
     print("=" * 50)
@@ -229,7 +229,7 @@ def main():
     print("\n📡 Triggering daily summary via Redis...")
 
     # Try both methods
-    async def run_triggers():
+    async def run_triggers() -> bool:
         print("\n1️⃣ Trying system control trigger...")
         success1 = await publish_daily_summary_trigger()
 

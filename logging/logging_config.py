@@ -19,7 +19,9 @@ class TradingSystemProcessor:
         self.service_name = service_name
         self.environment = environment
 
-    def __call__(self, logger, method_name, event_dict):
+    def __call__(
+        self, logger: Any, method_name: str, event_dict: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Process log event"""
         # Add service metadata
         event_dict["service"] = self.service_name
@@ -44,7 +46,12 @@ class TradingSystemProcessor:
 class TradingJSONFormatter(JsonFormatter):
     """Custom JSON formatter for trading system logs"""
 
-    def add_fields(self, log_record, record, message_dict):
+    def add_fields(
+        self,
+        log_record: Dict[str, Any],
+        record: logging.LogRecord,
+        message_dict: Dict[str, Any],
+    ) -> None:
         super().add_fields(log_record, record, message_dict)
 
         # Ensure timestamp is present
@@ -80,7 +87,12 @@ class TradingJSONFormatter(JsonFormatter):
 class TradeAuditFormatter(JsonFormatter):
     """Special formatter for trade audit logs"""
 
-    def add_fields(self, log_record, record, message_dict):
+    def add_fields(
+        self,
+        log_record: Dict[str, Any],
+        record: logging.LogRecord,
+        message_dict: Dict[str, Any],
+    ) -> None:
         super().add_fields(log_record, record, message_dict)
 
         # Add audit-specific fields
@@ -107,7 +119,7 @@ class SecurityFilter(logging.Filter):
         "private_key",
     ]
 
-    def filter(self, record):
+    def filter(self, record: logging.LogRecord) -> bool:
         """Filter sensitive information"""
         if hasattr(record, "msg") and isinstance(record.msg, str):
             message = record.msg
@@ -123,7 +135,7 @@ class SecurityFilter(logging.Filter):
                 if isinstance(arg, (str, dict)):
                     filtered_args.append(self._mask_sensitive_data(str(arg)))
                 else:
-                    filtered_args.append(arg)
+                    filtered_args.append(str(arg))
             record.args = tuple(filtered_args)
 
         return True
@@ -332,27 +344,27 @@ class TradingLogger:
         self.risk_logger = logging.getLogger("risk_events")
         self.performance_logger = logging.getLogger("performance")
 
-    def info(self, message: str, **kwargs):
+    def info(self, message: str, **kwargs: Any) -> None:
         """Log info message with context"""
         self.logger.info(message, **kwargs)
 
-    def warning(self, message: str, **kwargs):
+    def warning(self, message: str, **kwargs: Any) -> None:
         """Log warning message with context"""
         self.logger.warning(message, **kwargs)
 
-    def error(self, message: str, **kwargs):
+    def error(self, message: str, **kwargs: Any) -> None:
         """Log error message with context"""
         self.logger.error(message, **kwargs)
 
-    def critical(self, message: str, **kwargs):
+    def critical(self, message: str, **kwargs: Any) -> None:
         """Log critical message with context"""
         self.logger.critical(message, **kwargs)
 
-    def debug(self, message: str, **kwargs):
+    def debug(self, message: str, **kwargs: Any) -> None:
         """Log debug message with context"""
         self.logger.debug(message, **kwargs)
 
-    def log_trade_execution(self, trade_data: Dict[str, Any]):
+    def log_trade_execution(self, trade_data: Dict[str, Any]) -> None:
         """Log trade execution for audit trail"""
         audit_data = {
             "event_type": "trade_execution",
@@ -385,7 +397,7 @@ class TradingLogger:
             strategy=trade_data.get("strategy"),
         )
 
-    def log_signal_generation(self, signal_data: Dict[str, Any]):
+    def log_signal_generation(self, signal_data: Dict[str, Any]) -> None:
         """Log signal generation"""
         self.logger.info(
             "Trading signal generated",
@@ -397,7 +409,7 @@ class TradingLogger:
             metadata=signal_data.get("metadata", {}),
         )
 
-    def log_risk_event(self, risk_event_data: Dict[str, Any]):
+    def log_risk_event(self, risk_event_data: Dict[str, Any]) -> None:
         """Log risk management event"""
         self.risk_logger.warning(
             f"Risk event: {risk_event_data.get('event_type', 'unknown')}",
@@ -426,7 +438,7 @@ class TradingLogger:
                 message=risk_event_data.get("message"),
             )
 
-    def log_portfolio_update(self, portfolio_data: Dict[str, Any]):
+    def log_portfolio_update(self, portfolio_data: Dict[str, Any]) -> None:
         """Log portfolio state updates"""
         self.logger.info(
             "Portfolio updated",
@@ -443,7 +455,7 @@ class TradingLogger:
             "Portfolio performance update", extra=portfolio_data
         )
 
-    def log_market_data_collection(self, collection_data: Dict[str, Any]):
+    def log_market_data_collection(self, collection_data: Dict[str, Any]) -> None:
         """Log market data collection events"""
         self.logger.debug(
             "Market data collected",
@@ -454,7 +466,7 @@ class TradingLogger:
             collection_time=collection_data.get("collection_time"),
         )
 
-    def log_api_request(self, api_data: Dict[str, Any]):
+    def log_api_request(self, api_data: Dict[str, Any]) -> None:
         """Log external API requests"""
         self.logger.debug(
             "External API request",
@@ -466,7 +478,7 @@ class TradingLogger:
             rate_limited=api_data.get("rate_limited", False),
         )
 
-    def log_database_operation(self, db_data: Dict[str, Any]):
+    def log_database_event(self, db_data: Dict[str, Any]) -> None:
         """Log database operations"""
         self.logger.debug(
             "Database operation",
@@ -477,7 +489,7 @@ class TradingLogger:
             success=db_data.get("success", True),
         )
 
-    def log_system_event(self, event_data: Dict[str, Any]):
+    def log_system_event(self, event_data: Dict[str, Any]) -> None:
         """Log system-level events"""
         level = event_data.get("level", "info").lower()
 
@@ -502,7 +514,7 @@ class TradingLogger:
                 **{k: v for k, v in event_data.items() if k != "message"},
             )
 
-    def log_strategy_performance(self, strategy_data: Dict[str, Any]):
+    def log_strategy_performance(self, strategy_data: Dict[str, Any]) -> None:
         """Log strategy performance metrics"""
         self.performance_logger.info(
             f"Strategy performance: {strategy_data.get('strategy_name')}",
@@ -522,7 +534,7 @@ class TradingLogger:
             total_trades=strategy_data.get("total_trades"),
         )
 
-    def log_order_lifecycle(self, order_data: Dict[str, Any], event_type: str):
+    def log_order_lifecycle(self, order_data: Dict[str, Any], event_type: str) -> None:
         """Log order lifecycle events"""
         self.audit_logger.info(
             f"Order {event_type}",
@@ -543,7 +555,9 @@ class TradingLogger:
             },
         )
 
-    def log_error_with_context(self, error: Exception, context: Dict[str, Any]):
+    def log_error_with_context(
+        self, error: Exception, context: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Log error with full context"""
         self.logger.error(
             f"Error occurred: {str(error)}",
@@ -555,7 +569,7 @@ class TradingLogger:
 
     def log_performance_metric(
         self, metric_name: str, value: float, metadata: Optional[Dict[str, Any]] = None
-    ):
+    ) -> None:
         """Log performance metrics"""
         self.performance_logger.info(
             f"Performance metric: {metric_name}",
@@ -568,23 +582,23 @@ class TradingLogger:
             },
         )
 
-    def log_business_event(self, event_type: str, event_data: Dict[str, Any]):
+    def log_business_event(self, event_type: str, event_data: Dict[str, Any]) -> None:
         """Log business-level events"""
         self.logger.info(
             f"Business event: {event_type}", event_type=event_type, **event_data
         )
 
-    def with_context(self, **context) -> "TradingLogger":
+    def with_context(self, **context: Any) -> "TradingLogger":
         """Create logger with additional context"""
         # Add context to structlog
         structlog.contextvars.bind_contextvars(**context)
         return self
 
-    def add_correlation_id(self, correlation_id: str):
+    def set_correlation_id(self, correlation_id: str) -> None:
         """Add correlation ID to log context"""
         structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
 
-    def clear_context(self):
+    def clear_context(self) -> None:
         """Clear log context"""
         structlog.contextvars.clear_contextvars()
 

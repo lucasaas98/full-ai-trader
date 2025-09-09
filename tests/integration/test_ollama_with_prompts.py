@@ -238,7 +238,7 @@ class TestOllamaWithPrompts:
     """Integration tests for Ollama using production prompts."""
 
     @pytest.fixture
-    def prompts_config_path(self):
+    def prompts_config_path(self) -> str:
         """Get path to prompts configuration."""
         config_path = (
             Path(__file__).parent.parent.parent
@@ -251,24 +251,26 @@ class TestOllamaWithPrompts:
         return str(config_path)
 
     @pytest.fixture
-    def ollama_client(self):
+    def ollama_client(self) -> OllamaClient:
         """Create Ollama client."""
         url = os.getenv("OLLAMA_URL", "http://192.168.1.133:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
         return OllamaClient(url, model)
 
     @pytest.fixture
-    def prompt_processor(self, prompts_config_path):
+    def prompt_processor(self, prompts_config_path: str) -> ProductionPromptProcessor:
         """Create prompt processor."""
         return ProductionPromptProcessor(prompts_config_path)
 
     @pytest.fixture
-    def trading_simulator(self, ollama_client, prompt_processor):
+    def trading_simulator(
+        self, ollama_client: OllamaClient, prompt_processor: ProductionPromptProcessor
+    ) -> TradingSignalSimulator:
         """Create trading signal simulator."""
         return TradingSignalSimulator(ollama_client, prompt_processor)
 
     @pytest.fixture
-    def sample_stocks(self):
+    def sample_stocks(self) -> List[Dict[str, Any]]:
         """Sample stock data for testing."""
         return [
             {
@@ -306,7 +308,7 @@ class TestOllamaWithPrompts:
             },
         ]
 
-    async def test_ollama_health_check(self, ollama_client):
+    async def test_ollama_health_check(self, ollama_client: OllamaClient) -> None:
         """Test Ollama server connectivity."""
         health_check = await ollama_client.health_check()
 
@@ -320,7 +322,9 @@ class TestOllamaWithPrompts:
         print(f"Available models: {models}")
         assert len(models) > 0, "Should have at least one model"
 
-    async def test_prompt_loading(self, prompt_processor):
+    async def test_prompt_loading(
+        self, prompt_processor: ProductionPromptProcessor
+    ) -> None:
         """Test that production prompts load correctly."""
         assert prompt_processor.prompts_config is not None
 
@@ -335,7 +339,9 @@ class TestOllamaWithPrompts:
         print(f"Loaded prompt types: {list(prompts.keys())}")
         print(f"Master analyst model preference: {master_config['model_preference']}")
 
-    async def test_production_prompt_generation(self, prompt_processor, sample_stocks):
+    async def test_production_prompt_generation(
+        self, prompt_processor: ProductionPromptProcessor, sample_stocks: list
+    ) -> None:
         """Test production prompt generation with real templates."""
         stock_data = sample_stocks[0]  # AAPL
 
@@ -352,7 +358,9 @@ class TestOllamaWithPrompts:
         print(f"Generated prompt length: {len(prompt)} characters")
         print(f"Prompt preview:\n{prompt[:800]}...")
 
-    async def test_signal_processing_workflow(self, trading_simulator, sample_stocks):
+    async def test_signal_processing_workflow(
+        self, trading_simulator: TradingSignalSimulator, sample_stocks: list
+    ) -> None:
         """Test complete signal processing workflow."""
         # Skip if Ollama not available
         health_check = await trading_simulator.ollama_client.health_check()
@@ -390,7 +398,9 @@ class TestOllamaWithPrompts:
         if decision.get("take_profit"):
             print(f"Take Profit: ${decision['take_profit']}")
 
-    async def test_multiple_stock_analysis(self, trading_simulator, sample_stocks):
+    async def test_multiple_stock_analysis(
+        self, trading_simulator: TradingSignalSimulator, sample_stocks: list
+    ) -> None:
         """Test analyzing multiple stocks."""
         # Skip if Ollama not available
         health_check = await trading_simulator.ollama_client.health_check()
@@ -434,7 +444,9 @@ class TestOllamaWithPrompts:
         print(f"Average confidence: {avg_confidence:.1f}%")
         print(f"Average processing time: {avg_processing_time:.2f}s")
 
-    async def test_scenario_analysis(self, trading_simulator):
+    async def test_scenario_analysis(
+        self, trading_simulator: TradingSignalSimulator
+    ) -> None:
         """Test different market scenarios."""
         # Skip if Ollama not available
         health_check = await trading_simulator.ollama_client.health_check()
@@ -491,7 +503,9 @@ class TestOllamaWithPrompts:
             print(f"Decision: {decision['decision']} ({decision['confidence']}%)")
             print(f"Reasoning: {decision['reasoning'][:100]}...")
 
-    async def test_production_data_integration(self, trading_simulator):
+    async def test_production_data_integration(
+        self, trading_simulator: TradingSignalSimulator
+    ) -> None:
         """Test with production parquet data if available."""
         # Skip if Ollama not available
         health_check = await trading_simulator.ollama_client.health_check()
@@ -547,7 +561,9 @@ class TestOllamaWithPrompts:
         assert decision["decision"] in ["BUY", "SELL", "HOLD"]
 
     @pytest.mark.slow
-    async def test_performance_benchmarking(self, trading_simulator, sample_stocks):
+    async def test_performance_benchmarking(
+        self, trading_simulator: TradingSignalSimulator, sample_stocks: list
+    ) -> None:
         """Benchmark AI performance."""
         # Skip if Ollama not available
         health_check = await trading_simulator.ollama_client.health_check()

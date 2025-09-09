@@ -8,6 +8,8 @@ They test the actual service integration and business logic flows.
 import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -23,7 +25,7 @@ class TestDataCollectionServiceIntegration:
     """Integration tests for the complete data collection service"""
 
     @pytest.fixture
-    async def service_config(self):
+    async def service_config(self) -> dict:
         """Create test service configuration"""
         return {
             "service_name": "test_data_collector",
@@ -37,7 +39,7 @@ class TestDataCollectionServiceIntegration:
         }
 
     @pytest.fixture
-    async def mock_data_store(self, tmp_path):
+    async def mock_data_store(self, tmp_path: Any) -> MagicMock:
         """Create mock data store with temporary directory"""
         _ = {
             "base_path": str(tmp_path),
@@ -49,7 +51,9 @@ class TestDataCollectionServiceIntegration:
         return MagicMock()
 
     @pytest.fixture
-    async def data_service(self, service_config, mock_data_store):
+    async def data_service(
+        self, service_config: dict, mock_data_store: MagicMock
+    ) -> MagicMock:
         """Create data collection service for testing"""
         # config = DataCollectionConfig(**service_config)
         # service = DataCollectionService(config)
@@ -57,7 +61,7 @@ class TestDataCollectionServiceIntegration:
         # return service
         return MagicMock()
 
-    async def test_service_initialization(self, data_service):
+    async def test_service_initialization(self, data_service: MagicMock) -> None:
         """Test that the service initializes properly"""
         # await data_service.initialize()
 
@@ -69,7 +73,7 @@ class TestDataCollectionServiceIntegration:
         # assert 'errors' in data_service._stats
         pass
 
-    async def test_service_start_stop_lifecycle(self, data_service):
+    async def test_service_start_stop_lifecycle(self, data_service: MagicMock) -> None:
         """Test service start/stop lifecycle"""
         # Test starting the service
         # await data_service.start()
@@ -80,7 +84,7 @@ class TestDataCollectionServiceIntegration:
         # assert data_service.is_running is False
         pass
 
-    async def test_ticker_management_workflow(self, data_service):
+    async def test_ticker_management_workflow(self, data_service: MagicMock) -> None:
         """Test complete ticker management workflow"""
         # await data_service.initialize()
 
@@ -95,7 +99,7 @@ class TestDataCollectionServiceIntegration:
         # assert "AAPL" not in active_tickers
         pass
 
-    async def test_finviz_scan_integration(self, data_service):
+    async def test_finviz_scan_integration(self, data_service: MagicMock) -> None:
         """Test FinViz scanning integration"""
         # Mock FinViz client
         mock_finviz = AsyncMock()
@@ -123,7 +127,7 @@ class TestDataCollectionServiceIntegration:
         # assert 'AAPL' in data_service._active_tickers
         pass
 
-    async def test_price_data_update_integration(self, data_service):
+    async def test_price_data_update_integration(self, data_service: MagicMock) -> None:
         """Test price data update integration"""
         # Mock TwelveData client
         mock_twelve_data = AsyncMock()
@@ -150,7 +154,7 @@ class TestDataCollectionServiceIntegration:
         # mock_twelve_data.get_time_series.assert_called()
         pass
 
-    async def test_error_handling_integration(self, data_service):
+    async def test_error_handling_finviz(self, data_service: MagicMock) -> None:
         """Test error handling in service integration"""
         # Mock failing TwelveData client
         mock_twelve_data = AsyncMock()
@@ -168,7 +172,7 @@ class TestDataCollectionServiceIntegration:
         # assert data_service._stats['errors'] > initial_errors
         pass
 
-    async def test_health_check_integration(self, data_service):
+    async def test_health_check_integration(self, data_service: MagicMock) -> None:
         """Test health check integration"""
         # await data_service.initialize()
         # health_status = await data_service._health_check()
@@ -178,7 +182,9 @@ class TestDataCollectionServiceIntegration:
         # assert 'overall_status' in health_status
         pass
 
-    async def test_metrics_collection_integration(self, data_service):
+    async def test_metrics_collection_integration(
+        self, data_service: MagicMock
+    ) -> None:
         """Test metrics collection integration"""
         # await data_service.initialize()
         # status = await data_service.get_service_status()
@@ -197,12 +203,12 @@ class TestDataStoreIntegration:
     """Integration tests for data storage functionality"""
 
     @pytest.fixture
-    def temp_data_path(self, tmp_path):
+    def temp_data_path(self, tmp_path: Any) -> Path:
         """Create temporary directory for data storage tests"""
         return tmp_path / "test_data"
 
     @pytest.fixture
-    async def data_store(self, temp_data_path):
+    async def data_store(self, temp_data_path: Path) -> MagicMock:
         """Create data store for testing"""
         # config = DataStoreConfig(
         #     base_path=str(temp_data_path),
@@ -213,7 +219,9 @@ class TestDataStoreIntegration:
         # return DataStore(config)
         return MagicMock()
 
-    async def test_store_and_retrieve_market_data(self, data_store, temp_data_path):
+    async def test_store_and_retrieve_market_data(
+        self, data_store: MagicMock, temp_data_path: Path
+    ) -> None:
         """Test storing and retrieving market data"""
         from shared.models import MarketData, TimeFrame
 
@@ -259,8 +267,8 @@ class TestDataStoreIntegration:
         pass
 
     async def test_data_compression_and_storage_efficiency(
-        self, data_store, temp_data_path
-    ):
+        self, data_store: MagicMock, temp_data_path: Path
+    ) -> None:
         """Test data compression and storage efficiency"""
         import pandas as pd
 
@@ -301,7 +309,9 @@ class TestDataStoreIntegration:
         #     assert file_path.stat().st_size < 1024 * 1024  # Less than 1MB for 1000 records
         pass
 
-    async def test_data_retention_policy(self, data_store, temp_data_path):
+    async def test_data_retention_policy(
+        self, data_store: MagicMock, temp_data_path: Path
+    ) -> None:
         """Test data retention policy enforcement"""
         from shared.models import MarketData, TimeFrame
 
@@ -349,7 +359,7 @@ class TestDataStoreIntegration:
 class TestEndToEndDataFlow:
     """End-to-end integration tests for complete data flow"""
 
-    async def test_complete_data_collection_workflow(self):
+    async def test_complete_data_collection_workflow(self) -> None:
         """Test complete workflow from screening to storage"""
         # This would test:
         # 1. FinViz screening to find stocks
@@ -360,7 +370,7 @@ class TestEndToEndDataFlow:
         # 6. Health checks and metrics collection
         pass
 
-    async def test_error_recovery_workflow(self):
+    async def test_error_recovery_workflow(self) -> None:
         """Test error recovery and retry mechanisms"""
         # This would test:
         # 1. API failures and retry logic
@@ -370,7 +380,7 @@ class TestEndToEndDataFlow:
         # 5. Service recovery
         pass
 
-    async def test_concurrent_data_collection(self):
+    async def test_concurrent_data_collection(self) -> None:
         """Test concurrent data collection for multiple symbols"""
         # This would test:
         # 1. Concurrent API calls
@@ -379,7 +389,7 @@ class TestEndToEndDataFlow:
         # 4. Performance metrics
         pass
 
-    async def test_market_hours_integration(self):
+    async def test_market_hours_integration(self) -> None:
         """Test market hours awareness in data collection"""
         # This would test:
         # 1. Market hours detection
@@ -394,7 +404,7 @@ class TestEndToEndDataFlow:
 class TestDataCollectorPerformance:
     """Performance tests for data collector service"""
 
-    async def test_high_volume_data_processing(self):
+    async def test_high_volume_data_processing(self) -> None:
         """Test processing large volumes of market data"""
         # This would test:
         # 1. Memory usage with large datasets
@@ -403,7 +413,7 @@ class TestDataCollectorPerformance:
         # 4. Storage performance
         pass
 
-    async def test_concurrent_symbol_updates(self):
+    async def test_concurrent_symbol_updates(self) -> None:
         """Test updating many symbols concurrently"""
         # This would test:
         # 1. Concurrent API calls performance
@@ -412,7 +422,7 @@ class TestDataCollectorPerformance:
         # 4. Error handling under load
         pass
 
-    async def test_storage_performance(self):
+    async def test_storage_performance(self) -> None:
         """Test storage performance with different data volumes"""
         # This would test:
         # 1. Parquet write performance
@@ -425,7 +435,9 @@ class TestDataCollectorPerformance:
 # Helper functions for integration tests
 
 
-def create_sample_finviz_data(symbols=None):
+def create_sample_finviz_data(
+    symbols: Optional[List[str]] = None,
+) -> List[FinVizData]:
     """Create sample FinViz data for testing"""
     if symbols is None:
         symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
@@ -453,7 +465,7 @@ def create_sample_finviz_data(symbols=None):
     return sample_data
 
 
-def create_sample_market_data(symbol="AAPL", count=100):
+def create_sample_market_data(symbol: str = "AAPL", count: int = 100) -> list:
     """Create sample market data for testing"""
     import pandas as pd
 
@@ -487,7 +499,9 @@ def create_sample_market_data(symbol="AAPL", count=100):
     return market_data
 
 
-async def wait_for_condition(condition_func, timeout=5.0, interval=0.1):
+async def wait_for_condition(
+    condition_func: Callable[[], bool], timeout: float = 5.0, interval: float = 0.1
+) -> bool:
     """Wait for a condition to become true with timeout"""
     start_time = asyncio.get_event_loop().time()
 
@@ -504,19 +518,19 @@ async def wait_for_condition(condition_func, timeout=5.0, interval=0.1):
 class MockTimeProvider:
     """Mock time provider for testing time-dependent functionality"""
 
-    def __init__(self, initial_time=None):
-        self.current_time = initial_time or datetime.now(timezone.utc)
+    def __init__(self, fixed_time: Optional[datetime] = None) -> None:
+        self.current_time = fixed_time or datetime.now(timezone.utc)
 
-    def now(self):
+    def now(self) -> datetime:
         return self.current_time
 
-    def advance(self, delta):
+    def advance(self, delta: timedelta) -> None:
         """Advance time by given delta"""
         if isinstance(delta, (int, float)):
             delta = timedelta(seconds=delta)
         self.current_time += delta
 
-    def set_time(self, new_time):
+    def set_time(self, new_time: datetime) -> None:
         """Set absolute time"""
         self.current_time = new_time
 

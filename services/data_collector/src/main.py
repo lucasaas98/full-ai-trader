@@ -34,7 +34,7 @@ from .scheduler_service import SchedulerService  # noqa: E402
 
 
 # Configure logging
-def setup_logging():
+def setup_logging() -> logging.Logger:
     """Set up logging configuration."""
     log_config = get_config().logging
 
@@ -70,7 +70,7 @@ def setup_logging():
 class DataCollectorApp:
     """Main application class for data collection service."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = setup_logging()
         self.logger.debug("DataCollectorApp.__init__: Initializing DataCollectorApp")
         self.config = self._load_configuration()
@@ -137,7 +137,7 @@ class DataCollectorApp:
             self.logger.debug(f"_load_configuration: Unexpected error: {str(e)}")
             raise
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the data collection application."""
         self.logger.info("Starting Data Collection Service...")
         self.logger.debug("start: Beginning service startup sequence")
@@ -178,14 +178,13 @@ class DataCollectorApp:
             self.logger.debug(f"start: Service status details: {status}")
 
             self.logger.debug("start: Application startup completed successfully")
-            return True
 
         except Exception as e:
             self.logger.error(f"Failed to start application: {e}")
             self.logger.debug(f"start: Startup failed with exception: {str(e)}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the data collection application."""
         self.logger.info("Stopping Data Collection Service...")
         self.logger.debug("stop: Beginning shutdown sequence")
@@ -219,7 +218,7 @@ class DataCollectorApp:
             self.logger.error(f"Error during shutdown: {e}")
             self.logger.debug(f"stop: Shutdown failed with exception: {str(e)}")
 
-    async def run(self):
+    async def run(self) -> None:
         """Run the application until shutdown."""
         self.logger.debug("run: Starting application run loop")
         try:
@@ -243,13 +242,13 @@ class DataCollectorApp:
             self.logger.debug("run: Executing finally block - calling stop()")
             await self.stop()
 
-    def _setup_signal_handlers(self):
+    def _setup_signal_handlers(self) -> None:
         """Set up signal handlers for graceful shutdown."""
         self.logger.debug(
             "_setup_signal_handlers: Setting up signal handlers for SIGINT and SIGTERM"
         )
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: any) -> None:
             self.logger.info(
                 f"Received signal {signum}, initiating graceful shutdown..."
             )
@@ -378,7 +377,7 @@ class DataCollectorApp:
         return health_info
 
 
-async def run_health_check():
+async def run_health_check() -> bool:
     """Run a standalone health check."""
     logger = setup_logging()
     logger.debug("run_health_check: Starting standalone health check")
@@ -418,7 +417,7 @@ async def run_health_check():
 
 async def run_data_export(
     ticker: str, timeframe: str, days: int = 30, format: str = "csv"
-):
+) -> bool:
     """Run data export utility."""
     logger = setup_logging()
     logger.debug(
@@ -475,7 +474,7 @@ async def run_data_export(
         return False
 
 
-async def run_data_summary():
+async def run_data_summary() -> bool:
     """Run data summary utility."""
     logger = setup_logging()
     logger.debug("run_data_summary: Starting data summary utility")
@@ -518,7 +517,7 @@ async def run_data_summary():
         return False
 
 
-async def main():
+async def main() -> None:
     """Main application entry point."""
     logger = setup_logging()
     logger.debug(f"main: Starting main function with args: {sys.argv}")

@@ -52,7 +52,7 @@ class TradeExecutorService:
     Main trade execution service with Redis integration and WebSocket support.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the trade executor service."""
         logger.debug("Initializing TradeExecutorService instance")
         self.config = get_config()
@@ -63,17 +63,17 @@ class TradeExecutorService:
         logger.debug("ExecutionEngine instance created")
         self._redis = None
         self._running = False
-        self._websocket_connections = set()
+        self._websocket_connections: set = set()
         self._signal_processing_stats = {
             "total_processed": 0,
             "successful_executions": 0,
             "failed_executions": 0,
             "last_signal_time": None,
         }
-        self._screener_watchlist = set()
+        self._screener_watchlist: set = set()
         logger.debug("TradeExecutorService initialization completed")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all service components."""
         try:
             logger.info("Initializing Trade Executor Service...")
@@ -107,7 +107,7 @@ class TradeExecutorService:
             logger.error(f"Failed to initialize service: {e}", exc_info=True)
             raise
 
-    async def _test_connections(self):
+    async def _test_connections(self) -> None:
         """Test all external connections."""
         try:
             logger.debug("Starting connection tests")
@@ -149,7 +149,7 @@ class TradeExecutorService:
             logger.error(f"Connection test failed: {e}", exc_info=True)
             raise
 
-    async def start_signal_processing(self):
+    async def _setup_signal_processing(self) -> None:
         """Start processing trade signals from Redis."""
         try:
             self._running = True
@@ -267,7 +267,7 @@ class TradeExecutorService:
         except Exception as e:
             logger.error(f"Error processing screener message: {e}", exc_info=True)
 
-    async def _process_signal_message(self, message):
+    async def _process_signal_message(self, message) -> None:
         """Process individual signal message."""
         try:
             logger.debug(f"Processing signal message: {message}")
@@ -358,7 +358,7 @@ class TradeExecutorService:
                 self._signal_processing_stats.get("failed_executions") or 0
             ) + 1
 
-    async def start_status_broadcaster(self):
+    async def start_status_broadcaster(self) -> None:
         """Start broadcasting system status updates."""
         try:
             logger.debug("Starting status broadcaster")
@@ -398,7 +398,7 @@ class TradeExecutorService:
         except Exception as e:
             logger.error(f"Status broadcaster error: {e}", exc_info=True)
 
-    async def _get_system_status(self) -> Dict[str, Any]:
+    async def get_health_status(self) -> Dict[str, Any]:
         """Get comprehensive system status."""
         try:
             logger.debug("Starting system status collection")
@@ -473,7 +473,7 @@ class TradeExecutorService:
                 "timestamp": datetime.now(timezone.utc),
             }
 
-    async def _broadcast_to_websockets(self, message: Dict[str, Any]):
+    async def _broadcast_to_websockets(self, message: Dict[str, Any]) -> None:
         """Broadcast message to all WebSocket connections."""
         if not self._websocket_connections:
             logger.debug("No WebSocket connections to broadcast to")
@@ -497,7 +497,7 @@ class TradeExecutorService:
                 # Remove failed connection
                 self._websocket_connections.discard(websocket)
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up all resources."""
         try:
             logger.info("Cleaning up Trade Executor Service...")
@@ -585,7 +585,7 @@ app.add_middleware(
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time updates."""
     logger.debug("WebSocket connection attempt received")
     await websocket.accept()
@@ -663,7 +663,7 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
+async def healthcheck() -> Dict[str, Any]:
     """Health check endpoint."""
     logger.debug("Health check endpoint accessed")
     try:
@@ -755,7 +755,7 @@ async def execute_signal_direct(signal: TradeSignal):
 
 
 @app.post("/emergency/stop")
-async def emergency_stop():
+async def emergency_stop() -> Dict[str, str]:
     """Emergency stop endpoint."""
     logger.debug("Emergency stop endpoint accessed")
     logger.warning("Emergency stop initiated via API")
@@ -772,7 +772,7 @@ async def emergency_stop():
 
 
 @app.get("/positions")
-async def get_positions():
+async def get_positions() -> Dict[str, Any]:
     """Get all positions."""
     logger.debug("Get positions endpoint accessed")
     try:
@@ -842,7 +842,7 @@ async def close_position(symbol: str, percentage: float = 1.0):
 
 
 @app.get("/orders/active")
-async def get_active_orders():
+async def get_active_orders() -> Dict[str, Any]:
     """Get active orders."""
     logger.debug("Get active orders endpoint accessed")
     try:
@@ -865,7 +865,7 @@ async def get_active_orders():
 
 
 @app.post("/orders/{order_id}/cancel")
-async def cancel_order(order_id: str):
+async def cancel_order(order_id: str) -> Dict[str, Any]:
     """Cancel an order."""
     logger.debug(f"Cancel order endpoint accessed for order_id: {order_id}")
     try:
@@ -889,7 +889,7 @@ async def cancel_order(order_id: str):
 
 
 @app.get("/performance/summary")
-async def get_performance_summary(days: int = 30):
+async def get_performance_summary(days: int = 30) -> Dict[str, Any]:
     """Get performance summary."""
     logger.debug(f"Get performance summary endpoint accessed for {days} days")
     try:
@@ -905,7 +905,7 @@ async def get_performance_summary(days: int = 30):
 
 
 @app.get("/performance/daily")
-async def get_daily_performance():
+async def get_daily_performance() -> Dict[str, Any]:
     """Get daily performance."""
     logger.debug("Get daily performance endpoint accessed")
     try:
@@ -939,7 +939,7 @@ async def export_tradenote(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     strategy: Optional[str] = None,
-):
+) -> Dict[str, Any]:
     """Export trades for TradeNote."""
     logger.debug(
         f"TradeNote export endpoint accessed: start_date={start_date}, end_date={end_date}, strategy={strategy}"
@@ -979,7 +979,7 @@ async def export_tradenote(
 
 
 @app.get("/account")
-async def get_account():
+async def get_account() -> Dict[str, Any]:
     """Get account information."""
     logger.debug("Get account endpoint accessed")
     try:
@@ -993,7 +993,7 @@ async def get_account():
 
 
 @app.post("/sync/positions")
-async def sync_positions():
+async def sync_positions() -> Dict[str, Any]:
     """Sync positions with Alpaca."""
     logger.debug("Sync positions endpoint accessed")
     try:
@@ -1009,7 +1009,9 @@ async def sync_positions():
 
 
 @app.get("/metrics/execution")
-async def get_execution_metrics(symbol: Optional[str] = None, days: int = 30):
+async def get_execution_metrics(
+    symbol: Optional[str] = None, days: int = 30
+) -> Dict[str, Any]:
     """Get execution quality metrics."""
     logger.debug(
         f"Get execution metrics endpoint accessed: symbol={symbol}, days={days}"
@@ -1034,7 +1036,7 @@ execution_latency_gauge = None
 service_health_gauge = None
 
 
-def _initialize_metrics():
+def _initialize_metrics() -> None:
     """Initialize Prometheus metrics if not already done."""
     global orders_executed_counter, orders_failed_counter, execution_latency_gauge, service_health_gauge
 
@@ -1060,7 +1062,7 @@ def _initialize_metrics():
 
 
 @app.get("/metrics")
-async def get_prometheus_metrics():
+async def get_prometheus_metrics() -> Response:
     """Prometheus metrics endpoint."""
     logger.debug("Prometheus metrics endpoint accessed")
     try:
@@ -1090,11 +1092,11 @@ async def get_prometheus_metrics():
         return Response(content="", media_type="text/plain")
 
 
-def setup_signal_handlers(service: TradeExecutorService):
+def setup_signal_handlers(service: TradeExecutorService) -> None:
     """Setup graceful shutdown signal handlers."""
     logger.debug("Setting up signal handlers for graceful shutdown")
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum, frame) -> None:
         logger.info(f"Received signal {signum}, initiating shutdown...")
         logger.debug(f"Signal handler triggered: signum={signum}, frame={frame}")
         asyncio.create_task(service.cleanup())
@@ -1106,7 +1108,7 @@ def setup_signal_handlers(service: TradeExecutorService):
     logger.debug("Signal handlers registered successfully")
 
 
-async def main():
+async def main() -> None:
     """Main entry point."""
     logger.debug("Starting main function")
     service = None
@@ -1196,14 +1198,14 @@ class TradeExecutorApp:
         self.service = None
         self._initialized = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the application."""
         if not self._initialized:
             self.service = TradeExecutorService()
             await self.service.initialize()
             self._initialized = True
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the Trade Executor service."""
         await self.initialize()
         # Start background tasks
@@ -1211,13 +1213,13 @@ class TradeExecutorApp:
             asyncio.create_task(self.service.start_signal_processing())
             asyncio.create_task(self.service.start_status_broadcaster())
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the Trade Executor service."""
         if self.service:
             await self.service.cleanup()
         self._initialized = False
 
-    def get_service(self):
+    def get_service(self) -> TradeExecutorService:
         """Get the underlying service instance."""
         return self.service
 

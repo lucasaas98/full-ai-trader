@@ -245,7 +245,7 @@ class CostTracker:
 
         return True
 
-    async def record(self, cost: float):
+    async def record(self, cost: float) -> None:
         """Record actual cost."""
         self._check_reset()
         self.daily_costs += cost
@@ -254,7 +254,7 @@ class CostTracker:
             f"Cost recorded: ${cost:.4f} (Daily: ${self.daily_costs:.2f}, Monthly: ${self.monthly_costs:.2f})"
         )
 
-    def _check_reset(self):
+    def _check_reset(self) -> None:
         """Check if we need to reset daily or monthly counters."""
         current_date = datetime.now().date()
         current_month = datetime.now().month
@@ -271,15 +271,15 @@ class CostTracker:
 class RateLimiter:
     """Manages API rate limiting."""
 
-    def __init__(self):
-        self.last_request_time = {}
+    def __init__(self) -> None:
+        self.last_request_time: dict[AIModel, float] = {}
         self.min_delay = {
             AIModel.OPUS: 1.0,  # 1 second between requests
             AIModel.SONNET: 0.5,  # 0.5 seconds between requests
             AIModel.HAIKU: 0.2,  # 0.2 seconds between requests
         }
 
-    async def acquire(self, model: AIModel):
+    async def acquire(self, model: AIModel) -> None:
         """Wait if necessary to respect rate limits."""
         if model in self.last_request_time:
             elapsed = (datetime.now() - self.last_request_time[model]).total_seconds()
@@ -313,7 +313,7 @@ class ResponseCache:
                 del self.cache[key]
         return None
 
-    async def set(self, prompt: str, model: AIModel, response: AIResponse):
+    async def set(self, prompt: str, model: AIModel, response: AIResponse) -> None:
         """Cache a response."""
         key = self._get_cache_key(prompt, model)
         self.cache[key] = (response, datetime.now())
@@ -321,7 +321,7 @@ class ResponseCache:
         # Clean old entries
         await self._cleanup()
 
-    async def _cleanup(self):
+    async def _cleanup(self) -> None:
         """Remove expired cache entries."""
         current_time = datetime.now()
         expired_keys = []
@@ -957,7 +957,7 @@ class AIStrategyEngine(BaseStrategy):
                 metadata={"error": str(e)},
             )
 
-    async def _update_market_context(self):
+    async def _update_market_context(self) -> None:
         """Update market regime context."""
         try:
             # Fetch real market data for SPY (S&P 500), QQQ (NASDAQ), and VIX

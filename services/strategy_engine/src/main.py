@@ -13,7 +13,7 @@ import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import polars as pl
 import uvicorn
@@ -130,7 +130,7 @@ class EODReportRequest(BaseModel):
 class StrategyEngineService:
     """Main strategy engine service class."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize strategy engine service."""
         self.logger = logging.getLogger("strategy_engine_service")
         self.logger.debug("Initializing StrategyEngineService instance")
@@ -1452,7 +1452,7 @@ service = StrategyEngineService()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan."""
     # Startup
     logger.debug("Starting FastAPI application lifespan")
@@ -1494,7 +1494,7 @@ backtests_run_counter = None
 service_health_gauge = None
 
 
-def _initialize_metrics():
+def _initialize_metrics() -> None:
     """Initialize Prometheus metrics if not already done."""
     global strategies_count_gauge, signals_generated_counter, backtests_run_counter, service_health_gauge
 
@@ -1521,7 +1521,7 @@ def _initialize_metrics():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint."""
     logger.debug("Health check endpoint called")
     return {
@@ -1534,7 +1534,7 @@ async def health_check():
 
 # Phase 5: Timeframe validation and management endpoints
 @app.get("/timeframes/available")
-async def get_available_timeframes():
+async def get_available_timeframes() -> Dict[str, Any]:
     """Get all available timeframes for strategies and data loading."""
     return {
         "status": "success",
@@ -1552,7 +1552,7 @@ async def get_available_timeframes():
 
 
 @app.post("/timeframes/validate")
-async def validate_timeframes(timeframes: List[str]):
+async def validate_timeframes(timeframes: List[str]) -> Dict[str, Any]:
     """Validate a list of strategy timeframes."""
     try:
         available, unavailable = TimeFrameMapper.validate_timeframes(timeframes)
@@ -1571,7 +1571,7 @@ async def validate_timeframes(timeframes: List[str]):
 
 
 @app.get("/strategies/{strategy_name}/timeframes")
-async def get_strategy_timeframes(strategy_name: str):
+async def get_strategy_timeframes(strategy_name: str) -> Dict[str, Any]:
     """Get timeframe information for a specific strategy."""
     try:
         if strategy_name not in service.active_strategies:
@@ -1590,7 +1590,7 @@ async def get_strategy_timeframes(strategy_name: str):
 
 
 @app.get("/timeframes/check/{symbol}")
-async def check_symbol_timeframes(symbol: str):
+async def check_symbol_timeframes(symbol: str) -> Dict[str, Any]:
     """Check available timeframes for a specific symbol using data collector client."""
     try:
         if not service.data_collector_client:
@@ -1629,7 +1629,7 @@ async def check_symbol_timeframes(symbol: str):
 
 
 @app.get("/strategies")
-async def list_strategies():
+async def list_strategies() -> Dict[str, Any]:
     """List all active strategies."""
     try:
         logger.debug("Listing all active strategies")
@@ -1658,31 +1658,33 @@ async def list_strategies():
 
 
 @app.post("/strategies")
-async def create_strategy(request: StrategyCreateRequest):
+async def create_strategy(request: StrategyCreateRequest) -> Dict[str, Any]:
     """Create a new trading strategy."""
     return await service.create_strategy(request)
 
 
 @app.post("/signals/generate")
-async def generate_signal(request: SignalGenerationRequest):
+async def generate_signal(request: SignalGenerationRequest) -> Dict[str, Any]:
     """Generate trading signal for a strategy."""
     return await service.generate_signal(request)
 
 
 @app.post("/backtest")
-async def run_backtest(request: BacktestRequest, background_tasks: BackgroundTasks):
+async def run_backtest(
+    request: BacktestRequest, background_tasks: BackgroundTasks
+) -> Dict[str, Any]:
     """Run strategy backtest."""
     return await service.run_backtest(request)
 
 
 @app.post("/optimize")
-async def optimize_parameters(request: ParameterOptimizationRequest):
+async def optimize_parameters(request: ParameterOptimizationRequest) -> Dict[str, Any]:
     """Optimize strategy parameters."""
     return await service.optimize_parameters(request)
 
 
 @app.post("/analyze")
-async def analyze_market_data():
+async def analyze_market_data() -> Dict[str, Any]:
     """Analyze market data and calculate technical indicators for all tracked symbols."""
     try:
         logger.debug("Starting market data analysis endpoint")
@@ -1861,13 +1863,13 @@ async def analyze_market_data():
 
 
 @app.get("/regime/{symbol}")
-async def get_market_regime(symbol: str):
+async def get_market_data(symbol: str) -> Dict[str, Any]:
     """Get market regime for a symbol."""
     return await service.get_market_regime(symbol)
 
 
 @app.get("/strategies/{strategy_name}")
-async def get_strategy_details(strategy_name: str):
+async def get_strategy_performance(strategy_name: str) -> Dict[str, Any]:
     """Get detailed information about a strategy."""
     try:
         logger.debug(f"Getting details for strategy: {strategy_name}")
@@ -1895,21 +1897,21 @@ async def get_strategy_details(strategy_name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/strategies/{strategy_name}")
-async def delete_strategy(strategy_name: str):
+@app.delete("/strategies/{strategy_id}")
+async def delete_strategy(strategy_id: str) -> Dict[str, Any]:
     """Delete a strategy."""
     try:
-        logger.debug(f"Deleting strategy: {strategy_name}")
-        if strategy_name not in service.active_strategies:
+        logger.debug(f"Deleting strategy: {strategy_id}")
+        if strategy_id not in service.active_strategies:
             raise HTTPException(status_code=404, detail="Strategy not found")
 
         # Remove from active strategies
-        del service.active_strategies[strategy_name]
-        logger.debug(f"Strategy {strategy_name} removed from active strategies")
+        del service.active_strategies[strategy_id]
+        logger.debug(f"Strategy {strategy_id} removed from active strategies")
 
         # TODO: Unregister from Redis engine
 
-        return {"status": "success", "message": f"Strategy {strategy_name} deleted"}
+        return {"status": "success", "message": f"Strategy {strategy_id} deleted"}
 
     except HTTPException:
         raise
@@ -1919,7 +1921,7 @@ async def delete_strategy(strategy_name: str):
 
 
 @app.get("/signals/history/{symbol}")
-async def get_signal_history(symbol: str, limit: int = 50):
+async def get_signal_history(symbol: str, limit: int = 50) -> Dict[str, Any]:
     """Get signal history for a symbol."""
     try:
         logger.debug(f"Getting signal history for {symbol}, limit: {limit}")
@@ -1943,7 +1945,7 @@ async def get_signal_history(symbol: str, limit: int = 50):
 
 
 @app.get("/metrics")
-async def get_prometheus_metrics():
+async def get_prometheus_metrics() -> Response:
     """Prometheus metrics endpoint."""
     try:
         logger.debug("Generating Prometheus metrics")
@@ -1974,7 +1976,7 @@ async def get_prometheus_metrics():
 
 
 @app.get("/metrics/json")
-async def get_system_metrics():
+async def get_system_metrics() -> Dict[str, Any]:
     """Get system performance metrics in JSON format."""
     try:
         # Initialize metrics if not already done
@@ -2008,7 +2010,9 @@ async def get_system_metrics():
 
 
 @app.post("/strategies/{strategy_name}/update")
-async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
+async def update_strategy(
+    strategy_name: str, parameters: Dict[str, Any]
+) -> Dict[str, Any]:
     """Update strategy parameters."""
     try:
         logger.debug(f"Updating strategy {strategy_name} with parameters: {parameters}")
@@ -2036,7 +2040,7 @@ async def update_strategy(strategy_name: str, parameters: Dict[str, Any]):
 
 
 @app.get("/screener/tickers")
-async def get_screener_tickers():
+async def get_screener_tickers() -> Dict[str, Any]:
     """Get current active tickers from the screener."""
     try:
         logger.debug("Getting current screener tickers")
@@ -2055,7 +2059,7 @@ async def get_screener_tickers():
 
 
 @app.post("/screener/refresh")
-async def refresh_screener_tickers():
+async def refresh_screener_tickers() -> Dict[str, Any]:
     """Refresh tickers from screener and restart real-time processing if needed."""
     try:
         logger.debug("Refreshing screener tickers")
@@ -2081,7 +2085,9 @@ async def refresh_screener_tickers():
 
 
 @app.post("/reports/eod")
-async def generate_eod_report(request: Optional[EODReportRequest] = None):
+async def generate_eod_report(
+    request: Optional[EODReportRequest] = None,
+) -> Dict[str, Any]:
     """Generate End-of-Day trading report."""
     try:
         logger.debug("EOD report generation requested")
@@ -2105,7 +2111,7 @@ async def generate_eod_report(request: Optional[EODReportRequest] = None):
 
 
 @app.get("/reports/eod")
-async def get_latest_eod_report():
+async def get_latest_eod_report() -> Dict[str, Any]:
     """Get the most recent EOD report."""
     try:
         logger.debug("Getting latest EOD report")
@@ -2140,7 +2146,7 @@ async def get_latest_eod_report():
 
 
 @app.get("/status")
-async def get_service_status():
+async def get_service_status() -> Dict[str, Any]:
     """Get detailed service status."""
     try:
         logger.debug("Getting service status")
@@ -2188,7 +2194,7 @@ async def get_service_status():
 class StrategyEngineApp:
     """Application wrapper for Strategy Engine service for integration testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Strategy Engine application."""
         self.service = service
         self.app = app
@@ -2196,7 +2202,7 @@ class StrategyEngineApp:
         self.logger = logging.getLogger("strategy_engine_app")
         self.logger.debug("StrategyEngineApp instance created")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the application."""
         if not self._initialized:
             self.logger.debug("Initializing StrategyEngineApp")
@@ -2204,7 +2210,7 @@ class StrategyEngineApp:
             self._initialized = True
             self.logger.debug("StrategyEngineApp initialization complete")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the Strategy Engine service."""
         self.logger.debug("Starting StrategyEngineApp")
         await self.initialize()
@@ -2213,19 +2219,19 @@ class StrategyEngineApp:
             asyncio.create_task(self.service.start_real_time_processing())
         self.logger.debug("StrategyEngineApp start complete")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the Strategy Engine service."""
         self.logger.debug("Stopping StrategyEngineApp")
         await self.service.shutdown()
         self._initialized = False
         self.logger.debug("StrategyEngineApp stopped")
 
-    def get_service(self):
+    def get_service(self) -> StrategyEngineService:
         """Get the underlying service instance."""
         self.logger.debug("Returning service instance")
         return self.service
 
-    def get_app(self):
+    def get_app(self) -> FastAPI:
         """Get the FastAPI application instance."""
         self.logger.debug("Returning FastAPI app instance")
         return self.app
