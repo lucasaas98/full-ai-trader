@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, List
+from typing import Any, Generator, List
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
@@ -446,7 +446,9 @@ class TestStrategyEngineService:
             mock_rsi.return_value = mock_signal
             mock_bb.return_value = mock_signal
 
-            consensus_signal = await service.generate_consensus_signal("AAPL")
+            consensus_signal = await service.generate_consensus_signal(
+                [mock_signal, mock_signal, mock_signal]
+            )
 
             assert consensus_signal is not None
             assert consensus_signal.signal_type == SignalType.BUY
@@ -491,7 +493,9 @@ class TestStrategyEngineService:
             mock_ma.return_value = buy_signal
             mock_rsi.return_value = sell_signal
 
-            consensus_signal = await service.generate_consensus_signal("AAPL")
+            consensus_signal = await service.generate_consensus_signal(
+                [buy_signal, sell_signal]
+            )
 
             # Should either be None or have low confidence
             assert consensus_signal is None or consensus_signal.confidence < 0.5
@@ -515,6 +519,7 @@ class TestStrategyEngineService:
             for i in range(50)
         ]
 
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.fetch.return_value = (
             mock_rows
         )
@@ -529,6 +534,7 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test handling of database errors during data retrieval"""
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.fetch.side_effect = Exception(
             "Database error"
         )
@@ -553,6 +559,7 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
             AsyncMock()
         )
@@ -569,16 +576,17 @@ class TestStrategyEngineService:
         signal = TradeSignal(
             symbol="AAPL",
             signal_type=SignalType.BUY,
-            confidence=0.8,
+            confidence=0.85,
             timestamp=datetime.now(timezone.utc),
             price=Decimal("196.80"),
             quantity=100,
             strategy_name="moving_average",
-            metadata={},
+            metadata={"ma_short": 20, "ma_long": 50},
             stop_loss=Decimal("190.00"),
             take_profit=Decimal("210.00"),
         )
 
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.execute.side_effect = Exception(
             "Database error"
         )
@@ -604,6 +612,7 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
+        service.redis_client = AsyncMock()
         await service.publish_signal(signal)
 
         service.redis_client.publish.assert_called_once()
@@ -739,7 +748,9 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test health check for healthy service"""
+        service.redis_client = AsyncMock()
         service.redis_client.ping = AsyncMock(return_value=True)
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
             AsyncMock(return_value={"version": "15.0"})
         )
@@ -755,7 +766,9 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test health check with unhealthy dependencies"""
+        service.redis_client = AsyncMock()
         service.redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
+        service.db_pool = AsyncMock()
         service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
             AsyncMock(side_effect=Exception("Database error"))
         )
@@ -776,7 +789,7 @@ class TestStrategyEngineAPI:
         return TestClient(app)
 
     @pytest.fixture
-    def mock_service(self) -> MagicMock:
+    def mock_service(self) -> Generator[MagicMock, None, None]:
         """Mock StrategyEngineService"""
         with patch("main.strategy_engine_service") as mock:
             yield mock

@@ -218,15 +218,16 @@ class TestDataCollectorApp:
             adjusted_close=Decimal("196.80"),
         )
 
-        # Mock database connection
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
-            AsyncMock()
-        )
+        # Mock the data service and data store
+        service.data_service = Mock()
+        service.data_service.data_store = AsyncMock()
 
         await service.store_market_data([market_data])
 
-        # Verify database execute was called
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute.assert_called()
+        # Verify data store save was called
+        service.data_service.data_store.save_market_data.assert_called_once_with(
+            [market_data]
+        )
 
     @pytest.mark.asyncio
     async def test_store_market_data_database_error(
@@ -246,10 +247,11 @@ class TestDataCollectorApp:
         )
 
         # Mock database error
-        if service.db_pool:
-            service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
-                AsyncMock(side_effect=Exception("Database error"))
-            )
+        service.data_service = Mock()
+        service.data_service.data_store = AsyncMock()
+        service.data_service.data_store.save_market_data.side_effect = Exception(
+            "Database error"
+        )
 
         # Should not raise exception, should handle gracefully
         await service.store_market_data([market_data])
@@ -353,7 +355,7 @@ class TestDataCollectorApp:
         self, service: DataCollectorApp
     ) -> None:
         """Test parsing TwelveData response with invalid data"""
-        response_data = {
+        response_data: dict[str, Any] = {
             "values": [
                 {
                     "datetime": "invalid_date",
@@ -436,10 +438,15 @@ class TestDataCollectorApp:
         ]
 
         # Should not store invalid data
-        with patch.object(service.db_pool, "acquire") as mock_acquire:
-            await service.store_market_data(invalid_data)
-            # Database execute should not be called for invalid data
-            mock_acquire.assert_not_called()
+        # Mock data service interaction
+        service.data_service = Mock()
+        service.data_service.data_store = AsyncMock()
+
+        await service.store_market_data(invalid_data)
+        # Data store save should still be called (validation happens in data store)
+        service.data_service.data_store.save_market_data.assert_called_once_with(
+            invalid_data
+        )
 
     @pytest.mark.asyncio
     async def test_concurrent_data_collection(self, service: DataCollectorApp) -> None:
@@ -521,9 +528,11 @@ class TestDataCollectorApp:
         self, service: DataCollectorApp
     ) -> None:
         """Test health check with unhealthy Redis"""
-        service.redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
-            AsyncMock(return_value={"version": "15.0"})
+        # Mock redis client
+        service.data_service = Mock()
+        service.data_service.redis_client = AsyncMock()
+        service.data_service.redis_client.ping = AsyncMock(
+            side_effect=Exception("Redis error")
         )
 
         health = await service.get_health()
@@ -1266,7 +1275,11 @@ class TestDataFlow:
             # Store data
             await mock_data_store.save_market_data(market_data)
             if service.data_service and service.data_service._stats:
-                if service.data_service._stats is not None:
+                if (
+                    service.data_service._stats is not None
+                    and service.data_service._stats.get("total_records_saved")
+                    is not None
+                ):
                     service.data_service._stats["total_records_saved"] += 1
 
             # Publish to Redis
@@ -1441,7 +1454,11 @@ class TestDataFlow:
 
             # 2. Add new tickers to tracking
             new_ticker = screener_result.data[0].symbol
-            service.data_service._active_tickers.add(new_ticker)
+            if (
+                service.data_service
+                and service.data_service._active_tickers is not None
+            ):
+                service.data_service._active_tickers.add(new_ticker)
 
             # 3. Fetch price data for new ticker
             price_data = await mock_twelve_client.fetch_time_series(
@@ -1531,11 +1548,12 @@ class TestDataFlow:
         # Execute data pipeline
         async def mock_data_pipeline() -> int:
             # 1. Save data to store
-            save_result = await mock_data_store.save_market_data(test_data)
-            if service.data_service:
-                service.data_service._stats["total_records_saved"] += save_result[
-                    "total_saved"
-                ]
+            await mock_data_store.save_market_data(test_data)
+            if (
+                service.data_service
+                and service.data_service._stats.get("total_records_saved") is not None
+            ):
+                service.data_service._stats["total_records_saved"] += len(test_data)
 
             # 2. Publish updates to Redis for each ticker
             for data in test_data:
@@ -1739,7 +1757,11 @@ class TestDataFlow:
             screener_result = await mock_screener.scan_momentum_stocks()
             await mock_data_store.save_screener_data(screener_result.data, "momentum")
             await mock_redis.publish_screener_update(screener_result.data, "momentum")
-            if service.data_service and service.data_service._stats:
+            if (
+                service.data_service
+                and service.data_service._stats
+                and service.data_service._stats.get("screener_runs") is not None
+            ):
                 service.data_service._stats["screener_runs"] += 1
 
             # 2. Add new tickers to tracking
@@ -1758,7 +1780,7 @@ class TestDataFlow:
             ):
                 active_tickers = service.data_service._active_tickers
             else:
-                active_tickers = []
+                active_tickers = set()
             for ticker in active_tickers:
                 price_data = await mock_twelve_client.fetch_time_series(
                     ticker, TimeFrame.ONE_HOUR
@@ -1875,11 +1897,15 @@ class TestDataFlow:
                     )
 
                 # 4. Save historical data
-                save_result = await mock_data_store.save_market_data(market_data)
-                if service.data_service:
-                    service.data_service._stats["total_records_saved"] += save_result[
-                        "total_saved"
-                    ]
+                await mock_data_store.save_market_data(market_data)
+                if (
+                    service.data_service
+                    and service.data_service._stats.get("total_records_saved")
+                    is not None
+                ):
+                    service.data_service._stats["total_records_saved"] += len(
+                        market_data
+                    )
 
                 return len(market_data)
 
@@ -2177,8 +2203,12 @@ class TestPerformance:
             for ticker in test_tickers:
                 task = rate_limited_fetch(ticker, TimeFrame.ONE_HOUR)
                 tasks.append(task)
-                if service.data_service and service.data_service._stats:
-                    service.data_service._stats["api_calls"] += 1
+                if (
+                    service.data_service
+                    and service.data_service._stats
+                    and service.data_service._stats.get("data_updates") is not None
+                ):
+                    service.data_service._stats["data_updates"] += 1
 
             # Execute all requests concurrently
             start_time = time.time()
@@ -2530,7 +2560,7 @@ class TestPerformance:
         service.data_service._stats = {"total_records_saved": 0}
 
         # Test concurrent collection across timeframes
-        async def concurrent_collection_flow() -> tuple[list, float]:
+        async def concurrent_collection_flow() -> tuple[int, float]:
             tasks = []
             for timeframe in timeframes:
                 if service.data_service and service.data_service.twelvedata_client:
@@ -2548,9 +2578,12 @@ class TestPerformance:
 
             # Save all collected data
             for result in results:
-                all_data = []
+                all_data: list[Any] = []
                 for ticker_data in result.values():
-                    all_data.extend(ticker_data)
+                    if isinstance(ticker_data, list):
+                        all_data.extend(ticker_data)
+                    else:
+                        all_data.append(ticker_data)
                 if service.data_service and service.data_service.data_store:
                     await service.data_service.data_store.save_market_data(all_data)
 

@@ -1481,7 +1481,7 @@ class StrategyEngineService:
         except Exception:
             return None
 
-    async def generate_macd_signal(self, symbol: str, **kwargs) -> Optional[Any]:
+    async def generate_macd_signal(self, symbol: str, **kwargs: Any) -> Optional[Any]:
         """Generate MACD signal - test compatibility method."""
         request = SignalGenerationRequest(symbol=symbol, strategy_name="MACDStrategy")
         try:
@@ -1517,7 +1517,9 @@ class StrategyEngineService:
         result_df = self.technical_engine.indicators.rsi(df, period)
         return result_df.select(f"rsi_{period}").to_series().to_list()
 
-    def calculate_macd(self, prices: List[float], **kwargs) -> Dict[str, List[float]]:
+    def calculate_macd(
+        self, prices: List[float], **kwargs: Any
+    ) -> Dict[str, List[float]]:
         """Calculate MACD - test compatibility method."""
         # Convert list to polars DataFrame for processing
         import polars as pl

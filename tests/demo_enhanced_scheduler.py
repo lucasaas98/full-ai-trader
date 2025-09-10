@@ -382,7 +382,7 @@ def demonstrate_algorithm_improvements() -> None:
 
         # Old simple calculation
         old_intervals = simple_calculate_optimal_intervals(
-            case["api_limits"], int(case["tickers"]), timeframes
+            case["api_limits"], case["tickers"], timeframes
         )
 
         # New enhanced calculation

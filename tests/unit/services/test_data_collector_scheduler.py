@@ -772,25 +772,12 @@ class TestAlgorithmValidation:
         # Call function multiple times with identical parameters
         results = []
         for _ in range(10):
-            # Convert test_params to proper types
-            converted_config = {
-                "api_rate_limits": cast(Dict[str, int], test_params["api_rate_limits"]),
-                "active_tickers": cast(int, test_params["active_tickers"]),
-                "timeframes": cast(List[TimeFrame], test_params["timeframes"]),
-                "market_volatility": cast(float, test_params["market_volatility"]),
-                "priority_weights": (
-                    cast(Dict[TimeFrame, float], test_params["priority_weights"])
-                    if "priority_weights" in test_params
-                    and test_params["priority_weights"]
-                    else None
-                ),
-            }
             intervals = calculate_optimal_intervals(
-                api_rate_limits=converted_config["api_rate_limits"],
-                active_tickers=converted_config["active_tickers"],
-                timeframes=converted_config["timeframes"],
-                market_volatility=converted_config["market_volatility"],
-                priority_weights=converted_config["priority_weights"],
+                api_rate_limits=test_params["api_rate_limits"],  # type: ignore
+                active_tickers=test_params["active_tickers"],  # type: ignore
+                timeframes=test_params["timeframes"],  # type: ignore
+                market_volatility=test_params["market_volatility"],  # type: ignore
+                priority_weights=test_params.get("priority_weights")  # type: ignore
             )
             results.append(intervals)
 
