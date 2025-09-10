@@ -108,7 +108,7 @@ class AIStrategyIntegration:
         # Callbacks
         self.signal_callbacks: List[Callable] = []
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all components and start listening for data."""
         logger.info("Initializing AI Strategy Integration")
 
@@ -123,7 +123,7 @@ class AIStrategyIntegration:
         if self.data_subscriber and hasattr(
             self.data_subscriber, "register_price_callback"
         ):
-            self.data_subscriber.register_price_callback(self._handle_price_update)
+            self.data_subscriber.register_price_callback(self._handle_screener_update)
         if self.data_subscriber and hasattr(
             self.data_subscriber, "register_screener_callback"
         ):
@@ -134,7 +134,7 @@ class AIStrategyIntegration:
         # Start background tasks
         asyncio.create_task(self._market_regime_monitor())
         asyncio.create_task(self._position_monitor())
-        asyncio.create_task(self._performance_monitor())
+        asyncio.create_task(self._position_monitor())
 
         # Start listening for data
         if self.data_subscriber:
@@ -142,7 +142,7 @@ class AIStrategyIntegration:
 
         logger.info("AI Strategy Integration initialized successfully")
 
-    async def _handle_price_update(self, data: Dict[str, Any]):
+    async def process_price_data(self, data: Dict[str, Any]) -> None:
         """
         Handle incoming price updates from Redis.
 
@@ -182,7 +182,7 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error handling price update: {e}")
 
-    async def _handle_screener_update(self, data: Dict[str, Any]):
+    async def _handle_screener_update(self, data: Dict[str, Any]) -> None:
         """
         Handle incoming screener data updates.
 
@@ -207,7 +207,7 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error handling screener update: {e}")
 
-    async def _analyze_ticker(self, ticker: str):
+    async def _analyze_ticker(self, ticker: str) -> None:
         """
         Analyze a ticker using AI strategy.
 
@@ -233,7 +233,7 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error analyzing {ticker}: {e}")
 
-    async def _process_ai_signal(self, ticker: str, signal: Signal):
+    async def _process_ai_signal(self, ticker: str, signal: Signal) -> None:
         """
         Process and publish AI-generated trading signal.
 
@@ -300,7 +300,9 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error processing AI signal for {ticker}: {e}")
 
-    async def _save_ai_decision(self, ticker: str, ai_decision: Any, signal: Signal):
+    async def _save_ai_decision(
+        self, ticker: str, ai_decision: Any, signal: Signal
+    ) -> None:
         """
         Save AI decision to database for tracking and analysis.
 
@@ -377,7 +379,7 @@ class AIStrategyIntegration:
 
         return True
 
-    async def _market_regime_monitor(self):
+    async def _market_regime_monitor(self) -> None:
         """Monitor and update market regime periodically."""
         while True:
             try:
@@ -398,7 +400,7 @@ class AIStrategyIntegration:
                 logger.error(f"Error in market regime monitor: {e}")
                 await asyncio.sleep(60)
 
-    async def _position_monitor(self):
+    async def _position_monitor(self) -> None:
         """Monitor open positions and generate exit signals."""
         while True:
             try:
@@ -502,7 +504,9 @@ class AIStrategyIntegration:
             logger.error(f"Error getting AI exit signal: {e}")
             return None
 
-    async def _publish_exit_signal(self, ticker: str, position: Dict, reason: str):
+    async def _publish_exit_signal(
+        self, ticker: str, position: Dict, reason: str
+    ) -> None:
         """
         Publish exit signal for a position.
 
@@ -548,7 +552,7 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error publishing exit signal: {e}")
 
-    async def _performance_monitor(self):
+    async def _performance_tracker(self) -> None:
         """Monitor and report strategy performance."""
         while True:
             try:
@@ -628,7 +632,7 @@ class AIStrategyIntegration:
             "vix_change": -0.3,
         }
 
-    async def _save_market_regime(self, market_data: Dict[str, Any]):
+    async def _save_market_regime(self, market_data: Dict) -> None:
         """
         Save market regime assessment to database.
 
@@ -654,7 +658,7 @@ class AIStrategyIntegration:
         except Exception as e:
             logger.error(f"Error saving market regime: {e}")
 
-    def register_signal_callback(self, callback: Callable):
+    async def register_signal_callback(self, callback: Callable) -> None:
         """
         Register a callback for when signals are generated.
 
@@ -664,8 +668,8 @@ class AIStrategyIntegration:
         self.signal_callbacks.append(callback)
 
     async def add_position(
-        self, ticker: str, entry_price: float, quantity: int, **kwargs
-    ):
+        self, ticker: str, entry_price: float, quantity: int, **kwargs: Any
+    ) -> None:
         """
         Add a position to track.
 
@@ -685,7 +689,7 @@ class AIStrategyIntegration:
         }
         logger.info(f"Added position: {ticker} @ {entry_price} x {quantity}")
 
-    async def remove_position(self, ticker: str):
+    async def remove_position(self, ticker: str) -> None:
         """
         Remove a position from tracking.
 
@@ -715,7 +719,7 @@ class AIStrategyIntegration:
             "buffered_tickers": list(self.price_data_buffer.keys()),
         }
 
-    async def shutdown(self):
+    async def stop(self) -> None:
         """Gracefully shutdown the integration."""
         logger.info("Shutting down AI Strategy Integration")
 
@@ -734,7 +738,7 @@ class AIStrategyIntegration:
         logger.info("AI Strategy Integration shutdown complete")
 
 
-async def main():
+async def main() -> None:
     """Main entry point for testing."""
     logging.basicConfig(level=logging.INFO)
 
@@ -768,7 +772,7 @@ async def main():
             logger.info(f"Strategy Status: {status}")
             await asyncio.sleep(60)
     except KeyboardInterrupt:
-        await integration.shutdown()
+        await integration.stop()
 
 
 if __name__ == "__main__":

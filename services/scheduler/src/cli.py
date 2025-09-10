@@ -8,7 +8,7 @@ the trading system scheduler and all its components.
 import asyncio
 import json
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import httpx
 import typer
@@ -33,7 +33,7 @@ class SchedulerClient:
         self.base_url = base_url.rstrip("/")
 
     async def _make_request(
-        self, method: str, endpoint: str, **kwargs
+        self, method: str, endpoint: str, **kwargs: Any
     ) -> Dict[str, Any]:
         """Make HTTP request to scheduler API."""
         url = f"{self.base_url}{endpoint}"
@@ -105,10 +105,10 @@ class SchedulerClient:
         return await self._make_request("GET", f"/logs?lines={lines}")
 
 
-def run_async(func):
+def run_async(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to run async functions in typer commands."""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         return asyncio.run(func(*args, **kwargs))
 
     return wrapper
@@ -122,7 +122,7 @@ async def status(
     ),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Show system status."""
     client = SchedulerClient(url)
 
@@ -232,7 +232,7 @@ async def status(
 @run_async
 async def tasks(
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
-):
+) -> None:
     """List all tasks."""
     client = SchedulerClient(url)
     status_data = await client.get_status()
@@ -265,7 +265,7 @@ async def trigger(
     task_id: str = typer.Argument(..., help="Task ID to trigger"),
     priority: str = typer.Option("normal", "--priority", "-p", help="Task priority"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manually trigger a task."""
     client = SchedulerClient(url)
 
@@ -289,7 +289,7 @@ async def trigger(
 async def pause(
     task_id: str = typer.Argument(..., help="Task ID to pause"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Pause a scheduled task."""
     client = SchedulerClient(url)
     result = await client.pause_task(task_id)
@@ -305,7 +305,7 @@ async def pause(
 async def resume(
     task_id: str = typer.Argument(..., help="Task ID to resume"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Resume a paused task."""
     client = SchedulerClient(url)
     result = await client.resume_task(task_id)
@@ -322,7 +322,7 @@ async def services(
     action: str = typer.Argument(None, help="Action: list, restart <service>"),
     service_name: str = typer.Argument(None, help="Service name for restart"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manage services."""
     client = SchedulerClient(url)
 
@@ -381,7 +381,7 @@ async def maintenance(
         None, "--enable/--disable", help="Enable or disable maintenance mode"
     ),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manage maintenance mode."""
     if enable is None:
         # Show current status
@@ -413,7 +413,7 @@ async def maintenance(
 async def emergency(
     action: str = typer.Argument(..., help="Action: stop, resume"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Emergency trading controls."""
     client = SchedulerClient(url)
 
@@ -447,7 +447,7 @@ async def pipeline(
         "manual", "--reason", "-r", help="Reason for triggering"
     ),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Control data pipeline."""
     client = SchedulerClient(url)
 
@@ -479,11 +479,11 @@ async def metrics(
         5, "--interval", "-i", help="Update interval for watch mode"
     ),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Show system metrics."""
     client = SchedulerClient(url)
 
-    async def show_metrics():
+    async def show_metrics() -> None:
         performance_data = await client.get_performance()
         status_data = await client.get_status()
         metrics_data = status_data.get("metrics", {})
@@ -559,7 +559,7 @@ async def logs(
     ),
     follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Show system logs."""
     client = SchedulerClient(url)
 
@@ -588,7 +588,7 @@ async def logs(
 @run_async
 async def positions(
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
-):
+) -> None:
     """Show current positions."""
     try:
         async with httpx.AsyncClient() as client:
@@ -635,7 +635,7 @@ async def positions(
 @run_async
 async def portfolio(
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
-):
+) -> None:
     """Show portfolio summary."""
     try:
         async with httpx.AsyncClient() as client:
@@ -667,7 +667,7 @@ async def export(
     ),
     output: str = typer.Option(None, "--output", "-o", help="Output file path"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Export trading data for TradeNote or other analysis."""
     try:
         # Get trades data
@@ -714,7 +714,7 @@ async def config(
     reload: bool = typer.Option(False, "--reload", help="Reload configuration"),
     set_param: str = typer.Option(None, "--set", help="Set parameter: key=value"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manage configuration."""
     if show:
         try:
@@ -726,7 +726,9 @@ async def config(
             # Display configuration as a tree
             tree = Tree("Configuration")
 
-            def add_to_tree(parent, data, prefix=""):
+            def add_to_tree(
+                parent: Tree, data: Dict[str, Any], prefix: str = ""
+            ) -> None:
                 for key, value in data.items():
                     if isinstance(value, dict):
                         branch = parent.add(f"[cyan]{key}[/cyan]")
@@ -786,7 +788,7 @@ async def monitor(
         5, "--interval", "-i", help="Update interval in seconds"
     ),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Real-time system monitoring dashboard."""
     client = SchedulerClient(url)
 
@@ -875,7 +877,7 @@ async def strategy(
     ),
     strategy_name: str = typer.Argument(None, help="Strategy name"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manage trading strategies."""
     try:
         async with httpx.AsyncClient() as client:
@@ -933,7 +935,7 @@ async def strategy(
 async def risk(
     action: str = typer.Argument("status", help="Action: status, limits, alerts"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Risk management information."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1037,7 +1039,7 @@ async def backtest(
     end_date: str = typer.Option(None, "--end", help="End date (YYYY-MM-DD)"),
     symbols: str = typer.Option(None, "--symbols", help="Comma-separated symbols"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Run strategy backtests."""
     try:
         backtest_params = {"strategy": strategy}
@@ -1090,7 +1092,7 @@ async def alerts(
     action: str = typer.Argument("list", help="Action: list, clear"),
     severity: str = typer.Option(None, "--severity", help="Filter by severity"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Manage system alerts."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1142,7 +1144,7 @@ async def alerts(
 async def health(
     service: str = typer.Argument(None, help="Specific service to check"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Check service health."""
     client = SchedulerClient(url)
     status_data = await client.get_status()
@@ -1206,10 +1208,10 @@ def dashboard(
         3, "--refresh", "-r", help="Refresh interval in seconds"
     ),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Launch comprehensive interactive dashboard."""
 
-    async def _run_dashboard():
+    async def _run_dashboard() -> None:
         """Internal async function to run the dashboard."""
         try:
             from rich.align import Align
@@ -1250,7 +1252,7 @@ def dashboard(
 
                 return layout
 
-            async def get_dashboard_data():
+            async def get_dashboard_data() -> dict:
                 """Fetch all dashboard data."""
                 try:
                     # Core system data
@@ -1618,7 +1620,7 @@ def dashboard(
 @run_async
 async def queue(
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL")
-):
+) -> None:
     """Show task queue status."""
     client = SchedulerClient(url)
     status_data = await client.get_status()
@@ -1655,7 +1657,7 @@ async def trade(
     side: str = typer.Option(None, "--side", help="Trade side: buy, sell"),
     quantity: int = typer.Option(None, "--quantity", help="Trade quantity"),
     url: str = typer.Option(SCHEDULER_URL, "--url", help="Scheduler service URL"),
-):
+) -> None:
     """Trading operations."""
     try:
         if action == "status":
@@ -1774,7 +1776,7 @@ def get_status_emoji(status: str) -> str:
 
 
 @app.command()
-def version():
+def version() -> None:
     """Show version information."""
     console.print("[bold blue]Trading Scheduler CLI[/bold blue]")
     console.print("Version: 1.0.0")
@@ -1788,7 +1790,7 @@ def main(
         False, "--verbose", "-v", help="Enable verbose output"
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
-):
+) -> None:
     """
     Trading Scheduler CLI - Control and monitor your automated trading system.
 
@@ -1820,7 +1822,7 @@ async def maintenance_manage(
     url: str = typer.Option(
         "http://localhost:8000", "--url", help="Scheduler service URL"
     ),
-):
+) -> None:
     """Maintenance system management."""
     try:
         async with httpx.AsyncClient() as client:
@@ -2058,7 +2060,7 @@ async def maintenance_dashboard(
     url: str = typer.Option(
         "http://localhost:8000", "--url", help="Scheduler service URL"
     ),
-):
+) -> None:
     """Maintenance dashboard with real-time updates."""
     try:
         from rich.layout import Layout
@@ -2087,7 +2089,7 @@ async def maintenance_dashboard(
 
             return layout
 
-        async def update_dashboard_data():
+        async def update_dashboard_data() -> dict:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # Get maintenance dashboard data
                 dashboard_response = await client.get(f"{url}/maintenance/dashboard")

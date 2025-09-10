@@ -10,11 +10,19 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 import httpx
 import uvicorn
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Query,
+    Response,
+    WebSocket,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import Counter, Gauge, generate_latest
@@ -125,7 +133,7 @@ class StatusResponse(BaseModel):
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan management."""
     global scheduler_instance, api_instance
 
@@ -195,7 +203,7 @@ def get_api() -> SchedulerAPI:
     return api_instance
 
 
-def init_prometheus_metrics():
+def init_prometheus_metrics() -> None:
     """Initialize Prometheus metrics."""
     global tasks_count_gauge, services_count_gauge, tasks_executed_counter, service_health_gauge
 
@@ -218,7 +226,7 @@ def init_prometheus_metrics():
     )
 
 
-async def update_prometheus_metrics():
+async def update_prometheus_metrics() -> None:
     """Update Prometheus metrics with current values."""
 
     try:
@@ -242,7 +250,7 @@ async def update_prometheus_metrics():
 
 
 @app.get("/metrics")
-async def get_prometheus_metrics():
+async def get_prometheus_metrics() -> Response:
     """Prometheus metrics endpoint."""
     try:
         # Update metrics before returning them
@@ -263,7 +271,7 @@ async def get_prometheus_metrics():
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(
         status="healthy",
@@ -274,7 +282,7 @@ async def health_check():
 
 
 @app.get("/status", response_model=StatusResponse)
-async def get_system_status(api: SchedulerAPI = Depends(get_api)):
+async def get_system_status(api: SchedulerAPI = Depends(get_api)) -> StatusResponse:
     """Get comprehensive system status."""
     try:
         status = await api.get_status()
@@ -285,7 +293,9 @@ async def get_system_status(api: SchedulerAPI = Depends(get_api)):
 
 
 @app.get("/performance")
-async def get_performance_metrics(api: SchedulerAPI = Depends(get_api)):
+async def get_performance_metrics(
+    api: SchedulerAPI = Depends(get_api),
+) -> Dict[str, Any]:
     """Get system performance metrics."""
     try:
         return await api.get_performance()
@@ -298,7 +308,7 @@ async def get_performance_metrics(api: SchedulerAPI = Depends(get_api)):
 @app.post("/tasks/{task_id}/trigger")
 async def trigger_task(
     task_id: str, request: TaskTriggerRequest, api: SchedulerAPI = Depends(get_api)
-):
+) -> Dict[str, Any]:
     """Manually trigger a specific task."""
     try:
         result = await api.trigger_task(task_id, request.priority)
@@ -309,7 +319,9 @@ async def trigger_task(
 
 
 @app.post("/tasks/{task_id}/pause")
-async def pause_task(task_id: str, api: SchedulerAPI = Depends(get_api)):
+async def pause_task(
+    task_id: str, api: SchedulerAPI = Depends(get_api)
+) -> Dict[str, str]:
     """Pause a scheduled task."""
     try:
         result = await api.pause_task(task_id)
@@ -320,7 +332,9 @@ async def pause_task(task_id: str, api: SchedulerAPI = Depends(get_api)):
 
 
 @app.post("/tasks/{task_id}/resume")
-async def resume_task(task_id: str, api: SchedulerAPI = Depends(get_api)):
+async def resume_task(
+    task_id: str, api: SchedulerAPI = Depends(get_api)
+) -> Dict[str, str]:
     """Resume a paused task."""
     try:
         result = await api.resume_task(task_id)
@@ -331,7 +345,9 @@ async def resume_task(task_id: str, api: SchedulerAPI = Depends(get_api)):
 
 
 @app.get("/tasks")
-async def list_tasks(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def list_tasks(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """List all scheduled tasks."""
     try:
         tasks_info = {}
@@ -357,7 +373,9 @@ async def list_tasks(scheduler: TradingScheduler = Depends(get_scheduler)):
 
 # Service management endpoints
 @app.post("/services/{service_name}/restart")
-async def restart_service(service_name: str, api: SchedulerAPI = Depends(get_api)):
+async def restart_service(
+    service_name: str, api: SchedulerAPI = Depends(get_api)
+) -> Dict[str, str]:
     """Restart a specific service."""
     try:
         result = await api.restart_service(service_name)
@@ -368,7 +386,9 @@ async def restart_service(service_name: str, api: SchedulerAPI = Depends(get_api
 
 
 @app.get("/services")
-async def list_services(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def list_services(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """List all registered services."""
     try:
         services_info = {}
@@ -392,7 +412,7 @@ async def list_services(scheduler: TradingScheduler = Depends(get_scheduler)):
 @app.post("/services/{service_name}/start")
 async def start_service(
     service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)
-):
+) -> Dict[str, str]:
     """Start a specific service."""
     try:
         success = await scheduler.start_service(service_name)
@@ -411,7 +431,7 @@ async def start_service(
 @app.post("/services/{service_name}/stop")
 async def stop_service(
     service_name: str, scheduler: TradingScheduler = Depends(get_scheduler)
-):
+) -> Dict[str, str]:
     """Stop a specific service."""
     try:
         success = await scheduler.stop_service(service_name)
@@ -431,7 +451,7 @@ async def stop_service(
 @app.post("/system/maintenance")
 async def set_maintenance_mode(
     request: MaintenanceModeRequest, api: SchedulerAPI = Depends(get_api)
-):
+) -> Dict[str, str]:
     """Enable or disable maintenance mode."""
     try:
         result = await api.set_maintenance_mode(request.enabled)
@@ -442,7 +462,7 @@ async def set_maintenance_mode(
 
 
 @app.post("/system/emergency-stop")
-async def emergency_stop(api: SchedulerAPI = Depends(get_api)):
+async def emergency_stop(api: SchedulerAPI = Depends(get_api)) -> Dict[str, str]:
     """Trigger emergency stop of all trading activities."""
     try:
         result = await api.emergency_stop()
@@ -453,7 +473,7 @@ async def emergency_stop(api: SchedulerAPI = Depends(get_api)):
 
 
 @app.post("/system/resume-trading")
-async def resume_trading(api: SchedulerAPI = Depends(get_api)):
+async def resume_trading(api: SchedulerAPI = Depends(get_api)) -> Dict[str, str]:
     """Resume trading after emergency stop."""
     try:
         result = await api.resume_trading()
@@ -467,7 +487,7 @@ async def resume_trading(api: SchedulerAPI = Depends(get_api)):
 async def shutdown_system(
     scheduler: TradingScheduler = Depends(get_scheduler),
     background_tasks: BackgroundTasks = BackgroundTasks(),
-):
+) -> Dict[str, str]:
     """Gracefully shutdown the entire system."""
     try:
         background_tasks.add_task(scheduler.shutdown)
@@ -481,7 +501,7 @@ async def shutdown_system(
 @app.post("/pipeline/trigger")
 async def trigger_pipeline(
     request: PipelineTriggerRequest, api: SchedulerAPI = Depends(get_api)
-):
+) -> Dict[str, Any]:
     """Trigger the data pipeline."""
     try:
         result = await api.trigger_pipeline(request.reason)
@@ -492,7 +512,9 @@ async def trigger_pipeline(
 
 
 @app.get("/pipeline/status")
-async def get_pipeline_status(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_pipeline_status(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get data pipeline status."""
     try:
         # Get pipeline step completion status
@@ -517,7 +539,7 @@ async def get_pipeline_status(scheduler: TradingScheduler = Depends(get_schedule
 
 # Configuration management endpoints
 @app.get("/config")
-async def get_configuration():
+async def get_configuration() -> Dict[str, Any]:
     """Get current configuration."""
     try:
         config = get_config()
@@ -530,7 +552,7 @@ async def get_configuration():
 
 
 @app.post("/config/reload")
-async def reload_configuration(api: SchedulerAPI = Depends(get_api)):
+async def reload_configuration(api: SchedulerAPI = Depends(get_api)) -> Dict[str, str]:
     """Hot reload configuration."""
     try:
         result = await api.update_config({})  # Trigger reload
@@ -543,7 +565,7 @@ async def reload_configuration(api: SchedulerAPI = Depends(get_api)):
 @app.post("/config/update")
 async def update_configuration(
     request: ConfigUpdateRequest, api: SchedulerAPI = Depends(get_api)
-):
+) -> Dict[str, str]:
     """Update configuration parameters."""
     try:
         result = await api.update_config(request.config)
@@ -555,7 +577,9 @@ async def update_configuration(
 
 # Market information endpoints
 @app.get("/market/hours")
-async def get_market_hours(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_market_hours(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get market hours information."""
     try:
         market_hours = scheduler.market_hours
@@ -589,7 +613,7 @@ async def get_market_calendar(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get market calendar for date range."""
     try:
         from datetime import datetime
@@ -619,7 +643,9 @@ async def get_market_calendar(
 
 # Monitoring endpoints
 @app.get("/metrics")
-async def get_system_metrics(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_system_metrics(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get detailed system metrics."""
     try:
         monitor = getattr(scheduler, "monitor", None)
@@ -636,7 +662,7 @@ async def get_system_metrics(scheduler: TradingScheduler = Depends(get_scheduler
 async def get_historical_metrics(
     hours: int = Query(default=24, description="Hours of historical data"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get historical system metrics."""
     try:
         # Get historical metrics from Redis time series
@@ -675,9 +701,9 @@ async def get_historical_metrics(
 
 @app.get("/logs")
 async def get_logs(
-    lines: int = Query(default=100, description="Number of log lines to retrieve"),
-    level: str = Query(default="INFO", description="Minimum log level"),
-):
+    lines: int = Query(100, description="Number of log lines to retrieve"),
+    level: str = Query("INFO", description="Minimum log level"),
+) -> Dict[str, Any]:
     """Get recent system logs."""
     try:
         # This would typically read from a centralized logging system
@@ -695,9 +721,9 @@ async def get_logs(
 
 @app.get("/alerts")
 async def get_alerts(
-    severity: str = Query(default=None, description="Filter by severity"),
+    severity: str = Query(default=None, description="Filter alerts by severity"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get system alerts."""
     try:
         # Get alerts from Redis
@@ -730,7 +756,9 @@ async def get_alerts(
 
 
 @app.delete("/alerts")
-async def clear_alerts(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def clear_alerts(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, str]:
     """Clear all system alerts."""
     try:
         redis_client = getattr(scheduler, "redis", None)
@@ -754,7 +782,7 @@ async def run_maintenance_task(
     task_name: str,
     request: MaintenanceTaskRequest,
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> MaintenanceResponse:
     """Run a specific maintenance task."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -785,7 +813,7 @@ async def run_maintenance_task(
 @app.post("/maintenance/run-all")
 async def run_all_maintenance_tasks(
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Run all maintenance tasks."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -817,7 +845,9 @@ async def run_all_maintenance_tasks(
 
 
 @app.get("/maintenance/status")
-async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_maintenance_status(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get maintenance system status."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -853,9 +883,9 @@ async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_sched
 
 @app.get("/maintenance/history")
 async def get_maintenance_history(
-    limit: int = Query(default=50, description="Number of records to retrieve"),
+    days: int = Query(default=30, description="Number of days to retrieve"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get maintenance task history."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -887,7 +917,7 @@ async def get_maintenance_history(
 async def generate_maintenance_report(
     request: MaintenanceReportRequest,
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Generate maintenance report."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -927,7 +957,7 @@ async def generate_maintenance_report(
 @app.get("/maintenance/schedule")
 async def get_maintenance_schedule(
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get maintenance task schedule."""
     try:
         if hasattr(scheduler, "maintenance_scheduler"):
@@ -952,7 +982,7 @@ async def get_maintenance_schedule(
 @app.post("/maintenance/schedule/{schedule_id}/pause")
 async def pause_maintenance_task(
     schedule_id: str, scheduler: TradingScheduler = Depends(get_scheduler)
-):
+) -> Dict[str, str]:
     """Pause a scheduled maintenance task."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -978,7 +1008,7 @@ async def pause_maintenance_task(
 @app.post("/maintenance/schedule/{schedule_id}/resume")
 async def resume_maintenance_task(
     schedule_id: str, scheduler: TradingScheduler = Depends(get_scheduler)
-):
+) -> Dict[str, str]:
     """Resume a scheduled maintenance task."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -1002,7 +1032,9 @@ async def resume_maintenance_task(
 
 
 @app.post("/maintenance/smart-run")
-async def run_smart_maintenance(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def run_smart_maintenance(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Run intelligent maintenance based on system analysis."""
     try:
         if hasattr(scheduler, "maintenance_scheduler"):
@@ -1026,7 +1058,7 @@ async def run_smart_maintenance(scheduler: TradingScheduler = Depends(get_schedu
 async def get_maintenance_metrics(
     task_name: Optional[str] = Query(None, description="Specific task name"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get maintenance task metrics."""
     try:
         maintenance_manager = getattr(scheduler, "maintenance_manager", None)
@@ -1049,7 +1081,7 @@ async def get_maintenance_metrics(
 @app.get("/maintenance/statistics")
 async def get_maintenance_statistics(
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get comprehensive maintenance statistics."""
     try:
         maintenance_manager = getattr(scheduler, "maintenance_manager", None)
@@ -1070,7 +1102,7 @@ async def get_maintenance_statistics(
 @app.get("/maintenance/dashboard")
 async def get_maintenance_dashboard(
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get maintenance dashboard data."""
     try:
         if hasattr(scheduler, "maintenance_manager") and hasattr(
@@ -1163,7 +1195,7 @@ async def get_maintenance_dashboard(
 async def run_emergency_maintenance(
     task_name: Optional[str] = Query(None, description="Specific emergency task"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Run emergency maintenance tasks."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -1179,7 +1211,7 @@ async def run_emergency_maintenance(
                 else:
 
                     class Result:
-                        def __init__(self):
+                        def __init__(self) -> None:
                             self.success = False
                             self.message = "Task runner not available"
                             self.duration = 0
@@ -1252,7 +1284,9 @@ async def run_emergency_maintenance(
 
 # Queue management endpoints
 @app.get("/queues")
-async def get_queue_status(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_queue_status(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get task queue status."""
     try:
         task_queue = getattr(scheduler, "task_queue", None)
@@ -1269,7 +1303,7 @@ async def get_queue_status(scheduler: TradingScheduler = Depends(get_scheduler))
 async def clear_queues(
     priority: str = Query(default="all", description="Priority queue to clear"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, str]:
     """Clear task queues."""
     try:
         task_queue = getattr(scheduler, "task_queue", None)
@@ -1300,7 +1334,7 @@ async def clear_queues(
 
 # Trade management endpoints (proxy to trade executor)
 @app.get("/positions")
-async def get_positions():
+async def get_positions() -> Dict[str, Any]:
     """Get current positions."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1313,7 +1347,7 @@ async def get_positions():
 
 
 @app.get("/portfolio")
-async def get_portfolio():
+async def get_portfolio() -> Dict[str, Any]:
     """Get portfolio summary."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1326,7 +1360,7 @@ async def get_portfolio():
 
 
 @app.post("/trades/manual")
-async def execute_manual_trade(request: TradeRequest):
+async def execute_manual_trade(request: TradeRequest) -> Dict[str, Any]:
     """Execute a manual trade."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1342,8 +1376,8 @@ async def execute_manual_trade(request: TradeRequest):
 
 @app.get("/trades/recent")
 async def get_recent_trades(
-    limit: int = Query(default=50, description="Number of recent trades")
-):
+    limit: int = Query(default=50, description="Number of trades to retrieve")
+) -> Dict[str, Any]:
     """Get recent trades."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1359,10 +1393,10 @@ async def get_recent_trades(
 
 @app.get("/trades/export")
 async def export_trades(
-    start_date: str = Query(default=None, description="Start date (YYYY-MM-DD)"),
-    end_date: str = Query(default=None, description="End date (YYYY-MM-DD)"),
-    format: str = Query(default="json", description="Export format"),
-):
+    format: str = Query(default="csv", description="Export format"),
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+) -> Dict[str, Any]:
     """Export trades for external analysis."""
     try:
         params = {"format": format}
@@ -1384,7 +1418,7 @@ async def export_trades(
 
 # Strategy management endpoints (proxy to strategy engine)
 @app.get("/strategies")
-async def get_strategies():
+async def get_strategies() -> Dict[str, Any]:
     """Get all strategies and their status."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1397,7 +1431,7 @@ async def get_strategies():
 
 
 @app.post("/strategies/{strategy_name}/toggle")
-async def toggle_strategy(strategy_name: str, enabled: bool):
+async def toggle_strategy(strategy_name: str, enabled: bool) -> Dict[str, str]:
     """Enable or disable a specific strategy."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1418,7 +1452,7 @@ async def run_strategy_backtest(
     start_date: str = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(default=None, description="End date (YYYY-MM-DD)"),
     symbols: str = Query(default=None, description="Comma-separated symbols"),
-):
+) -> Dict[str, Any]:
     """Run backtest for a specific strategy."""
     try:
         params = {"strategy": strategy_name}
@@ -1442,7 +1476,7 @@ async def run_strategy_backtest(
 
 # Risk management endpoints (proxy to risk manager)
 @app.get("/risk/status")
-async def get_risk_status():
+async def get_risk_status() -> Dict[str, Any]:
     """Get current risk status."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1455,7 +1489,7 @@ async def get_risk_status():
 
 
 @app.get("/risk/limits")
-async def get_risk_limits():
+async def get_risk_limits() -> Dict[str, Any]:
     """Get current risk limits."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1468,7 +1502,7 @@ async def get_risk_limits():
 
 
 @app.get("/risk/alerts")
-async def get_risk_alerts():
+async def get_risk_alerts() -> Dict[str, Any]:
     """Get current risk alerts."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1485,7 +1519,7 @@ async def get_risk_alerts():
 async def trigger_data_update(
     symbols: str = Query(default=None, description="Comma-separated symbols"),
     timeframe: str = Query(default="1m", description="Data timeframe"),
-):
+) -> Dict[str, str]:
     """Trigger data update for specific symbols."""
     try:
         params = {"timeframe": timeframe}
@@ -1504,7 +1538,7 @@ async def trigger_data_update(
 
 
 @app.post("/screener/scan")
-async def trigger_screener_scan():
+async def trigger_screener_scan() -> Dict[str, str]:
     """Trigger FinViz screener scan."""
     try:
         async with httpx.AsyncClient() as client:
@@ -1517,8 +1551,10 @@ async def trigger_screener_scan():
 
 
 # WebSocket endpoint for real-time updates
+
+
 @app.websocket("/ws/status")
-async def websocket_status_updates(websocket):
+async def websocket_status_updates(websocket: WebSocket) -> None:
     """WebSocket endpoint for real-time status updates."""
     await websocket.accept()
 
@@ -1538,7 +1574,7 @@ async def websocket_status_updates(websocket):
 
 # Error handlers
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
+async def http_exception_handler(request: Any, exc: HTTPException) -> JSONResponse:
     """Handle HTTP exceptions."""
     return JSONResponse(
         status_code=exc.status_code,
@@ -1547,7 +1583,7 @@ async def http_exception_handler(request, exc):
 
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
+async def general_exception_handler(request: Any, exc: Exception) -> JSONResponse:
     """Handle general exceptions."""
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
@@ -1561,14 +1597,14 @@ async def general_exception_handler(request, exc):
 
 # Startup event
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Application startup event."""
     logger.info("Scheduler API starting up...")
 
 
 # Shutdown event
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Application shutdown event."""
     logger.info("Scheduler API shutting down...")
 

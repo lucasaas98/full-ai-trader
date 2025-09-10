@@ -73,7 +73,7 @@ class ProductionStrategyAdapter:
         self.signals_generated = 0
         self.analysis_calls = 0
 
-    def _configure_strategy_parameters(self):
+    def _configure_strategy_parameters(self) -> None:
         """Configure parameters based on production strategy settings."""
 
         if self.strategy_mode == StrategyMode.DAY_TRADING:

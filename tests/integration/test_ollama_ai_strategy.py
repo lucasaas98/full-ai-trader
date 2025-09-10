@@ -34,21 +34,21 @@ class TestOllamaAIStrategyIntegration:
     """Integration tests for Ollama AI Strategy with production data."""
 
     @pytest.fixture
-    def ollama_client(self):
+    def ollama_client(self) -> OllamaClient:
         """Create Ollama client for testing."""
         url = os.getenv("OLLAMA_URL", "http://192.168.1.133:11434")
         model = os.getenv("OLLAMA_MODEL", "llama3.1:latest")
         return OllamaClient(url, model)
 
     @pytest.fixture
-    def parquet_data_path(self):
+    def parquet_data_path(self) -> Path:
         """Get path to production parquet data."""
         parquet_path = Path(__file__).parent.parent.parent / "data" / "parquet"
         if not parquet_path.exists():
             pytest.skip("Production parquet data not available")
         return parquet_path
 
-    async def test_ollama_health_check(self, ollama_client):
+    async def test_ollama_health_check(self, ollama_client: OllamaClient) -> None:
         """Test that Ollama server is accessible and healthy."""
         health_check = await ollama_client.health_check()
 
@@ -57,7 +57,7 @@ class TestOllamaAIStrategyIntegration:
 
         assert health_check, "Ollama server should be healthy"
 
-    async def test_ollama_basic_query(self, ollama_client):
+    async def test_ollama_basic_query(self, ollama_client: OllamaClient) -> None:
         """Test basic Ollama query functionality."""
         # Skip if Ollama not available
         if not await ollama_client.health_check():
@@ -72,7 +72,7 @@ class TestOllamaAIStrategyIntegration:
         assert response.cost == 0.0  # Local models are free
         assert response.response_time > 0
 
-    async def test_production_data_loading(self, parquet_data_path):
+    async def test_production_data_loading(self, parquet_data_path: Path) -> None:
         """Test loading production parquet data."""
         try:
             # Check if market data directory exists
@@ -98,8 +98,10 @@ class TestOllamaAIStrategyIntegration:
         except Exception as e:
             pytest.skip(f"Could not access production data: {e}")
 
-    async def test_ai_trading_analysis(self, ollama_client, parquet_data_path):
-        """Test AI trading analysis with production data."""
+    async def test_ai_signal_processing(
+        self, ollama_client: OllamaClient, parquet_data_path: Path
+    ) -> None:
+        """Test AI processing of trading signals with real data."""
         # Skip if Ollama not available
         if not await ollama_client.health_check():
             pytest.skip("Ollama server not available")
@@ -173,8 +175,8 @@ Respond in JSON format:
         except Exception as e:
             pytest.fail(f"AI analysis test failed: {e}")
 
-    async def test_multiple_stock_analysis(self, ollama_client):
-        """Test analyzing multiple stocks."""
+    async def test_multi_ticker_analysis(self, ollama_client: OllamaClient) -> None:
+        """Test AI analysis across multiple tickers."""
         # Skip if Ollama not available
         if not await ollama_client.health_check():
             pytest.skip("Ollama server not available")
@@ -205,7 +207,9 @@ Recommendation (BUY/SELL/HOLD)?"""
 
         assert len(results) > 0, "Should analyze at least one stock"
 
-    async def test_technical_indicator_analysis(self, ollama_client):
+    async def test_technical_indicator_analysis(
+        self, ollama_client: OllamaClient
+    ) -> None:
         """Test AI analysis with technical indicators."""
         # Skip if Ollama not available
         if not await ollama_client.health_check():
@@ -241,7 +245,7 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
         assert response2 is not None
         print(f"Overbought analysis: {response2.content}")
 
-    async def test_error_handling(self, ollama_client):
+    async def test_error_handling(self, ollama_client: OllamaClient) -> None:
         """Test error handling with invalid requests."""
         if not await ollama_client.health_check():
             pytest.skip("Ollama server not available")
@@ -258,7 +262,7 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
             print(f"Long prompt handled with error: {e}")
             # This is acceptable - we just want to ensure it doesn't crash
 
-    async def test_response_time_tracking(self, ollama_client):
+    async def test_response_time_tracking(self, ollama_client: OllamaClient) -> None:
         """Test that response times are tracked."""
         if not await ollama_client.health_check():
             pytest.skip("Ollama server not available")
@@ -274,7 +278,9 @@ Should I BUY, SELL, or HOLD? Brief explanation."""
         )
 
     @pytest.mark.slow
-    async def test_realistic_trading_scenario(self, ollama_client, parquet_data_path):
+    async def test_realistic_trading_scenario(
+        self, ollama_client: OllamaClient, parquet_data_path: Path
+    ) -> None:
         """Test a realistic end-to-end trading scenario."""
         if not await ollama_client.health_check():
             pytest.skip("Ollama server not available")

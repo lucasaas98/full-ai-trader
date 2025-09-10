@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 class SchedulerService:
     """Main scheduler service class."""
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config) -> None:
         logger.debug("Initializing SchedulerService instance")
         self.config = config
         self.redis_client: Optional[redis.Redis] = None
@@ -65,7 +65,7 @@ class SchedulerService:
         self.shutdown_event = asyncio.Event()
         logger.debug("SchedulerService instance initialized")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all service components."""
         logger.info("Initializing scheduler service...")
         logger.debug(f"Configuration environment: {self.config.environment}")
@@ -151,7 +151,7 @@ class SchedulerService:
             logger.error(f"Failed to run scheduler service: {e}")
             raise
 
-    async def _run_startup_maintenance_check(self):
+    async def _run_startup_maintenance_check(self) -> None:
         """Run maintenance check during startup to ensure system health."""
         try:
             logger.info("Running startup maintenance check...")
@@ -214,7 +214,7 @@ class SchedulerService:
             )
             # Don't fail startup for maintenance issues
 
-    async def _register_services(self):
+    async def _register_services(self) -> None:
         """Register all trading system services with the orchestrator."""
         logger.debug("Beginning service registration process")
 
@@ -306,7 +306,7 @@ class SchedulerService:
         logger.info("All services registered with orchestrator")
         logger.debug("Service registration process completed")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the scheduler service."""
         logger.info("Starting scheduler service...")
         logger.debug("Beginning service startup sequence")
@@ -378,7 +378,9 @@ class SchedulerService:
             await self.shutdown()
             raise
 
-    async def _on_market_session_change(self, old_session, new_session):
+    async def _on_market_session_change(
+        self, old_session: str, new_session: str
+    ) -> None:
         """Handle market session changes."""
         logger.info(f"Market session changed: {old_session} -> {new_session}")
         logger.debug(
@@ -432,8 +434,8 @@ class SchedulerService:
                 logger.debug("Daily maintenance completed")
 
     async def _on_service_status_change(
-        self, service_name: str, old_status, new_status
-    ):
+        self, service_name: str, old_status: str, new_status: str
+    ) -> None:
         """Handle service status changes."""
         logger.info(
             f"Service {service_name} status changed: {old_status} -> {new_status}"
@@ -461,7 +463,7 @@ class SchedulerService:
             )
             logger.debug(f"Running notification sent for service {service_name}")
 
-    async def _on_system_alert(self, alert):
+    async def _on_system_alert(self, alert: Any) -> None:
         """Handle system alerts."""
         logger.warning(f"System alert [{alert.severity.value}]: {alert.message}")
         logger.debug(
@@ -484,11 +486,11 @@ class SchedulerService:
                 f"Alert severity {alert.severity.value} does not require notification"
             )
 
-    def setup_signal_handlers(self):
+    def setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
         logger.debug("Setting up signal handlers")
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: Any) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             logger.debug(f"Signal handler triggered for signal {signum}")
             self.shutdown_event.set()
@@ -499,7 +501,7 @@ class SchedulerService:
         signal.signal(signal.SIGTERM, signal_handler)
 
         # Handle SIGUSR1 for configuration reload
-        def reload_handler(signum, frame):
+        def reload_handler(signum: int, frame: Any) -> None:
             logger.info("Received SIGUSR1, reloading configuration...")
             logger.debug("SIGUSR1 signal handler triggered for configuration reload")
             asyncio.create_task(self._reload_configuration())
@@ -508,7 +510,7 @@ class SchedulerService:
         signal.signal(signal.SIGUSR1, reload_handler)
         logger.debug("All signal handlers registered")
 
-    async def _reload_configuration(self):
+    async def _reload_configuration(self) -> None:
         """Reload configuration without restarting."""
         try:
             logger.info("Reloading configuration...")
@@ -523,7 +525,7 @@ class SchedulerService:
                 f"Configuration reload exception details: {type(e).__name__}: {e}"
             )
 
-    async def run_server(self):
+    async def run_server(self) -> None:
         """Run the FastAPI server."""
         logger.debug("Starting FastAPI server")
         if not self.app:
@@ -644,7 +646,7 @@ class SchedulerService:
                 "error": str(e),
             }
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Graceful shutdown of the scheduler service."""
         logger.info("Shutting down scheduler service...")
         logger.debug("Beginning graceful shutdown sequence")
@@ -711,7 +713,7 @@ class SchedulerService:
             logger.error(f"Error during shutdown: {e}")
             logger.debug(f"Shutdown exception details: {type(e).__name__}: {e}")
 
-    async def run(self):
+    async def run(self) -> None:
         """Main run method."""
         logger.debug("Starting main run method")
         try:
@@ -754,7 +756,7 @@ class SchedulerService:
             logger.debug("Main run method shutdown completed")
 
 
-async def main():
+async def main() -> None:
     """Main entry point."""
     logger.debug("Entering main entry point")
     try:
@@ -803,7 +805,7 @@ async def main():
         sys.exit(1)
 
 
-def run_cli():
+def run_cli() -> None:
     """Entry point for CLI commands."""
     logger.debug("Entering CLI entry point")
     from .cli import app as cli_app
@@ -813,7 +815,7 @@ def run_cli():
     logger.debug("CLI app completed")
 
 
-def run_dev_server():
+def run_dev_server() -> None:
     """Entry point for development server."""
     logger.debug("Entering development server entry point")
     config = get_config()
@@ -837,7 +839,7 @@ def run_dev_server():
     logger.debug("Development server completed")
 
 
-def create_dev_app():
+def create_dev_app() -> Any:
     """Create FastAPI app for development."""
     logger.debug("Creating FastAPI app for development")
     app = create_app()
@@ -848,14 +850,14 @@ def create_dev_app():
 class SchedulerApp:
     """Application wrapper for Scheduler service for integration testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Scheduler application."""
         logger.debug("Initializing SchedulerApp wrapper")
-        self.service = None
+        self.service: Optional[SchedulerService] = None
         self._initialized = False
         logger.debug("SchedulerApp wrapper initialized")
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the application."""
         logger.debug("SchedulerApp initialize called")
         if not self._initialized:
@@ -871,7 +873,7 @@ class SchedulerApp:
         else:
             logger.debug("SchedulerApp already initialized, skipping")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the Scheduler service."""
         logger.debug("SchedulerApp start called")
         await self.initialize()
@@ -883,7 +885,7 @@ class SchedulerApp:
         else:
             logger.debug("No scheduler service available to start")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the Scheduler service."""
         logger.debug("SchedulerApp stop called")
         if self.service:
@@ -895,7 +897,7 @@ class SchedulerApp:
         self._initialized = False
         logger.debug("SchedulerApp marked as not initialized")
 
-    def get_service(self):
+    def get_service(self) -> Optional[SchedulerService]:
         """Get the underlying service instance."""
         logger.debug(
             f"SchedulerApp get_service called, returning: {self.service is not None}"

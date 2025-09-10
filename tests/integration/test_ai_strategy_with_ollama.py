@@ -27,6 +27,7 @@ from services.strategy_engine.src.ai_strategy import (
     MarketContext,
 )
 from services.strategy_engine.src.base_strategy import StrategyConfig, StrategyMode
+from shared.models import TimeFrame
 
 # Removed unused import
 
@@ -42,7 +43,7 @@ class OllamaAnthropicAdapter:
         self.cache = MagicMock()
 
     async def query(
-        self, prompt: str, model: AIModel = AIModel.HAIKU, **kwargs
+        self, prompt: str, model: AIModel = AIModel.HAIKU, **kwargs: Any
     ) -> AIResponse:
         """Query Ollama and return in AIResponse format."""
         # Use Ollama instead of Anthropic
@@ -123,7 +124,7 @@ class OllamaAIStrategyEngine(AIStrategyEngine):
             "backend": "ollama",
         }
 
-    def _setup_indicators(self):
+    def _setup_indicators(self) -> None:
         """Setup technical indicators (inherited method)."""
         pass
 
@@ -288,7 +289,7 @@ Provide analysis in JSON format:
 
         return "; ".join(patterns) if patterns else "No significant patterns detected"
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the Ollama client."""
         if hasattr(self.anthropic_client, "ollama_client"):
             await self.anthropic_client.ollama_client.close()
@@ -300,7 +301,7 @@ class TestAIStrategyWithOllama:
     """Test AI Strategy using Ollama with production prompts and data."""
 
     @pytest.fixture
-    def strategy_config(self):
+    def strategy_config(self) -> StrategyConfig:
         """Create strategy configuration."""
         return StrategyConfig(
             name="ollama_ai_test",
@@ -310,7 +311,7 @@ class TestAIStrategyWithOllama:
         )
 
     @pytest.fixture
-    async def ollama_strategy(self, strategy_config):
+    async def ollama_strategy(self, strategy_config: StrategyConfig) -> Any:
         """Create Ollama-powered AI strategy."""
         strategy = OllamaAIStrategyEngine(strategy_config)
 
@@ -321,7 +322,7 @@ class TestAIStrategyWithOllama:
         await strategy.close()
 
     @pytest.fixture
-    def production_data_store(self):
+    def production_data_store(self) -> DataStore:
         """Get production data store."""
         parquet_path = Path(__file__).parent.parent.parent / "data" / "parquet"
 
@@ -338,7 +339,7 @@ class TestAIStrategyWithOllama:
         return DataStore(config)
 
     @pytest.fixture
-    def sample_market_data(self):
+    def sample_market_data(self) -> dict[str, Any]:
         """Sample market data for testing."""
         return {
             "symbol": "AAPL",
@@ -359,7 +360,7 @@ class TestAIStrategyWithOllama:
             "timestamp": datetime.now(),
         }
 
-    async def test_yaml_prompt_loading(self, ollama_strategy):
+    async def test_yaml_prompt_loading(self, ollama_strategy: Any) -> None:
         """Test that YAML prompts are loaded correctly."""
         assert ollama_strategy.prompts_config is not None
         assert "prompts" in ollama_strategy.prompts_config
@@ -375,8 +376,10 @@ class TestAIStrategyWithOllama:
         print(f"Loaded prompts: {list(prompts.keys())}")
 
     async def test_production_prompt_formatting(
-        self, ollama_strategy, sample_market_data
-    ):
+        self,
+        ollama_strategy: Any,
+        sample_market_data: dict[str, Any],
+    ) -> None:
         """Test that production prompts are formatted correctly."""
         # Get the master analyst template
         master_analyst_config = ollama_strategy.prompts_config.get("prompts", {}).get(
@@ -400,8 +403,10 @@ class TestAIStrategyWithOllama:
         print(f"Prompt preview: {prompt[:500]}...")
 
     async def test_ai_analysis_with_production_prompts(
-        self, ollama_strategy, sample_market_data
-    ):
+        self,
+        ollama_strategy: Any,
+        sample_market_data: dict[str, Any],
+    ) -> None:
         """Test complete AI analysis using production prompts."""
         # Update market context
         ollama_strategy.market_context = MarketContext(
@@ -432,8 +437,10 @@ class TestAIStrategyWithOllama:
         print(f"Response time: {decision.response_time:.2f}s")
 
     async def test_consensus_mechanism_with_ollama(
-        self, ollama_strategy, sample_market_data
-    ):
+        self,
+        ollama_strategy: Any,
+        sample_market_data: dict[str, Any],
+    ) -> None:
         """Test that consensus mechanism works with Ollama responses."""
         # Query multiple models (simulated)
         responses = await ollama_strategy._query_multiple_models(
@@ -486,8 +493,10 @@ class TestAIStrategyWithOllama:
             print("Could not parse any responses for consensus")
 
     async def test_production_data_integration(
-        self, ollama_strategy, production_data_store
-    ):
+        self,
+        ollama_strategy: Any,
+        production_data_store: DataStore,
+    ) -> None:
         """Test AI strategy with real production data."""
         try:
             # Get available data summary
@@ -497,29 +506,50 @@ class TestAIStrategyWithOllama:
                 pytest.skip("No production data available")
 
             # Get available tickers
-            available_range = await production_data_store.get_available_data_range()
+            available_range = production_data_store.get_available_data_range(
+                "AAPL", TimeFrame.ONE_DAY
+            )
 
             if not available_range:
                 pytest.skip("No data range available")
 
             # Pick first available ticker
-            ticker = next(iter(available_range.keys()))
+            # available_range is now a tuple (start_date, end_date) for AAPL
+            ticker = "AAPL"
 
             # Load recent data
-            data = await production_data_store.load_market_data(ticker, days_back=1)
+            data = await production_data_store.load_market_data(
+                ticker, TimeFrame.ONE_DAY, limit=100
+            )
 
             if data is None or len(data) == 0:
                 pytest.skip(f"No data for {ticker}")
 
             # Get latest data point
-            latest = data.iloc[-1]
+            latest = data.tail(1)
 
             # Build market data context
             market_data = {
                 "symbol": ticker,
-                "current_price": float(latest.get("close", latest.get("price", 100))),
-                "daily_change": float(latest.get("change_percent", 0)),
-                "volume": int(latest.get("volume", 1000000)),
+                "current_price": float(
+                    latest.select("close").item()
+                    if "close" in latest.columns
+                    else (
+                        latest.select("price").item()
+                        if "price" in latest.columns
+                        else 100
+                    )
+                ),
+                "daily_change": float(
+                    latest.select("change_percent").item()
+                    if "change_percent" in latest.columns
+                    else 0
+                ),
+                "volume": int(
+                    latest.select("volume").item()
+                    if "volume" in latest.columns
+                    else 1000000
+                ),
                 "rsi": 55.0,  # Would calculate from historical data
                 "timestamp": datetime.now(),
             }
@@ -540,7 +570,9 @@ class TestAIStrategyWithOllama:
         except Exception as e:
             pytest.skip(f"Could not test with production data: {e}")
 
-    async def test_performance_tracking(self, ollama_strategy, sample_market_data):
+    async def test_performance_tracking(
+        self, ollama_strategy: Any, sample_market_data: dict[str, Any]
+    ) -> None:
         """Test that performance metrics are tracked correctly."""
         initial_performance = ollama_strategy.ai_performance.copy()
 
@@ -560,7 +592,7 @@ class TestAIStrategyWithOllama:
 
         print(f"Performance tracking: {ollama_strategy.ai_performance}")
 
-    async def test_error_handling(self, ollama_strategy):
+    async def test_error_handling(self, ollama_strategy: Any) -> None:
         """Test error handling with invalid data."""
         # Test with minimal data
         minimal_data = {
@@ -593,8 +625,10 @@ class TestAIStrategyWithOllama:
 
     @pytest.mark.slow
     async def test_realistic_trading_workflow(
-        self, ollama_strategy, sample_market_data
-    ):
+        self,
+        ollama_strategy: Any,
+        sample_market_data: dict[str, Any],
+    ) -> None:
         """Test complete realistic trading workflow."""
         print("\n=== Realistic Trading Workflow Test ===")
 

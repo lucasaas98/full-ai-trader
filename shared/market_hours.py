@@ -224,13 +224,13 @@ class MarketHoursService:
             "after_hours_end": time(20, 0),  # 8:00 PM
         }
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "MarketHoursService":
         """Async context manager entry."""
         if not self._session:
             self._session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.shutdown()
 
@@ -589,7 +589,9 @@ class MarketHoursService:
         except Exception:
             return False
 
-    def register_event_listener(self, event_type: MarketEvent, callback: Callable):
+    def register_event_listener(
+        self, event_type: MarketEvent, callback: Callable
+    ) -> None:
         """Register a callback for market events."""
         if event_type not in self._event_listeners:
             self._event_listeners[event_type] = []
@@ -597,12 +599,12 @@ class MarketHoursService:
         self._event_listeners[event_type].append(callback)
         logger.info(f"Registered event listener for {event_type.value}")
 
-    def register_session_change_callback(self, callback: Callable):
+    def register_session_change_callback(self, callback: Callable) -> None:
         """Register a callback for session changes."""
         self._session_change_callbacks.append(callback)
         logger.info("Registered session change callback")
 
-    async def start_monitoring(self):
+    async def start_monitoring(self) -> None:
         """Start market hours monitoring and event generation."""
         if self._monitoring_active:
             logger.warning("Monitoring already active")
@@ -617,7 +619,7 @@ class MarketHoursService:
             asyncio.create_task(self._event_monitoring_loop()),
         ]
 
-    async def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         """Stop market hours monitoring."""
         if not self._monitoring_active:
             return
@@ -636,7 +638,7 @@ class MarketHoursService:
 
         self._monitoring_tasks.clear()
 
-    async def _session_monitoring_loop(self):
+    async def _session_monitoring_loop(self) -> None:
         """Monitor for market session changes."""
         while self._monitoring_active:
             try:
@@ -684,7 +686,7 @@ class MarketHoursService:
                 logger.error(f"Session monitoring loop error: {e}")
                 await asyncio.sleep(60)
 
-    async def _event_monitoring_loop(self):
+    async def _event_monitoring_loop(self) -> None:
         """Monitor for specific market events."""
         while self._monitoring_active:
             try:
@@ -721,7 +723,7 @@ class MarketHoursService:
 
     async def _generate_session_events(
         self, old_session: Optional[MarketSession], new_session: MarketSession
-    ):
+    ) -> None:
         """Generate specific events based on session transitions."""
         now = datetime.now(timezone.utc)
 
@@ -769,7 +771,7 @@ class MarketHoursService:
             )
             await self._trigger_event(event)
 
-    async def _trigger_event(self, event: MarketEventInfo):
+    async def _trigger_event(self, event: MarketEventInfo) -> None:
         """Trigger a market event and notify listeners."""
         event_type = event.event_type
         logger.debug(f"Triggering market event: {event.description}")
@@ -803,7 +805,7 @@ class MarketHoursService:
             "monitoring_active": self._monitoring_active,
         }
 
-    async def wait_for_market_open(self):
+    async def wait_for_market_open(self) -> None:
         """Wait until market opens."""
         while True:
             status = await self.get_market_status()
@@ -827,7 +829,7 @@ class MarketHoursService:
 
     async def wait_for_session(
         self, target_session: MarketSession, timeout: Optional[int] = None
-    ):
+    ) -> None:
         """Wait for a specific market session."""
         start_time = datetime.now()
 
@@ -845,7 +847,7 @@ class MarketHoursService:
 
             await asyncio.sleep(30)  # Check every 30 seconds
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown the market hours service."""
         await self.stop_monitoring()
 

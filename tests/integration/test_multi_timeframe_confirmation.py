@@ -61,7 +61,7 @@ class Signal:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.metadata:
             pass
         if not hasattr(self, "_timestamp_set"):
@@ -83,7 +83,7 @@ class TimeFrameSignal:
     key_indicators: Dict[str, float] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=lambda: datetime.now())
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.key_indicators:
             pass
         if not hasattr(self, "_timestamp_set"):
@@ -107,7 +107,7 @@ class MultiTimeFrameConfirmation:
     optimal_entry_timeframe: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.metadata:
             pass
 
@@ -456,24 +456,24 @@ class TestMultiTimeFrameConfirmation:
     """Integration tests for multi-timeframe confirmation system."""
 
     @pytest.fixture
-    def mock_data_generator(self):
+    def mock_data_generator(self) -> MockMarketDataGenerator:
         """Fixture for market data generator."""
         return MockMarketDataGenerator()
 
     @pytest.fixture
-    def swing_analyzer(self):
+    def swing_analyzer(self) -> MultiTimeFrameAnalyzer:
         """Fixture for swing trading analyzer."""
         return MultiTimeFrameAnalyzer(StrategyMode.SWING_TRADING)
 
     @pytest.fixture
-    def day_analyzer(self):
+    def day_analyzer(self) -> MultiTimeFrameAnalyzer:
         """Fixture for day trading analyzer."""
         return MultiTimeFrameAnalyzer(StrategyMode.DAY_TRADING)
 
     @pytest.mark.asyncio
     async def test_bullish_alignment_confirmation(
-        self, swing_analyzer, mock_data_generator
-    ):
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test multi-timeframe confirmation with strong bullish alignment."""
 
         # Create bullish data across multiple timeframes
@@ -521,8 +521,8 @@ class TestMultiTimeFrameConfirmation:
 
     @pytest.mark.asyncio
     async def test_bearish_alignment_confirmation(
-        self, swing_analyzer, mock_data_generator
-    ):
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test multi-timeframe confirmation with strong bearish alignment."""
 
         # Create bearish data across multiple timeframes
@@ -567,7 +567,9 @@ class TestMultiTimeFrameConfirmation:
         assert allow_entry is True
 
     @pytest.mark.asyncio
-    async def test_mixed_signals_rejection(self, swing_analyzer, mock_data_generator):
+    async def test_mixed_signals_rejection(
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test that mixed/conflicting signals are properly rejected."""
 
         # Create mixed signals: some bullish, some bearish
@@ -607,8 +609,11 @@ class TestMultiTimeFrameConfirmation:
 
     @pytest.mark.asyncio
     async def test_day_trading_vs_swing_trading_thresholds(
-        self, day_analyzer, swing_analyzer, mock_data_generator
-    ):
+        self,
+        day_analyzer: MultiTimeFrameAnalyzer,
+        swing_analyzer: MultiTimeFrameAnalyzer,
+        mock_data_generator: Any,
+    ) -> None:
         """Test different confirmation thresholds for different strategy modes."""
 
         # Create moderate bullish alignment
@@ -654,7 +659,9 @@ class TestMultiTimeFrameConfirmation:
         assert isinstance(swing_reason, str)
 
     @pytest.mark.asyncio
-    async def test_insufficient_timeframe_data(self, swing_analyzer):
+    async def test_insufficient_timeframe_data(
+        self, swing_analyzer: MultiTimeFrameAnalyzer
+    ) -> None:
         """Test behavior with insufficient timeframe data."""
 
         # Create data with only one timeframe
@@ -699,7 +706,9 @@ class TestMultiTimeFrameConfirmation:
         assert allow_entry is False
 
     @pytest.mark.asyncio
-    async def test_timeframe_signal_analysis(self, swing_analyzer, mock_data_generator):
+    async def test_timeframe_signal_analysis(
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test individual timeframe signal analysis."""
 
         # Create strong bullish data
@@ -722,7 +731,7 @@ class TestMultiTimeFrameConfirmation:
         assert isinstance(tf_signal.volume_confirmation, bool)
         assert isinstance(tf_signal.key_indicators, dict)
 
-    def test_confirmation_strength_ordering(self):
+    def test_confirmation_strength_ordering(self) -> None:
         """Test that confirmation strength enum has proper ordering logic."""
 
         strength_values = {
@@ -744,7 +753,9 @@ class TestMultiTimeFrameConfirmation:
         )
 
     @pytest.mark.asyncio
-    async def test_performance_under_load(self, swing_analyzer, mock_data_generator):
+    async def test_performance_under_load(
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test MTF confirmation performance with multiple symbols."""
 
         symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "NVDA"]
@@ -792,8 +803,8 @@ class TestMultiTimeFrameConfirmation:
 
     @pytest.mark.asyncio
     async def test_confluence_factor_detection(
-        self, swing_analyzer, mock_data_generator
-    ):
+        self, swing_analyzer: MultiTimeFrameAnalyzer, mock_data_generator: Any
+    ) -> None:
         """Test detection of confluence factors across timeframes."""
 
         # Create data with strong volume and trend alignment

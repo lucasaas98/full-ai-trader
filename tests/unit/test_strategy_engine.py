@@ -1,27 +1,30 @@
 import json
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Any
 from unittest.mock import patch
 
 import pandas as pd
+import polars as pl
 import pytest
 
+from services.strategy_engine.src.base_strategy import (
+    BaseStrategy,
+)
 from shared.models import Position, SignalType, TradeSignal
-
-# Technical analysis is handled within the base strategy
 
 
 @pytest.fixture
-def strategy_engine():
+def strategy_engine() -> Any:
     """Create strategy engine instance for testing"""
 
     class MockStrategy:
-        def __init__(self):
+        def __init__(self) -> None:
             self.name = "momentum"
             self.enabled = True
             self.config = {"rsi_period": 14, "rsi_oversold": 30}
 
-        async def analyze(self, symbol, data):
+        async def analyze(self, symbol: str, data: pd.DataFrame) -> TradeSignal:
             """Mock strategy analysis."""
             return TradeSignal(
                 symbol=symbol,
@@ -36,14 +39,14 @@ def strategy_engine():
             )
 
     class MockStrategyEngineService:
-        def __init__(self):
+        def __init__(self) -> None:
             # Initialize without Redis/external dependencies
             self.strategies = {"momentum": MockStrategy()}
-            self.signal_history = []
-            self.performance_metrics = {}
-            self.active_strategies = set(["momentum"])
+            self.signal_history: list[Any] = []
+            self.performance_metrics: dict[Any, Any] = {}
+            self.active_strategies = {"momentum"}
 
-        async def process_signal(self, signal):
+        async def process_signal(self, signal: TradeSignal) -> dict[str, Any]:
             """Mock signal processing."""
             self.signal_history.append(signal)
             return {
@@ -52,7 +55,7 @@ def strategy_engine():
                 "timestamp": datetime.now(timezone.utc),
             }
 
-        def calculate_drawdown(self, equity_curve):
+        def calculate_drawdown(self, equity_curve: pd.Series) -> pd.Series:
             """Calculate maximum drawdown from equity curve."""
             import pandas as pd
 
@@ -63,7 +66,7 @@ def strategy_engine():
             drawdown = (equity_curve - peak) / peak
             return drawdown
 
-        def validate_signal(self, signal):
+        def validate_signal(self, signal: TradeSignal) -> bool:
             """Validate signal format and content."""
             # Check confidence threshold
             if signal.confidence < 0.6:
@@ -75,13 +78,19 @@ def strategy_engine():
 
             return True
 
-        async def calculate_position_size(self, signal, portfolio):
+        async def calculate_position_size(
+            self, signal: TradeSignal, portfolio: Any
+        ) -> float:
             """Calculate position size based on signal and portfolio."""
             max_position_value = float(portfolio.total_equity) * 0.05  # 5% max
-            position_size = max_position_value / float(signal.price)
-            return min(position_size, signal.quantity)
+            price = float(signal.price) if signal.price is not None else 1.0
+            quantity = signal.quantity if signal.quantity is not None else 0
+            position_size = max_position_value / price
+            return min(position_size, quantity)
 
-        async def check_portfolio_risk(self, signal, portfolio):
+        async def check_portfolio_risk(
+            self, signal: TradeSignal, portfolio: Any
+        ) -> dict[str, Any]:
             """Check portfolio-level risk constraints."""
             # Simple concentration check
             existing_position = None
@@ -91,8 +100,10 @@ def strategy_engine():
                     break
 
             if existing_position:
+                price = float(signal.price) if signal.price is not None else 1.0
+                quantity = signal.quantity if signal.quantity is not None else 0
                 total_exposure = float(existing_position.market_value) + (
-                    float(signal.price) * signal.quantity
+                    price * quantity
                 )
                 concentration = total_exposure / float(portfolio.total_equity)
 
@@ -104,18 +115,22 @@ def strategy_engine():
 
             return {"approved": True, "reduced_size": False, "concentration": 0.0}
 
-        def get_strategy(self, name):
+        def get_strategy(self, name: str) -> MockStrategy | None:
             """Get strategy by name."""
             return self.strategies.get(name)
 
-        async def execute_strategy(self, strategy_name, symbol, data):
+        async def execute_strategy(
+            self, strategy_name: str, symbol: str, data: pd.DataFrame
+        ) -> TradeSignal | None:
             """Execute strategy and return signal."""
             strategy = self.get_strategy(strategy_name)
             if strategy:
                 return await strategy.analyze(symbol, data)
             return None
 
-        def track_signal_accuracy(self, signals_outcomes):
+        def track_signal_accuracy(
+            self, signals_outcomes: list[tuple[Any, Any]]
+        ) -> float:
             """Track signal accuracy from historical data."""
             if not signals_outcomes:
                 return 0.0
@@ -123,7 +138,9 @@ def strategy_engine():
             correct_signals = sum(1 for _, outcome in signals_outcomes if outcome > 0)
             return correct_signals / len(signals_outcomes)
 
-        async def check_correlation_risk(self, signal, portfolio):
+        async def check_correlation_risk(
+            self, signal: TradeSignal, portfolio: Any
+        ) -> dict[str, bool]:
             """Check correlation risk between assets."""
             # Mock high correlation detection
             correlated_symbols = ["AAPL", "GOOGL"]  # Mock correlated pairs
@@ -136,7 +153,9 @@ def strategy_engine():
 
             return {"high_correlation": high_correlation}
 
-        def update_strategy_config(self, strategy_name, config):
+        def update_strategy_config(
+            self, strategy_name: str, config: dict[str, Any]
+        ) -> bool:
             """Update strategy configuration."""
             if strategy_name in self.strategies:
                 strategy = self.strategies[strategy_name]
@@ -147,7 +166,7 @@ def strategy_engine():
                 return True
             return False
 
-        def disable_strategy(self, strategy_name):
+        def disable_strategy(self, strategy_name: str) -> bool:
             """Disable a strategy."""
             if strategy_name in self.strategies:
                 self.strategies[strategy_name].enabled = False
@@ -155,7 +174,7 @@ def strategy_engine():
                 return True
             return False
 
-        def enable_strategy(self, strategy_name):
+        def enable_strategy(self, strategy_name: str) -> bool:
             """Enable a strategy."""
             if strategy_name in self.strategies:
                 self.strategies[strategy_name].enabled = True
@@ -163,7 +182,7 @@ def strategy_engine():
                 return True
             return False
 
-        def get_correlation_matrix(self):
+        def get_correlation_matrix(self) -> pd.DataFrame:
             """Mock correlation matrix."""
             import pandas as pd
 
@@ -176,7 +195,7 @@ def strategy_engine():
 
 
 @pytest.fixture
-def momentum_strategy():
+def momentum_strategy() -> Any:
     """Create a test momentum strategy."""
     from services.strategy_engine.src.base_strategy import (
         BaseStrategy as BaseStrategyClass,
@@ -188,19 +207,16 @@ def momentum_strategy():
     )
 
     class TestMomentumStrategy(BaseStrategyClass):
-        def __init__(self, config):
+        def __init__(self, config: StrategyConfig) -> None:
             super().__init__(config)
 
-        def _setup_indicators(self):
+        def _setup_indicators(self) -> None:
             pass
 
-        async def analyze(self, symbol: str, data):
+        async def analyze(self, symbol: str, data: pl.DataFrame) -> Signal:
             # Simple momentum logic for testing
-            import polars as pl
 
-            if isinstance(data, pd.DataFrame):
-                # Convert pandas to polars for consistency
-                data = pl.from_pandas(data)
+            # Data is already pl.DataFrame from parent signature
 
             if len(data) < 20:
                 return Signal(
@@ -259,8 +275,11 @@ class TestStrategyEngineIntegration:
     @pytest.mark.unit
     @pytest.mark.asyncio
     async def test_strategy_execution(
-        self, strategy_engine, momentum_strategy, sample_historical_data
-    ):
+        self,
+        strategy_engine: Any,
+        momentum_strategy: BaseStrategy,
+        sample_historical_data: pd.DataFrame,
+    ) -> None:
         """Test real strategy execution with actual market data"""
 
         # Add strategy to engine
@@ -282,7 +301,7 @@ class TestStrategyEngineIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_signal_processing(self, strategy_engine):
+    async def test_signal_processing(self, strategy_engine: Any) -> None:
         """Test signal processing pipeline"""
 
         # Create test signal
@@ -308,7 +327,7 @@ class TestStrategyEngineIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_signal_validation(self, strategy_engine):
+    async def test_signal_validation(self, strategy_engine: Any) -> None:
         """Test signal validation logic"""
 
         # Valid signal
@@ -342,7 +361,7 @@ class TestStrategyEngineIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_strategy_validation(self, strategy_engine):
+    async def test_strategy_validation(self, strategy_engine: Any) -> None:
         """Test strategy signal validation"""
 
         # Valid signal
@@ -378,7 +397,9 @@ class TestStrategyEngineIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_strategy_risk_integration(self, strategy_engine, sample_portfolio):
+    async def test_strategy_risk_integration(
+        self, strategy_engine: Any, sample_portfolio: Any
+    ) -> None:
         """Test integration with risk management"""
 
         # Signal that would exceed position size limit
@@ -417,31 +438,37 @@ class TestStrategyBacktesting:
     """Unit tests for strategy backtesting functionality"""
 
     @pytest.fixture
-    def backtester(self):
+    def backtester(self) -> Any:
         """Create backtester instance"""
 
         class MockStrategyBacktester:
-            def __init__(self, initial_capital, commission, slippage):
+            def __init__(
+                self, initial_capital: float, commission: float, slippage: float
+            ) -> None:
                 self.initial_capital = initial_capital
                 self.commission = commission
                 self.slippage = slippage
                 self.portfolio_value = initial_capital
-                self.trades = []
+                self.trades: list[Any] = []
 
                 # Add portfolio mock
                 class MockPortfolio:
-                    def __init__(self, initial_cash):
+                    def __init__(self, initial_cash: float) -> None:
                         self.cash_balance = initial_cash
-                        self.positions = []
+                        self.positions: list[Any] = []
 
-                    def add_position(self, symbol, quantity, price):
+                    def add_position(
+                        self, symbol: str, quantity: int, price: float
+                    ) -> None:
                         self.positions.append(
                             {"symbol": symbol, "quantity": quantity, "price": price}
                         )
 
                 self.portfolio = MockPortfolio(initial_capital)
 
-            def run_backtest(self, strategy, data, start_date, end_date):
+            def run_backtest(
+                self, strategy: Any, data: pd.DataFrame, start_date: Any, end_date: Any
+            ) -> dict[str, Any]:
                 """Mock backtest execution"""
                 return {
                     "total_return": 0.15,
@@ -450,7 +477,14 @@ class TestStrategyBacktesting:
                     "number_of_trades": 50,
                 }
 
-            def execute_trade(self, symbol, side, quantity, price, timestamp):
+            def execute_trade(
+                self,
+                symbol: str,
+                side: str,
+                quantity: int,
+                price: float,
+                timestamp: datetime,
+            ) -> dict[str, Any]:
                 """Mock trade execution"""
                 trade = {
                     "symbol": symbol,
@@ -469,8 +503,8 @@ class TestStrategyBacktesting:
                 return trade
 
             def apply_slippage_and_commission(
-                self, symbol, side, intended_price, quantity
-            ):
+                self, symbol: str, side: str, intended_price: float, quantity: int
+            ) -> float:
                 """Mock slippage and commission calculation"""
                 slippage_amount = intended_price * self.slippage
                 commission_amount = quantity * self.commission
@@ -486,14 +520,16 @@ class TestStrategyBacktesting:
 
                 return executed_price
 
-            def calculate_sharpe_ratio(self, returns, risk_free_rate=0.0):
+            def calculate_sharpe_ratio(
+                self, returns: pd.Series, risk_free_rate: float = 0.0
+            ) -> float:
                 """Mock Sharpe ratio calculation"""
                 import numpy as np
 
                 excess_returns = returns - risk_free_rate / 252  # Daily risk-free rate
                 return np.mean(excess_returns) / np.std(excess_returns) * np.sqrt(252)
 
-            def calculate_max_drawdown(self, equity_curve):
+            def calculate_max_drawdown(self, equity_curve: pd.Series) -> float:
                 """Mock max drawdown calculation"""
                 import numpy as np
 
@@ -507,8 +543,11 @@ class TestStrategyBacktesting:
 
     @pytest.mark.unit
     def test_backtest_execution(
-        self, backtester, sample_historical_data, momentum_strategy
-    ):
+        self,
+        backtester: Any,
+        sample_historical_data: pd.DataFrame,
+        momentum_strategy: Any,
+    ) -> None:
         """Test backtest execution"""
 
         results = backtester.run_backtest(
@@ -527,7 +566,9 @@ class TestStrategyBacktesting:
         assert -1.0 <= results["total_return"] <= 10.0  # -100% to 1000%
 
     @pytest.mark.unit
-    def test_portfolio_simulation(self, backtester, sample_historical_data):
+    def test_portfolio_simulation(
+        self, backtester: Any, sample_historical_data: pd.DataFrame
+    ) -> None:
         """Test portfolio simulation during backtest"""
 
         # Simulate buy order
@@ -539,7 +580,7 @@ class TestStrategyBacktesting:
         assert backtester.portfolio.positions[0]["quantity"] == 100
 
     @pytest.mark.unit
-    def test_slippage_and_commission_application(self, backtester):
+    def test_slippage_and_commission_application(self, backtester: Any) -> None:
         """Test slippage and commission calculations"""
 
         # Test buy order
@@ -559,7 +600,7 @@ class TestStrategyBacktesting:
         assert executed_price < 150.0
 
     @pytest.mark.unit
-    def test_performance_metrics_calculation(self, backtester):
+    def test_performance_metrics_calculation(self, backtester: Any) -> None:
         """Test performance metrics calculations"""
 
         # Create sample trade history
@@ -585,40 +626,46 @@ class TestSignalProcessor:
     """Unit tests for signal processing"""
 
     @pytest.fixture
-    def signal_processor(self, mock_redis_client):
+    def signal_processor(self, mock_redis_client: Any) -> Any:
         """Create signal processor instance"""
 
         class MockSignalProcessor:
-            def __init__(self, redis_client):
+            def __init__(self, redis_client: Any) -> None:
                 self.redis_client = redis_client
 
-            def process(self, signals):
+            def process(self, signals: list[TradeSignal]) -> list[TradeSignal]:
                 return [s for s in signals if s.confidence > 0.5]
 
-            def validate_signal(self, signal):
+            def validate_signal(self, signal: TradeSignal) -> bool:
                 return signal.symbol != "INVALID"
 
-            def filter_signals_by_strength(self, signals, min_strength=0.5):
+            def filter_signals_by_strength(
+                self, signals: list[TradeSignal], min_strength: float = 0.5
+            ) -> list[TradeSignal]:
                 """Filter signals by minimum strength"""
                 return [s for s in signals if s.confidence >= min_strength]
 
-            async def aggregate_signals(self, signals):
+            async def aggregate_signals(
+                self, signals: list[TradeSignal]
+            ) -> dict[str, list[Any]]:
                 """Aggregate signals from multiple strategies"""
-                aggregated: dict[str, list] = {}
+                aggregated: dict[str, list[Any]] = {}
                 for signal in signals:
                     if signal.symbol not in aggregated:
                         aggregated[signal.symbol] = []
                     aggregated[signal.symbol].append(signal)
                 return aggregated
 
-            async def handle_conflicting_signals(self, signals):
+            async def handle_conflicting_signals(
+                self, signals: list[TradeSignal]
+            ) -> TradeSignal | None:
                 """Handle conflicting signals"""
                 # Simple logic: keep the signal with highest confidence
                 if not signals:
                     return None
                 return max(signals, key=lambda s: s.confidence)
 
-            async def persist_signal(self, signal):
+            async def persist_signal(self, signal: TradeSignal) -> dict[str, Any]:
                 """Persist signal to storage"""
                 # Mock implementation - call redis hset
                 self.redis_client.hset(
@@ -627,8 +674,11 @@ class TestSignalProcessor:
                 return {"id": signal.id, "status": "persisted"}
 
             async def retrieve_signals(
-                self, symbol=None, start_time=None, end_time=None
-            ):
+                self,
+                symbol: str | None = None,
+                start_time: datetime | None = None,
+                end_time: datetime | None = None,
+            ) -> list[Any]:
                 """Retrieve signals from storage"""
                 # Mock implementation
                 return []
@@ -637,7 +687,9 @@ class TestSignalProcessor:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_signal_aggregation(self, signal_processor, trading_signal_factory):
+    async def test_signal_aggregation(
+        self, signal_processor: Any, trading_signal_factory: Any
+    ) -> None:
         """Test signal aggregation from multiple strategies"""
 
         signals = [
@@ -660,8 +712,8 @@ class TestSignalProcessor:
     @pytest.mark.unit
     @pytest.mark.asyncio
     async def test_conflicting_signals_handling(
-        self, signal_processor, trading_signal_factory
-    ):
+        self, signal_processor: Any, trading_signal_factory: Any
+    ) -> None:
         """Test handling of conflicting signals"""
 
         signals = [
@@ -682,8 +734,11 @@ class TestSignalProcessor:
     @pytest.mark.unit
     @pytest.mark.asyncio
     async def test_signal_persistence(
-        self, signal_processor, mock_redis_client, sample_trading_signal
-    ):
+        self,
+        signal_processor: Any,
+        mock_redis_client: Any,
+        sample_trading_signal: TradeSignal,
+    ) -> None:
         """Test signal persistence to Redis"""
 
         await signal_processor.persist_signal(sample_trading_signal)
@@ -695,7 +750,9 @@ class TestSignalProcessor:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_signal_retrieval(self, signal_processor, mock_redis_client):
+    async def test_signal_retrieval(
+        self, signal_processor: Any, mock_redis_client: Any
+    ) -> None:
         """Test signal retrieval from storage"""
 
         # Mock stored signal
@@ -716,7 +773,9 @@ class TestSignalProcessor:
         assert len(retrieved_signals) == 0  # Mock returns empty list
 
     @pytest.mark.unit
-    def test_signal_filtering(self, signal_processor, trading_signal_factory):
+    def test_signal_filtering(
+        self, signal_processor: Any, trading_signal_factory: Any
+    ) -> None:
         """Test signal filtering based on criteria"""
 
         signals = [
@@ -739,7 +798,7 @@ class TestRiskIntegration:
     """Unit tests for risk management integration"""
 
     @pytest.fixture
-    def sample_portfolio(self):
+    def sample_portfolio(self) -> Any:
         """Create sample portfolio for testing"""
         from shared.models import PortfolioState, Position
 
@@ -763,7 +822,9 @@ class TestRiskIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_position_size_calculation(self, strategy_engine, sample_portfolio):
+    async def test_position_size_calculation(
+        self, strategy_engine: Any, sample_portfolio: Any
+    ) -> None:
         """Test position size calculation with risk constraints"""
 
         signal = TradeSignal(
@@ -791,7 +852,9 @@ class TestRiskIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_portfolio_risk_check(self, strategy_engine, sample_portfolio):
+    async def test_portfolio_risk_check(
+        self, strategy_engine: Any, sample_portfolio: Any
+    ) -> None:
         """Test portfolio-level risk checks"""
 
         # Create signal that would increase portfolio risk
@@ -816,7 +879,7 @@ class TestRiskIntegration:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_correlation_risk_check(self, strategy_engine):
+    async def test_correlation_risk_check(self, strategy_engine: Any) -> None:
         """Test correlation-based risk management"""
 
         # Mock high correlation between symbols
@@ -875,11 +938,18 @@ class TestStrategyEngineConfiguration:
     """Unit tests for configuration management"""
 
     @pytest.mark.unit
-    def test_strategy_loading(self, mock_db_manager, mock_redis_client):
+    def test_strategy_loading(
+        self, mock_db_manager: Any, mock_redis_client: Any
+    ) -> None:
         """Test loading of configured strategies"""
 
         class MockStrategyEngineService:
-            def __init__(self, config=None, db_manager=None, redis_client=None):
+            def __init__(
+                self,
+                config: dict[str, Any] | None = None,
+                db_manager: Any = None,
+                redis_client: Any = None,
+            ) -> None:
                 self.config = config or {}
                 self.db_manager = db_manager
                 self.redis_client = redis_client
@@ -903,7 +973,7 @@ class TestStrategyEngineConfiguration:
         assert "mean_reversion" in engine.strategies
 
     @pytest.mark.unit
-    def test_dynamic_strategy_configuration(self, strategy_engine):
+    def test_dynamic_strategy_configuration(self, strategy_engine: Any) -> None:
         """Test dynamic strategy configuration updates"""
 
         new_config = {
@@ -919,7 +989,7 @@ class TestStrategyEngineConfiguration:
         assert strategy.config["rsi_oversold"] == 25
 
     @pytest.mark.unit
-    def test_strategy_enabling_disabling(self, strategy_engine):
+    def test_strategy_enabling_disabling(self, strategy_engine: Any) -> None:
         """Test enabling and disabling strategies"""
 
         # Disable strategy

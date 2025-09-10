@@ -334,7 +334,7 @@ def format_percentage(value: float) -> str:
     return f"{value:.2%}"
 
 
-def display_results(results, quiet: bool = False) -> None:
+def display_results(results: dict, quiet: bool = False) -> None:
     """Display comprehensive backtest results."""
     if quiet:
         return
@@ -344,7 +344,7 @@ def display_results(results, quiet: bool = False) -> None:
     print("=" * 80)
 
     # Configuration summary
-    config = results.config
+    config = results["config"]
     print("\nConfiguration:")
     print(f"  Strategy: {config.strategy_type}")
     print(f"  Period: {config.start_date.date()} to {config.end_date.date()}")
@@ -355,51 +355,51 @@ def display_results(results, quiet: bool = False) -> None:
 
     # Performance Summary
     print("\nPerformance Summary:")
-    print(f"  Total Return: {format_percentage(results.total_return)}")
-    print(f"  Annualized Return: {format_percentage(results.annualized_return)}")
-    print(f"  Final Capital: {format_currency(float(results.final_capital))}")
-    print(f"  Max Drawdown: {format_percentage(results.max_drawdown)}")
-    print(f"  Current Drawdown: {format_percentage(results.current_drawdown)}")
+    print(f"  Total Return: {format_percentage(results['total_return'])}")
+    print(f"  Annualized Return: {format_percentage(results['annualized_return'])}")
+    print(f"  Final Capital: {format_currency(float(results['final_capital']))}")
+    print(f"  Max Drawdown: {format_percentage(results['max_drawdown'])}")
+    print(f"  Current Drawdown: {format_percentage(results['current_drawdown'])}")
 
     # Risk Metrics
     print("\nRisk Metrics:")
-    print(f"  Sharpe Ratio: {results.sharpe_ratio:.3f}")
-    print(f"  Sortino Ratio: {results.sortino_ratio:.3f}")
-    print(f"  Calmar Ratio: {results.calmar_ratio:.3f}")
-    print(f"  Profit Factor: {results.profit_factor:.2f}")
+    print(f"  Sharpe Ratio: {results['sharpe_ratio']:.2f}")
+    print(f"  Sortino Ratio: {results['sortino_ratio']:.2f}")
+    print(f"  Calmar Ratio: {results['calmar_ratio']:.2f}")
+    print(f"  Profit Factor: {results['profit_factor']:.2f}")
 
     # Trading Statistics
     print("\nTrading Statistics:")
-    print(f"  Total Trades: {results.total_trades}")
-    print(f"  Winning Trades: {results.winning_trades}")
-    print(f"  Losing Trades: {results.losing_trades}")
-    print(f"  Win Rate: {format_percentage(results.win_rate)}")
+    print(f"  Total Trades: {results['total_trades']}")
+    print(f"  Winning Trades: {results['winning_trades']}")
+    print(f"  Losing Trades: {results['losing_trades']}")
+    print(f"  Win Rate: {format_percentage(results['win_rate'])}")
 
-    if results.total_trades > 0:
-        print(f"  Average Win: {format_currency(float(results.avg_win_amount))}")
-        print(f"  Average Loss: {format_currency(float(results.avg_loss_amount))}")
-        print(f"  Largest Win: {format_currency(float(results.largest_win))}")
-        print(f"  Largest Loss: {format_currency(float(results.largest_loss))}")
-        print(f"  Avg Hold Time: {results.avg_hold_time_hours:.1f} hours")
+    if results["total_trades"] > 0:
+        print(f"  Average Win: {format_currency(float(results['avg_win_amount']))}")
+        print(f"  Average Loss: {format_currency(float(results['avg_loss_amount']))}")
+        print(f"  Largest Win: {format_currency(float(results['largest_win']))}")
+        print(f"  Largest Loss: {format_currency(float(results['largest_loss']))}")
+        print(f"  Average Hold Time: {results['avg_hold_time_hours']:.1f} hours")
 
     # Strategy Performance
     print("\nStrategy Performance:")
-    print(f"  Signals Generated: {results.total_signals_generated}")
-    print(f"  Signals Executed: {results.signals_executed}")
+    print(f"  Total Signals: {results['total_signals_generated']}")
+    print(f"  Signals Executed: {results['signals_executed']}")
     print(
-        f"  Signal Execution Rate: {format_percentage(results.signal_execution_rate)}"
+        f"  Signal Execution Rate: {format_percentage(results['signal_execution_rate'])}"
     )
-    print(f"  Avg Signal Confidence: {results.avg_signal_confidence:.1f}%")
+    print(f"  Average Signal Confidence: {results['avg_signal_confidence']:.2f}")
 
     # Screener Statistics
     print("\nScreener Statistics:")
-    print(f"  Screener Alerts Simulated: {results.screener_alerts_simulated}")
-    print(f"  Unique Symbols Traded: {results.unique_symbols_traded}")
+    print(f"  Screener Alerts: {results['screener_alerts_simulated']}")
+    print(f"  Unique Symbols Traded: {results['unique_symbols_traded']}")
 
     # Execution Info
     print("\nExecution Info:")
-    print(f"  Execution Time: {results.execution_time_seconds:.2f} seconds")
-    print(f"  Strategy: {results.strategy_name}")
+    print(f"  Execution Time: {results['execution_time_seconds']:.1f} seconds")
+    print(f"  Strategy: {results['strategy_name']}")
 
     print("\n" + "=" * 80)
 
@@ -467,7 +467,7 @@ def display_strategy_comparison(
     )
 
 
-def save_results(results, args: argparse.Namespace) -> None:
+def save_results(results: dict, args: argparse.Namespace) -> None:
     """Save backtest results to files."""
     if args.no_save:
         return
@@ -476,51 +476,51 @@ def save_results(results, args: argparse.Namespace) -> None:
     output_dir.mkdir(exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_filename = f"production_backtest_{results.config.strategy_type}_{timestamp}"
+    base_filename = f"production_backtest_{results['config'].strategy_type}_{timestamp}"
 
     # Save summary results
     summary_file = output_dir / f"{base_filename}_summary.json"
     summary_data = {
         "config": {
-            "strategy_type": results.config.strategy_type,
-            "start_date": results.start_time.isoformat(),
-            "end_date": results.end_time.isoformat(),
-            "initial_capital": str(results.initial_capital),
-            "timeframe": results.config.timeframe.value,
-            "max_positions": results.config.max_positions,
-            "screener_enabled": results.config.enable_screener_simulation,
+            "strategy": results["config"].strategy_type,
+            "start_date": results["start_time"].isoformat(),
+            "end_date": results["end_time"].isoformat(),
+            "initial_capital": float(results["initial_capital"]),
+            "timeframe": results["config"].timeframe.value,
+            "max_positions": results["config"].max_positions,
+            "screener_enabled": results["config"].enable_screener_simulation,
         },
         "performance": {
-            "total_return": results.total_return,
-            "annualized_return": results.annualized_return,
-            "max_drawdown": results.max_drawdown,
-            "sharpe_ratio": results.sharpe_ratio,
-            "sortino_ratio": results.sortino_ratio,
-            "calmar_ratio": results.calmar_ratio,
-            "profit_factor": results.profit_factor,
-            "win_rate": results.win_rate,
+            "total_return": float(results["total_return"]),
+            "annualized_return": float(results["annualized_return"]),
+            "max_drawdown": float(results["max_drawdown"]),
+            "sharpe_ratio": float(results["sharpe_ratio"]),
+            "sortino_ratio": float(results["sortino_ratio"]),
+            "calmar_ratio": float(results["calmar_ratio"]),
+            "profit_factor": float(results["profit_factor"]),
+            "win_rate": float(results["win_rate"]),
         },
         "trading": {
-            "total_trades": results.total_trades,
-            "winning_trades": results.winning_trades,
-            "losing_trades": results.losing_trades,
-            "avg_win_amount": str(results.avg_win_amount),
-            "avg_loss_amount": str(results.avg_loss_amount),
-            "largest_win": str(results.largest_win),
-            "largest_loss": str(results.largest_loss),
+            "total_trades": results["total_trades"],
+            "winning_trades": results["winning_trades"],
+            "losing_trades": results["losing_trades"],
+            "avg_win_amount": float(results["avg_win_amount"]),
+            "avg_loss_amount": float(results["avg_loss_amount"]),
+            "largest_win": float(results["largest_win"]),
+            "largest_loss": float(results["largest_loss"]),
         },
         "strategy": {
-            "signals_generated": results.total_signals_generated,
-            "signals_executed": results.signals_executed,
-            "signal_execution_rate": results.signal_execution_rate,
-            "avg_signal_confidence": results.avg_signal_confidence,
-            "strategy_name": results.strategy_name,
+            "signals_generated": results["total_signals_generated"],
+            "signals_executed": results["signals_executed"],
+            "signal_execution_rate": results["signal_execution_rate"],
+            "avg_signal_confidence": results["avg_signal_confidence"],
+            "strategy_name": results["strategy_name"],
         },
         "screener": {
-            "alerts_simulated": results.screener_alerts_simulated,
-            "unique_symbols_traded": results.unique_symbols_traded,
+            "alerts_simulated": results["screener_alerts_simulated"],
+            "unique_symbols_traded": results["unique_symbols_traded"],
         },
-        "execution": {"execution_time_seconds": results.execution_time_seconds},
+        "execution": {"execution_time_seconds": results["execution_time_seconds"]},
     }
 
     with open(summary_file, "w") as f:
@@ -529,7 +529,7 @@ def save_results(results, args: argparse.Namespace) -> None:
     print(f"\nResults saved to: {summary_file}")
 
     # Save detailed trades if requested
-    if args.save_trades and results.trades:
+    if args.save_trades and results["trades"]:
         trades_file = output_dir / f"{base_filename}_trades.csv"
         with open(trades_file, "w", newline="") as f:
             writer = csv.writer(f)
@@ -552,7 +552,7 @@ def save_results(results, args: argparse.Namespace) -> None:
                 ]
             )
 
-            for trade in results.trades:
+            for trade in results["trades"]:
                 writer.writerow(
                     [
                         trade.symbol,
@@ -575,19 +575,19 @@ def save_results(results, args: argparse.Namespace) -> None:
         print(f"Trade details saved to: {trades_file}")
 
     # Save daily portfolio values if requested
-    if args.save_daily_values and results.daily_portfolio_values:
+    if args.save_daily_values and results["daily_portfolio_values"]:
         daily_file = output_dir / f"{base_filename}_daily_values.csv"
         with open(daily_file, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Portfolio Value"])
 
-            for date, value in results.daily_portfolio_values:
+            for date, value in results["daily_portfolio_values"].items():
                 writer.writerow([date.isoformat(), str(value)])
 
         print(f"Daily portfolio values saved to: {daily_file}")
 
 
-async def main():
+async def main() -> int:
     """Main execution function."""
     args = parse_arguments()
 
@@ -643,14 +643,14 @@ async def main():
 
                 for strategy_name, results in results_dict.items():
                     comparison_data[strategy_name] = {
-                        "total_return": results.total_return,
-                        "annualized_return": results.annualized_return,
-                        "max_drawdown": results.max_drawdown,
-                        "sharpe_ratio": results.sharpe_ratio,
-                        "win_rate": results.win_rate,
-                        "total_trades": results.total_trades,
-                        "profit_factor": results.profit_factor,
-                        "execution_time_seconds": results.execution_time_seconds,
+                        "total_return": results["total_return"],
+                        "annualized_return": results["annualized_return"],
+                        "max_drawdown": results["max_drawdown"],
+                        "sharpe_ratio": results["sharpe_ratio"],
+                        "win_rate": results["win_rate"],
+                        "total_trades": results["total_trades"],
+                        "profit_factor": results["profit_factor"],
+                        "execution_time_seconds": results["execution_time_seconds"],
                     }
 
                 with open(comparison_file, "w") as f:

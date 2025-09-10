@@ -37,7 +37,7 @@ from shared.utils import format_currency, format_percentage  # noqa: E402
 class SimpleBacktester:
     """Simple backtesting engine for trading strategies."""
 
-    def __init__(self, initial_capital: Decimal = Decimal("100000")):
+    def __init__(self, initial_capital: Decimal = Decimal("100000")) -> None:
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.positions: Dict[str, Position] = {}
@@ -138,7 +138,7 @@ class SimpleBacktester:
 
         return True
 
-    def update_positions(self, market_data: Dict[str, Decimal]):
+    def update_positions(self, market_data: Dict[str, Decimal]) -> None:
         """Update position values with current market prices."""
         for symbol, pos in self.positions.items():
             if symbol in market_data:
@@ -152,7 +152,7 @@ class SimpleBacktester:
         market_value = sum(pos.market_value for pos in self.positions.values())
         return self.cash + market_value
 
-    def record_equity_point(self, timestamp: datetime):
+    def record_equity_point(self, timestamp: datetime) -> None:
         """Record equity curve point."""
         total_value = self.get_portfolio_value()
         self.equity_curve.append(
@@ -169,7 +169,7 @@ class SimpleBacktester:
 class MovingAverageStrategy:
     """Simple moving average crossover strategy."""
 
-    def __init__(self, short_window: int = 20, long_window: int = 50):
+    def __init__(self, short_window: int = 20, long_window: int = 50) -> None:
         self.short_window = short_window
         self.long_window = long_window
         self.price_history: Dict[str, List[Decimal]] = {}
@@ -434,7 +434,7 @@ def run_backtest(
     return results
 
 
-def print_results(results: BacktestResult):
+def print_results(results: BacktestResult) -> None:
     """Print backtest results in a formatted way."""
 
     print("\n" + "=" * 60)
@@ -482,7 +482,7 @@ def print_results(results: BacktestResult):
     print("=" * 60)
 
 
-def save_results(results: BacktestResult, output_file: Optional[str] = None):
+def save_results(results: BacktestResult, output_file: Optional[str] = None) -> None:
     """Save backtest results to file."""
 
     if not output_file:
@@ -502,7 +502,7 @@ def save_results(results: BacktestResult, output_file: Optional[str] = None):
     print(f"\nResults saved to: {output_path}")
 
 
-def main():
+def main() -> None:
     """Main backtesting function."""
 
     parser = argparse.ArgumentParser(description="Run backtest for trading strategies")

@@ -18,6 +18,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
 import asyncpg
+import pytz
 import redis.asyncio as redis
 
 from shared.config import get_config
@@ -63,7 +64,7 @@ class AuditLogger:
         decision: str,
         reasoning: str,
         context: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log a trade decision."""
         try:
             audit_entry = {
@@ -88,7 +89,7 @@ class AuditLogger:
         broker_order_id: str,
         event_type: str,
         details: Dict[str, Any],
-    ):
+    ) -> None:
         """Log order-related events."""
         try:
             audit_entry = {
@@ -107,7 +108,7 @@ class AuditLogger:
 
     async def log_position_event(
         self, position_id: UUID, symbol: str, event_type: str, details: Dict[str, Any]
-    ):
+    ) -> None:
         """Log position-related events."""
         try:
             audit_entry = {
@@ -127,11 +128,11 @@ class AuditLogger:
     async def log_risk_event(
         self,
         event_type: str,
-        severity: str,
         symbol: str,
+        severity: str,
         description: str,
         context: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log risk management events."""
         try:
             audit_entry = {
@@ -151,7 +152,7 @@ class AuditLogger:
 
     async def log_system_event(
         self, event_type: str, message: str, context: Optional[Dict[str, Any]] = None
-    ):
+    ) -> None:
         """Log system events."""
         try:
             audit_entry = {
@@ -167,7 +168,7 @@ class AuditLogger:
         except Exception as e:
             logger.error(f"Failed to log system event: {e}")
 
-    async def _store_audit_entry(self, entry: Dict[str, Any]):
+    async def _store_audit_entry(self, entry: Dict[str, Any]) -> None:
         """Store audit entry in database and Redis."""
         try:
             # Store in database
@@ -216,7 +217,7 @@ class RetryManager:
         jitter: bool = True,
         retry_on: tuple = (Exception,),
         circuit_breaker_key: Optional[str] = None,
-    ):
+    ) -> Any:
         """
         Execute function with advanced retry logic.
 
@@ -315,7 +316,7 @@ class RetryManager:
             logger.error(f"Error checking circuit breaker {key}: {e}")
             return False
 
-    async def _record_circuit_failure(self, key: str):
+    async def _record_circuit_failure(self, key: str) -> None:
         """Record failure in circuit breaker."""
         try:
             result = self.redis.hincrby(f"circuit:{key}", "failures", 1)
@@ -335,7 +336,7 @@ class RetryManager:
         except Exception as e:
             logger.error(f"Error recording circuit failure {key}: {e}")
 
-    async def _reset_circuit_breaker(self, key: str):
+    async def _reset_circuit_breaker(self, key: str) -> None:
         """Reset circuit breaker on success."""
         try:
             delete_result = self.redis.delete(f"circuit:{key}")
@@ -345,7 +346,9 @@ class RetryManager:
         except Exception as e:
             logger.error(f"Error resetting circuit breaker {key}: {e}")
 
-    async def _send_to_dlq(self, operation: str, error: str, context: Dict[str, Any]):
+    async def _send_to_dlq(
+        self, operation: str, error: str, context: Dict[str, Any]
+    ) -> None:
         """Send failed operation to dead letter queue."""
         try:
             dlq_entry = {
@@ -770,10 +773,8 @@ class TimeUtils:
     """Utilities for time and date handling."""
 
     @staticmethod
-    def get_market_timezone():
+    def get_market_timezone() -> pytz.BaseTzInfo:
         """Get market timezone."""
-        import pytz
-
         return pytz.timezone("America/New_York")
 
     @staticmethod
@@ -840,7 +841,7 @@ class NotificationUtils:
         message: str,
         severity: str = "info",
         context: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Send execution-related alert."""
         try:
             alert = {
@@ -884,7 +885,7 @@ class NotificationUtils:
         risk_type: str,
         message: str,
         metrics: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Send risk management alert."""
         try:
             alert = {
@@ -919,7 +920,7 @@ class NotificationUtils:
 
     async def send_performance_notification(
         self, metrics: Dict[str, Any], notification_type: str = "daily_summary"
-    ):
+    ) -> None:
         """Send performance notification."""
         try:
             notification = {
@@ -949,7 +950,7 @@ class CacheManager:
 
     async def cache_position_data(
         self, symbol: str, position_data: Dict[str, Any], ttl: int = 300
-    ):
+    ) -> None:
         """Cache position data."""
         try:
             cache_key = f"position:{symbol}"
@@ -971,7 +972,9 @@ class CacheManager:
             logger.error(f"Failed to get cached position for {symbol}: {e}")
             return None
 
-    async def cache_market_data(self, symbol: str, data: Dict[str, Any], ttl: int = 60):
+    async def cache_market_data(
+        self, symbol: str, data: Dict[str, Any], ttl: int = 60
+    ) -> None:
         """Cache market data."""
         try:
             cache_key = f"market_data:{symbol}"
@@ -991,7 +994,7 @@ class CacheManager:
             logger.error(f"Failed to get cached market data for {symbol}: {e}")
             return None
 
-    async def invalidate_cache(self, pattern: str):
+    async def invalidate_cache(self, pattern: str) -> None:
         """Invalidate cache entries matching pattern."""
         try:
             keys = await self.redis.keys(pattern)
@@ -1002,7 +1005,7 @@ class CacheManager:
             logger.error(f"Failed to invalidate cache {pattern}: {e}")
 
 
-def rate_limit(max_calls: int, period: int):
+def rate_limit(max_calls: int, period: int) -> Callable:
     """
     Rate limiting decorator.
 
@@ -1011,11 +1014,11 @@ def rate_limit(max_calls: int, period: int):
         period: Time period in seconds
     """
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         calls: list = []
 
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             now = time.time()
 
             # Remove old calls
@@ -1037,11 +1040,11 @@ def rate_limit(max_calls: int, period: int):
     return decorator
 
 
-def timing_decorator(func):
+def timing_decorator(func: Callable) -> Callable:
     """Decorator to measure function execution time."""
 
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         try:
             result = await func(*args, **kwargs)
@@ -1068,7 +1071,7 @@ class ErrorHandler:
 
     async def handle_execution_error(
         self, error: Exception, context: Dict[str, Any], severity: str = "error"
-    ):
+    ) -> None:
         """Handle execution errors with proper logging and notifications."""
         try:
             error_details = {
@@ -1100,7 +1103,7 @@ class ErrorHandler:
 
     async def handle_api_error(
         self, error: Exception, api_name: str, operation: str, context: Dict[str, Any]
-    ):
+    ) -> None:
         """Handle API-specific errors."""
         try:
             error_details = {
@@ -1125,7 +1128,7 @@ class ErrorHandler:
 
     async def _handle_alpaca_error(
         self, error: Exception, operation: str, context: Dict[str, Any]
-    ):
+    ) -> None:
         """Handle Alpaca-specific errors."""
         error_str = str(error).lower()
 
@@ -1281,7 +1284,7 @@ class ConfigValidator:
     """Validate configuration for trade execution service."""
 
     @staticmethod
-    def validate_alpaca_config(config) -> List[str]:
+    def validate_alpaca_config(config: Any) -> List[str]:
         """Validate Alpaca configuration."""
         errors = []
 
@@ -1300,7 +1303,7 @@ class ConfigValidator:
         return errors
 
     @staticmethod
-    def validate_risk_config(config) -> List[str]:
+    def validate_risk_config(config: Any) -> List[str]:
         """Validate risk configuration."""
         errors = []
 
@@ -1319,7 +1322,7 @@ class ConfigValidator:
         return errors
 
     @staticmethod
-    def validate_database_config(config) -> List[str]:
+    def validate_database_config(config: Any) -> List[str]:
         """Validate database configuration."""
         errors = []
 
@@ -1335,7 +1338,7 @@ class ConfigValidator:
         return errors
 
     @staticmethod
-    def validate_all_config(config) -> Dict[str, List[str]]:
+    def validate_all_config(config: Any) -> Dict[str, List[str]]:
         """Validate all configuration sections."""
         validation_results = {
             "alpaca": ConfigValidator.validate_alpaca_config(config),
@@ -1354,7 +1357,9 @@ class MetricsCollector:
         self.redis = redis_client
         self._metrics_buffer: dict[str, Any] = {}
 
-    async def record_execution_time(self, operation: str, execution_time: float):
+    async def record_execution_time(
+        self, operation: str, execution_time: float
+    ) -> None:
         """Record execution time for an operation."""
         try:
             metric_key = f"metrics:execution_time:{operation}"
@@ -1375,7 +1380,7 @@ class MetricsCollector:
         except Exception as e:
             logger.error(f"Failed to record execution time: {e}")
 
-    async def record_counter(self, metric_name: str, value: int = 1):
+    async def record_counter(self, metric_name: str, value: int = 1) -> None:
         """Record counter metric."""
         try:
             incrby_result = self.redis.incrby(f"metrics:counter:{metric_name}", value)
@@ -1390,7 +1395,7 @@ class MetricsCollector:
         except Exception as e:
             logger.error(f"Failed to record counter: {e}")
 
-    async def record_gauge(self, metric_name: str, value: float):
+    async def record_gauge(self, metric_name: str, value: float) -> None:
         """Record gauge metric."""
         try:
             set_result = self.redis.set(f"metrics:gauge:{metric_name}", value)
@@ -1455,7 +1460,7 @@ class MetricsCollector:
             return {}
 
 
-def safe_json_dumps(obj: Any, default=str) -> str:
+def safe_json_dumps(obj: Any, default: Callable = str) -> str:
     """Safely serialize object to JSON string."""
     try:
         return json.dumps(obj, default=default)
@@ -1486,7 +1491,7 @@ def truncate_string(text: str, max_length: int = 100) -> str:
     return text[: max_length - 3] + "..."
 
 
-async def ensure_database_schema(db_pool: asyncpg.Pool):
+async def ensure_database_schema(db_pool: asyncpg.Pool) -> bool:
     """Ensure all required database tables exist."""
     try:
         async with db_pool.acquire() as conn:
@@ -1540,7 +1545,7 @@ async def ensure_database_schema(db_pool: asyncpg.Pool):
         return False
 
 
-async def create_audit_schema(db_pool: asyncpg.Pool):
+async def create_audit_schema(db_pool: asyncpg.Pool) -> bool:
     """Create audit schema if it doesn't exist."""
     try:
         async with db_pool.acquire() as conn:
@@ -1573,10 +1578,11 @@ async def create_audit_schema(db_pool: asyncpg.Pool):
             )
 
         logger.info("Audit schema created/verified")
+        return True
 
     except Exception as e:
         logger.error(f"Failed to create audit schema: {e}")
-        raise
+        return False
 
 
 def calculate_position_sizing(
@@ -1709,7 +1715,7 @@ def get_market_session(dt: Optional[datetime] = None) -> str:
         return "closed"
 
 
-async def wait_for_market_open(max_wait_hours: int = 24):
+async def wait_for_market_open(max_wait_hours: int = 24) -> None:
     """
     Wait for market to open.
 
@@ -1747,7 +1753,7 @@ class ExecutionQueue:
         self.redis = redis_client
         self._processors: dict[str, Any] = {}
 
-    async def enqueue_signal(self, signal: Dict[str, Any], priority: int = 0):
+    async def enqueue_signal(self, signal: Dict[str, Any], priority: int = 0) -> None:
         """Enqueue a signal for processing."""
         try:
             queue_item = {

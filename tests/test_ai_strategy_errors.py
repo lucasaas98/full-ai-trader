@@ -38,7 +38,7 @@ class TestAPIErrors:
     """Test handling of API-related errors."""
 
     @pytest.mark.asyncio
-    async def test_api_timeout(self):
+    async def test_api_timeout(self) -> None:
         """Test handling of API timeout."""
         config = {
             "models": {
@@ -63,7 +63,7 @@ class TestAPIErrors:
                 await client.query("test prompt", AIModel.OPUS)
 
     @pytest.mark.asyncio
-    async def test_api_rate_limit_exceeded(self):
+    async def test_api_rate_limit_exceeded(self) -> None:
         """Test handling when API rate limit is exceeded."""
         config = {"models": {}, "cost_management": {"daily_limit_usd": 5.0}}
 
@@ -81,7 +81,7 @@ class TestAPIErrors:
             assert "Rate limit" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_invalid_api_key(self):
+    async def test_invalid_api_key(self) -> None:
         """Test handling of invalid API key."""
         config: dict = {"models": {}, "cost_management": {}}
 
@@ -97,7 +97,7 @@ class TestAPIErrors:
             assert "Invalid API key" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_malformed_response(self):
+    async def test_malformed_response(self) -> None:
         """Test handling of malformed API response."""
         config: dict = {"models": {}, "cost_management": {}}
 
@@ -122,7 +122,7 @@ class TestAPIErrors:
 class TestDataErrors:
     """Test handling of data-related errors."""
 
-    def test_empty_dataframe(self):
+    def test_empty_dataframe(self) -> None:
         """Test handling of empty DataFrame."""
         empty_df = pl.DataFrame()
 
@@ -131,7 +131,7 @@ class TestDataErrors:
                 ticker="TEST", data=empty_df, finviz_data=None, market_data=None
             )
 
-    def test_insufficient_data_for_indicators(self):
+    def test_insufficient_data_for_indicators(self) -> None:
         """Test handling when not enough data for indicators."""
         # Only 5 rows of data (need 14+ for RSI)
         small_df = pl.DataFrame(
@@ -150,7 +150,7 @@ class TestDataErrors:
         # Should return default value
         assert rsi == 50.0
 
-    def test_nan_values_in_data(self):
+    def test_nan_values_in_data(self) -> None:
         """Test handling of NaN values in data."""
         df_with_nan = pl.DataFrame(
             {
@@ -172,7 +172,7 @@ class TestDataErrors:
         except Exception as e:
             assert "close" in str(e).lower() or "null" in str(e).lower()
 
-    def test_extreme_price_values(self):
+    def test_extreme_price_values(self) -> None:
         """Test handling of extreme price values."""
         extreme_df = pl.DataFrame(
             {
@@ -198,7 +198,7 @@ class TestConsensusErrors:
     """Test consensus building error scenarios."""
 
     @pytest.mark.asyncio
-    async def test_no_responses(self):
+    async def test_no_responses(self) -> None:
         """Test consensus with no responses."""
         engine = ConsensusEngine({})
 
@@ -206,7 +206,7 @@ class TestConsensusErrors:
             await engine.build_consensus([])
 
     @pytest.mark.asyncio
-    async def test_all_conflicting_responses(self):
+    async def test_all_conflicting_responses(self) -> None:
         """Test consensus with completely conflicting responses."""
         responses = [
             AIResponse(
@@ -247,7 +247,7 @@ class TestConsensusErrors:
         assert decision.confidence < 100
 
     @pytest.mark.asyncio
-    async def test_missing_required_fields(self):
+    async def test_missing_required_fields(self) -> None:
         """Test consensus with responses missing required fields."""
         responses = [
             AIResponse(
@@ -273,7 +273,7 @@ class TestIntegrationErrors:
     """Test integration layer error handling."""
 
     @pytest.mark.asyncio
-    async def test_database_connection_error(self):
+    async def test_database_connection_error(self) -> None:
         """Test handling of database connection errors."""
         with patch(
             "services.strategy_engine.src.ai_integration.create_async_engine"
@@ -286,7 +286,7 @@ class TestIntegrationErrors:
             assert "Database connection failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_redis_connection_error(self):
+    async def test_redis_connection_error(self) -> None:
         """Test handling of Redis connection errors."""
         mock_redis = AsyncMock()
         mock_redis.ping.side_effect = Exception("Redis connection failed")
@@ -304,7 +304,7 @@ class TestIntegrationErrors:
                 )
 
     @pytest.mark.asyncio
-    async def test_corrupt_price_data(self):
+    async def test_corrupt_price_data(self) -> None:
         """Test handling of corrupt price data updates."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -326,7 +326,7 @@ class TestIntegrationErrors:
                 }
 
                 # Should handle gracefully without crashing
-                await integration._handle_price_update(corrupt_data)
+                await integration._handle_screener_update(corrupt_data)
 
                 # Should not have added corrupt data
                 assert (
@@ -340,7 +340,7 @@ class TestRecoveryMechanisms:
     """Test recovery and fallback mechanisms."""
 
     @pytest.mark.asyncio
-    async def test_fallback_to_cache_on_api_error(self):
+    async def test_fallback_to_cache_on_api_error(self) -> None:
         """Test that system falls back to cache when API fails."""
         config = {"cost_management": {"cache_ttl_seconds": 300}}
         client = AnthropicClient("test_key", config)
@@ -369,7 +369,7 @@ class TestRecoveryMechanisms:
             assert response.confidence == 70
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_pattern(self):
+    async def test_circuit_breaker_pattern(self) -> None:
         """Test circuit breaker pattern for repeated failures."""
         tracker = CostTracker({"daily_limit_usd": 5.0, "monthly_limit_usd": 100.0})
 
@@ -388,7 +388,7 @@ class TestRecoveryMechanisms:
         assert await tracker.can_proceed(AIModel.HAIKU) is True
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation(self):
+    async def test_graceful_degradation(self) -> None:
         """Test graceful degradation when some models fail."""
         responses = [
             AIResponse(
@@ -416,7 +416,7 @@ class TestMemoryAndPerformance:
     """Test memory leaks and performance issues."""
 
     @pytest.mark.asyncio
-    async def test_cache_memory_limit(self):
+    async def test_cache_memory_limit(self) -> None:
         """Test that cache doesn't grow unbounded."""
         cache = ResponseCache(ttl=1)  # 1 second TTL
 
@@ -443,12 +443,12 @@ class TestMemoryAndPerformance:
         assert len(cache.cache) == 0
 
     @pytest.mark.asyncio
-    async def test_concurrent_requests_handling(self):
+    async def test_concurrent_requests_handling(self) -> None:
         """Test handling of many concurrent requests."""
         limiter = RateLimiter()
 
         # Create many concurrent requests
-        async def make_request(i):
+        async def make_request(i: int) -> int:
             await limiter.acquire(AIModel.HAIKU)
             return i
 
@@ -463,7 +463,7 @@ class TestMemoryAndPerformance:
 class TestEdgeCases:
     """Test various edge cases."""
 
-    def test_zero_volume_data(self):
+    def test_zero_volume_data(self) -> None:
         """Test handling of zero volume data."""
         df = pl.DataFrame(
             {
@@ -484,7 +484,7 @@ class TestEdgeCases:
         assert "volume" in context
         assert "avg_volume" in context
 
-    def test_single_candle_data(self):
+    def test_single_candle_data(self) -> None:
         """Test with only one candle of data."""
         df = pl.DataFrame(
             {
@@ -506,7 +506,7 @@ class TestEdgeCases:
         assert context["current_price"] == "100.50"
 
     @pytest.mark.asyncio
-    async def test_missing_anthropic_key(self):
+    async def test_missing_anthropic_key(self) -> None:
         """Test handling when Anthropic API key is missing."""
         config = StrategyConfig(
             name="test", mode=StrategyMode.DAY_TRADING, parameters={}  # No API key
@@ -522,7 +522,7 @@ class TestEdgeCases:
 # Helper functions
 
 
-def mock_open(read_data=""):
+def mock_open(read_data: str = "") -> MagicMock:
     """Helper to mock file open."""
     m = MagicMock()
     m.__enter__ = MagicMock(

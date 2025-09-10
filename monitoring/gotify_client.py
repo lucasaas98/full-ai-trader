@@ -51,7 +51,7 @@ class GotifyClient:
         self.retry_count = 3
         self.retry_delay = 1.0
 
-    async def startup(self):
+    async def startup(self) -> None:
         """Initialize Gotify client"""
         # Create SSL context for secure connections
         ssl_context = ssl.create_default_context()
@@ -69,7 +69,7 @@ class GotifyClient:
         except Exception as e:
             self.logger.error(f"Failed to initialize Gotify client: {e}")
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Cleanup Gotify client"""
         if self.session:
             await self.session.aclose()
@@ -708,7 +708,7 @@ class NotificationManager:
         self.rate_limits: Dict[str, float] = {}
         self.last_notifications: Dict[str, datetime] = {}
 
-    async def startup(self):
+    async def startup(self) -> None:
         """Initialize notification manager"""
         # Initialize Gotify client
         if (
@@ -754,7 +754,7 @@ class NotificationManager:
                 "No database manager available, daily summaries will use placeholder data"
             )
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Cleanup notification manager"""
         if self.gotify_client:
             await self.gotify_client.shutdown()
@@ -843,7 +843,7 @@ class NotificationManager:
         }
         return priority_map.get(priority.lower(), NotificationPriority.NORMAL.value)
 
-    def _log_notification(self, notification: Notification):
+    def _log_notification(self, notification: Notification) -> None:
         """Log notification to file"""
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),

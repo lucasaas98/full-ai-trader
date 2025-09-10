@@ -87,7 +87,7 @@ class AuditEvent:
 class AuditLogger:
     """Main audit logging class with tamper-evident features"""
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]) -> None:
         self.config = config
         self.logger = structlog.get_logger("audit")
 
@@ -135,7 +135,7 @@ class AuditLogger:
         # Initialize audit chain
         self._initialize_audit_chain()
 
-    def _initialize_audit_chain(self):
+    def _initialize_audit_chain(self) -> None:
         """Initialize the audit chain for tamper detection"""
         if self.audit_file_path.exists():
             # Load last hash from existing log
@@ -229,7 +229,7 @@ class AuditLogger:
 
             return event.event_id
 
-    async def _write_audit_record(self, record: Dict[str, Any]):
+    async def _write_audit_record(self, record: Dict[str, Any]) -> None:
         """Write audit record to file with optional encryption"""
         with self.audit_write_duration.labels(destination="file").time():
             # Convert to JSON
@@ -245,7 +245,7 @@ class AuditLogger:
 
     async def log_trade_execution(
         self, trade_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    ) -> None:
         """Log trade execution audit event"""
         event = AuditEvent(
             event_id="",  # Will be assigned
@@ -259,11 +259,11 @@ class AuditLogger:
             compliance_tags=["trading", "execution", "financial"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_order_placement(
         self, order_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    ) -> None:
         """Log order placement audit event"""
         event = AuditEvent(
             event_id="",
@@ -277,11 +277,11 @@ class AuditLogger:
             compliance_tags=["trading", "order", "financial"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_risk_violation(
         self, violation_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    ) -> None:
         """Log risk management violation"""
         event = AuditEvent(
             event_id="",
@@ -295,11 +295,11 @@ class AuditLogger:
             compliance_tags=["risk", "violation", "compliance"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_strategy_change(
         self, strategy_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    ) -> None:
         """Log strategy configuration changes"""
         event = AuditEvent(
             event_id="",
@@ -313,13 +313,13 @@ class AuditLogger:
             compliance_tags=["strategy", "configuration", "algorithm"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_user_access(
         self,
         access_data: Dict[str, Any],
         event_type: AuditEventType = AuditEventType.USER_LOGIN,
-    ):
+    ) -> None:
         """Log user access events"""
         event = AuditEvent(
             event_id="",
@@ -339,9 +339,9 @@ class AuditLogger:
             compliance_tags=["authentication", "access"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
-    async def log_api_access(self, request_data: Dict[str, Any]):
+    async def log_api_access(self, request_data: Dict[str, Any]) -> None:
         """Log API access for audit trail"""
         event = AuditEvent(
             event_id="",
@@ -364,32 +364,32 @@ class AuditLogger:
             compliance_tags=["api", "access"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
-    async def log_config_change(
-        self, change_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    async def log_portfolio_change(
+        self, portfolio_data: Dict[str, Any], user_id: Optional[str] = None
+    ) -> None:
         """Log configuration changes"""
         event = AuditEvent(
             event_id="",
             event_type=AuditEventType.CONFIG_CHANGE,
             timestamp=datetime.now(timezone.utc),
             user_id=user_id,
-            service_name=change_data.get("service_name"),
+            service_name=portfolio_data.get("service_name"),
             level=AuditLevel.WARNING,
-            message=f"Configuration changed: {change_data.get('config_key')}",
+            message=f"Portfolio changed: {portfolio_data.get('symbol')}",
             details={
-                "config_key": change_data.get("config_key"),
-                "old_value": change_data.get("old_value", "[REDACTED]"),
-                "new_value": change_data.get("new_value", "[REDACTED]"),
-                "change_reason": change_data.get("reason"),
+                "symbol": portfolio_data.get("symbol"),
+                "old_quantity": portfolio_data.get("old_quantity", 0),
+                "new_quantity": portfolio_data.get("new_quantity", 0),
+                "change_reason": portfolio_data.get("reason"),
             },
             compliance_tags=["configuration", "system_change"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
-    async def log_security_event(self, security_data: Dict[str, Any]):
+    async def log_security_event(self, security_data: Dict[str, Any]) -> None:
         """Log security-related events"""
         event = AuditEvent(
             event_id="",
@@ -408,9 +408,9 @@ class AuditLogger:
             compliance_tags=["security", "threat", "incident"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
-    async def log_compliance_event(self, compliance_data: Dict[str, Any]):
+    async def log_compliance_event(self, compliance_data: Dict[str, Any]) -> None:
         """Log compliance-related events"""
         event = AuditEvent(
             event_id="",
@@ -427,11 +427,11 @@ class AuditLogger:
             ],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_data_export(
         self, export_data: Dict[str, Any], user_id: Optional[str] = None
-    ):
+    ) -> None:
         """Log data export operations"""
         event = AuditEvent(
             event_id="",
@@ -452,14 +452,14 @@ class AuditLogger:
             compliance_tags=["data_export", "privacy", "compliance"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
     async def log_system_event(
         self,
         event_type: AuditEventType,
         message: str,
         details: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log system-level events"""
         event = AuditEvent(
             event_id="",
@@ -472,9 +472,9 @@ class AuditLogger:
             compliance_tags=["system", "operations"],
         )
 
-        return await self.log_event(event)
+        await self.log_event(event)
 
-    async def flush_pending_events(self):
+    async def flush_pending_events(self) -> None:
         """Flush pending audit events to storage"""
         if not self.pending_events:
             return

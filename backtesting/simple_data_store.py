@@ -168,7 +168,7 @@ class SimpleDataStore:
     async def _load_parquet_file(self, file_path: Path) -> pl.DataFrame:
         """Load a parquet file asynchronously."""
 
-        def _load_file():
+        def _load_file() -> pl.DataFrame:
             try:
                 return pl.read_parquet(file_path)
             except Exception as e:
@@ -246,6 +246,6 @@ class SimpleDataStore:
             self.logger.error(f"Error getting date range for {symbol}: {e}")
             return None, None
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the data store (placeholder for compatibility)."""
         pass

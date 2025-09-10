@@ -46,7 +46,7 @@ class TestAnthropicClient:
     """Test suite for AnthropicClient."""
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> dict:
         """Create mock configuration."""
         return {
             "models": {
@@ -67,7 +67,7 @@ class TestAnthropicClient:
         }
 
     @pytest.mark.asyncio
-    async def test_query_with_cache_hit(self, mock_config):
+    async def test_query_with_cache_hit(self, mock_config: dict) -> None:
         """Test query with cache hit."""
         client = AnthropicClient("test_api_key", mock_config)
 
@@ -92,7 +92,7 @@ class TestAnthropicClient:
             assert result.response["decision"] == "BUY"
 
     @pytest.mark.asyncio
-    async def test_cost_tracking(self, mock_config):
+    async def test_cost_tracking(self, mock_config: dict) -> None:
         """Test cost tracking functionality."""
         tracker = CostTracker(mock_config["cost_management"])
 
@@ -112,7 +112,7 @@ class TestAnthropicClient:
         assert tracker.daily_costs == 0.0
 
     @pytest.mark.asyncio
-    async def test_rate_limiter(self):
+    async def test_rate_limiter(self) -> None:
         """Test rate limiting functionality."""
         limiter = RateLimiter()
 
@@ -132,7 +132,7 @@ class TestDataContextBuilder:
     """Test suite for DataContextBuilder."""
 
     @pytest.fixture
-    def sample_price_data(self):
+    def sample_price_data(self) -> pl.DataFrame:
         """Create sample price data."""
         dates = pl.date_range(
             datetime.now() - timedelta(days=100),
@@ -157,7 +157,7 @@ class TestDataContextBuilder:
             }
         )
 
-    def test_rsi_calculation(self, sample_price_data):
+    def test_rsi_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test RSI calculation."""
         rsi = DataContextBuilder._calculate_rsi(sample_price_data)
 
@@ -169,7 +169,7 @@ class TestDataContextBuilder:
         rsi_flat = DataContextBuilder._calculate_rsi(flat_data)
         assert rsi_flat == 50.0  # No movement should give RSI of 50
 
-    def test_bollinger_bands(self, sample_price_data):
+    def test_bollinger_bands(self, sample_price_data: pl.DataFrame) -> None:
         """Test Bollinger Bands calculation."""
         upper, lower = DataContextBuilder._calculate_bollinger_bands(sample_price_data)
 
@@ -178,7 +178,7 @@ class TestDataContextBuilder:
         # Upper band should be above current price, lower below
         assert upper > current_price > lower or lower < current_price < upper
 
-    def test_pattern_identification(self, sample_price_data):
+    def test_pattern_identification(self, sample_price_data: pl.DataFrame) -> None:
         """Test pattern identification."""
         patterns = DataContextBuilder._identify_patterns(sample_price_data)
 
@@ -192,7 +192,7 @@ class TestDataContextBuilder:
         patterns = DataContextBuilder._identify_patterns(trending_data)
         assert len(patterns) > 0
 
-    def test_build_master_context(self, sample_price_data):
+    def test_build_master_context(self, sample_price_data: pl.DataFrame) -> None:
         """Test building complete context for AI."""
         context = DataContextBuilder.build_master_context(
             ticker="TEST",
@@ -226,7 +226,7 @@ class TestConsensusEngine:
     """Test suite for ConsensusEngine."""
 
     @pytest.fixture
-    def mock_responses(self):
+    def mock_responses(self) -> list[AIResponse]:
         """Create mock AI responses."""
         return [
             AIResponse(
@@ -281,7 +281,7 @@ class TestConsensusEngine:
         ]
 
     @pytest.mark.asyncio
-    async def test_build_consensus(self, mock_responses):
+    async def test_build_consensus(self, mock_responses: list[AIResponse]) -> None:
         """Test consensus building from multiple responses."""
         config = {
             "consensus": {
@@ -305,7 +305,7 @@ class TestConsensusEngine:
         assert len(decision.key_risks) > 0
 
     @pytest.mark.asyncio
-    async def test_consensus_with_disagreement(self):
+    async def test_consensus_with_disagreement(self) -> None:
         """Test consensus with strong disagreement."""
         responses = [
             AIResponse(
@@ -339,7 +339,7 @@ class TestAIStrategyEngine:
     """Test suite for AIStrategyEngine."""
 
     @pytest.fixture
-    def strategy_config(self):
+    def strategy_config(self) -> StrategyConfig:
         """Create strategy configuration."""
         return StrategyConfig(
             name="ai_test_strategy",
@@ -352,7 +352,7 @@ class TestAIStrategyEngine:
         )
 
     @pytest.fixture
-    def sample_data(self):
+    def sample_data(self) -> pl.DataFrame:
         """Create sample market data."""
         return pl.DataFrame(
             {
@@ -369,7 +369,12 @@ class TestAIStrategyEngine:
 
     @pytest.mark.asyncio
     @patch("services.strategy_engine.src.ai_strategy.AnthropicClient")
-    async def test_analyze(self, mock_client_class, strategy_config, sample_data):
+    async def test_analyze(
+        self,
+        mock_client_class: MagicMock,
+        strategy_config: StrategyConfig,
+        sample_data: pl.DataFrame,
+    ) -> None:
         """Test analyze method."""
         # Mock the Anthropic client
         mock_client = AsyncMock()
@@ -408,7 +413,7 @@ class TestAIStrategyEngine:
             assert isinstance(signal, Signal)
             assert signal.confidence > 0
 
-    def test_decision_to_signal(self, strategy_config):
+    def test_decision_to_signal(self, strategy_config: StrategyConfig) -> None:
         """Test conversion of AI decision to trading signal."""
         with patch("builtins.open", mock_open(read_data=yaml.dump({"prompts": {}}))):
             AIStrategyEngine(strategy_config)
@@ -450,12 +455,12 @@ class TestAIIntegration:
     """Test suite for AI strategy integration."""
 
     @pytest.fixture
-    async def mock_redis(self):
+    async def mock_redis(self) -> AsyncMock:
         """Create mock Redis client."""
         return AsyncMock()
 
     @pytest.fixture
-    def integration_config(self):
+    def integration_config(self) -> dict:
         """Create integration configuration."""
         return {
             "min_confidence": 60,
@@ -467,7 +472,9 @@ class TestAIIntegration:
 
     @pytest.mark.asyncio
     @patch("services.strategy_engine.src.ai_integration.create_async_engine")
-    async def test_initialization(self, mock_engine, mock_redis, integration_config):
+    async def test_initialization(
+        self, mock_engine: MagicMock, mock_redis: AsyncMock, integration_config: dict
+    ) -> None:
         """Test integration initialization."""
         mock_engine.return_value = AsyncMock()
 
@@ -483,7 +490,9 @@ class TestAIIntegration:
             assert integration.signal_publisher is not None
 
     @pytest.mark.asyncio
-    async def test_handle_price_update(self, mock_redis, integration_config):
+    async def test_handle_price_update(
+        self, mock_redis: AsyncMock, integration_config: dict
+    ) -> None:
         """Test handling price updates."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -494,7 +503,7 @@ class TestAIIntegration:
                 )
 
                 # Send price update
-                await integration._handle_price_update(
+                await integration._handle_screener_update(
                     {
                         "ticker": "TEST",
                         "timestamp": datetime.now().isoformat(),
@@ -511,7 +520,9 @@ class TestAIIntegration:
                 assert len(integration.price_data_buffer["TEST"]) > 0
 
     @pytest.mark.asyncio
-    async def test_position_limits(self, mock_redis, integration_config):
+    async def test_position_limits(
+        self, mock_redis: AsyncMock, integration_config: dict
+    ) -> None:
         """Test position limit enforcement."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -537,7 +548,9 @@ class TestAIIntegration:
                 assert can_proceed is False
 
     @pytest.mark.asyncio
-    async def test_exit_signal_generation(self, mock_redis, integration_config):
+    async def test_exit_signal_generation(
+        self, mock_redis: AsyncMock, integration_config: dict
+    ) -> None:
         """Test exit signal generation."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}):
             with patch(
@@ -573,7 +586,7 @@ class TestAIIntegration:
 class TestPerformanceTracking:
     """Test suite for performance tracking."""
 
-    def test_performance_summary_creation(self):
+    def test_performance_summary_creation(self) -> None:
         """Test creating performance summary."""
         # Create mock decisions
         decisions = [
@@ -609,7 +622,7 @@ class TestPerformanceTracking:
         assert summary.total_api_cost == 0.08
 
 
-def mock_open(read_data=""):
+def mock_open(read_data: str = "") -> MagicMock:
     """Helper to mock file open."""
     m = MagicMock()
     m.__enter__ = MagicMock(

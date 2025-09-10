@@ -132,7 +132,7 @@ class RateLimiter:
         self.last_call = 0.0
         self._lock = asyncio.Lock()
 
-    async def wait_if_needed(self):
+    async def wait_if_needed(self) -> None:
         """Wait if necessary to respect rate limiting."""
         async with self._lock:
             current_time = time.time()
@@ -199,13 +199,13 @@ class FinVizScreener:
             weekly_volatility_min=3.0,  # Reduced from 6.0 to 3.0
         )
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "FinVizScreener":
         """Async context manager entry."""
         if self._session is None:
             self._session = aiohttp.ClientSession(timeout=self.timeout)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         if self._session:
             await self._session.close()
@@ -823,7 +823,7 @@ class FinVizScreener:
 
         return await self.fetch_screener_data(params, limit)
 
-    def create_custom_screener(self, **kwargs) -> FinVizScreenerParams:
+    def create_custom_screener(self, **kwargs: Any) -> FinVizScreenerParams:
         """
         Create custom screener parameters.
 
@@ -885,7 +885,7 @@ async def scan_volume_leaders(
 # Example usage patterns
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         async with FinVizScreener() as screener:
             # Test connection
             if not await screener.validate_connection():

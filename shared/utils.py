@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 from .config import Config
 
@@ -190,7 +190,7 @@ def safe_divide(
     return Decimal(str(result)) if not isinstance(result, Decimal) else result
 
 
-def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 1.0):
+def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 1.0) -> Callable:
     """
     Decorator for retrying functions with exponential backoff.
 
@@ -202,9 +202,9 @@ def retry_with_backoff(max_retries: int = 3, backoff_factor: float = 1.0):
         Decorated function
     """
 
-    def decorator(func):
+    def decorator(func: Callable) -> Callable:
         @wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             last_exception = None
 
             for attempt in range(max_retries + 1):
@@ -250,7 +250,7 @@ def validate_symbol(symbol: str) -> bool:
     return all(c in allowed_chars for c in symbol.upper())
 
 
-def chunks(lst: list, n: int):
+def chunks(lst: list, n: int) -> Iterator[list]:
     """
     Yield successive n-sized chunks from list.
 
@@ -556,11 +556,11 @@ class RateLimiter:
         return max(0.0, self.time_window - (time.time() - oldest_request))
 
 
-def timing_decorator(func):
+def timing_decorator(func: Callable) -> Callable:
     """Decorator to measure function execution time."""
 
     @wraps(func)
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         start_time = time.time()
         try:
             result = func(*args, **kwargs)
@@ -727,7 +727,7 @@ class CircuitBreaker:
         self.last_failure_time: Optional[float] = None
         self.state = "closed"  # closed, open, half-open
 
-    def call(self, func, *args, **kwargs):
+    def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
         """
         Call function through circuit breaker.
 
@@ -759,12 +759,12 @@ class CircuitBreaker:
             self._on_failure()
             raise e
 
-    def _on_success(self):
+    def _on_success(self) -> None:
         """Handle successful call."""
         self.failure_count = 0
         self.state = "closed"
 
-    def _on_failure(self):
+    def _on_failure(self) -> None:
         """Handle failed call."""
         self.failure_count += 1
         self.last_failure_time = time.time()

@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import aiofiles
 import asyncpg
@@ -31,7 +31,7 @@ from monitoring.metrics import MetricsCollector
 from shared.config import Config
 
 
-def setup_logging(service_name: str):
+def setup_logging(service_name: str) -> logging.Logger:
     """Set up logging configuration."""
     # Configure logging
     logging.basicConfig(
@@ -53,7 +53,7 @@ class DatabaseManager:
         self.config = config
         self.pool = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection pool."""
         logger.debug(
             f"Initializing database connection pool to {self.config.database.host}:{self.config.database.port}"
@@ -69,7 +69,7 @@ class DatabaseManager:
         )
         logger.debug("Database connection pool initialized successfully")
 
-    async def get_connection(self):
+    async def get_connection(self) -> Any:
         """Get a database connection from the pool."""
         logger.debug("Acquiring database connection from pool")
         if not self.pool:
@@ -77,7 +77,7 @@ class DatabaseManager:
             raise RuntimeError("Database not initialized")
         return self.pool.acquire()
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the database connection pool."""
         if self.pool:
             logger.debug("Closing database connection pool")
@@ -166,7 +166,7 @@ class MaintenanceManager:
         # State file for persistence
         self.state_file = "/app/data/maintenance_state.json"
 
-    async def load_maintenance_state(self):
+    async def load_maintenance_state(self) -> None:
         """Load maintenance state from persistent storage"""
         logger.debug(f"Loading maintenance state from {self.state_file}")
         try:
@@ -221,7 +221,7 @@ class MaintenanceManager:
                 initiated_by="system",
             )
 
-    async def save_maintenance_state(self):
+    async def save_maintenance_state(self) -> None:
         """Save maintenance state to persistent storage"""
         logger.debug("Saving maintenance state to persistent storage")
         try:
@@ -279,7 +279,7 @@ class MaintenanceManager:
         estimated_duration: Optional[timedelta] = None,
         affected_services: Optional[List[str]] = None,
         initiated_by: str = "admin",
-    ):
+    ) -> dict:
         """Enter specified maintenance mode"""
         logger.info(f"Entering maintenance mode: {mode.value}")
         logger.debug(
@@ -321,11 +321,23 @@ class MaintenanceManager:
             },
         )
 
-    async def exit_maintenance_mode(self, initiated_by: str = "admin"):
+        return {
+            "status": "maintenance_mode_entered",
+            "mode": mode.value,
+            "reason": reason,
+            "estimated_duration": (
+                estimated_duration.total_seconds() if estimated_duration else None
+            ),
+            "affected_services": affected_services or [],
+            "initiated_by": initiated_by,
+            "timestamp": self.current_state.started_at.isoformat(),
+        }
+
+    async def exit_maintenance_mode(self, initiated_by: str = "system") -> dict:
         """Exit maintenance mode and return to normal operation"""
         if self.current_state and self.current_state.mode == MaintenanceMode.NORMAL:
             logger.warning("System is already in normal mode")
-            return
+            pass
 
         previous_mode = (
             self.current_state.mode if self.current_state else MaintenanceMode.NORMAL
@@ -361,6 +373,14 @@ class MaintenanceManager:
             "EXIT_MAINTENANCE",
             {"previous_mode": previous_mode.value, "reason": "Maintenance completed"},
         )
+
+        return {
+            "status": "maintenance_mode_exited",
+            "previous_mode": previous_mode.value,
+            "current_mode": "NORMAL",
+            "initiated_by": initiated_by,
+            "timestamp": self.current_state.started_at.isoformat(),
+        }
 
     async def check_service_health(self) -> Dict[str, ServiceHealthStatus]:
         """Check health of all services"""
@@ -462,7 +482,7 @@ class MaintenanceManager:
 
         return False
 
-    async def update_service_maintenance_status(self):
+    async def update_service_maintenance_status(self) -> None:
         """Update all services with current maintenance status"""
         logger.debug("Updating all services with current maintenance status")
         maintenance_info = {
@@ -510,12 +530,12 @@ class MaintenanceManager:
 
     async def send_maintenance_notification(
         self, title: str, message: str, estimated_duration: Optional[timedelta] = None
-    ):
+    ) -> None:
         """Send maintenance notifications via Gotify"""
         logger.debug(f"Attempting to send notification: {title}")
         if not self.gotify_url or not self.gotify_token:
             logger.warning("Gotify not configured - skipping notification")
-            return
+            pass
 
         try:
             notification_data = {
@@ -546,7 +566,7 @@ class MaintenanceManager:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.gotify_url}/message",
-                    headers={"X-Gotify-Key": self.gotify_token},
+                    headers={"X-Gotify-Key": self.gotify_token or ""},
                     json=notification_data,
                 )
 
@@ -564,7 +584,7 @@ class MaintenanceManager:
             logger.error(f"Failed to send maintenance notification: {e}")
             logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
 
-    async def log_maintenance_event(self, action: str, details: Dict[str, Any]):
+    async def log_maintenance_event(self, action: str, details: Dict[str, Any]) -> None:
         """Log maintenance events to audit trail"""
         logger.debug(f"Logging maintenance event: {action} with details: {details}")
         try:
@@ -661,7 +681,9 @@ class MaintenanceManager:
             ),
         }
 
-    async def emergency_shutdown(self, reason: str, initiated_by: str = "system"):
+    async def emergency_shutdown(
+        self, reason: str, initiated_by: str = "system"
+    ) -> None:
         """Perform emergency shutdown of all trading operations"""
         logger.critical(f"EMERGENCY SHUTDOWN initiated: {reason}")
         logger.debug(f"Emergency shutdown initiated by: {initiated_by}")
@@ -721,7 +743,9 @@ async def get_maintenance_manager() -> MaintenanceManager:
     return maintenance_manager
 
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
     """Verify API token"""
     logger.debug("Verifying API token")
     # In production, implement proper token verification
@@ -733,7 +757,7 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan"""
     global maintenance_manager
 
@@ -790,7 +814,7 @@ app = FastAPI(
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict:
     """Health check endpoint"""
     logger.debug("Health check requested")
     return {
@@ -801,7 +825,9 @@ async def health_check():
 
 
 @app.get("/status")
-async def get_status(manager: MaintenanceManager = Depends(get_maintenance_manager)):
+async def get_status(
+    manager: MaintenanceManager = Depends(get_maintenance_manager),
+) -> dict:
     """Get current system status"""
     logger.debug("System status requested")
     return await manager.get_system_status()
@@ -816,7 +842,7 @@ async def enter_maintenance(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     manager: MaintenanceManager = Depends(get_maintenance_manager),
     token: str = Depends(verify_token),
-):
+) -> Dict[str, Any]:
     """Enter maintenance mode"""
     logger.info(f"API request to enter maintenance mode: {mode}")
     logger.debug(
@@ -860,7 +886,7 @@ async def exit_maintenance(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     manager: MaintenanceManager = Depends(get_maintenance_manager),
     token: str = Depends(verify_token),
-):
+) -> Dict[str, Any]:
     """Exit maintenance mode"""
     logger.info("API request to exit maintenance mode")
 
@@ -881,7 +907,7 @@ async def emergency_shutdown(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     manager: MaintenanceManager = Depends(get_maintenance_manager),
     token: str = Depends(verify_token),
-):
+) -> Dict[str, Any]:
     """Perform emergency shutdown"""
     logger.critical(f"API request for emergency shutdown: {reason}")
 
@@ -896,53 +922,28 @@ async def emergency_shutdown(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/maintenance/history")
-async def get_maintenance_history(
-    days: int = 30,
+@app.get("/maintenance/status")
+async def get_maintenance_status(
     manager: MaintenanceManager = Depends(get_maintenance_manager),
     token: str = Depends(verify_token),
-):
-    """Get maintenance history"""
-    logger.debug(f"Fetching maintenance history for last {days} days")
+) -> Dict[str, Any]:
+    """Get maintenance status"""
+    logger.debug("Fetching current maintenance status")
 
     try:
-        start_date = datetime.now() - timedelta(days=days)
-        logger.debug(f"Fetching history from {start_date.isoformat()}")
+        status = await manager.get_system_status()
+        logger.debug("Successfully retrieved maintenance status")
 
-        async with await manager.db.get_connection() as conn:
-            history = await conn.fetch(
-                """
-                SELECT
-                    timestamp,
-                    action,
-                    changes,
-                    user_id,
-                    success
-                FROM audit_logs
-                WHERE service_name = 'maintenance_service'
-                AND timestamp >= $1
-                ORDER BY timestamp DESC
-            """,
-                start_date,
-            )
-
-        logger.debug(f"Found {len(history)} maintenance history records")
         return {
-            "maintenance_history": [
-                {
-                    "timestamp": row["timestamp"].isoformat(),
-                    "action": row["action"],
-                    "details": json.loads(row["changes"]) if row["changes"] else {},
-                    "initiated_by": row["user_id"],
-                    "success": row["success"],
-                }
-                for row in history
-            ],
-            "period_days": days,
+            "status": status,
+            "current_mode": status.get("mode", "unknown") if status else "unknown",
+            "is_maintenance_active": (
+                status.get("mode") not in ["normal", None] if status else False
+            ),
         }
 
     except Exception as e:
-        logger.error(f"Failed to get maintenance history: {e}")
+        logger.error(f"Failed to fetch maintenance status: {e}")
         logger.debug(f"Exception details: {type(e).__name__}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -954,7 +955,7 @@ async def send_custom_notification(
     priority: int = 5,
     manager: MaintenanceManager = Depends(get_maintenance_manager),
     token: str = Depends(verify_token),
-):
+) -> dict:
     """Send custom maintenance notification"""
     logger.info(f"Custom notification request: {title}")
     logger.debug(f"Notification details - message: {message}, priority: {priority}")
@@ -1002,11 +1003,11 @@ async def send_custom_notification(
 
 
 # Signal handlers for graceful shutdown
-def setup_signal_handlers():
+def setup_signal_handlers() -> None:
     """Setup signal handlers for graceful shutdown"""
     logger.debug("Setting up signal handlers for graceful shutdown")
 
-    def signal_handler(signum, frame):
+    def signal_handler(signum: int, frame: Any) -> None:
         logger.info(f"Received signal {signum}, initiating graceful shutdown")
         logger.debug(f"Signal frame: {frame}")
         asyncio.create_task(graceful_system_shutdown())
@@ -1016,7 +1017,7 @@ def setup_signal_handlers():
     logger.debug("Signal handlers configured for SIGTERM and SIGINT")
 
 
-async def graceful_system_shutdown():
+async def graceful_system_shutdown() -> None:
     """Perform graceful system shutdown"""
     logger.info("Starting graceful system shutdown")
     global maintenance_manager  # noqa: F824

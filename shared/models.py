@@ -93,7 +93,7 @@ class MarketData(BaseModel):
 
     @field_validator("high")
     @classmethod
-    def high_must_be_highest(cls, v, info):
+    def high_must_be_highest(cls, v: float, info: Any) -> float:
         """Validate that high is the highest price."""
         if info.data:
             open_price = info.data.get("open", 0)
@@ -105,7 +105,7 @@ class MarketData(BaseModel):
 
     @field_validator("low")
     @classmethod
-    def low_must_be_lowest(cls, v, info):
+    def low_must_be_lowest(cls, v: float, info: Any) -> float:
         """Validate that low is the lowest price."""
         if info.data:
             open_price = info.data.get("open", float("inf"))
@@ -275,7 +275,7 @@ class RiskParameters(BaseModel):
 
     @field_validator("max_trade_amount")
     @classmethod
-    def max_trade_must_be_greater_than_min(cls, v, info):
+    def max_trade_must_be_greater_than_min(cls, v: Decimal, info: Any) -> Decimal:
         """Validate that max trade amount is greater than min trade amount."""
         if info.data and "min_trade_amount" in info.data:
             if v <= info.data["min_trade_amount"]:
@@ -529,7 +529,7 @@ class BacktestResult(BaseModel):
 
     @field_validator("winning_trades", "losing_trades")
     @classmethod
-    def validate_trade_counts(cls, v, info):
+    def validate_trade_counts(cls, v: int, info: Any) -> int:
         """Validate trade counts."""
         if info.data and "total_trades" in info.data:
             total = info.data["total_trades"]

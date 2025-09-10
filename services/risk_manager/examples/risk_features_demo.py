@@ -139,7 +139,7 @@ def create_sample_portfolio_history() -> List[Dict]:
 
 async def demonstrate_liquidity_risk(
     calculator: RiskCalculator, portfolio: PortfolioState
-):
+) -> None:
     """Demonstrate liquidity risk assessment."""
     print("\n" + "=" * 60)
     print("LIQUIDITY RISK ASSESSMENT")
@@ -169,7 +169,7 @@ async def demonstrate_liquidity_risk(
         print("\nNo significantly illiquid positions detected.")
 
 
-async def demonstrate_var_backtesting(calculator: RiskCalculator):
+async def demonstrate_var_backtesting(calculator: RiskCalculator) -> None:
     """Demonstrate VaR model backtesting."""
     print("\n" + "=" * 60)
     print("VAR MODEL BACKTESTING")
@@ -195,7 +195,7 @@ async def demonstrate_var_backtesting(calculator: RiskCalculator):
 
 async def demonstrate_risk_adjusted_returns(
     calculator: RiskCalculator, portfolio: PortfolioState
-):
+) -> None:
     """Demonstrate risk-adjusted return calculations."""
     print("\n" + "=" * 60)
     print("RISK-ADJUSTED RETURNS")
@@ -216,7 +216,7 @@ async def demonstrate_risk_adjusted_returns(
         print(f"Error: {risk_adjusted['error']}")
 
 
-async def demonstrate_options_greeks(calculator: RiskCalculator):
+async def demonstrate_options_greeks(calculator: RiskCalculator) -> None:
     """Demonstrate options Greeks calculations."""
     print("\n" + "=" * 60)
     print("OPTIONS GREEKS ANALYSIS")
@@ -242,7 +242,7 @@ async def demonstrate_options_greeks(calculator: RiskCalculator):
 
 async def demonstrate_enhanced_stress_testing(
     calculator: RiskCalculator, portfolio: PortfolioState
-):
+) -> None:
     """Demonstrate enhanced stress testing."""
     print("\n" + "=" * 60)
     print("ENHANCED STRESS TESTING")
@@ -271,7 +271,7 @@ async def demonstrate_enhanced_stress_testing(
 
 async def demonstrate_risk_attribution(
     calculator: RiskCalculator, portfolio: PortfolioState
-):
+) -> None:
     """Demonstrate risk attribution analysis."""
     print("\n" + "=" * 60)
     print("RISK ATTRIBUTION ANALYSIS")
@@ -300,7 +300,7 @@ async def demonstrate_risk_attribution(
 
 async def demonstrate_comprehensive_report(
     calculator: RiskCalculator, portfolio: PortfolioState
-):
+) -> None:
     """Demonstrate comprehensive risk report generation."""
     print("\n" + "=" * 60)
     print("COMPREHENSIVE RISK REPORT")
@@ -352,7 +352,7 @@ async def demonstrate_comprehensive_report(
         print(f"\nCould not save report: {e}")
 
 
-async def main():
+async def main() -> None:
     """Main demonstration function."""
     print("=" * 60)
     print("RISK CALCULATOR ADVANCED FEATURES DEMONSTRATION")

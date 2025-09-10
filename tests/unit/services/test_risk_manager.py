@@ -24,7 +24,7 @@ class TestRiskManagerAPI:
     """Test suite for Risk Manager API endpoints"""
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> Mock:
         """Mock configuration for testing"""
         config = Mock(spec=Config)
         config.redis_host = "localhost"
@@ -41,7 +41,7 @@ class TestRiskManagerAPI:
         return config
 
     @pytest.fixture
-    def mock_redis(self):
+    def mock_redis(self) -> AsyncMock:
         """Mock Redis client"""
         redis_mock = AsyncMock()
         redis_mock.publish = AsyncMock()
@@ -50,7 +50,7 @@ class TestRiskManagerAPI:
         return redis_mock
 
     @pytest.fixture
-    def mock_db_pool(self):
+    def mock_db_pool(self) -> AsyncMock:
         """Mock database pool"""
         pool_mock = AsyncMock()
         pool_mock.acquire = AsyncMock()
@@ -58,8 +58,8 @@ class TestRiskManagerAPI:
         return pool_mock
 
     @pytest.fixture
-    def sample_portfolio_state(self):
-        """Sample portfolio state for testing"""
+    def sample_portfolio(self) -> PortfolioState:
+        """Sample portfolio for testing"""
         positions = [
             Position(
                 symbol="AAPL",
@@ -90,7 +90,7 @@ class TestRiskManagerAPI:
         )
 
     @pytest.fixture
-    def sample_risk_parameters(self):
+    def sample_risk_parameters(self) -> RiskParameters:
         """Sample risk parameters for testing"""
         return RiskParameters(
             max_position_size=Decimal("0.05"),
@@ -104,11 +104,11 @@ class TestRiskManagerAPI:
         )
 
     @pytest.fixture
-    def client(self):
+    def client(self) -> TestClient:
         """FastAPI test client"""
         return TestClient(app)
 
-    def test_health_endpoint(self, client):
+    def test_health_endpoint(self, client: TestClient) -> None:
         """Test health check endpoint"""
         response = client.get("/health")
         assert response.status_code == 200
@@ -116,7 +116,9 @@ class TestRiskManagerAPI:
         assert data["status"] == "healthy"
         assert "timestamp" in data
 
-    def test_validate_order_endpoint_success(self, client, sample_portfolio_state):
+    def test_validate_order_endpoint_success(
+        self, client: TestClient, sample_portfolio: PortfolioState
+    ) -> None:
         """Test successful order validation"""
         order_request = {
             "symbol": "AAPL",
@@ -140,7 +142,7 @@ class TestRiskManagerAPI:
             assert data["is_valid"] is True
             assert "validation_message" in data
 
-    def test_validate_order_endpoint_risk_violation(self, client):
+    def test_validate_order_endpoint_risk_violation(self, client: TestClient) -> None:
         """Test order validation with risk violation"""
         order_request = {
             "symbol": "TSLA",
@@ -164,7 +166,9 @@ class TestRiskManagerAPI:
             assert data["is_valid"] is False
             assert "exceeds limits" in data["validation_message"]
 
-    def test_portfolio_risk_endpoint(self, client, sample_portfolio_state):
+    def test_portfolio_risk_endpoint(
+        self, client: TestClient, sample_portfolio: PortfolioState
+    ) -> None:
         """Test portfolio risk metrics endpoint"""
         with patch("src.main.portfolio_monitor") as mock_pm:
             mock_metrics = PortfolioMetrics(
@@ -181,7 +185,7 @@ class TestRiskManagerAPI:
             mock_pm.calculate_portfolio_metrics.return_value = mock_metrics
 
             response = client.post(
-                "/portfolio-risk", json=sample_portfolio_state.model_dump()
+                "/portfolio-monitor", json=sample_portfolio.model_dump()
             )
 
             assert response.status_code == 200
@@ -190,7 +194,7 @@ class TestRiskManagerAPI:
             assert "portfolio_beta" in data
             assert "value_at_risk_1d" in data
 
-    def test_position_sizing_endpoint(self, client):
+    def test_position_sizing_endpoint(self, client: TestClient) -> None:
         """Test position sizing endpoint"""
         request_data = {
             "symbol": "MSFT",
@@ -219,7 +223,7 @@ class TestRiskManagerAPI:
             assert data["recommended_shares"] == 33
             assert "position_percentage" in data
 
-    def test_stress_test_endpoint(self, client):
+    def test_stress_test_endpoint(self, client: TestClient) -> None:
         """Test stress testing endpoint"""
         request_data = {"scenarios": ["market_crash", "volatility_spike"]}
 
@@ -247,7 +251,9 @@ class TestRiskManagerAPI:
             assert "volatility_spike" in data
             assert data["market_crash"]["drawdown_pct"] == 0.25
 
-    def test_portfolio_monitoring_endpoint(self, client, sample_portfolio_state):
+    def test_portfolio_monitoring_endpoint(
+        self, client: TestClient, sample_portfolio: PortfolioState
+    ) -> None:
         """Test portfolio monitoring endpoint"""
         with patch("src.main.portfolio_monitor") as mock_pm, patch(
             "src.main.alert_manager"
@@ -273,7 +279,7 @@ class TestRiskManagerAPI:
             mock_pm.monitor_portfolio.return_value = (mock_metrics, mock_alerts)
 
             response = client.post(
-                "/monitor-portfolio", json=sample_portfolio_state.model_dump()
+                "/monitor-portfolio", json=sample_portfolio.model_dump()
             )
 
             assert response.status_code == 200
@@ -282,7 +288,7 @@ class TestRiskManagerAPI:
             assert data["alerts_generated"] == 1
             assert "timestamp" in data
 
-    def test_stop_loss_levels_endpoint(self, client):
+    def test_stop_loss_levels_endpoint(self, client: TestClient) -> None:
         """Test stop loss calculation endpoint"""
         with patch("src.main.risk_manager") as mock_rm:
             mock_rm.calculate_stop_loss_take_profit.return_value = (
@@ -299,7 +305,7 @@ class TestRiskManagerAPI:
             assert data["stop_loss"] == "145.00"
             assert data["take_profit"] == "165.00"
 
-    def test_emergency_stop_endpoint(self, client):
+    def test_emergency_stop_endpoint(self, client: TestClient) -> None:
         """Test emergency stop endpoint"""
         request_data = {"reason": "Market crash detected"}
 
@@ -314,12 +320,14 @@ class TestRiskManagerAPI:
             assert data["emergency_stop_activated"] is True
             assert data["reason"] == "Market crash detected"
 
-    def test_update_trailing_stops_endpoint(self, client, sample_portfolio_state):
+    def test_update_trailing_stops_endpoint(
+        self, client: TestClient, sample_portfolio: PortfolioState
+    ) -> None:
         """Test trailing stops update endpoint"""
         market_prices = {"AAPL": 155.00, "GOOGL": 2850.00}
 
         request_data = {
-            "portfolio": sample_portfolio_state.model_dump(),
+            "portfolio": sample_portfolio.model_dump(),
             "market_prices": market_prices,
         }
 
@@ -344,7 +352,7 @@ class TestRiskManagerAPI:
             assert data["events_generated"] == 1
             assert data["trailing_stops_updated"] is True
 
-    def test_risk_limits_endpoint(self, client):
+    def test_risk_limits_endpoint(self, client: TestClient) -> None:
         """Test risk limits configuration endpoint"""
         risk_limits = {
             "max_position_percentage": 0.10,
@@ -365,7 +373,7 @@ class TestRiskManagerAPI:
             data = response.json()
             assert data["limits_updated"] is True
 
-    def test_risk_events_endpoint(self, client):
+    def test_risk_events_endpoint(self, client: TestClient) -> None:
         """Test risk events history endpoint"""
         with patch("src.main.database_manager") as mock_db:
             mock_events = [
@@ -389,7 +397,9 @@ class TestRiskManagerAPI:
             assert len(data["events"]) == 1
             assert data["events"][0]["symbol"] == "AAPL"
 
-    def test_risk_dashboard_endpoint(self, client, sample_portfolio_state):
+    def test_risk_dashboard_endpoint(
+        self, client: TestClient, sample_portfolio: PortfolioState
+    ) -> None:
         """Test risk dashboard summary endpoint"""
         with patch("src.main.portfolio_monitor") as mock_pm, patch(
             "src.main.database_manager"
@@ -409,7 +419,7 @@ class TestRiskManagerAPI:
             mock_db.get_risk_event_summary.return_value = mock_events
 
             response = client.post(
-                "/risk-dashboard", json=sample_portfolio_state.model_dump()
+                "/risk-dashboard", json=sample_portfolio.model_dump()
             )
 
             assert response.status_code == 200

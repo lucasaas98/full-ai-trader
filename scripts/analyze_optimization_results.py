@@ -50,10 +50,12 @@ sns.set_palette("husl")
 class OptimizationAnalyzer:
     """Main class for analyzing optimization results."""
 
-    def __init__(self):
-        self.results_data = {}  # strategy -> results
-        self.detailed_data = {}  # strategy -> detailed results DataFrame
-        self.summary_data = {}  # strategy -> summary DataFrame
+    def __init__(self) -> None:
+        self.results_data: dict[str, Any] = {}  # strategy -> results
+        self.detailed_data: dict[str, Any] = (
+            {}
+        )  # strategy -> detailed results DataFrame
+        self.summary_data: dict[str, Any] = {}  # strategy -> summary DataFrame
 
     def load_results(
         self, file_path: Optional[str] = None, directory: Optional[str] = None
@@ -611,7 +613,7 @@ class OptimizationAnalyzer:
         print(f"Analysis report saved to: {output_file}")
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Analyze trading strategy parameter optimization results",
@@ -665,7 +667,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def main():
+def main() -> int:
     """Main execution function."""
     args = parse_arguments()
 

@@ -109,7 +109,7 @@ class DataStore:
             "volume_sma": pl.Float64(),
         }
 
-    def _ensure_base_directory(self):
+    def _ensure_base_directory(self) -> None:
         """Ensure base directory exists."""
         self.base_path.mkdir(parents=True, exist_ok=True)
 
@@ -673,7 +673,7 @@ class DataStore:
             True if successful
         """
 
-        def _write_file():
+        def _write_file() -> bool:
             with self._write_lock:
                 try:
                     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -816,7 +816,7 @@ class DataStore:
     async def _load_parquet_file(self, file_path: Path) -> pl.DataFrame:
         """Load Parquet file asynchronously."""
 
-        def _read_file():
+        def _read_file() -> pl.DataFrame:
             try:
                 return pl.read_parquet(file_path)
             except Exception as e:
@@ -866,7 +866,7 @@ class DataStore:
             Dictionary with data summary
         """
 
-        def _scan_directory():
+        def _scan_directory() -> Dict[str, Any]:
             summary: Dict[str, Any] = {
                 "total_files": 0,
                 "total_size_mb": 0,
@@ -990,7 +990,7 @@ class DataStore:
 
         cutoff_date = date.today() - timedelta(days=older_than_days)
 
-        def _cleanup():
+        def _cleanup() -> Dict[str, Any]:
             stats = {"files_deleted": 0, "space_freed_mb": 0.0}
 
             for data_type in ["market_data", "screener_data", "technical_indicators"]:
@@ -1121,7 +1121,7 @@ class DataStore:
 
         return validation_results
 
-    async def get_available_data_range(
+    def get_available_data_range(
         self, ticker: str, timeframe: TimeFrame
     ) -> Optional[Tuple[date, date]]:
         """
@@ -1171,7 +1171,7 @@ class DataStore:
             dates_to_process = [date_obj]
         else:
             # Get all available dates
-            date_range = await self.get_available_data_range(ticker, timeframe)
+            date_range = self.get_available_data_range(ticker, timeframe)
             if not date_range:
                 return 0
 
@@ -1222,7 +1222,7 @@ class DataStore:
             Optimization statistics
         """
 
-        def _optimize():
+        def _optimize() -> Dict[str, Any]:
             stats = {
                 "files_processed": 0,
                 "files_removed": 0,
@@ -1392,7 +1392,7 @@ class DataStore:
                 export_dir / f"{ticker}_{timeframe.value}_{timestamp}.{format}"
             )
 
-        def _write_export():
+        def _write_export() -> None:
             if format.lower() == "csv":
                 df.write_csv(output_path)
             elif format.lower() == "json":
@@ -1489,7 +1489,7 @@ class DataStore:
         else:
             return timedelta(days=1)
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup resources."""
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=False)
@@ -1592,7 +1592,7 @@ async def calculate_returns(
 # Example usage and testing
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         config = DataStoreConfig(
             base_path="test_data/parquet", compression="snappy", retention_days=365
         )

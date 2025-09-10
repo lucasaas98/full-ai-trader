@@ -18,7 +18,128 @@ import pandas as pd
 import polars as pl
 from pydantic import BaseModel, Field
 
-from shared.models import SignalType
+from shared.models import SignalType, TimeFrame
+
+
+class TimeFrameMapper:
+    """Utility class for mapping between strategy and data loader timeframe naming conventions."""
+
+    # Mapping from strategy timeframes to TimeFrame enum values
+    STRATEGY_TO_TIMEFRAME = {
+        "1m": TimeFrame.ONE_MINUTE,
+        "5m": TimeFrame.FIVE_MINUTES,
+        "15m": TimeFrame.FIFTEEN_MINUTES,
+        "30m": TimeFrame.THIRTY_MINUTES,
+        "1h": TimeFrame.ONE_HOUR,
+        "4h": TimeFrame.FOUR_HOURS,
+        "1d": TimeFrame.ONE_DAY,
+        "1w": TimeFrame.ONE_WEEK,
+        "1M": TimeFrame.ONE_MONTH,
+    }
+
+    # Reverse mapping from TimeFrame enum to strategy timeframes
+    TIMEFRAME_TO_STRATEGY = {v: k for k, v in STRATEGY_TO_TIMEFRAME.items()}
+
+    # Available TimeFrame enum values
+    AVAILABLE_TIMEFRAMES = list(TimeFrame)
+
+    # Available strategy timeframes (those that map to TimeFrame enum)
+    AVAILABLE_STRATEGY_TIMEFRAMES = list(STRATEGY_TO_TIMEFRAME.keys())
+
+    @classmethod
+    def strategy_to_timeframe_enum(
+        cls, strategy_timeframes: List[str]
+    ) -> List[TimeFrame]:
+        """
+        Convert strategy timeframes to TimeFrame enum values.
+
+        Args:
+            strategy_timeframes: List of strategy timeframe strings
+
+        Returns:
+            List of TimeFrame enum values
+        """
+        timeframes = []
+        for tf in strategy_timeframes:
+            timeframe_enum = cls.STRATEGY_TO_TIMEFRAME.get(tf)
+            if timeframe_enum:
+                timeframes.append(timeframe_enum)
+        return timeframes
+
+    @classmethod
+    def strategy_to_data(cls, strategy_timeframes: List[str]) -> List[str]:
+        """
+        Convert strategy timeframes to data collector timeframe strings.
+
+        Args:
+            strategy_timeframes: List of strategy timeframe strings
+
+        Returns:
+            List of data collector timeframe strings (TimeFrame enum values)
+        """
+        data_timeframes = []
+        for tf in strategy_timeframes:
+            timeframe_enum = cls.STRATEGY_TO_TIMEFRAME.get(tf)
+            if timeframe_enum:
+                data_timeframes.append(timeframe_enum.value)
+        return data_timeframes
+
+    @classmethod
+    def data_to_strategy(cls, data_timeframes: List[str]) -> List[str]:
+        """
+        Convert data collector timeframes to strategy timeframes.
+
+        Args:
+            data_timeframes: List of data collector timeframe strings
+
+        Returns:
+            List of strategy timeframe strings
+        """
+        strategy_timeframes = []
+        for tf_str in data_timeframes:
+            try:
+                timeframe_enum = TimeFrame(tf_str)
+                strategy_tf = cls.TIMEFRAME_TO_STRATEGY.get(timeframe_enum)
+                if strategy_tf:
+                    strategy_timeframes.append(strategy_tf)
+            except ValueError:
+                # Invalid timeframe string, skip it
+                continue
+        return strategy_timeframes
+
+    @classmethod
+    def validate_timeframes(
+        cls, strategy_timeframes: List[str]
+    ) -> tuple[List[str], List[str]]:
+        """
+        Validate strategy timeframes and split into available/unavailable.
+
+        Args:
+            strategy_timeframes: List of strategy timeframe strings to validate
+
+        Returns:
+            Tuple of (available_timeframes, unavailable_timeframes)
+        """
+        available = []
+        unavailable = []
+
+        for tf in strategy_timeframes:
+            if tf in cls.AVAILABLE_STRATEGY_TIMEFRAMES:
+                available.append(tf)
+            else:
+                unavailable.append(tf)
+
+        return available, unavailable
+
+    @classmethod
+    def get_available_strategy_timeframes(cls) -> List[str]:
+        """Get list of all available strategy timeframes."""
+        return cls.AVAILABLE_STRATEGY_TIMEFRAMES.copy()
+
+    @classmethod
+    def get_available_data_timeframes(cls) -> List[str]:
+        """Get list of all available data collector timeframes."""
+        return [tf.value for tf in cls.AVAILABLE_TIMEFRAMES]
 
 
 class StrategyMode(Enum):
@@ -57,8 +178,12 @@ class StrategyConfig:
     risk_reward_ratio: float = 2.0  # Minimum risk/reward ratio
     enable_short_selling: bool = False
     parameters: Optional[Dict[str, Any]] = None
+    # Phase 3: Enhanced Strategy Configuration Support
+    primary_timeframe: Optional[str] = None
+    additional_timeframes: Optional[List[str]] = None
+    custom_timeframes: Optional[List[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.parameters is None:
             self.parameters = {}
 
@@ -140,6 +265,34 @@ class BaseStrategy(ABC):
             Trading signal with action, confidence, and metadata
         """
         pass
+
+    async def analyze_multi_timeframe(
+        self,
+        symbol: str,
+        multi_tf_data: Dict[str, pl.DataFrame],
+        finviz_data: Optional[Any] = None,
+    ) -> Signal:
+        """
+        Analyze market data across multiple timeframes and generate trading signal.
+
+        This is an optional method that strategies can implement for multi-timeframe analysis.
+        If not implemented, the strategy will fall back to single timeframe analysis.
+
+        Args:
+            symbol: Trading symbol to analyze
+            multi_tf_data: Dictionary mapping timeframe -> DataFrame
+            finviz_data: Optional fundamental data for hybrid strategies
+
+        Returns:
+            Trading signal with action, confidence, and metadata
+        """
+        # Default implementation: use primary timeframe for backward compatibility
+        if not multi_tf_data:
+            raise ValueError("No multi-timeframe data provided")
+
+        # Use the first available timeframe as primary
+        primary_data = next(iter(multi_tf_data.values()))
+        return await self.analyze(symbol, primary_data)
 
     def get_entry_signal(self, symbol: str, data: pl.DataFrame) -> Optional[Signal]:
         """
@@ -694,16 +847,82 @@ class BaseStrategy(ABC):
         Get list of timeframes required by this strategy.
 
         Returns:
-            List of timeframe strings (e.g., ['1m', '5m', '1h', '1d'])
+            List of strategy timeframe strings (e.g., ['1m', '5m', '1h', '1d'])
         """
-        # Default timeframes, can be overridden by specific strategies
+        # If custom timeframes are specified in config, use those
+        if self.config.custom_timeframes:
+            # Validate custom timeframes
+            available, unavailable = TimeFrameMapper.validate_timeframes(
+                self.config.custom_timeframes
+            )
+            if unavailable:
+                self.logger.warning(f"Unavailable timeframes requested: {unavailable}")
+            return available if available else self._get_default_timeframes()
+
+        # If primary and additional timeframes are specified
+        if self.config.primary_timeframe or self.config.additional_timeframes:
+            timeframes = []
+            if self.config.primary_timeframe:
+                timeframes.append(self.config.primary_timeframe)
+            if self.config.additional_timeframes:
+                timeframes.extend(self.config.additional_timeframes)
+
+            # Validate and return available timeframes
+            available, unavailable = TimeFrameMapper.validate_timeframes(timeframes)
+            if unavailable:
+                self.logger.warning(f"Unavailable timeframes requested: {unavailable}")
+            return available if available else self._get_default_timeframes()
+
+        # Fall back to mode-based defaults
+        return self._get_default_timeframes()
+
+    def _get_default_timeframes(self) -> List[str]:
+        """Get default timeframes based on strategy mode, filtered for availability."""
+        # Updated to use only available timeframes
         timeframe_map = {
             StrategyMode.DAY_TRADING: ["1m", "5m", "15m"],
-            StrategyMode.SWING_TRADING: ["15m", "1h", "4h", "1d"],
-            StrategyMode.POSITION_TRADING: ["1h", "4h", "1d", "1w"],
+            StrategyMode.SWING_TRADING: ["15m", "1h", "1d"],
+            StrategyMode.POSITION_TRADING: ["1h", "1d"],
         }
 
-        return timeframe_map.get(self.mode, ["1h", "1d"])
+        default_timeframes = timeframe_map.get(self.mode, ["1h", "1d"])
+
+        # Validate default timeframes and return only available ones
+        available, unavailable = TimeFrameMapper.validate_timeframes(default_timeframes)
+        if unavailable:
+            self.logger.debug(f"Some default timeframes unavailable: {unavailable}")
+
+        return available
+
+    def get_required_data_timeframes(self) -> List[str]:
+        """
+        Get list of data timeframes required by this strategy (for data loader).
+
+        Returns:
+            List of data loader timeframe strings (e.g., ['1min', '5min', '1h', '1day'])
+        """
+        strategy_timeframes = self.get_required_timeframes()
+        return TimeFrameMapper.strategy_to_data(strategy_timeframes)
+
+    def validate_timeframe_availability(self) -> Dict[str, Any]:
+        """
+        Validate timeframe availability and return status.
+
+        Returns:
+            Dict with availability information
+        """
+        required_timeframes = self.get_required_timeframes()
+        available, unavailable = TimeFrameMapper.validate_timeframes(
+            required_timeframes
+        )
+
+        return {
+            "required": required_timeframes,
+            "available": available,
+            "unavailable": unavailable,
+            "all_available": len(unavailable) == 0,
+            "data_timeframes": TimeFrameMapper.strategy_to_data(available),
+        }
 
     def get_strategy_info(self) -> Dict[str, Any]:
         """Get strategy information and configuration."""

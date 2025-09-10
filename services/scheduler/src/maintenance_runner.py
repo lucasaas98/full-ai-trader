@@ -77,7 +77,7 @@ class MaintenanceRunnerConfig:
     # Task priorities
     critical_tasks: Optional[Set[str]] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.critical_tasks is None:
             self.critical_tasks = {
                 "system_health_check",
@@ -117,7 +117,7 @@ class AlertManager:
         message: str,
         severity: str = "warning",
         details: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Send alert with cooldown and deduplication."""
         try:
             if not self.config.enable_alerts:
@@ -156,7 +156,7 @@ class AlertManager:
         except Exception as e:
             logger.error(f"Failed to send alert: {e}")
 
-    async def _send_to_webhook(self, alert_data: Dict[str, Any]):
+    async def _send_to_webhook(self, alert_data: Dict[str, Any]) -> None:
         """Send alert to webhook endpoint."""
         if not self.config.alert_webhook_url:
             return
@@ -170,7 +170,7 @@ class AlertManager:
         except Exception as e:
             logger.error(f"Webhook alert failed: {e}")
 
-    async def _send_to_slack(self, alert_data: Dict[str, Any]):
+    async def _send_to_slack(self, alert_data: Dict[str, Any]) -> None:
         """Send alert to Slack webhook."""
         if not self.config.slack_webhook_url:
             return
@@ -248,7 +248,7 @@ class MaintenanceOrchestrator:
         self.emergency_mode = False
         self.emergency_tasks_only = False
 
-    async def initialize(self):
+    async def initialize(self) -> bool:
         """Initialize the maintenance orchestrator."""
         try:
             logger.info("Initializing maintenance orchestrator...")
@@ -279,10 +279,10 @@ class MaintenanceOrchestrator:
             )
             return False
 
-    def _register_signal_handlers(self):
+    def _register_signal_handlers(self) -> None:
         """Register signal handlers for graceful shutdown."""
 
-        def signal_handler(signum, frame):
+        def signal_handler(signum: int, frame: Any) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             asyncio.create_task(self.shutdown())
 
@@ -333,7 +333,7 @@ class MaintenanceOrchestrator:
             ).total_seconds()
 
             # Generate and store report
-            await self._generate_maintenance_report(results, pre_health, post_health)
+            await self.generate_maintenance_report(results, pre_health, post_health)
 
             logger.info(f"Maintenance cycle {run_id} completed successfully")
 
@@ -615,7 +615,7 @@ class MaintenanceOrchestrator:
         # Sort tasks by priority
         tasks.sort(key=lambda x: x.get("priority", 999))
 
-        async def execute_single_task(task_config: Dict[str, Any]):
+        async def execute_single_task(task_config: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
                 task_name = task_config["name"]
                 timeout = (
@@ -727,6 +727,14 @@ class MaintenanceOrchestrator:
                 # Remove from running tasks if we get here
                 self.running_tasks.pop(task_name, None)
 
+                # If we reach here, all attempts failed but no exception was raised
+                return {
+                    "success": False,
+                    "duration": time.time() - start_time,
+                    "message": f"Task failed after {self.config.retry_attempts} attempts",
+                    "attempts": self.config.retry_attempts,
+                }
+
         # Execute all tasks
         task_coroutines = [execute_single_task(task) for task in tasks]
         task_results = await asyncio.gather(*task_coroutines, return_exceptions=True)
@@ -747,7 +755,7 @@ class MaintenanceOrchestrator:
 
         return final_results
 
-    async def _process_maintenance_results(self, results: Dict[str, Any]):
+    async def _process_maintenance_results(self, results: Dict[str, Any]) -> None:
         """Process and analyze maintenance results."""
         try:
             # Store results in Redis
@@ -765,7 +773,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to process maintenance results: {e}")
 
-    async def _store_maintenance_results(self, results: Dict[str, Any]):
+    async def _store_maintenance_results(self, results: Dict[str, Any]) -> None:
         """Store maintenance results in Redis for analysis."""
         try:
             timestamp = datetime.now().isoformat()
@@ -802,7 +810,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to store maintenance results: {e}")
 
-    async def _analyze_maintenance_patterns(self, results: Dict[str, Any]):
+    async def _analyze_maintenance_patterns(self, results: Dict[str, Any]) -> None:
         """Analyze maintenance results for patterns and anomalies."""
         try:
             # Track task performance over time
@@ -829,7 +837,9 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to analyze maintenance patterns: {e}")
 
-    async def _detect_performance_degradation(self, current_results: Dict[str, Any]):
+    async def _detect_performance_degradation(
+        self, current_results: Dict[str, Any]
+    ) -> None:
         """Detect if maintenance tasks are showing performance degradation."""
         try:
             for task_name, result in current_results.items():
@@ -870,7 +880,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Performance degradation detection failed: {e}")
 
-    async def _check_maintenance_trends(self, results: Dict[str, Any]):
+    async def _check_maintenance_trends(self, results: Dict[str, Any]) -> None:
         """Check for concerning maintenance trends."""
         try:
             # Check failure rate
@@ -898,7 +908,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Maintenance trend checking failed: {e}")
 
-    async def _store_health_metrics(self, health_data: Dict[str, Any]):
+    async def _store_health_metrics(self, health_data: Dict[str, Any]) -> None:
         """Store system health metrics for trending."""
         try:
             timestamp = int(time.time())
@@ -920,7 +930,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to store health metrics: {e}")
 
-    async def _update_system_metrics(self, results: Dict[str, Any]):
+    async def _update_system_metrics(self, metrics: Dict[str, Any]) -> None:
         """Update system-wide metrics based on maintenance results."""
         try:
             metrics = {
@@ -962,12 +972,12 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to update system metrics: {e}")
 
-    async def _generate_maintenance_report(
+    async def generate_maintenance_report(
         self,
         results: Dict[str, Any],
         pre_health: Dict[str, Any],
         post_health: Dict[str, Any],
-    ):
+    ) -> Dict[str, Any]:
         """Generate comprehensive maintenance report."""
         try:
             report: Dict[str, Any] = {
@@ -1057,10 +1067,13 @@ class MaintenanceOrchestrator:
             else:
                 logger.info("Maintenance report generated")
 
+            return report
+
         except Exception as e:
             logger.error(f"Failed to generate maintenance report: {e}")
+            return {}
 
-    async def _store_maintenance_report(self, report: Dict[str, Any]):
+    async def _store_maintenance_report(self, report: Dict[str, Any]) -> None:
         """Store maintenance report in Redis and file system."""
         try:
             # Store in Redis
@@ -1084,7 +1097,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Failed to store maintenance report: {e}")
 
-    async def run_continuous_monitoring(self):
+    async def start_continuous_monitoring(self) -> None:
         """Run continuous monitoring loop."""
         logger.info("Starting continuous maintenance monitoring...")
         self.is_running = True
@@ -1103,7 +1116,7 @@ class MaintenanceOrchestrator:
                         await self.run_maintenance_cycle("emergency")
 
                     # Regular monitoring tasks
-                    await self._monitor_running_tasks()
+                    await self._monitor_long_running_tasks()
                     await self._check_resource_alerts()
                     await self._collect_metrics()
 
@@ -1127,7 +1140,7 @@ class MaintenanceOrchestrator:
             self.is_running = False
             logger.info("Continuous monitoring stopped")
 
-    async def _monitor_running_tasks(self):
+    async def _monitor_long_running_tasks(self) -> None:
         """Monitor currently running tasks for timeouts and issues."""
         try:
             current_time = datetime.now()
@@ -1159,7 +1172,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Task monitoring failed: {e}")
 
-    async def _check_resource_alerts(self):
+    async def _check_resource_alerts(self) -> None:
         """Check for resource-based alerts."""
         try:
             # Check CPU
@@ -1195,7 +1208,7 @@ class MaintenanceOrchestrator:
         except Exception as e:
             logger.error(f"Resource alert checking failed: {e}")
 
-    async def _collect_metrics(self):
+    async def _collect_metrics(self) -> Dict[str, Any]:
         """Collect and store system metrics."""
         try:
             metrics = {
@@ -1221,10 +1234,13 @@ class MaintenanceOrchestrator:
                     "maintenance:system_metrics_timeseries", 0, cutoff
                 )
 
+            return metrics
+
         except Exception as e:
             logger.error(f"Metrics collection failed: {e}")
+            return {}
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Gracefully shutdown the maintenance orchestrator."""
         logger.info("Initiating maintenance orchestrator shutdown...")
 
@@ -1311,7 +1327,7 @@ async def run_continuous_maintenance(
     config_path: Optional[str] = None,
     redis_url: Optional[str] = None,
     scheduler_url: Optional[str] = None,
-):
+) -> None:
     """Run continuous maintenance monitoring."""
     orchestrator = None
     try:
@@ -1329,7 +1345,7 @@ async def run_continuous_maintenance(
             return
 
         # Run continuous monitoring
-        await orchestrator.run_continuous_monitoring()
+        await orchestrator.start_continuous_monitoring()
 
     except KeyboardInterrupt:
         logger.info("Continuous maintenance interrupted by user")
@@ -1388,7 +1404,7 @@ async def get_maintenance_status(redis_url: Optional[str] = None) -> Dict[str, A
         return {"error": str(e)}
 
 
-def main():
+def main() -> None:
     """Main entry point for the maintenance runner."""
     parser = argparse.ArgumentParser(description="Trading System Maintenance Runner")
     parser.add_argument(

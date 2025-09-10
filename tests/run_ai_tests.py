@@ -264,7 +264,7 @@ class TestRunner:
         # Return overall result
         return 0 if all(code == 0 for code in self.results.values()) else 1
 
-    def _parse_coverage_results(self):
+    def _parse_coverage_results(self) -> None:
         """Parse and display coverage results."""
         try:
             with open("coverage_ai_strategy.json", "r") as f:
@@ -288,7 +288,7 @@ class TestRunner:
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Could not parse coverage results: {e}")
 
-    def _generate_summary(self):
+    def _generate_summary(self) -> None:
         """Generate and display test summary."""
         print("\n" + "=" * 80)
         print("TEST SUMMARY")
@@ -315,7 +315,7 @@ class TestRunner:
         print("=" * 80)
 
 
-def main():
+def main() -> None:
     """Main entry point for test runner."""
     parser = argparse.ArgumentParser(
         description="Run AI Strategy Engine tests",

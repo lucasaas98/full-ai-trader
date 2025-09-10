@@ -8,7 +8,7 @@ for the trading system's security infrastructure.
 import logging
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import jwt
 from pydantic import BaseModel, Field
@@ -368,17 +368,17 @@ def set_jwt_manager(jwt_manager: JWTManager) -> None:
 
 
 # Convenience functions using default manager
-def create_access_token(**kwargs) -> str:
+def create_access_token(**kwargs: Any) -> str:
     """Create access token using default JWT manager."""
     return get_default_jwt_manager().create_access_token(**kwargs)
 
 
-def create_refresh_token(**kwargs) -> str:
+def create_refresh_token(**kwargs: Any) -> str:
     """Create refresh token using default JWT manager."""
     return get_default_jwt_manager().create_refresh_token(**kwargs)
 
 
-def decode_token(token: str, **kwargs) -> Optional[JWTPayload]:
+def decode_token(token: str, **kwargs: Any) -> Optional[JWTPayload]:
     """Decode token using default JWT manager."""
     return get_default_jwt_manager().decode_token(token, **kwargs)
 

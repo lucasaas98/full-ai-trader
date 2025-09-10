@@ -2,6 +2,7 @@ import asyncio
 import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import Any, Callable, Dict
 
 import pytest
 
@@ -14,7 +15,7 @@ class TestMarketDataValidation:
     """Unit tests for market data validation business rules"""
 
     @pytest.mark.unit
-    def test_market_data_model_validation(self):
+    def test_market_data_model_validation(self) -> None:
         """Test MarketData model validation rules"""
         # Valid market data
         valid_data = MarketData(
@@ -38,7 +39,7 @@ class TestMarketDataValidation:
         assert valid_data.volume > 0
 
     @pytest.mark.unit
-    def test_market_data_price_validation_rules(self):
+    def test_market_data_price_validation_rules(self) -> None:
         """Test that price validation rules are enforced"""
         # High price must be >= other prices
         with pytest.raises(ValueError, match="high must be"):
@@ -55,7 +56,7 @@ class TestMarketDataValidation:
             )
 
     @pytest.mark.unit
-    def test_market_data_negative_values_rejected(self):
+    def test_market_data_negative_values_rejected(self) -> None:
         """Test that negative prices and volumes are rejected"""
         with pytest.raises(ValueError):
             MarketData(
@@ -84,7 +85,7 @@ class TestMarketDataValidation:
             )
 
     @pytest.mark.unit
-    def test_timestamp_validation(self):
+    def test_timeframe_validation(self) -> None:
         """Test timestamp validation for market data"""
         # Future timestamps should be handled appropriately
         future_time = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -109,7 +110,7 @@ class TestFinVizDataValidation:
     """Unit tests for FinViz data validation"""
 
     @pytest.mark.unit
-    def test_finviz_data_creation(self):
+    def test_finviz_screener_parsing(self) -> None:
         """Test FinViz data model creation and validation"""
         finviz_data = FinVizData(
             ticker="AAPL",
@@ -133,7 +134,7 @@ class TestFinVizDataValidation:
         )
 
     @pytest.mark.unit
-    def test_finviz_data_negative_price_rejected(self):
+    def test_finviz_data_negative_price_rejected(self) -> None:
         """Test that negative prices are rejected in FinViz data"""
         with pytest.raises(ValueError):
             FinVizData(
@@ -155,7 +156,7 @@ class TestDataQualityChecks:
     """Unit tests for data quality validation business logic"""
 
     @pytest.mark.unit
-    def test_ohlcv_data_consistency(self):
+    def test_ohlcv_data_consistency(self) -> None:
         """Test OHLCV data consistency rules"""
         # Test data that violates OHLCV rules
         inconsistent_data = {
@@ -167,7 +168,7 @@ class TestDataQualityChecks:
         }
 
         # Business logic should detect this inconsistency
-        def validate_ohlcv_consistency(data):
+        def validate_ohlcv_consistency(data: Dict[str, Any]) -> bool:
             high = data["high"]
             low = data["low"]
             open_price = data["open"]
@@ -197,10 +198,10 @@ class TestDataQualityChecks:
         assert validate_ohlcv_consistency(consistent_data)
 
     @pytest.mark.unit
-    def test_volume_anomaly_detection(self):
+    def test_volume_spike_detection(self) -> None:
         """Test volume anomaly detection logic"""
 
-        def detect_volume_anomaly(volumes, threshold_multiplier=3):
+        def detect_volume_anomaly(volumes: list, threshold_multiplier: int = 3) -> bool:
             """Detect volume anomalies using median-based analysis"""
             if len(volumes) < 2:
                 return False
@@ -233,10 +234,12 @@ class TestDataQualityChecks:
         assert detect_volume_anomaly(anomaly_volumes)
 
     @pytest.mark.unit
-    def test_price_gap_detection(self):
+    def test_price_gap_detection(self) -> None:
         """Test price gap detection logic"""
 
-        def detect_price_gaps(closes, threshold=0.05):  # 5% threshold
+        def detect_price_gaps(
+            closes: list, threshold: float = 0.05
+        ) -> bool:  # 5% threshold
             """Detect significant price gaps between consecutive periods"""
             if len(closes) < 2:
                 return False
@@ -258,10 +261,12 @@ class TestDataQualityChecks:
         assert detect_price_gaps(gap_closes)
 
     @pytest.mark.unit
-    def test_data_completeness_check(self):
+    def test_completeness_checks(self) -> None:
         """Test data completeness validation"""
 
-        def check_data_completeness(data_points, expected_count):
+        def check_data_completeness(
+            data_points: list, expected_count: int
+        ) -> Dict[str, Any]:
             """Check if we have the expected amount of data"""
             missing_count = expected_count - len(data_points)
             completeness_ratio = (
@@ -292,10 +297,10 @@ class TestDataProcessingLogic:
     """Unit tests for data processing business logic"""
 
     @pytest.mark.unit
-    def test_timeframe_aggregation_logic(self):
+    def test_timeframe_conversion_logic(self) -> None:
         """Test timeframe aggregation business rules"""
 
-        def aggregate_to_5min(minute_data):
+        def aggregate_to_5min(minute_data: list) -> Dict[str, Any] | None:
             """Aggregate 1-minute bars to 5-minute bars"""
             if not minute_data:
                 return None
@@ -335,10 +340,10 @@ class TestDataProcessingLogic:
         assert five_min_bar["volume"] == 6000  # Sum of volumes
 
     @pytest.mark.unit
-    def test_data_cleaning_logic(self):
-        """Test data cleaning business logic"""
+    def test_data_cleaning_edge_cases(self) -> None:
+        """Test data validation business logic"""
 
-        def clean_market_data(data):
+        def clean_market_data(data: list) -> list:
             """Clean market data by removing invalid records"""
             cleaned = []
             for record in data:
@@ -381,10 +386,10 @@ class TestDataProcessingLogic:
         assert all(r["price"] > 0 for r in clean_result)
 
     @pytest.mark.unit
-    def test_moving_average_calculation(self):
+    def test_moving_average_calculation(self) -> None:
         """Test moving average calculation logic"""
 
-        def calculate_sma(prices, window):
+        def calculate_sma(prices: list, window: int) -> list:
             """Calculate Simple Moving Average"""
             if len(prices) < window:
                 return []
@@ -413,18 +418,20 @@ class TestErrorHandlingLogic:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_retry_logic(self):
+    async def test_retry_logic(self) -> None:
         """Test retry logic for failed operations"""
         attempt_count = 0
 
-        async def failing_operation():
+        async def failing_operation() -> str:
             nonlocal attempt_count
             attempt_count += 1
             if attempt_count < 3:
                 raise Exception("Temporary failure")
             return "success"
 
-        async def retry_with_backoff(operation, max_retries=3, delay=0.01):
+        async def retry_with_backoff(
+            operation: Callable, max_retries: int = 3, delay: float = 0.01
+        ) -> str:
             """Retry an operation with exponential backoff"""
             for attempt in range(max_retries):
                 try:
@@ -433,6 +440,8 @@ class TestErrorHandlingLogic:
                     if attempt == max_retries - 1:
                         raise e
                     await asyncio.sleep(delay * (2**attempt))  # Exponential backoff
+            # This should never be reached due to the loop logic, but mypy requires it
+            raise Exception("Maximum retries exceeded")
 
         result = await retry_with_backoff(failing_operation)
         assert result == "success"
@@ -440,10 +449,10 @@ class TestErrorHandlingLogic:
 
     @pytest.mark.unit
     @pytest.mark.asyncio
-    async def test_timeout_handling(self):
+    async def test_timeout_handling(self) -> None:
         """Test timeout handling logic"""
 
-        async def slow_operation():
+        async def slow_operation() -> str:
             await asyncio.sleep(0.1)  # 100ms operation
             return "completed"
 
@@ -456,18 +465,18 @@ class TestErrorHandlingLogic:
             await asyncio.wait_for(slow_operation(), timeout=0.05)
 
     @pytest.mark.unit
-    def test_circuit_breaker_logic(self):
+    def test_circuit_breaker_logic(self) -> None:
         """Test circuit breaker pattern for fault tolerance"""
 
         class CircuitBreaker:
-            def __init__(self, failure_threshold=3, timeout=5):
+            def __init__(self, failure_threshold: int = 3, timeout: int = 5) -> None:
                 self.failure_threshold = failure_threshold
                 self.timeout = timeout
                 self.failure_count = 0
-                self.last_failure_time = None
+                self.last_failure_time: float | None = None
                 self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
 
-            def call(self, func, *args, **kwargs):
+            def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
                 if self.state == "OPEN":
                     if self._should_attempt_reset():
                         self.state = "HALF_OPEN"
@@ -482,27 +491,27 @@ class TestErrorHandlingLogic:
                     self._on_failure()
                     raise e
 
-            def _should_attempt_reset(self):
+            def _should_attempt_reset(self) -> bool:
                 if self.last_failure_time is None:
                     return False
                 return (
                     datetime.now().timestamp() - self.last_failure_time
                 ) > self.timeout
 
-            def _on_success(self):
+            def _on_success(self) -> None:
                 self.failure_count = 0
                 self.state = "CLOSED"
 
-            def _on_failure(self):
+            def _on_failure(self) -> None:
                 self.failure_count += 1
                 self.last_failure_time = datetime.now().timestamp()
                 if self.failure_count >= self.failure_threshold:
                     self.state = "OPEN"
 
-        def failing_function():
+        def failing_function() -> str:
             raise Exception("Service failure")
 
-        def working_function():
+        def working_function() -> str:
             return "success"
 
         cb = CircuitBreaker(failure_threshold=2)
@@ -525,10 +534,10 @@ class TestDataStorageLogic:
     """Unit tests for data storage business logic"""
 
     @pytest.mark.unit
-    def test_parquet_file_organization_logic(self):
+    def test_parquet_file_organization_logic(self) -> None:
         """Test parquet file organization business logic"""
 
-        def generate_file_path(symbol, timeframe, date):
+        def generate_file_path(symbol: str, timeframe: str, date: datetime) -> str:
             """Generate parquet file path based on business rules"""
             year = date.year
             month = f"{date.month:02d}"
@@ -548,10 +557,10 @@ class TestDataStorageLogic:
         assert file_path_5min == expected_path_5min
 
     @pytest.mark.unit
-    def test_batch_processing_logic(self):
+    def test_batch_processing_validation(self) -> None:
         """Test batch processing business logic"""
 
-        def process_data_in_batches(data, batch_size):
+        def process_data_in_batches(data: list, batch_size: int) -> list:
             """Process data in batches to manage memory"""
             batches = []
             for i in range(0, len(data), batch_size):
@@ -578,10 +587,10 @@ class TestDataStorageLogic:
         assert len(small_batches[0]) == 3
 
     @pytest.mark.unit
-    def test_data_retention_logic(self):
+    def test_database_connection_logic(self) -> None:
         """Test data retention business logic"""
 
-        def should_delete_file(file_date, retention_days):
+        def should_delete_file(file_date: datetime, retention_days: int) -> bool:
             """Determine if a file should be deleted based on retention policy"""
             cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
             return file_date < cutoff_date
@@ -603,13 +612,15 @@ class TestServiceHealthCheck:
     """Unit tests for service health check logic"""
 
     @pytest.mark.unit
-    def test_component_health_check(self):
+    def test_component_health_check(self) -> None:
         """Test individual component health check logic"""
 
-        def check_component_health(component_name, is_healthy, response_time=None):
+        def check_component_health(
+            component_name: str, is_healthy: bool, response_time: float | None = None
+        ) -> dict[str, str | float]:
             """Check individual component health"""
             status = "healthy" if is_healthy else "unhealthy"
-            result = {
+            result: dict[str, str | float] = {
                 "component": component_name,
                 "status": status,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -632,10 +643,10 @@ class TestServiceHealthCheck:
         assert unhealthy_result["component"] == "redis"
 
     @pytest.mark.unit
-    def test_overall_service_health_logic(self):
+    def test_overall_service_health_logic(self) -> None:
         """Test overall service health determination logic"""
 
-        def determine_overall_health(component_healths):
+        def determine_overall_health(component_healths: list) -> str:
             """Determine overall service health from components"""
             if not component_healths:
                 return "unknown"
@@ -683,22 +694,22 @@ class TestServiceMetrics:
     """Unit tests for service metrics collection logic"""
 
     @pytest.mark.unit
-    def test_metrics_calculation_logic(self):
+    def test_metrics_calculation_logic(self) -> None:
         """Test metrics calculation business logic"""
 
-        def calculate_success_rate(total_requests, failed_requests):
+        def calculate_success_rate(total_requests: int, failed_requests: int) -> float:
             """Calculate success rate percentage"""
             if total_requests == 0:
                 return 0.0
             return ((total_requests - failed_requests) / total_requests) * 100
 
-        def calculate_average_response_time(response_times):
+        def calculate_average_response_time(response_times: list) -> float:
             """Calculate average response time"""
             if not response_times:
                 return 0.0
             return sum(response_times) / len(response_times)
 
-        def calculate_percentile(values, percentile):
+        def calculate_percentile(values: list, percentile: float) -> float:
             """Calculate percentile of values"""
             if not values:
                 return 0.0
@@ -722,16 +733,16 @@ class TestServiceMetrics:
         assert p95 == 10  # 95th percentile should be 10
 
     @pytest.mark.unit
-    def test_rate_limiting_logic(self):
+    def test_rate_limiting(self) -> None:
         """Test rate limiting business logic"""
 
         class RateLimiter:
-            def __init__(self, max_requests, window_seconds):
+            def __init__(self, max_requests: int, window_seconds: int) -> None:
                 self.max_requests = max_requests
                 self.window_seconds = window_seconds
-                self.requests = []
+                self.requests: list[float] = []
 
-            def is_allowed(self):
+            def is_allowed(self) -> bool:
                 now = datetime.now().timestamp()
                 # Remove old requests outside the window
                 self.requests = [
@@ -745,7 +756,7 @@ class TestServiceMetrics:
                     return True
                 return False
 
-            def get_remaining_requests(self):
+            def get_remaining_requests(self) -> int:
                 now = datetime.now().timestamp()
                 self.requests = [
                     req_time
@@ -773,10 +784,12 @@ class TestMarketHoursLogic:
     """Unit tests for market hours business logic"""
 
     @pytest.mark.unit
-    def test_market_hours_validation(self):
+    def test_market_hours_validation(self) -> None:
         """Test market hours validation logic"""
 
-        def is_market_open(timestamp, market_tz="America/New_York"):
+        def is_market_open(
+            timestamp: datetime, market_tz: str = "America/New_York"
+        ) -> bool:
             """Check if market is open at given timestamp"""
             # Convert to market timezone
             from zoneinfo import ZoneInfo
@@ -818,16 +831,16 @@ class TestMarketHoursLogic:
         assert is_market_open(weekend) is False
 
     @pytest.mark.unit
-    def test_trading_day_calculation(self):
+    def test_trading_day_calculation(self) -> None:
         """Test trading day calculation logic"""
 
-        def is_trading_day(date):
+        def is_trading_day(date: datetime) -> bool:
             """Check if a date is a trading day (weekday, not holiday)"""
             # Simple implementation - just check weekdays
             # In production, would also check for market holidays
             return date.weekday() < 5  # Monday=0, Friday=4
 
-        def get_next_trading_day(date):
+        def get_next_trading_day(date: datetime) -> datetime:
             """Get the next trading day after given date"""
             next_day = date + timedelta(days=1)
             while not is_trading_day(next_day):

@@ -470,7 +470,7 @@ class PortfolioMonitor:
 
         return alert
 
-    async def _update_portfolio_history(self, portfolio: PortfolioState):
+    async def _update_portfolio_history(self, portfolio: PortfolioState) -> None:
         """Update portfolio historical data."""
 
         # Add current snapshot
@@ -487,7 +487,7 @@ class PortfolioMonitor:
         # Update daily returns if we have previous day data
         await self._update_daily_returns(portfolio)
 
-    async def _update_daily_returns(self, portfolio: PortfolioState):
+    async def _update_daily_returns(self, portfolio: PortfolioState) -> None:
         """Update daily returns calculation."""
 
         if len(self.portfolio_history) < 2:
@@ -750,7 +750,7 @@ class PortfolioMonitor:
             logger.error(f"Error calculating portfolio volatility: {e}")
             return 0.15
 
-    def _update_peak_values(self, portfolio: PortfolioState):
+    def _update_peak_values(self, portfolio: PortfolioState) -> None:
         """Update peak portfolio values for drawdown tracking."""
 
         if portfolio.total_equity > self.peak_portfolio_value:
@@ -1398,11 +1398,11 @@ class PortfolioMonitor:
         }
 
         # Mid cap symbols ($2B-$10B) - typically 4 character symbols
-        def mid_cap_patterns(s):
+        def mid_cap_patterns(s: str) -> bool:
             return len(s) == 4 and s.isupper() and not any(c.isdigit() for c in s)
 
         # Small cap symbols (<$2B) - typically longer symbols or with numbers
-        def small_cap_patterns(s):
+        def small_cap_patterns(s: str) -> bool:
             return len(s) >= 5 or any(c.isdigit() for c in s)
 
         # Check if both are in same category
@@ -2053,7 +2053,7 @@ class PortfolioMonitor:
             logger.error(f"Error generating risk warnings: {e}")
             return ["Error generating risk warnings"]
 
-    def reset_monitoring_state(self):
+    def reset_monitoring_state(self) -> None:
         """Reset monitoring state (for new trading session)."""
 
         self.daily_returns.clear()

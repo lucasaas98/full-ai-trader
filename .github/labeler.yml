@@ -29,10 +29,10 @@ scheduler:
     - services/scheduler/**
 
 strategy-engine:
-    - services/strategy-engine/**
+    - services/strategy_engine/**
 
 trade-executor:
-    - services/trade-executor/**
+    - services/trade_executor/**
 
 shared:
     - shared/**

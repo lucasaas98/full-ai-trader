@@ -72,7 +72,7 @@ class MTFConfigurationManager:
             },
         }
 
-    async def connect(self):
+    async def connect(self) -> None:
         """Connect to Redis."""
         try:
             self.redis_client = redis.from_url(
@@ -88,7 +88,7 @@ class MTFConfigurationManager:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from Redis."""
         if self.redis_client:
             await self.redis_client.close()
@@ -347,7 +347,7 @@ class MTFConfigurationManager:
             }
 
 
-async def main():
+async def main() -> None:
     """Main function to handle command line operations."""
     import argparse
 

@@ -17,7 +17,7 @@ import requests
 class TradingCLI:
     """Simple CLI for trading system interaction."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.data_collector_url = "http://localhost:9101"
         self.strategy_engine_url = "http://localhost:9102"
         self.risk_manager_url = "http://localhost:9103"
@@ -262,7 +262,7 @@ def format_strategies(strategies: Dict[str, Any]) -> None:
     print()
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Simple Trading System CLI")
     parser.add_argument(
         "command",

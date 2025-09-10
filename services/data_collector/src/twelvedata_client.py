@@ -48,7 +48,7 @@ class TwelveDataRateLimiter:
         self.requests: List[float] = []
         self._lock = asyncio.Lock()
 
-    async def wait_if_needed(self):
+    async def wait_if_needed(self) -> None:
         """Wait if necessary to respect rate limiting."""
         async with self._lock:
             current_time = time.time()
@@ -110,14 +110,14 @@ class TwelveDataClient:
             TimeFrame.ONE_MONTH: "1month",
         }
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "TwelveDataClient":
         """Async context manager entry."""
         if self._session is None:
             timeout = aiohttp.ClientTimeout(total=self.config.timeout)
             self._session = aiohttp.ClientSession(timeout=timeout)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         if self._session:
             await self._session.close()
@@ -650,7 +650,7 @@ class TwelveDataClient:
         return results
 
     async def get_technical_indicators(
-        self, symbol: str, indicator: str, timeframe: TimeFrame, **kwargs
+        self, symbol: str, indicator: str, timeframe: TimeFrame, **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
         """
         Get technical indicator data.
@@ -920,7 +920,7 @@ async def update_symbol_data(
 # Example usage
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         config = TwelveDataConfig(api_key="your_api_key_here", rate_limit_requests=800)
 
         async with TwelveDataClient(config) as client:

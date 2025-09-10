@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -253,7 +253,7 @@ class OperationalDashboard:
         except (KeyError, ZeroDivisionError):
             return 0.0
 
-    def _check_service_health(self, service_name: str, container) -> HealthStatus:
+    def _check_service_health(self, service_name: str, container: Any) -> HealthStatus:
         """Check health status of a service"""
         try:
             if service_name == "postgres":
@@ -785,7 +785,7 @@ Strategy Performance:
 
         return layout
 
-    async def update_dashboard(self, layout: Layout):
+    async def update_dashboard(self, layout: Layout) -> None:
         """Update dashboard with current data"""
         # Header
         header_text = Text()
@@ -844,7 +844,7 @@ Strategy Performance:
 
         layout["footer"].update(Panel(footer_text, border_style="white"))
 
-    def run_interactive_dashboard(self):
+    def run_interactive_dashboard(self) -> None:
         """Run interactive dashboard with live updates"""
         layout = self.create_main_layout()
 
@@ -868,7 +868,7 @@ Strategy Performance:
                     logger.error(f"Dashboard update error: {e}")
                     time.sleep(5)  # Wait before retrying
 
-    def run_single_status_check(self):
+    def run_single_status_check(self) -> None:
         """Run a single status check and display results"""
         console.print("[bold blue]AI Trading System Status Report[/bold blue]")
         console.print(f"Environment: {self.environment}")
@@ -915,7 +915,7 @@ Strategy Performance:
                 f"\n[bold red]❌ System Status: DEGRADED ({running_services}/{len(services)} services running)[/bold red]"
             )
 
-    def generate_status_report(self, output_file: str):
+    def generate_status_report(self, output_file: str) -> None:
         """Generate detailed status report"""
         console.print("[blue]Generating status report...[/blue]")
 
@@ -1017,7 +1017,7 @@ Strategy Performance:
 
         return max(0.0, min(100.0, total_score))
 
-    def execute_operation(self, operation: str, **kwargs):
+    def execute_operation(self, operation: str, **kwargs: Any) -> None:
         """Execute operational commands"""
         console.print(f"[blue]Executing operation: {operation}[/blue]")
 
@@ -1085,7 +1085,7 @@ Strategy Performance:
             console.print(f"[red]❌ Operation failed: {e}[/red]")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="AI Trading System Operational Dashboard"
     )

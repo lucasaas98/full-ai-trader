@@ -885,7 +885,7 @@ class DataCollectionService:
                     # Check if we already have recent data
                     has_recent_data = False
                     for tf in timeframes:
-                        date_range = await self.data_store.get_available_data_range(
+                        date_range = self.data_store.get_available_data_range(
                             ticker, tf
                         )
                         if date_range:
@@ -935,7 +935,9 @@ class DataCollectionService:
         except Exception as e:
             logger.error(f"Historical data download failed: {e}")
 
-    async def _download_historical_data_for_new_tickers(self, new_tickers: List[str]):
+    async def _download_historical_data_for_new_tickers(
+        self, new_tickers: List[str]
+    ) -> None:
         """Download historical data specifically for new tickers without checking existing data."""
         if not self.twelvedata_client or not self.data_store or not new_tickers:
             return
@@ -992,7 +994,7 @@ class DataCollectionService:
             f"Completed historical data download for {len(new_tickers)} new tickers"
         )
 
-    async def _smart_finviz_scan(self):
+    async def _smart_finviz_scan(self) -> None:
         """Smart FinViz scanning that adjusts frequency based on market proximity."""
         if not self.config.enable_smart_finviz_scheduling:
             await self._run_finviz_scan()
@@ -1164,7 +1166,7 @@ class DataCollectionService:
             logger.error(f"Failed fallback market hours check: {e}")
             return True  # Default to True to avoid missing updates
 
-    async def _cleanup_old_data(self):
+    async def _cleanup_old_data(self) -> None:
         """Clean up old data files."""
         if not self.data_store:
             return
@@ -1186,7 +1188,7 @@ class DataCollectionService:
         except Exception as e:
             logger.error(f"Data cleanup failed: {e}")
 
-    async def _validate_data_integrity(self):
+    async def _validate_data_integrity(self) -> None:
         """Validate data integrity for active tickers."""
         if not self.data_store:
             return
@@ -1232,7 +1234,7 @@ class DataCollectionService:
         except Exception as e:
             logger.error(f"Data validation failed: {e}")
 
-    async def _health_check(self):
+    async def _health_check(self) -> None:
         """Perform health check on all components."""
         health_status: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -1335,7 +1337,7 @@ class DataCollectionService:
             ),
         }
 
-    async def add_ticker(self, ticker: str, fetch_historical: bool = True):
+    async def add_ticker(self, ticker: str, fetch_historical: bool = True) -> None:
         """
         Manually add a ticker to tracking.
 
@@ -1391,7 +1393,7 @@ class DataCollectionService:
 
     async def force_ticker_update(
         self, ticker: str, timeframes: Optional[List[TimeFrame]] = None
-    ):
+    ) -> None:
         """
         Force immediate update for a specific ticker.
 
@@ -1773,7 +1775,7 @@ async def create_and_start_service(
 
 async def run_service_with_graceful_shutdown(
     config: Optional[DataCollectionConfig] = None,
-):
+) -> None:
     """
     Run data collection service with graceful shutdown handling.
 
@@ -1801,7 +1803,7 @@ async def run_service_with_graceful_shutdown(
 # Example usage
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         # Configure logging
         logging.basicConfig(
             level=logging.INFO,

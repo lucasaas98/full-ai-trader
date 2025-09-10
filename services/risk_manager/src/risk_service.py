@@ -134,7 +134,7 @@ class RiskService:
             logger.error(f"Error initializing risk service: {e}")
             return False
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Shutdown risk service and cleanup resources."""
         try:
             logger.info("Shutting down Risk Management Service...")
@@ -510,7 +510,9 @@ class RiskService:
             logger.error(f"Error generating daily risk report: {e}")
             raise
 
-    async def activate_emergency_stop(self, reason: str, triggered_by: str = "system"):
+    async def activate_emergency_stop(
+        self, reason: str, triggered_by: str = "system"
+    ) -> Dict[str, Any]:
         """Activate emergency stop with full notification cascade."""
         try:
             # Activate in risk manager
@@ -538,6 +540,13 @@ class RiskService:
             await self.alert_manager.send_emergency_alert(event)
 
             logger.critical(f"Emergency stop activated: {reason}")
+
+            return {
+                "status": "activated",
+                "reason": reason,
+                "triggered_by": triggered_by,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
 
         except Exception as e:
             logger.error(f"Error activating emergency stop: {e}")
@@ -836,12 +845,15 @@ class RiskService:
             logger.error(f"Error getting dashboard data: {e}")
             return {"error": str(e)}
 
-    async def start_monitoring(self, interval_seconds: int = 60):
+    async def start_monitoring(self, interval_seconds: int = 60) -> Dict[str, Any]:
         """Start continuous portfolio monitoring."""
         try:
             if self.monitoring_active:
                 logger.warning("Monitoring already active")
-                return
+                return {
+                    "status": "already_active",
+                    "message": "Monitoring already active",
+                }
 
             self.monitoring_active = True
             self.monitoring_task = asyncio.create_task(
@@ -850,11 +862,17 @@ class RiskService:
 
             logger.info(f"Portfolio monitoring started (interval: {interval_seconds}s)")
 
+            return {
+                "status": "started",
+                "interval_seconds": interval_seconds,
+                "message": f"Started portfolio monitoring (interval: {interval_seconds}s)",
+            }
+
         except Exception as e:
             logger.error(f"Error starting monitoring: {e}")
             raise
 
-    async def stop_monitoring(self):
+    async def stop_monitoring(self) -> None:
         """Stop continuous portfolio monitoring."""
         try:
             self.monitoring_active = False
@@ -867,7 +885,7 @@ class RiskService:
         except Exception as e:
             logger.error(f"Error stopping monitoring: {e}")
 
-    async def _monitoring_loop(self, interval_seconds: int):
+    async def _monitoring_loop(self, interval_seconds: int) -> None:
         """Main monitoring loop."""
         while self.monitoring_active:
             try:
@@ -1177,7 +1195,7 @@ class RiskService:
             },
         ]
 
-    async def reset_daily_risk_state(self):
+    async def reset_daily_risk_state(self) -> None:
         """Reset daily risk state (called at market open)."""
         try:
             # Reset risk manager counters

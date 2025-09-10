@@ -83,7 +83,7 @@ class OrderManager:
         self._retry_queue: asyncio.Queue[Any] = asyncio.Queue()
         self._running = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database and Redis connections."""
         try:
             # Initialize database connection pool
@@ -108,7 +108,7 @@ class OrderManager:
             logger.error(f"Failed to initialize OrderManager: {e}")
             raise
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources."""
         try:
             self._running = False
@@ -1103,7 +1103,7 @@ class OrderManager:
         order_request: OrderRequest,
         order_response: OrderResponse,
         signal_id: Optional[UUID],
-    ):
+    ) -> Optional[bool]:
         """Store order in database."""
         try:
             if not self._db_pool:
@@ -1151,11 +1151,11 @@ class OrderManager:
 
     async def _store_bracket_order(
         self, bracket_id: UUID, orders: List[OrderResponse], signal: TradeSignal
-    ):
+    ) -> None:
         """Store bracket order relationship."""
         try:
             if not self._db_pool:
-                return []
+                return
             async with self._db_pool.acquire() as conn:
                 # Assume first order is entry, subsequent are stop/profit
                 entry_order = orders[0] if len(orders) > 0 else None
@@ -1239,7 +1239,7 @@ class OrderManager:
 
     async def _update_order_status(
         self, order_id: UUID, status: OrderStatus, error_message: Optional[str] = None
-    ):
+    ) -> Optional[bool]:
         """Update order status in database."""
         try:
             if not self._db_pool:
@@ -1283,7 +1283,7 @@ class OrderManager:
 
     async def _update_bracket_status(
         self, bracket_id: UUID, status: BracketOrderStatus
-    ):
+    ) -> None:
         """Update bracket order status."""
         try:
             if not self._db_pool:
@@ -1303,7 +1303,7 @@ class OrderManager:
             logger.error(f"Failed to update bracket status {bracket_id}: {e}")
             raise
 
-    async def _update_retry_count(self, order_id: UUID, retry_count: int):
+    async def _update_retry_count(self, order_id: UUID, retry_count: int) -> None:
         """Update order retry count."""
         try:
             if not self._db_pool:
@@ -1350,7 +1350,7 @@ class OrderManager:
 
     async def _store_signal_execution(
         self, signal: TradeSignal, execution_result: Dict[str, Any]
-    ):
+    ) -> None:
         """Store signal execution record."""
         try:
             if not self._db_pool:
@@ -1374,7 +1374,9 @@ class OrderManager:
         except Exception as e:
             logger.error(f"Failed to store signal execution: {e}")
 
-    async def _handle_execution_error(self, signal: TradeSignal, error: Exception):
+    async def _handle_execution_error(
+        self, signal: TradeSignal, error: Exception
+    ) -> None:
         """Handle execution errors."""
         try:
             await self._log_execution_error(
@@ -1408,11 +1410,11 @@ class OrderManager:
         error_type: str,
         error_message: str,
         context: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """Log execution error to database."""
         try:
             if not self._db_pool:
-                return []
+                return
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -1614,11 +1616,11 @@ class OrderManager:
             logger.error(f"Failed to sync order status {order_id}: {e}")
             return False
 
-    async def start_order_monitoring(self):
+    async def start_order_monitoring(self) -> None:
         """Start background task for order monitoring."""
         self._running = True
 
-        async def monitor_orders():
+        async def monitor_orders() -> None:
             """Monitor active orders and handle updates."""
             while self._running:
                 try:

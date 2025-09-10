@@ -355,6 +355,10 @@ class ParameterOptimizer:
         if symbols is None:
             symbols = self.optimization_config["symbols"]
 
+        # Ensure symbols is not None
+        if symbols is None:
+            symbols = []
+
         if optimization_type == "scenarios":
             results = await self._run_scenario_tests(symbols)
         elif optimization_type == "grid_search":
@@ -724,7 +728,7 @@ class ParameterOptimizer:
         return output_path
 
 
-def main():
+def main() -> None:
     """Main entry point for parameter optimization."""
     parser = argparse.ArgumentParser(
         description="Trading System Parameter Optimization"
@@ -765,7 +769,7 @@ def main():
     optimizer = ParameterOptimizer(args.config)
 
     # Run optimization
-    async def run_optimization():
+    async def run_optimization() -> None:
         if args.quick_test:
             # Quick test with first 2 scenarios
             optimizer.test_scenarios = optimizer.test_scenarios[:2]

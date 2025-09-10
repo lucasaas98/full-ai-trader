@@ -7,6 +7,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Any, Dict
 
 import httpx
 import pytest
@@ -42,7 +43,7 @@ class OrderStatus(str, Enum):
 
 
 class PortfolioState:
-    def __init__(self, total_value=100000, cash=50000):
+    def __init__(self, total_value: float = 100000, cash: float = 50000) -> None:
         self.total_value = total_value
         self.cash = cash
 
@@ -51,12 +52,12 @@ class TestServiceCommunication:
     """Integration tests for service-to-service communication"""
 
     @pytest.fixture
-    def config(self):
+    def config(self) -> Any:
         """Test configuration"""
 
         # Create a mock config object with the needed attributes
         class MockConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.redis_host = "redis"
                 self.redis_port = 6379
                 self.redis_password = None
@@ -69,14 +70,14 @@ class TestServiceCommunication:
         return MockConfig()
 
     @pytest.fixture
-    async def redis_client(self, config):
+    async def redis_client(self, config: Any) -> Any:
         """Redis client for testing"""
         client = redis.from_url(f"redis://{config.redis_host}:{config.redis_port}")
         yield client
         await client.close()
 
     @pytest.fixture
-    def service_urls(self):
+    def service_urls(self) -> Dict[str, str]:
         """Service URLs for testing"""
         return {
             "data_collector": "http://data_collector:9101",
@@ -88,8 +89,8 @@ class TestServiceCommunication:
 
     @pytest.mark.asyncio
     async def test_data_flow_from_collector_to_strategy(
-        self, redis_client, service_urls
-    ):
+        self, redis_client: Any, service_urls: Dict[str, str]
+    ) -> None:
         """Test data flow from data collector to strategy engine"""
         # Step 1: Trigger data collection
         async with httpx.AsyncClient() as client:
@@ -134,7 +135,9 @@ class TestServiceCommunication:
             assert signal_data["strategy"] == "moving_average"
 
     @pytest.mark.asyncio
-    async def test_signal_to_execution_flow(self, redis_client, service_urls):
+    async def test_signal_to_execution_flow(
+        self, redis_client: Any, service_urls: Dict[str, str]
+    ) -> None:
         """Test flow from signal generation to trade execution"""
         # Step 1: Publish a trade signal to Redis
         test_signal = {
@@ -192,7 +195,7 @@ class TestServiceCommunication:
                     assert order_data["symbol"] == "AAPL"
 
     @pytest.mark.asyncio
-    async def test_redis_pub_sub_functionality(self, redis_client):
+    async def test_redis_pub_sub_functionality(self, redis_client: Any) -> None:
         """Test Redis pub/sub functionality across services"""
         # Test market data channel
         pubsub = redis_client.pubsub()
@@ -221,7 +224,9 @@ class TestServiceCommunication:
         await pubsub.close()
 
     @pytest.mark.asyncio
-    async def test_cross_service_error_handling(self, service_urls):
+    async def test_cross_service_error_handling(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test error handling when services are unavailable"""
         # Test graceful degradation when strategy engine is down
         async with httpx.AsyncClient() as client:
@@ -242,7 +247,9 @@ class TestServiceCommunication:
             assert response.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_service_health_check_propagation(self, service_urls):
+    async def test_service_health_check_propagation(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test that health checks work across all services"""
         health_results = {}
 
@@ -272,7 +279,9 @@ class TestServiceCommunication:
         assert len(healthy_services) > 0, f"No healthy services found: {health_results}"
 
     @pytest.mark.asyncio
-    async def test_database_connection_across_services(self, service_urls):
+    async def test_database_connection_across_services(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test database connectivity across all services"""
         database_health = {}
 
@@ -304,7 +313,9 @@ class TestServiceCommunication:
                 ], f"Database unhealthy for {service}: {database_health[service]}"
 
     @pytest.mark.asyncio
-    async def test_end_to_end_trade_flow(self, redis_client, service_urls):
+    async def test_end_to_end_trade_flow(
+        self, redis_client: Any, service_urls: Dict[str, str]
+    ) -> None:
         """Test complete end-to-end trade flow"""
         trade_flow_steps = []
 
@@ -382,7 +393,7 @@ class TestServiceCommunication:
             pytest.fail(f"End-to-end flow failed at steps {trade_flow_steps}: {str(e)}")
 
     @pytest.mark.asyncio
-    async def test_scheduler_service_coordination(self, service_urls):
+    async def test_scheduler_integration(self, service_urls: Dict[str, str]) -> None:
         """Test scheduler's coordination of other services"""
         async with httpx.AsyncClient() as client:
             # Check scheduler health
@@ -413,7 +424,7 @@ class TestServiceCommunication:
                 assert len(found_types) > 0
 
     @pytest.mark.asyncio
-    async def test_redis_message_queue_reliability(self, redis_client):
+    async def test_redis_message_queue_reliability(self, redis_client: Any) -> None:
         """Test Redis message queue reliability and ordering"""
         channel = "test_trade_signals"
         messages_sent = []
@@ -458,8 +469,8 @@ class TestServiceCommunication:
 
     @pytest.mark.asyncio
     async def test_service_resilience_to_temporary_failures(
-        self, service_urls, redis_client
-    ):
+        self, service_urls: Dict[str, str], redis_client: Any
+    ) -> None:
         """Test service resilience when dependencies temporarily fail"""
         # Simulate Redis being temporarily unavailable
 
@@ -479,7 +490,9 @@ class TestServiceCommunication:
                 assert health_data.get("status") in ["healthy", "degraded"]
 
     @pytest.mark.asyncio
-    async def test_data_consistency_across_services(self, service_urls):
+    async def test_data_persistence_across_services(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test data consistency across different services"""
         symbol = "AAPL"
 
@@ -508,10 +521,14 @@ class TestServiceCommunication:
                     assert (now - collector_time).total_seconds() < 3600
 
     @pytest.mark.asyncio
-    async def test_concurrent_service_requests(self, service_urls):
+    async def test_concurrent_request_handling(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test handling of concurrent requests across services"""
 
-        async def test_service_endpoint(service_name, endpoint):
+        async def test_service_endpoint(
+            service_name: str, endpoint: str
+        ) -> Dict[str, Any]:
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
@@ -546,7 +563,9 @@ class TestServiceCommunication:
         ), f"Success rate too low: {success_rate}, Results: {results}"
 
     @pytest.mark.asyncio
-    async def test_service_startup_dependencies(self, service_urls):
+    async def test_service_request_response_times(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test that services start up in correct dependency order"""
         # Test dependency chain: postgres/redis -> data_collector -> strategy_engine -> risk_manager -> trade_executor -> scheduler
 
@@ -583,7 +602,9 @@ class TestServiceCommunication:
                     ), f"{service} is healthy but dependency {prev_service} is not"
 
     @pytest.mark.asyncio
-    async def test_api_authentication_and_authorization(self, service_urls):
+    async def test_service_authentication_and_authorization(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test API authentication and authorization across services"""
         # Test that internal service endpoints are accessible
         async with httpx.AsyncClient() as client:
@@ -597,7 +618,9 @@ class TestServiceCommunication:
                 ], f"Unexpected status for {service_name} health: {response.status_code}"
 
     @pytest.mark.asyncio
-    async def test_data_persistence_across_restarts(self, service_urls, redis_client):
+    async def test_data_persistence_across_restarts(
+        self, service_urls: Dict[str, str], redis_client: Any
+    ) -> None:
         """Test that critical data persists across service restarts"""
         # Store test data
         test_data = {
@@ -617,7 +640,9 @@ class TestServiceCommunication:
         assert parsed_data["test_value"] == 123.45
 
     @pytest.mark.asyncio
-    async def test_load_balancing_and_failover(self, service_urls):
+    async def test_service_load_balancing_and_failover(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test load balancing and failover mechanisms"""
         # Send multiple requests to test load distribution
         request_count = 10
@@ -652,7 +677,7 @@ class TestServiceCommunication:
             assert max_response_time < 5.0  # Max under 5 seconds
 
     @pytest.mark.asyncio
-    async def test_message_delivery_guarantees(self, redis_client):
+    async def test_message_delivery_guarantees(self, redis_client: Any) -> None:
         """Test message delivery guarantees in Redis pub/sub"""
         channel = "test_reliability"
         messages_to_send = 20
@@ -664,7 +689,7 @@ class TestServiceCommunication:
         received_messages: list = []
 
         # Publisher task
-        async def publisher():
+        async def publisher() -> None:
             for i in range(messages_to_send):
                 message = {
                     "id": i,
@@ -675,7 +700,7 @@ class TestServiceCommunication:
                 await asyncio.sleep(0.05)  # 50ms between messages
 
         # Subscriber task
-        async def subscriber():
+        async def subscriber() -> None:
             while len(received_messages) < messages_to_send:
                 try:
                     message = await asyncio.wait_for(
@@ -701,11 +726,13 @@ class TestServiceCommunication:
             assert message["id"] == i
 
     @pytest.mark.asyncio
-    async def test_service_communication_under_load(self, service_urls, redis_client):
+    async def test_service_communication_under_load(
+        self, service_urls: Dict[str, str], redis_client: Any
+    ) -> None:
         """Test service communication under high load"""
         concurrent_requests = 20
 
-        async def make_request(service_name, endpoint):
+        async def make_request(service_name: str, endpoint: str) -> Dict[str, Any]:
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.get(
@@ -742,7 +769,9 @@ class TestServiceCommunication:
         assert success_rate >= 0.7, f"Load test success rate too low: {success_rate}"
 
     @pytest.mark.asyncio
-    async def test_data_synchronization_across_services(self, service_urls):
+    async def test_data_synchronization_across_services(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test data synchronization across services"""
         symbol = "AAPL"
 
@@ -778,7 +807,9 @@ class TestServiceCommunication:
                     ]  # 404 if no portfolio data yet
 
     @pytest.mark.asyncio
-    async def test_error_propagation_and_circuit_breaker(self, service_urls):
+    async def test_error_propagation_and_circuit_breaker(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test error propagation and circuit breaker patterns"""
         # Test cascade failure prevention
         async with httpx.AsyncClient() as client:
@@ -827,7 +858,9 @@ class TestServiceCommunication:
                     ), f"Internal server error for {error_response['url']}"
 
     @pytest.mark.asyncio
-    async def test_service_configuration_consistency(self, service_urls):
+    async def test_service_logging_consistency(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test that service configurations are consistent"""
         service_configs = {}
 
@@ -858,14 +891,18 @@ class TestServiceCommunication:
             assert len(redis_hosts) <= 1, f"Inconsistent Redis hosts: {redis_hosts}"
 
     @pytest.mark.asyncio
-    async def test_websocket_connections_if_available(self, service_urls):
+    async def test_websocket_connections_if_available(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test WebSocket connections for real-time data if available"""
         # This would test WebSocket endpoints if they exist
         # For now, test that HTTP endpoints work
         pass
 
     @pytest.mark.asyncio
-    async def test_service_metrics_collection(self, service_urls):
+    async def test_service_metrics_collection(
+        self, service_urls: Dict[str, str]
+    ) -> None:
         """Test that services expose metrics for monitoring"""
         metrics_endpoints = ["/metrics", "/prometheus", "/stats"]
 

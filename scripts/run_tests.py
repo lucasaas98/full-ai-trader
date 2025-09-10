@@ -24,7 +24,7 @@ class TestRunner:
         self.coverage_results: Dict[str, Any] = {}
         self.start_time: Optional[float] = None
 
-    def setup_environment(self):
+    def setup_environment(self) -> None:
         """Setup test environment."""
         print("🔧 Setting up test environment...")
 
@@ -864,7 +864,7 @@ echo "🏁 Docker tests completed"
 
         return all_passed
 
-    def cleanup_test_artifacts(self):
+    def cleanup_test_artifacts(self) -> None:
         """Clean up test artifacts and temporary files."""
         print("\n🧹 Cleaning up test artifacts...")
 
@@ -899,7 +899,7 @@ echo "🏁 Docker tests completed"
 
         print(f"🗑️ Cleaned {cleaned_count} test artifacts")
 
-    def handle_utility_operations(self, args) -> Optional[int]:
+    def handle_test_execution(self, args: argparse.Namespace) -> Optional[int]:
         """Handle utility operations like cleanup, environment check, etc."""
         if args.check_env:
             return self._handle_env_check()
@@ -940,7 +940,7 @@ echo "🏁 Docker tests completed"
         self.analyze_coverage()
         return 0
 
-    def handle_code_quality_checks(self, args) -> Optional[int]:
+    def handle_code_quality_checks(self, args: argparse.Namespace) -> Optional[int]:
         """Handle code quality checks like linting, type checking, security scans."""
         if args.lint:
             return self._handle_lint_check(args.verbose)
@@ -971,7 +971,7 @@ echo "🏁 Docker tests completed"
 
         return None
 
-    def run_tests_based_on_args(self, args) -> bool:
+    def run_tests_based_on_args(self, args: argparse.Namespace) -> bool:
         """Run tests based on command line arguments."""
         if args.parallel:
             return self.run_parallel_tests(args.verbose)
@@ -981,7 +981,7 @@ echo "🏁 Docker tests completed"
 
         return self._run_individual_tests(args)
 
-    def _run_individual_tests(self, args) -> bool:
+    def _run_individual_tests(self, args: argparse.Namespace) -> bool:
         """Run individual test categories based on arguments."""
         test_methods = {
             "smoke": lambda: self.run_smoke_tests(args.verbose),
@@ -1010,7 +1010,7 @@ echo "🏁 Docker tests completed"
         return success
 
 
-def create_argument_parser():
+def create_argument_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
         description="Comprehensive test runner for AI Trading System"
@@ -1062,7 +1062,7 @@ def create_argument_parser():
     return parser
 
 
-def main():
+def main() -> int:
     """Main entry point."""
     parser = create_argument_parser()
     args = parser.parse_args()
@@ -1072,7 +1072,7 @@ def main():
     runner = TestRunner(project_root)
 
     # Handle utility operations first
-    utility_result = runner.handle_utility_operations(args)
+    utility_result = runner.handle_test_execution(args)
     if utility_result is not None:
         return utility_result
 
@@ -1095,3 +1095,4 @@ def main():
 if __name__ == "__main__":
     exit_code = main()
     sys.exit(exit_code)
+sys.exit(exit_code)

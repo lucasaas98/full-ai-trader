@@ -197,7 +197,7 @@ def create_plane_task(
         return False
 
 
-def main():
+def main() -> bool:
     """Main function to create all Plane tasks."""
     api_token = ""
     workspace = ""

@@ -918,7 +918,7 @@ class MarketRegimeDetector:
 class RegimeFilter:
     """Filter trading signals based on market regime."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize regime filter."""
         self.logger = logging.getLogger("regime_filter")
 
@@ -1135,7 +1135,7 @@ class RegimeFilter:
 class MarketStateAnalyzer:
     """Analyze overall market state and conditions."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize market state analyzer."""
         self.logger = logging.getLogger("market_state")
 
@@ -1257,7 +1257,7 @@ class MarketStateAnalyzer:
 class RegimeBasedParameterOptimizer:
     """Optimize strategy parameters based on detected market regime."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parameter optimizer."""
         self.logger = logging.getLogger("regime_optimizer")
 
@@ -1369,7 +1369,7 @@ class RegimeBasedParameterOptimizer:
 class RegimeAwareStrategyManager:
     """Manage strategy behavior based on market regime."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize regime-aware strategy manager."""
         self.logger = logging.getLogger("regime_strategy_manager")
         self.detector = MarketRegimeDetector()
@@ -1378,8 +1378,8 @@ class RegimeAwareStrategyManager:
         self.state_analyzer = MarketStateAnalyzer()
 
         # Current regime state
-        self._current_regime = None
-        self._regime_history = []
+        self._current_regime: RegimeState | None = None
+        self._regime_history: list[RegimeState] = []
 
     async def get_regime_adjusted_signal(
         self,

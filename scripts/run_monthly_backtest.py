@@ -70,7 +70,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run AI trading strategy backtest using historical data",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("Usage:")[1],
+        epilog=__doc__.split("Usage:")[1] if __doc__ else "",
     )
 
     # Date range options
@@ -262,7 +262,9 @@ def format_percentage(value: float) -> str:
     return f"{value:.2%}"
 
 
-def display_results(results, config: RealBacktestConfig, quiet: bool = False) -> None:
+def display_results(
+    results: dict, config: RealBacktestConfig, quiet: bool = False
+) -> None:
     """Display backtest results in a formatted way."""
     if quiet:
         return
@@ -282,49 +284,53 @@ def display_results(results, config: RealBacktestConfig, quiet: bool = False) ->
     )
 
     print("\nPerformance Summary:")
-    print(f"  Total Return: {format_percentage(results.total_return)}")
-    print(f"  Annualized Return: {format_percentage(results.annualized_return)}")
+    print(f"  Total Return: {format_percentage(results['total_return'])}")
+    print(f"  Annualized Return: {format_percentage(results['annualized_return'])}")
     print(
-        f"  Final Portfolio Value: {format_currency(float(results.final_portfolio_value))}"
+        f"  Final Portfolio Value: {format_currency(float(results['final_portfolio_value']))}"
     )
-    print(f"  Max Drawdown: {format_percentage(results.max_drawdown)}")
+    print(f"  Max Drawdown: {format_percentage(results['max_drawdown'])}")
 
     print("\nRisk Metrics:")
-    print(f"  Sharpe Ratio: {results.sharpe_ratio:.3f}")
-    print(f"  Sortino Ratio: {results.sortino_ratio:.3f}")
-    print(f"  Calmar Ratio: {results.calmar_ratio:.3f}")
+    print(f"  Sharpe Ratio: {results['sharpe_ratio']:.3f}")
+    print(f"  Sortino Ratio: {results['sortino_ratio']:.3f}")
+    print(f"  Calmar Ratio: {results['calmar_ratio']:.3f}")
 
     print("\nTrading Statistics:")
-    print(f"  Total Trades: {results.total_trades}")
-    print(f"  Winning Trades: {results.winning_trades}")
-    print(f"  Losing Trades: {results.losing_trades}")
-    print(f"  Win Rate: {format_percentage(results.win_rate)}")
-    print(f"  Profit Factor: {results.profit_factor:.2f}")
+    print(f"  Total Trades: {results['total_trades']}")
+    print(f"  Winning Trades: {results['winning_trades']}")
+    print(f"  Losing Trades: {results['losing_trades']}")
+    print(f"  Win Rate: {format_percentage(results['win_rate'])}")
+    print(f"  Profit Factor: {results['profit_factor']:.2f}")
 
-    if results.total_trades > 0:
-        print(f"  Average Win: {format_currency(results.average_win)}")
-        print(f"  Average Loss: {format_currency(results.average_loss)}")
-        print(f"  Largest Win: {format_currency(results.largest_win)}")
-        print(f"  Largest Loss: {format_currency(results.largest_loss)}")
+    if results["total_trades"] > 0:
+        print(f"  Average Win: {format_currency(results['average_win'])}")
+        print(f"  Average Loss: {format_currency(results['average_loss'])}")
+        print(f"  Largest Win: {format_currency(results['largest_win'])}")
+        print(f"  Largest Loss: {format_currency(results['largest_loss'])}")
 
     print("\nAI Strategy Metrics:")
-    print(f"  Total AI Calls: {results.total_ai_calls}")
-    print(f"  Signals Generated: {results.signals_generated}")
-    print(f"  Signals Executed: {results.signals_executed}")
+    print(f"  Total AI Calls: {results['total_ai_calls']}")
+    print(f"  Signals Generated: {results['signals_generated']}")
+    print(f"  Signals Executed: {results['signals_executed']}")
     print(
-        f"  Signal Execution Rate: {format_percentage(results.signals_executed / max(results.signals_generated, 1))}"
+        f"  Signal Execution Rate: {format_percentage(results['signals_executed'] / max(results['signals_generated'], 1))}"
     )
-    print(f"  Average Confidence: {results.average_confidence:.1f}%")
+    print(f"  Average Confidence: {results['average_confidence']:.1f}%")
 
     print("\nExecution Details:")
-    print(f"  Total Commissions: {format_currency(float(results.total_commissions))}")
-    print(f"  Total Slippage: {format_currency(float(results.total_slippage))}")
-    print(f"  Execution Time: {results.execution_time_seconds:.2f} seconds")
+    print(
+        f"  Total Commissions: {format_currency(float(results['total_commissions']))}"
+    )
+    print(f"  Total Slippage: {format_currency(float(results['total_slippage']))}")
+    print(f"  Execution Time: {results['execution_time_seconds']:.2f} seconds")
 
     print("\n" + "=" * 80)
 
 
-def save_results(results, config: RealBacktestConfig, args: argparse.Namespace) -> None:
+def save_results(
+    results: dict, config: RealBacktestConfig, args: argparse.Namespace
+) -> None:
     """Save backtest results to files."""
     if args.no_save:
         return
@@ -349,29 +355,29 @@ def save_results(results, config: RealBacktestConfig, args: argparse.Namespace) 
             "max_position_size": str(config.max_position_size),
         },
         "results": {
-            "total_return": results.total_return,
-            "annualized_return": results.annualized_return,
-            "final_portfolio_value": str(results.final_portfolio_value),
-            "max_drawdown": results.max_drawdown,
-            "sharpe_ratio": results.sharpe_ratio,
-            "sortino_ratio": results.sortino_ratio,
-            "calmar_ratio": results.calmar_ratio,
-            "total_trades": results.total_trades,
-            "winning_trades": results.winning_trades,
-            "losing_trades": results.losing_trades,
-            "win_rate": results.win_rate,
-            "profit_factor": results.profit_factor,
-            "average_win": results.average_win,
-            "average_loss": results.average_loss,
-            "largest_win": results.largest_win,
-            "largest_loss": results.largest_loss,
-            "total_ai_calls": results.total_ai_calls,
-            "signals_generated": results.signals_generated,
-            "signals_executed": results.signals_executed,
-            "average_confidence": results.average_confidence,
-            "total_commissions": str(results.total_commissions),
-            "total_slippage": str(results.total_slippage),
-            "execution_time_seconds": results.execution_time_seconds,
+            "total_return": results["total_return"],
+            "annualized_return": results["annualized_return"],
+            "final_portfolio_value": str(results["final_portfolio_value"]),
+            "max_drawdown": results["max_drawdown"],
+            "sharpe_ratio": results["sharpe_ratio"],
+            "sortino_ratio": results["sortino_ratio"],
+            "calmar_ratio": results["calmar_ratio"],
+            "total_trades": results["total_trades"],
+            "winning_trades": results["winning_trades"],
+            "losing_trades": results["losing_trades"],
+            "win_rate": results["win_rate"],
+            "profit_factor": results["profit_factor"],
+            "average_win": results["average_win"],
+            "average_loss": results["average_loss"],
+            "largest_win": results["largest_win"],
+            "largest_loss": results["largest_loss"],
+            "total_ai_calls": results["total_ai_calls"],
+            "signals_generated": results["signals_generated"],
+            "signals_executed": results["signals_executed"],
+            "average_confidence": results["average_confidence"],
+            "total_commissions": str(results["total_commissions"]),
+            "total_slippage": str(results["total_slippage"]),
+            "execution_time_seconds": results["execution_time_seconds"],
         },
     }
 
@@ -381,7 +387,7 @@ def save_results(results, config: RealBacktestConfig, args: argparse.Namespace) 
     print(f"\nResults saved to: {summary_file}")
 
     # Save detailed trades if requested
-    if args.save_trades and results.trades:
+    if args.save_trades and results["trades"]:
         trades_file = output_dir / f"{base_filename}_trades.csv"
         with open(trades_file, "w", newline="") as f:
             writer = csv.writer(f)
@@ -402,7 +408,7 @@ def save_results(results, config: RealBacktestConfig, args: argparse.Namespace) 
                 ]
             )
 
-            for trade in results.trades:
+            for trade in results["trades"]:
                 writer.writerow(
                     [
                         trade.symbol,
@@ -423,19 +429,19 @@ def save_results(results, config: RealBacktestConfig, args: argparse.Namespace) 
         print(f"Trade details saved to: {trades_file}")
 
     # Save portfolio values if requested
-    if args.save_portfolio and results.portfolio_values:
+    if args.save_portfolio and results["portfolio_values"]:
         portfolio_file = output_dir / f"{base_filename}_portfolio.csv"
         with open(portfolio_file, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["Date", "Portfolio Value"])
 
-            for date, value in results.portfolio_values:
+            for date, value in results["portfolio_values"]:
                 writer.writerow([date.isoformat(), str(value)])
 
         print(f"Portfolio history saved to: {portfolio_file}")
 
 
-async def main():
+async def main() -> int:
     """Main execution function."""
     args = parse_arguments()
 

@@ -678,7 +678,7 @@ class ConfigValidator:
         logger.info(f"Validation results exported to: {output_path}")
 
 
-def main():
+def main() -> None:
     """Main entry point for configuration validation"""
     parser = argparse.ArgumentParser(
         description="Validate AI Trading System configuration"

@@ -119,7 +119,7 @@ class ServiceOrchestrator:
         # HTTP client for service communication
         self.http_client: Optional[httpx.AsyncClient] = None
 
-    def register_service(self, service_config: ServiceConfiguration):
+    def register_service(self, service_config: ServiceConfiguration) -> None:
         """Register a service with the orchestrator."""
         self.services[service_config.name] = service_config
         logger.info(f"Registered service: {service_config.name}")
@@ -127,14 +127,14 @@ class ServiceOrchestrator:
         # Recalculate startup/shutdown order
         self._calculate_service_order()
 
-    def _calculate_service_order(self):
+    def _calculate_service_order(self) -> None:
         """Calculate optimal startup and shutdown order based on dependencies."""
         # Topological sort for startup order
         visited = set()
         temp_visited = set()
         startup_order = []
 
-        def visit_for_startup(service_name: str):
+        def visit_for_startup(service_name: str) -> None:
             if service_name in temp_visited:
                 raise ValueError(
                     f"Circular dependency detected involving {service_name}"
@@ -450,7 +450,7 @@ class ServiceOrchestrator:
                 service.health_check.consecutive_successes = 0
                 service.health_check.last_check = datetime.now()
 
-    async def _start_monitoring(self):
+    async def _start_monitoring(self) -> None:
         """Start monitoring tasks for all services."""
         logger.info("Starting service monitoring...")
 
@@ -466,7 +466,7 @@ class ServiceOrchestrator:
         metrics_task = asyncio.create_task(self._metrics_collection_loop())
         self.monitoring_tasks.add(metrics_task)
 
-    async def _stop_monitoring(self):
+    async def _stop_monitoring(self) -> None:
         """Stop all monitoring tasks."""
         logger.info("Stopping service monitoring...")
 
@@ -479,7 +479,7 @@ class ServiceOrchestrator:
 
         self.monitoring_tasks.clear()
 
-    async def _health_monitoring_loop(self):
+    async def _health_monitoring_loop(self) -> None:
         """Monitor health of all services."""
         while self.is_running:
             try:
@@ -498,7 +498,7 @@ class ServiceOrchestrator:
                 logger.error(f"Health monitoring loop error: {e}")
                 await asyncio.sleep(30)
 
-    async def _perform_health_check(self, service: ServiceConfiguration):
+    async def _perform_health_check(self, service: ServiceConfiguration) -> None:
         """Perform health check for a single service."""
         # Skip if too soon since last check
         if (
@@ -531,7 +531,7 @@ class ServiceOrchestrator:
                     logger.warning(f"Service {service.name} marked as degraded")
                     await self._notify_health_change(service.name, False)
 
-    async def _recovery_monitoring_loop(self):
+    async def _recovery_monitoring_loop(self) -> None:
         """Monitor and trigger service recovery."""
         while self.is_running:
             try:
@@ -548,7 +548,7 @@ class ServiceOrchestrator:
 
     async def _check_service_recovery(
         self, service_name: str, service: ServiceConfiguration
-    ):
+    ) -> None:
         """Check if a service needs recovery and attempt it."""
         if service.restart_policy == "never":
             return
@@ -572,7 +572,7 @@ class ServiceOrchestrator:
             else:
                 logger.error(f"Service {service_name} recovery failed")
 
-    async def _metrics_collection_loop(self):
+    async def _metrics_collection_loop(self) -> None:
         """Collect metrics from all services."""
         while self.is_running:
             try:
@@ -588,7 +588,7 @@ class ServiceOrchestrator:
                 logger.error(f"Metrics collection loop error: {e}")
                 await asyncio.sleep(60)
 
-    async def _collect_service_metrics(self, service: ServiceConfiguration):
+    async def _collect_service_metrics(self, service: ServiceConfiguration) -> None:
         """Collect metrics from a single service."""
         try:
             metrics_url = f"{service.url}/metrics"
@@ -611,7 +611,7 @@ class ServiceOrchestrator:
             # Metrics collection failure is not critical
             logger.debug(f"Failed to collect metrics for {service.name}: {e}")
 
-    async def get_service_status(self, service_name: str) -> Optional[Dict[str, Any]]:
+    async def get_service_health(self, service_name: str) -> Optional[Dict[str, Any]]:
         """Get detailed status of a specific service."""
         if service_name not in self.services:
             return None
@@ -660,12 +660,22 @@ class ServiceOrchestrator:
         """Get status of all registered services."""
         status = {}
         for service_name in self.services:
-            service_status = await self.get_service_status(service_name)
-            if service_status:
-                status[service_name] = service_status
+            service = self.services[service_name]
+            service_status = {
+                "status": service.status.value,
+                "pid": service.pid,
+                "start_time": (
+                    service.start_time.isoformat() if service.start_time else None
+                ),
+                "restart_count": service.restart_count,
+                "error_count": service.error_count,
+                "last_error": service.last_error,
+                "metrics": service.metrics,
+            }
+            status[service_name] = service_status
         return status
 
-    async def get_system_health_summary(self) -> Dict[str, Any]:
+    async def get_system_status(self) -> Optional[Dict[str, Any]]:
         """Get overall system health summary."""
         total_services = len(self.services)
         running_services = sum(
@@ -695,15 +705,17 @@ class ServiceOrchestrator:
             ),
         }
 
-    def register_status_change_callback(self, callback: Callable):
+    def register_status_change_callback(self, callback: Callable) -> None:
         """Register callback for service status changes."""
         self.status_change_callbacks.append(callback)
 
-    def register_health_change_callback(self, callback: Callable):
+    def register_health_change_callback(self, callback: Callable) -> None:
         """Register callback for service health changes."""
         self.health_change_callbacks.append(callback)
 
-    async def _notify_status_change(self, service_name: str, new_status: ServiceStatus):
+    async def _notify_status_change(
+        self, service_name: str, new_status: ServiceStatus
+    ) -> None:
         """Notify callbacks of service status change."""
         for callback in self.status_change_callbacks:
             try:
@@ -714,7 +726,7 @@ class ServiceOrchestrator:
             except Exception as e:
                 logger.error(f"Status change callback failed: {e}")
 
-    async def _notify_health_change(self, service_name: str, is_healthy: bool):
+    async def _notify_health_change(self, service_name: str, is_healthy: bool) -> None:
         """Notify callbacks of service health change."""
         for callback in self.health_change_callbacks:
             try:
@@ -1287,7 +1299,7 @@ class ServiceOrchestrator:
             "is_orchestrator_running": self.is_running,
         }
 
-    async def cleanup_failed_services(self):
+    async def cleanup_failed_services(self) -> int:
         """Clean up resources from failed services."""
         logger.info("Cleaning up failed services...")
 
@@ -1313,7 +1325,7 @@ class ServiceOrchestrator:
 
         report = {
             "timestamp": current_time.isoformat(),
-            "summary": await self.get_system_health_summary(),
+            "summary": await self.get_system_status(),
             "orchestrator_metrics": await self.get_orchestrator_metrics(),
             "services": {},
             "dependency_graph": await self.get_dependency_graph(),
@@ -1322,22 +1334,32 @@ class ServiceOrchestrator:
 
         # Add detailed service information
         for service_name in list(self.services.keys()):
-            service_status = await self.get_service_status(service_name)
+            service = self.services[service_name]
+            service_status = {
+                "status": service.status.value,
+                "pid": service.pid,
+                "start_time": (
+                    service.start_time.isoformat() if service.start_time else None
+                ),
+                "restart_count": service.restart_count,
+                "error_count": service.error_count,
+                "last_error": service.last_error,
+            }
             if service_status:
                 # Add diagnosis
                 diagnosis = await self.diagnose_service_issues(service_name)
-                service_status["diagnosis"] = diagnosis
+                service_status["diagnosis"] = cast(Any, diagnosis)
 
                 # Add resource usage
                 resource_usage = await self.get_service_resource_usage(service_name)
-                service_status["resource_usage"] = resource_usage
+                service_status["resource_usage"] = cast(Any, resource_usage)
 
                 services_dict = cast(Dict[str, Any], report["services"])
                 services_dict[service_name] = service_status
 
         return report
 
-    async def shutdown(self):
+    async def shutdown(self) -> None:
         """Graceful shutdown of the orchestrator."""
         logger.info("Shutting down service orchestrator...")
 

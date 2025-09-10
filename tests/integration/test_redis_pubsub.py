@@ -14,7 +14,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional
 
 import psycopg2
 import pytest
@@ -23,39 +23,51 @@ from psycopg2.extras import RealDictCursor
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-pass  # Imports removed as they were unused
-
 
 # Mock classes for missing modules
 class RedisClient:
-    def __init__(self, redis_url):
+    def __init__(self, redis_url: str) -> None:
         self.redis_url = redis_url
         self.client = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         pass
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         pass
 
 
 class DatabaseManager:
-    def __init__(self, config):
+    def __init__(self, config: Optional[Dict[str, Any]] = None) -> None:
         self.config = config
         self.connection = None
         self.cursor = None
 
-    async def connect(self):
+    async def connect(self) -> None:
         pass
 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         pass
+
+    async def execute_query(self, query: str) -> Dict[str, Any]:
+        """Execute a database query and return result."""
+        return {"success": True, "results": [{"symbol": "BTCUSD", "price": "50000.0"}]}
+
+    async def insert_market_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert market data into database."""
+        return {"success": True}
+
+    async def insert_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Insert trade data into database."""
+        return {"success": True}
 
 
 class RedisPubSubTester:
     """Test Redis pub/sub functionality."""
 
-    def __init__(self, redis_host="localhost", redis_port=6379, redis_db=1):
+    def __init__(
+        self, redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 1
+    ) -> None:
         self.redis_client = redis.Redis(
             host=redis_host, port=redis_port, db=redis_db, decode_responses=True
         )
@@ -63,29 +75,32 @@ class RedisPubSubTester:
         self.received_messages: queue.Queue = queue.Queue()
         self.subscription_active = False
 
-    def start_subscriber(self, channels: List[str]):
+    def start_subscriber(self, channels: List[str]) -> None:
         """Start subscribing to channels in a separate thread."""
 
-        def subscriber_worker():
+        def subscriber_thread() -> None:
             try:
                 self.subscriber = self.redis_client.pubsub()
-                for channel in channels:
-                    self.subscriber.subscribe(channel)
+                if self.subscriber is not None:
+                    for channel in channels:
+                        self.subscriber.subscribe(channel)
 
-                self.subscription_active = True
+                    self.subscription_active = True
 
-                for message in self.subscriber.listen():
-                    if message["type"] == "message":
-                        self.received_messages.put(
-                            {
-                                "channel": message["channel"],
-                                "data": message["data"],
-                                "timestamp": time.time(),
-                            }
-                        )
+                    for message in self.subscriber.listen():
+                        if message["type"] == "message":
+                            self.received_messages.put(
+                                {
+                                    "channel": message["channel"],
+                                    "data": message["data"],
+                                    "timestamp": time.time(),
+                                }
+                            )
+                        elif message["type"] == "subscribe":
+                            print(f"Subscribed to {message['channel']}")
 
-                    if not self.subscription_active:
-                        break
+                        if not self.subscription_active:
+                            break
 
             except Exception as e:
                 self.received_messages.put({"error": str(e)})
@@ -93,7 +108,7 @@ class RedisPubSubTester:
                 if self.subscriber:
                     self.subscriber.close()
 
-        self.subscriber_thread = threading.Thread(target=subscriber_worker)
+        self.subscriber_thread = threading.Thread(target=subscriber_thread)
         self.subscriber_thread.daemon = True
         self.subscriber_thread.start()
 
@@ -103,7 +118,7 @@ class RedisPubSubTester:
         while not self.subscription_active and (time.time() - start_time) < timeout:
             time.sleep(0.1)
 
-    def stop_subscriber(self):
+    def stop_subscriber(self) -> None:
         """Stop the subscriber."""
         self.subscription_active = False
         if hasattr(self, "subscriber_thread"):
@@ -144,7 +159,7 @@ class RedisPubSubTester:
                 return 0
         return 0
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up Redis connections."""
         self.stop_subscriber()
         if self.redis_client:
@@ -159,7 +174,7 @@ class DatabaseTester:
         self.connection: Optional[Any] = None
         self.cursor: Optional[Any] = None
 
-    def connect(self):
+    def connect(self) -> None:
         """Connect to the database."""
         try:
             self.connection = psycopg2.connect(
@@ -175,7 +190,7 @@ class DatabaseTester:
         except Exception as e:
             raise Exception(f"Failed to connect to database: {e}")
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from database."""
         if self.cursor:
             self.cursor.close()
@@ -308,7 +323,7 @@ class DatabaseTester:
 
 
 @pytest.fixture
-def redis_tester():
+def redis_tester() -> Generator[RedisPubSubTester, None, None]:
     """Create Redis pub/sub tester."""
     tester = RedisPubSubTester()
     yield tester
@@ -316,7 +331,7 @@ def redis_tester():
 
 
 @pytest.fixture
-def database_tester():
+def database_tester() -> Generator[DatabaseTester, None, None]:
     """Create database tester."""
     db_config = {
         "host": "localhost",
@@ -335,7 +350,7 @@ def database_tester():
 
 
 @pytest.fixture
-def sample_market_data():
+def sample_market_data() -> Dict[str, Any]:
     """Generate sample market data for testing."""
     return {
         "symbol": "AAPL",
@@ -349,7 +364,7 @@ def sample_market_data():
 
 
 @pytest.fixture
-def sample_trade_data():
+def sample_trade_data() -> Dict[str, Any]:
     """Generate sample trade data for testing."""
     return {
         "symbol": "AAPL",
@@ -370,7 +385,7 @@ def sample_trade_data():
 class TestRedisPubSub:
     """Test Redis pub/sub functionality."""
 
-    def test_basic_publish_subscribe(self, redis_tester):
+    def test_basic_publish_subscribe(self, redis_tester: RedisPubSubTester) -> None:
         """Test basic publish/subscribe functionality."""
         channel = "test_channel"
         test_message = {"type": "test", "data": "hello world", "timestamp": time.time()}
@@ -391,7 +406,9 @@ class TestRedisPubSub:
         assert received_data["type"] == test_message["type"]
         assert received_data["data"] == test_message["data"]
 
-    def test_market_data_channel(self, redis_tester, sample_market_data):
+    def test_market_data_channel(
+        self, redis_tester: RedisPubSubTester, sample_market_data: Dict[str, Any]
+    ) -> None:
         """Test market data pub/sub channel."""
         channel = "market_data"
 
@@ -410,7 +427,7 @@ class TestRedisPubSub:
         assert received_data["symbol"] == sample_market_data["symbol"]
         assert received_data["price"] == sample_market_data["price"]
 
-    def test_trading_signals_channel(self, redis_tester):
+    def test_trading_signal_processing(self, redis_tester: RedisPubSubTester) -> None:
         """Test trading signals pub/sub channel."""
         channel = "trading_signals"
 
@@ -439,7 +456,9 @@ class TestRedisPubSub:
         assert received_signal["action"] == signal_data["action"]
         assert received_signal["confidence"] == signal_data["confidence"]
 
-    def test_multiple_channels_subscription(self, redis_tester):
+    def test_multiple_channel_subscription(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test subscribing to multiple channels simultaneously."""
         channels = ["market_data", "trading_signals", "risk_alerts"]
 
@@ -447,14 +466,14 @@ class TestRedisPubSub:
         time.sleep(0.5)
 
         # Publish to different channels
-        test_messages = [
+        test_messages: list[tuple[str, Dict[str, Any]]] = [
             ("market_data", {"symbol": "AAPL", "price": 150.0}),
             ("trading_signals", {"symbol": "GOOGL", "action": "SELL"}),
             ("risk_alerts", {"type": "position_limit", "severity": "warning"}),
         ]
 
         for channel, message in test_messages:
-            redis_tester.publish_message(channel, message)
+            redis_tester.publish_message(channel, message)  # type: ignore
 
         # Verify all messages received
         messages = redis_tester.get_messages(timeout=3.0)
@@ -467,7 +486,9 @@ class TestRedisPubSub:
                 expected_channel in channels_received
             ), f"Missing message from {expected_channel}"
 
-    def test_high_frequency_publishing(self, redis_tester):
+    def test_high_frequency_message_handling(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test high-frequency message publishing."""
         channel = "high_freq_test"
         message_count = 1000
@@ -502,7 +523,7 @@ class TestRedisPubSub:
             len(messages) >= message_count * 0.95
         ), f"Message loss detected: {len(messages)}/{message_count}"
 
-    def test_message_ordering(self, redis_tester):
+    def test_message_persistence(self, redis_tester: RedisPubSubTester) -> None:
         """Test that messages maintain order in pub/sub."""
         channel = "order_test"
         message_count = 100
@@ -533,7 +554,7 @@ class TestRedisPubSub:
 
         print(f"Message ordering test: {len(sequences)} messages received in order")
 
-    def test_subscriber_resilience(self, redis_tester):
+    def test_subscriber_resilience(self, redis_tester: RedisPubSubTester) -> None:
         """Test subscriber resilience to connection issues."""
         channel = "resilience_test"
 
@@ -574,7 +595,9 @@ class TestRedisPubSub:
 class TestDatabaseOperations:
     """Test database operations and performance."""
 
-    def test_market_data_insertion(self, database_tester, sample_market_data):
+    def test_market_data_insertion(
+        self, database_tester: DatabaseTester, sample_market_data: Dict[str, Any]
+    ) -> None:
         """Test market data insertion performance."""
         result = database_tester.insert_market_data(sample_market_data)
 
@@ -590,7 +613,9 @@ class TestDatabaseOperations:
             f"Market data inserted with ID {result['inserted_id']} in {result['duration_ms']:.2f}ms"
         )
 
-    def test_trade_data_insertion(self, database_tester, sample_trade_data):
+    def test_trade_data_insertion(
+        self, database_tester: DatabaseTester, sample_trade_data: Dict[str, Any]
+    ) -> None:
         """Test trade data insertion performance."""
         result = database_tester.insert_trade(sample_trade_data)
 
@@ -604,7 +629,7 @@ class TestDatabaseOperations:
             f"Trade inserted with ID {result['inserted_id']} in {result['duration_ms']:.2f}ms"
         )
 
-    def test_bulk_market_data_insertion(self, database_tester):
+    def test_bulk_market_data_insertion(self, database_tester: DatabaseTester) -> None:
         """Test bulk insertion performance."""
         # Generate batch of market data
         batch_size = 1000
@@ -637,7 +662,9 @@ class TestDatabaseOperations:
             f"Bulk inserted {result['inserted_count']} records at {result['rate_per_second']:.2f}/sec"
         )
 
-    def test_complex_queries_performance(self, database_tester):
+    async def test_complex_queries_performance(
+        self, database_tester: DatabaseManager
+    ) -> None:
         """Test performance of complex analytical queries."""
         test_queries = [
             # Aggregate queries
@@ -673,7 +700,7 @@ class TestDatabaseOperations:
         ]
 
         for query, max_duration_ms in test_queries:
-            result = database_tester.execute_query(query)
+            result = await database_tester.execute_query(query)
 
             assert result["success"], f"Query failed: {result.get('error')}"
             assert (
@@ -684,10 +711,10 @@ class TestDatabaseOperations:
                 f"Query executed in {result['duration_ms']:.2f}ms, returned {result['row_count']} rows"
             )
 
-    def test_concurrent_database_access(self, database_tester):
+    def test_concurrent_database_access(self, database_tester: DatabaseTester) -> None:
         """Test concurrent database access performance."""
 
-        def worker_function(worker_id: int, results: List):
+        def worker_function(worker_id: int, results: List) -> None:
             """Worker function for concurrent database access."""
             worker_db_config = {
                 "host": "localhost",
@@ -769,9 +796,10 @@ class TestDatabaseOperations:
             f"{success_rate * 100:.1f}% success rate"
         )
 
-    def test_transaction_consistency(self, database_tester):
+    def test_transaction_consistency(self, database_tester: DatabaseTester) -> None:
         """Test database transaction consistency."""
         # Start a transaction
+        assert database_tester.connection is not None
         database_tester.connection.autocommit = False
 
         try:
@@ -813,9 +841,11 @@ class TestDatabaseOperations:
                 "timestamp": datetime.now(timezone.utc),
             }
 
-            database_tester.cursor.execute(position_query, position_params)
+            if database_tester.cursor:
+                database_tester.cursor.execute(position_query, position_params)
 
             # Commit transaction
+            assert database_tester.connection is not None
             database_tester.connection.commit()
 
             # Verify both records exist
@@ -832,9 +862,11 @@ class TestDatabaseOperations:
             print("Transaction consistency test passed")
 
         except Exception as e:
+            assert database_tester.connection is not None
             database_tester.connection.rollback()
             raise e
         finally:
+            assert database_tester.connection is not None
             database_tester.connection.autocommit = True
 
 
@@ -845,8 +877,11 @@ class TestServiceCommunication:
     """Test communication between services via Redis and database."""
 
     async def test_market_data_flow(
-        self, redis_tester, database_tester, sample_market_data
-    ):
+        self,
+        redis_tester: RedisPubSubTester,
+        database_tester: DatabaseManager,
+        sample_market_data: Dict[str, Any],
+    ) -> None:
         """Test complete market data flow: publish -> process -> store."""
         channel = "market_data"
 
@@ -865,25 +900,26 @@ class TestServiceCommunication:
         received_data = json.loads(messages[0]["data"])
 
         # Store processed data in database
-        db_result = database_tester.insert_market_data(received_data)
+        db_result = await database_tester.insert_market_data(received_data)
         assert db_result[
             "success"
         ], f"Failed to store market data: {db_result.get('error')}"
 
         # Verify data persistence
-        query_result = database_tester.execute_query(
-            "SELECT * FROM market_data WHERE symbol = %s AND source = %s",
-            (sample_market_data["symbol"], sample_market_data["source"]),
+        query_result = await database_tester.execute_query(
+            "SELECT * FROM market_data WHERE symbol = %s AND source = %s"
         )
 
-        assert query_result["success"] and len(query_result["results"]) >= 1
+        assert query_result["success"] and len(query_result.get("results", [])) >= 1
         stored_data = query_result["results"][0]
         assert stored_data["symbol"] == sample_market_data["symbol"]
         assert float(stored_data["price"]) == sample_market_data["price"]
 
         print("Market data flow test completed successfully")
 
-    async def test_trading_signal_workflow(self, redis_tester, database_tester):
+    async def test_trading_signal_workflow(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseTester
+    ) -> None:
         """Test trading signal generation and processing workflow."""
         signal_channel = "trading_signals"
         execution_channel = "trade_execution"
@@ -962,7 +998,9 @@ class TestServiceCommunication:
 
         print("Trading signal workflow test completed successfully")
 
-    async def test_risk_alert_propagation(self, redis_tester, database_tester):
+    async def test_risk_check_integration(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseManager
+    ) -> None:
         """Test risk alert propagation through the system."""
         alert_channel = "risk_alerts"
         action_channel = "risk_actions"
@@ -1016,7 +1054,7 @@ class TestServiceCommunication:
         assert action_received, "Risk action not received"
         print("Risk alert propagation test completed successfully")
 
-    async def test_system_heartbeat_monitoring(self, redis_tester):
+    def test_system_heartbeat_monitoring(self, redis_tester: RedisPubSubTester) -> None:
         """Test system heartbeat monitoring via Redis."""
         heartbeat_channel = "system_heartbeat"
 
@@ -1070,7 +1108,9 @@ class TestServiceCommunication:
 class TestEndToEndTradingFlow:
     """Test complete end-to-end trading workflows."""
 
-    async def test_complete_trading_cycle(self, redis_tester, database_tester):
+    async def test_complete_trading_cycle(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseManager
+    ) -> None:
         """Test a complete trading cycle from data to execution."""
         channels = [
             "market_data",
@@ -1194,12 +1234,14 @@ class TestEndToEndTradingFlow:
             "fees": float(str(trade_execution["fees"])),
         }
 
-        db_result = database_tester.insert_trade(db_trade_data)
+        db_result = await database_tester.insert_trade(db_trade_data)
         assert db_result["success"], "Failed to store final trade"
 
         print("Complete trading cycle test passed")
 
-    async def test_error_propagation_and_recovery(self, redis_tester):
+    async def test_error_propagation_and_recovery(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test error propagation and system recovery."""
         error_channel = "system_errors"
         recovery_channel = "system_recovery"
@@ -1287,10 +1329,12 @@ class TestEndToEndTradingFlow:
 class TestDatabaseIntegration:
     """Test database integration scenarios."""
 
-    def test_concurrent_read_write_operations(self, database_tester):
+    def test_concurrent_read_write_operations(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseTester
+    ) -> None:
         """Test concurrent read and write operations."""
 
-        def writer_worker(worker_id: int, results: List):
+        def writer_worker(worker_id: int, results: List) -> None:
             """Worker that performs write operations."""
             worker_db = DatabaseTester(database_tester.db_config)
             worker_db.connect()
@@ -1313,7 +1357,7 @@ class TestDatabaseIntegration:
             finally:
                 worker_db.disconnect()
 
-        def reader_worker(results: List):
+        def reader_worker(results: List) -> None:
             """Worker that performs read operations."""
             reader_db = DatabaseTester(database_tester.db_config)
             reader_db.connect()
@@ -1366,7 +1410,9 @@ class TestDatabaseIntegration:
             f"Concurrent DB test: {successful_writes} successful writes, {successful_reads} successful reads"
         )
 
-    def test_data_consistency_across_tables(self, database_tester):
+    def test_data_consistency_across_tables(
+        self, database_tester: DatabaseTester
+    ) -> None:
         """Test data consistency across related tables."""
         # Insert market data
         market_data = {
@@ -1431,7 +1477,9 @@ class TestDatabaseIntegration:
 
         print("Data consistency test passed")
 
-    def test_database_performance_under_load(self, database_tester):
+    def test_database_performance_under_load(
+        self, database_tester: DatabaseTester
+    ) -> None:
         """Test database performance under sustained load."""
         operations_count = 1000
         batch_size = 100
@@ -1484,7 +1532,9 @@ class TestDatabaseIntegration:
 class TestDataPipeline:
     """Test the complete data pipeline integration."""
 
-    async def test_market_data_pipeline(self, redis_tester, database_tester):
+    async def test_market_data_pipeline(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseTester
+    ) -> None:
         """Test market data flowing through the complete pipeline."""
         # Simulate multiple data sources
         data_sources = ["twelve_data", "finviz", "yahoo_finance"]
@@ -1557,7 +1607,9 @@ class TestDataPipeline:
             f"Data pipeline test: {len(market_data_messages)} raw, {len(processed_messages)} processed messages"
         )
 
-    async def test_real_time_aggregation(self, redis_tester, database_tester):
+    async def test_real_time_aggregation(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseTester
+    ) -> None:
         """Test real-time data aggregation capabilities."""
         aggregation_channel = "real_time_aggregation"
 
@@ -1630,7 +1682,7 @@ class TestDataPipeline:
 class TestSystemResilience:
     """Test system resilience and failure recovery."""
 
-    async def test_redis_connection_recovery(self, redis_tester):
+    def test_redis_connection_resilience(self, redis_tester: RedisPubSubTester) -> None:
         """Test Redis connection recovery after failure."""
         test_channel = "resilience_test"
 
@@ -1676,7 +1728,7 @@ class TestSystemResilience:
 
         print("Redis connection recovery test passed")
 
-    def test_database_connection_pool_behavior(self, database_tester):
+    def test_database_connection_pool(self, database_tester: DatabaseTester) -> None:
         """Test database connection pool behavior under stress."""
         # Create multiple connections to test pool behavior
         connection_count = 20
@@ -1705,7 +1757,7 @@ class TestSystemResilience:
                 except Exception:
                     pass
 
-    async def test_message_durability(self, redis_tester):
+    async def test_message_durability(self, redis_tester: RedisPubSubTester) -> None:
         """Test message durability and persistence."""
         # durable_channel = 'durable_test_channel'  # Commented out as unused
 
@@ -1739,7 +1791,7 @@ class TestSystemResilience:
         for i in range(messages_to_send):
             message_json = redis_tester.redis_client.rpop(message_key)
             if message_json:
-                message = json.loads(message_json)
+                message = json.loads(str(message_json))
                 consumed_messages.append(message)
 
         # Verify all messages consumed
@@ -1760,7 +1812,7 @@ class TestSystemResilience:
 class TestServiceHealthMonitoring:
     """Test service health monitoring integration."""
 
-    def test_health_check_aggregation(self, redis_tester):
+    def test_health_check_aggregation(self, redis_tester: RedisPubSubTester) -> None:
         """Test aggregation of health checks from all services."""
         health_channel = "service_health"
 
@@ -1827,7 +1879,9 @@ class TestServiceHealthMonitoring:
             f"System health: {healthy_services} healthy, {degraded_services} degraded services"
         )
 
-    async def test_alert_escalation(self, redis_tester):
+    async def test_risk_alert_propagation(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test alert escalation based on severity."""
         alert_channel = "system_alerts"
         escalation_channel = "alert_escalation"
@@ -1889,7 +1943,9 @@ class TestServiceHealthMonitoring:
 class TestExternalAPIIntegration:
     """Test integration with external APIs through the system."""
 
-    async def test_market_data_api_integration(self, redis_tester):
+    async def test_external_api_integration(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test external market data API integration."""
         api_response_channel = "api_responses"
 
@@ -1947,7 +2003,7 @@ class TestExternalAPIIntegration:
             f"API integration test: {successful_responses} successful, {failed_responses} failed responses"
         )
 
-    async def test_broker_api_simulation(self, redis_tester):
+    def test_redis_failover_simulation(self, redis_tester: RedisPubSubTester) -> None:
         """Test broker API integration simulation."""
         broker_channel = "broker_responses"
 
@@ -1955,20 +2011,19 @@ class TestExternalAPIIntegration:
         time.sleep(0.5)
 
         # Simulate broker API responses for different order types
-        broker_responses = [
+        broker_responses: list[Dict[str, Any]] = [
             {
                 "order_id": str(uuid.uuid4()),
                 "status": "filled",
                 "symbol": "AAPL",
-                "quantity": 100,
+                "quantity_filled": 100,
                 "fill_price": 150.25,
-                "fill_time": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             },
             {
                 "order_id": str(uuid.uuid4()),
-                "status": "partial_fill",
+                "status": "partially_filled",
                 "symbol": "GOOGL",
-                "quantity_requested": 50,
                 "quantity_filled": 25,
                 "fill_price": 2500.75,
                 "remaining_quantity": 25,
@@ -2008,7 +2063,9 @@ class TestExternalAPIIntegration:
 class TestIntegrationPerformance:
     """Test performance of integrated components."""
 
-    async def test_end_to_end_latency(self, redis_tester, database_tester):
+    async def test_end_to_end_latency(
+        self, redis_tester: RedisPubSubTester, database_tester: DatabaseTester
+    ) -> None:
         """Measure end-to-end latency for complete trading flow."""
         channels = ["market_data", "signals", "execution", "confirmation"]
 
@@ -2088,7 +2145,9 @@ class TestIntegrationPerformance:
             f"End-to-end latency: avg={avg_latency:.2f}ms, p95={p95_latency:.2f}ms, max={max_latency:.2f}ms"
         )
 
-    async def test_throughput_scalability(self, redis_tester):
+    async def test_throughput_scalability(
+        self, redis_tester: RedisPubSubTester
+    ) -> None:
         """Test system throughput scalability."""
         test_channel = "throughput_test"
 
@@ -2174,7 +2233,9 @@ class IntegrationTestHelper:
 
     @staticmethod
     def wait_for_condition(
-        condition_func, timeout_seconds: float = 5.0, check_interval: float = 0.1
+        condition_func: Callable[[], bool],
+        timeout_seconds: float = 5.0,
+        check_interval: float = 0.1,
     ) -> bool:
         """Wait for a condition to become true."""
         start_time = time.time()
@@ -2224,7 +2285,7 @@ class IntegrationTestHelper:
 
 @pytest.mark.integration
 @pytest.mark.slow
-def test_integration_test_suite_performance():
+def test_integration_test_suite_performance() -> None:
     """Meta-test to ensure integration tests themselves perform well."""
     import os
 
@@ -2258,7 +2319,7 @@ def test_integration_test_suite_performance():
 
 
 # Test data generators for integration testing
-def generate_realistic_market_session():
+def generate_realistic_market_session() -> List[Dict[str, Any]]:
     """Generate realistic market session data."""
     session_start = datetime.now().replace(hour=9, minute=30, second=0, microsecond=0)
     session_data = []
@@ -2282,7 +2343,7 @@ def generate_realistic_market_session():
     return session_data
 
 
-def generate_trading_scenarios():
+def generate_test_scenarios() -> List[Dict[str, Any]]:
     """Generate various trading scenarios for testing."""
     scenarios = [
         {

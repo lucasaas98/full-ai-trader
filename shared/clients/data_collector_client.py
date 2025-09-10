@@ -34,12 +34,12 @@ class DataCollectorClient:
         self.timeout = timeout
         self._session: Optional[aiohttp.ClientSession] = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "DataCollectorClient":
         """Async context manager entry."""
         await self._get_session()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -50,8 +50,8 @@ class DataCollectorClient:
             self._session = aiohttp.ClientSession(timeout=timeout)
         return self._session
 
-    async def close(self):
-        """Close the HTTP session."""
+    async def close(self) -> None:
+        """Close the session."""
         if self._session:
             await self._session.close()
             self._session = None
@@ -462,7 +462,7 @@ class DataCollectorClient:
             logger.error(f"FinViz scan failed: {e}")
             return {"status": "error", "message": str(e)}
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Cleanup on deletion."""
         if self._session and not self._session.closed:
             # Schedule cleanup for next event loop iteration

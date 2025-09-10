@@ -14,7 +14,12 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import (
     text,
 )
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.orm import declarative_base
 
 from .config import get_config
@@ -27,14 +32,14 @@ Base = declarative_base()
 class SharedDatabaseManager:
     """Shared database manager for all trading system services."""
 
-    def __init__(self, config=None):
+    def __init__(self, config: Any = None) -> None:
         """Initialize database manager."""
         self.config = config or get_config()
-        self.engine = None
-        self.session_factory = None
+        self.engine: Optional[AsyncEngine] = None
+        self.session_factory: Optional[async_sessionmaker[AsyncSession]] = None
         self._initialized = False
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection and create tables if needed."""
         if self._initialized:
             return
@@ -73,8 +78,9 @@ class SharedDatabaseManager:
             )
 
             # Test connection
-            async with self.engine.begin() as conn:
-                await conn.execute(text("SELECT 1"))
+            if self.engine is not None:
+                async with self.engine.begin() as conn:
+                    await conn.execute(text("SELECT 1"))
 
             logger.info("Database connection established successfully")
             self._initialized = True
@@ -86,7 +92,7 @@ class SharedDatabaseManager:
             logger.error(f"Failed to initialize database: {e}")
             raise
 
-    async def _ensure_tables(self):
+    async def _ensure_tables(self) -> None:
         """Ensure required tables exist in the database."""
         try:
             if self.engine is None:
@@ -431,33 +437,53 @@ class SharedDatabaseManager:
                     risk_events[key] = row.count
 
                 # Calculate metrics
-                stats = {
-                    "total_trades": trade_row.total_trades or 0,
-                    "winning_trades": trade_row.winning_trades or 0,
-                    "losing_trades": trade_row.losing_trades or 0,
-                    "win_rate": (
-                        (trade_row.winning_trades / max(trade_row.total_trades, 1))
-                        if trade_row.total_trades
-                        else 0
-                    ),
-                    "avg_win": float(trade_row.avg_win) if trade_row.avg_win else 0,
-                    "avg_loss": float(trade_row.avg_loss) if trade_row.avg_loss else 0,
-                    "total_pnl": (
-                        float(trade_row.total_pnl) if trade_row.total_pnl else 0
-                    ),
-                    "max_win": float(trade_row.max_win) if trade_row.max_win else 0,
-                    "min_loss": float(trade_row.min_loss) if trade_row.min_loss else 0,
-                    "risk_events": risk_events,
-                    "period_days": days,
-                }
-
-                # Calculate profit factor
-                if trade_row.avg_loss and trade_row.avg_loss < 0:
-                    stats["profit_factor"] = abs(trade_row.avg_win or 0) / abs(
-                        trade_row.avg_loss
-                    )
+                if trade_row is None:
+                    stats = {
+                        "total_trades": 0,
+                        "winning_trades": 0,
+                        "losing_trades": 0,
+                        "win_rate": 0,
+                        "avg_win": 0,
+                        "avg_loss": 0,
+                        "total_pnl": 0,
+                        "max_win": 0,
+                        "min_loss": 0,
+                        "risk_events": risk_events,
+                        "period_days": days,
+                        "profit_factor": None,
+                    }
                 else:
-                    stats["profit_factor"] = None
+                    stats = {
+                        "total_trades": trade_row.total_trades or 0,
+                        "winning_trades": trade_row.winning_trades or 0,
+                        "losing_trades": trade_row.losing_trades or 0,
+                        "win_rate": (
+                            (trade_row.winning_trades / max(trade_row.total_trades, 1))
+                            if trade_row.total_trades
+                            else 0
+                        ),
+                        "avg_win": float(trade_row.avg_win) if trade_row.avg_win else 0,
+                        "avg_loss": (
+                            float(trade_row.avg_loss) if trade_row.avg_loss else 0
+                        ),
+                        "total_pnl": (
+                            float(trade_row.total_pnl) if trade_row.total_pnl else 0
+                        ),
+                        "max_win": float(trade_row.max_win) if trade_row.max_win else 0,
+                        "min_loss": (
+                            float(trade_row.min_loss) if trade_row.min_loss else 0
+                        ),
+                        "risk_events": risk_events,
+                        "period_days": days,
+                    }
+
+                    # Calculate profit factor
+                    if trade_row.avg_loss and trade_row.avg_loss < 0:
+                        stats["profit_factor"] = abs(trade_row.avg_win or 0) / abs(
+                            trade_row.avg_loss
+                        )
+                    else:
+                        stats["profit_factor"] = None
 
                 return stats
 
@@ -623,7 +649,7 @@ class SharedDatabaseManager:
             logger.error(f"Failed to get risk events: {e}")
             return []
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connection."""
         if self.engine is not None:
             await self.engine.dispose()

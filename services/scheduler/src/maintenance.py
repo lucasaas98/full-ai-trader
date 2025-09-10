@@ -49,7 +49,7 @@ class MaintenanceResult:
 class MaintenanceConfig:
     """Configuration for maintenance tasks."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Data retention settings
         self.data_retention_days = 90
         self.log_retention_days = 30
@@ -153,7 +153,7 @@ class MaintenanceMonitor:
             logger.error(f"Redis keys failed: {e}")
             return []
 
-    async def record_task_start(self, task_name: str):
+    async def record_task_start(self, task_name: str) -> None:
         """Record when a maintenance task starts."""
         await self.redis.setex(
             f"maintenance:running:{task_name}",
@@ -161,7 +161,7 @@ class MaintenanceMonitor:
             datetime.now().isoformat(),
         )
 
-    async def record_task_completion(self, result: MaintenanceResult):
+    async def record_task_completion(self, result: MaintenanceResult) -> None:
         """Record maintenance task completion."""
         # Remove running indicator
         await self.redis.delete(f"maintenance:running:{result.task_name}")
@@ -172,7 +172,7 @@ class MaintenanceMonitor:
         # Check for alerts
         await self._check_maintenance_alerts(result)
 
-    async def _update_task_metrics(self, result: MaintenanceResult):
+    async def _update_task_metrics(self, result: MaintenanceResult) -> None:
         """Update maintenance task metrics."""
         try:
             # Store execution time
@@ -197,7 +197,7 @@ class MaintenanceMonitor:
         except Exception as e:
             logger.error(f"Failed to update task metrics: {e}")
 
-    async def _check_maintenance_alerts(self, result: MaintenanceResult):
+    async def _check_maintenance_alerts(self, result: MaintenanceResult) -> list:
         """Check if maintenance results warrant alerts."""
         try:
             alerts = []
@@ -245,8 +245,11 @@ class MaintenanceMonitor:
                     "maintenance:alerts", 0, 99
                 )  # Keep last 100
 
+            return alerts
+
         except Exception as e:
             logger.error(f"Failed to check maintenance alerts: {e}")
+            return []
 
     async def get_maintenance_metrics(
         self, task_name: Optional[str] = None
@@ -380,7 +383,7 @@ class MaintenanceManager:
             logger.error(f"Redis keys failed: {e}")
             return []
 
-    async def register_tasks(self):
+    async def register_tasks(self) -> None:
         """Register all maintenance tasks."""
         self.maintenance_tasks = {
             "data_cleanup": DataCleanupTask(self.config, self.redis),
@@ -495,7 +498,7 @@ class MaintenanceManager:
 
         return results
 
-    async def _store_task_result(self, result: MaintenanceResult):
+    async def _store_task_result(self, result: MaintenanceResult) -> None:
         """Store maintenance task result in Redis."""
         try:
             result_data = {
@@ -566,7 +569,7 @@ class BaseMaintenanceTask:
         self.redis = redis_client
         self.name = self.__class__.__name__
 
-    async def _safe_redis_lpush(self, key: str, value: str):
+    async def _safe_redis_lpush(self, key: str, value: str) -> int:
         """Safely handle Redis lpush operation for both sync and async clients."""
         try:
             if asyncio.iscoroutinefunction(self.redis.lpush):
@@ -579,7 +582,7 @@ class BaseMaintenanceTask:
             logger.error(f"Redis lpush failed: {e}")
             return 0
 
-    async def _safe_redis_ltrim(self, key: str, start: int, end: int):
+    async def _safe_redis_ltrim(self, key: str, start: int, end: int) -> str:
         """Safely handle Redis ltrim operation for both sync and async clients."""
         try:
             if asyncio.iscoroutinefunction(self.redis.ltrim):
@@ -592,7 +595,7 @@ class BaseMaintenanceTask:
             logger.error(f"Redis ltrim failed: {e}")
             return "OK"
 
-    async def _safe_redis_lrange(self, key: str, start: int, end: int):
+    async def _safe_redis_lrange(self, key: str, start: int, end: int) -> list:
         """Safely handle Redis lrange operation for both sync and async clients."""
         try:
             if asyncio.iscoroutinefunction(self.redis.lrange):
@@ -605,7 +608,7 @@ class BaseMaintenanceTask:
             logger.error(f"Redis lrange failed: {e}")
             return []
 
-    async def _safe_redis_keys(self, pattern: str):
+    async def _safe_redis_keys(self, pattern: str) -> list:
         """Safely handle Redis keys operation for both sync and async clients."""
         try:
             if asyncio.iscoroutinefunction(self.redis.keys):
@@ -1001,7 +1004,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
 
         return expired_keys
 
-    async def _cleanup_old_metrics(self):
+    async def _cleanup_old_metrics(self) -> None:
         """Clean up old metrics data."""
         cutoff_timestamp = (datetime.now() - timedelta(hours=24)).timestamp()
 
@@ -1010,7 +1013,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
         for key in metric_keys:
             await self.redis.zremrangebyscore(key, 0, cutoff_timestamp)
 
-    async def _cleanup_old_task_results(self):
+    async def _cleanup_old_task_results(self) -> None:
         """Clean up old task execution results."""
         # Keep only last 24 hours of task results
         cutoff_time = datetime.now() - timedelta(hours=24)
@@ -1027,7 +1030,7 @@ class CacheCleanupTask(BaseMaintenanceTask):
                 except Exception:
                     pass
 
-    async def _cleanup_old_notifications(self):
+    async def _cleanup_old_notifications(self) -> None:
         """Clean up old notifications."""
         # Keep only last 1000 notifications
         await self._safe_redis_ltrim("notifications:queue", 0, 999)
@@ -1328,7 +1331,7 @@ class BackupTask(BaseMaintenanceTask):
         except Exception as e:
             return f"Remote upload failed: {e}"
 
-    async def _cleanup_old_backups(self, backup_dir: Path):
+    async def _cleanup_old_backups(self, backup_dir: Path) -> None:
         """Clean up old backups with retention policy."""
         try:
             # Local retention: 7 days
@@ -1771,7 +1774,9 @@ class TradingDataMaintenanceTask(BaseMaintenanceTask):
             logger.error(f"Price data consolidation failed: {e}")
             return f"Consolidation failed: {e}"
 
-    async def _consolidate_symbol_data(self, symbol_dir: Path, files: List[Path]):
+    async def _consolidate_symbol_data(
+        self, symbol_dir: Path, files: List[Path]
+    ) -> None:
         """Consolidate files for a specific symbol."""
         try:
             # Group files by month
@@ -2183,7 +2188,6 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
     """Reconcile portfolio data across different sources."""
 
     async def execute(self) -> MaintenanceResult:
-        """Execute portfolio reconciliation."""
         discrepancies = []
 
         try:
@@ -2192,7 +2196,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
             discrepancies.append(f"Redis comparison: {redis_comparison}")
 
             # Validate cash balance
-            cash_validation = await self._validate_cash_balance()
+            cash_validation = await self._validate_cash_balances()
             discrepancies.append(f"Cash validation: {cash_validation}")
 
             # Check for orphaned orders
@@ -2241,7 +2245,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
         except Exception as e:
             return f"Position comparison failed: {e}"
 
-    async def _validate_cash_balance(self) -> str:
+    async def _validate_cash_balances(self) -> str:
         """Validate cash balance consistency."""
         try:
             # Get cash balance from Redis
@@ -2254,7 +2258,7 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
             else:
                 return "No cash balance data found"
         except Exception as e:
-            return f"Cash validation failed: {e}"
+            return f"Cash balance validation failed: {e}"
 
     async def _check_orphaned_orders(self) -> str:
         """Check for orphaned or stuck orders."""
@@ -2284,14 +2288,13 @@ class PortfolioReconciliationTask(BaseMaintenanceTask):
             # This would typically involve API calls to the broker
             return "Trade history reconciled"
         except Exception as e:
-            return f"Trade reconciliation failed: {e}"
+            return f"Portfolio reconciliation failed: {e}"
 
 
 class ApiRateLimitResetTask(BaseMaintenanceTask):
     """Manage and reset API rate limits."""
 
     async def execute(self) -> MaintenanceResult:
-        """Execute API rate limit management."""
         resets = []
 
         try:
@@ -2387,7 +2390,6 @@ class DatabaseConnectionPoolTask(BaseMaintenanceTask):
     """Optimize database connection pools and cleanup stale connections."""
 
     async def execute(self) -> MaintenanceResult:
-        """Execute database connection pool maintenance."""
         operations = []
 
         try:
@@ -2620,7 +2622,7 @@ class MaintenanceScheduler:
         self.is_running = False
         self.maintenance_config = MaintenanceConfig()
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the maintenance scheduler."""
         await self.schedule_daily_maintenance()
         await self.schedule_weekly_maintenance()
@@ -2631,7 +2633,7 @@ class MaintenanceScheduler:
             f"Initialized maintenance scheduler with {len(self.scheduled_tasks)} scheduled tasks"
         )
 
-    async def schedule_daily_maintenance(self):
+    async def schedule_daily_maintenance(self) -> None:
         """Schedule daily maintenance tasks."""
         daily_tasks = [
             ("data_cleanup", "02:00"),
@@ -2650,7 +2652,7 @@ class MaintenanceScheduler:
                 "description": f"Daily {task_name} at {time_str}",
             }
 
-    async def schedule_weekly_maintenance(self):
+    async def schedule_weekly_maintenance(self) -> None:
         """Schedule weekly maintenance tasks."""
         weekly_tasks = [
             ("database_maintenance", "sunday", "01:00"),
@@ -2682,7 +2684,7 @@ class MaintenanceScheduler:
                 "description": f"Weekly {task_name} on {day} at {time_str}",
             }
 
-    async def schedule_monthly_maintenance(self):
+    async def schedule_monthly_maintenance(self) -> None:
         """Schedule monthly maintenance tasks."""
         monthly_tasks = [
             ("historical_data_update", "1", "02:00"),  # First of month
@@ -2698,7 +2700,7 @@ class MaintenanceScheduler:
                 "description": f"Monthly {task_name} on day {day} at {time_str}",
             }
 
-    async def schedule_emergency_maintenance(self):
+    async def schedule_emergency_maintenance(self) -> None:
         """Schedule emergency maintenance tasks."""
         # These tasks can be triggered immediately when issues are detected
         emergency_tasks = [
@@ -2715,11 +2717,13 @@ class MaintenanceScheduler:
                 "description": f"Emergency {task_name} (triggered on demand)",
             }
 
-    async def run_scheduled_maintenance(self, schedule_id: str):
+    async def run_scheduled_maintenance(
+        self, schedule_id: str
+    ) -> Optional["MaintenanceResult"]:
         """Run a scheduled maintenance task."""
         if schedule_id not in self.scheduled_tasks:
             logger.error(f"Unknown scheduled task: {schedule_id}")
-            return
+            return None
 
         scheduled_task = self.scheduled_tasks[schedule_id]
         task_name = scheduled_task["task_name"]
@@ -2763,19 +2767,19 @@ class MaintenanceScheduler:
             logger.error(f"Failed to get next scheduled tasks: {e}")
             return []
 
-    async def pause_scheduled_task(self, schedule_id: str):
+    async def pause_scheduled_task(self, schedule_id: str) -> None:
         """Pause a scheduled maintenance task."""
         if schedule_id in self.scheduled_tasks:
             self.scheduled_tasks[schedule_id]["paused"] = True
             logger.info(f"Paused scheduled task: {schedule_id}")
 
-    async def resume_scheduled_task(self, schedule_id: str):
+    async def resume_scheduled_task(self, schedule_id: str) -> None:
         """Resume a paused scheduled maintenance task."""
         if schedule_id in self.scheduled_tasks:
             self.scheduled_tasks[schedule_id]["paused"] = False
             logger.info(f"Resumed scheduled task: {schedule_id}")
 
-    async def update_task_schedule(self, schedule_id: str, new_schedule: str):
+    async def update_task_schedule(self, schedule_id: str, new_schedule: str) -> None:
         """Update the schedule for a maintenance task."""
         if schedule_id in self.scheduled_tasks:
             self.scheduled_tasks[schedule_id]["schedule"] = new_schedule
@@ -3371,7 +3375,9 @@ class MaintenanceReportGenerator:
             logger.error(f"Weekly recommendation generation failed: {e}")
             return ["Recommendation generation failed"]
 
-    async def _export_report_as_csv(self, report: Dict[str, Any], filepath: Path):
+    async def _export_report_as_csv(
+        self, report: Dict[str, Any], filepath: Path
+    ) -> None:
         """Export report as CSV."""
         try:
             # Create CSV with task results
@@ -3406,7 +3412,9 @@ class MaintenanceReportGenerator:
         except Exception as e:
             logger.error(f"CSV export failed: {e}")
 
-    async def _export_report_as_html(self, report: Dict[str, Any], filepath: Path):
+    async def _export_report_as_html(
+        self, report: Dict[str, Any], filepath: Path
+    ) -> None:
         """Export report as HTML."""
         try:
             html_content = f"""
@@ -3498,7 +3506,7 @@ def format_duration(seconds: float) -> str:
         return f"{hours:.1f}h"
 
 
-async def run_maintenance_check():
+async def run_maintenance_check() -> bool:
     """Standalone function to run maintenance check."""
     import redis.asyncio as redis
 
@@ -3830,7 +3838,7 @@ async def run_emergency_maintenance(task_name: str = "") -> bool:
         await redis_client.close()
 
 
-async def run_full_maintenance_cycle():
+async def run_full_maintenance_cycle() -> bool:
     """Run a complete maintenance cycle for testing."""
     import redis.asyncio as redis
 

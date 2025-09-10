@@ -16,7 +16,9 @@ FINVIZ_API_KEY = "0b8a5f2f-8cdc-4995-bf37-ee41210d772a"
 FINVIZ_BASE_URL = "https://elite.finviz.com/export.ashx"
 
 
-async def test_finviz_api(test_name, filters, order_by="-change"):
+async def test_finviz_api(
+    test_name: str, filters: str, order_by: str = "-change"
+) -> None:
     """Test FinViz API with specific filters."""
     print(f"\n{'=' * 60}")
     print(f"TEST: {test_name}")
@@ -98,7 +100,7 @@ async def test_finviz_api(test_name, filters, order_by="-change"):
             traceback.print_exc()
 
 
-async def main():
+async def main() -> None:
     """Run various tests with different filter combinations."""
     print("=" * 60)
     print("FINVIZ API DIRECT TESTING")

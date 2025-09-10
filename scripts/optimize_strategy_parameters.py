@@ -737,7 +737,7 @@ class ParameterOptimizer:
             periods_profitable=periods_profitable,
         )
 
-    def save_results(self, output_dir: str, timestamp: str):
+    def save_results(self, output_dir: str, timestamp: str) -> None:
         """Save optimization results to files."""
 
         output_path = Path(output_dir)
@@ -844,7 +844,7 @@ def generate_test_periods(
 
 def display_optimization_results(
     summaries: List[OptimizationSummary], strategy_type: str
-):
+) -> None:
     """Display optimization results in a formatted table."""
 
     print(f"\n{'=' * 100}")
@@ -905,7 +905,7 @@ def display_optimization_results(
         print(f"  Risk-Adjusted Score: {best.risk_adjusted_score:.3f}")
 
 
-def setup_logging(debug: bool = False):
+def setup_logging(debug: bool = False) -> None:
     """Set up logging configuration."""
     level = logging.DEBUG if debug else logging.INFO
     format_str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -920,12 +920,12 @@ def setup_logging(debug: bool = False):
     )
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Optimize trading strategy parameters using systematic backtesting",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("Usage:")[1] if "Usage:" in __doc__ else "",
+        epilog=__doc__.split("Usage:")[1] if __doc__ and "Usage:" in __doc__ else "",
     )
 
     # Strategy selection
@@ -994,7 +994,7 @@ def parse_arguments():
 
 
 async def optimize_single_strategy(
-    strategy_type: str, args
+    strategy_type: str, args: argparse.Namespace
 ) -> List[OptimizationSummary]:
     """Optimize a single strategy."""
 
@@ -1041,7 +1041,7 @@ async def optimize_single_strategy(
     return summaries
 
 
-async def main():
+async def main() -> int:
     """Main execution function."""
     args = parse_arguments()
 

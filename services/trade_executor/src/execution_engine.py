@@ -12,7 +12,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 import asyncpg
 import redis.asyncio as redis
@@ -38,7 +37,7 @@ class ExecutionEngine:
     for trade execution, position management, and performance tracking.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize execution engine."""
         self.config = get_config()
         self.app = FastAPI(
@@ -48,15 +47,15 @@ class ExecutionEngine:
         )
 
         # Initialize components
-        self.alpaca_client = AlpacaClient()
-        self.order_manager = OrderManager(self.alpaca_client)
-        self.position_tracker = PositionTracker(self.alpaca_client)
-        self.performance_tracker = PerformanceTracker()
+        self.alpaca_client: AlpacaClient = AlpacaClient()
+        self.order_manager: OrderManager = OrderManager(self.alpaca_client)
+        self.position_tracker: PositionTracker = PositionTracker(self.alpaca_client)
+        self.performance_tracker: PerformanceTracker = PerformanceTracker()
 
         # Redis and database
-        self._redis = None
-        self._db_pool = None
-        self._running = False
+        self._redis: Optional[redis.Redis] = None
+        self._db_pool: Optional[asyncpg.Pool] = None
+        self._running: bool = False
 
         # Setup FastAPI routes
         self._setup_routes()
@@ -70,7 +69,7 @@ class ExecutionEngine:
             allow_headers=["*"],
         )
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize all components and connections."""
         try:
             logger.info("Initializing Trade Execution Engine...")
@@ -99,7 +98,7 @@ class ExecutionEngine:
             await self.performance_tracker.initialize()
 
             # Start background tasks
-            await self._start_background_tasks()
+            await self.start_background_tasks()
 
             logger.info("Trade Execution Engine initialized successfully")
 
@@ -107,7 +106,7 @@ class ExecutionEngine:
             logger.error(f"Failed to initialize execution engine: {e}")
             raise
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up all resources."""
         try:
             self._running = False
@@ -129,11 +128,11 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Error during cleanup: {e}")
 
-    def _setup_routes(self):
+    def _setup_routes(self) -> None:
         """Setup FastAPI routes."""
 
         @self.app.get("/health")
-        async def health_check():
+        async def health_check() -> Dict[str, Any]:
             """Health check endpoint."""
             try:
                 alpaca_health = await self.alpaca_client.health_check()
@@ -157,7 +156,7 @@ class ExecutionEngine:
         @self.app.post("/execute/signal")
         async def execute_signal(
             signal: TradeSignal, background_tasks: BackgroundTasks
-        ):
+        ) -> Dict[str, Any]:
             """Execute a trade signal."""
             try:
                 logger.info(f"Received signal for execution: {signal.id}")
@@ -177,7 +176,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/orders/place")
-        async def place_order(order_request: OrderRequest):
+        async def place_order(order_request: OrderRequest) -> Dict[str, Any]:
             """Place a single order."""
             try:
                 # Validate order
@@ -201,10 +200,12 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/orders/{order_id}/cancel")
-        async def cancel_order(order_id: UUID):
+        async def cancel_order(order_id: str) -> Dict[str, Any]:
             """Cancel an order."""
             try:
-                success = await self.order_manager.cancel_order(order_id)
+                from uuid import UUID
+
+                success = await self.order_manager.cancel_order(UUID(order_id))
                 return {
                     "success": success,
                     "order_id": order_id,
@@ -215,7 +216,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/positions")
-        async def get_positions():
+        async def get_positions() -> Dict[str, Any]:
             """Get all current positions."""
             try:
                 positions = await self.position_tracker.get_all_positions()
@@ -233,7 +234,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/positions/{symbol}")
-        async def get_position(symbol: str):
+        async def get_position(symbol: str) -> Dict[str, Any]:
             """Get position for specific symbol."""
             try:
                 position = await self.position_tracker.get_position(symbol)
@@ -248,7 +249,9 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/positions/{symbol}/close")
-        async def close_position(symbol: str, percentage: Optional[float] = None):
+        async def close_position(
+            symbol: str, percentage: Optional[float] = None
+        ) -> Dict[str, Any]:
             """Close a position."""
             try:
                 position = await self.position_tracker.get_position(symbol)
@@ -275,7 +278,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/orders/active")
-        async def get_active_orders():
+        async def get_active_orders() -> Dict[str, Any]:
             """Get all active orders."""
             try:
                 orders = await self.order_manager.get_active_orders()
@@ -289,7 +292,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/performance/summary")
-        async def get_performance_summary(days: int = 30):
+        async def get_performance_summary(days: int = 30) -> Dict[str, Any]:
             """Get performance summary."""
             try:
                 summary = await self.performance_tracker.get_performance_summary(days)
@@ -299,7 +302,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/performance/daily")
-        async def get_daily_performance():
+        async def get_daily_performance() -> Dict[str, Any]:
             """Get today's performance."""
             try:
                 performance = (
@@ -311,7 +314,9 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/performance/strategy/{strategy_name}")
-        async def get_strategy_performance(strategy_name: str, days: int = 30):
+        async def get_strategy_performance(
+            strategy_name: str, days: int = 30
+        ) -> Dict[str, Any]:
             """Get performance for specific strategy."""
             try:
                 performance = (
@@ -329,7 +334,7 @@ class ExecutionEngine:
             start_date: Optional[str] = None,
             end_date: Optional[str] = None,
             strategy: Optional[str] = None,
-        ):
+        ) -> Dict[str, Any]:
             """Export data for TradeNote."""
             try:
                 from datetime import date, timezone
@@ -352,7 +357,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.post("/sync/positions")
-        async def sync_positions():
+        async def sync_positions() -> Dict[str, Any]:
             """Sync positions with Alpaca."""
             try:
                 result = await self.position_tracker.sync_with_alpaca()
@@ -362,7 +367,7 @@ class ExecutionEngine:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/account")
-        async def get_account_info():
+        async def get_account_info() -> Dict[str, Any]:
             """Get account information."""
             try:
                 account = await self.alpaca_client.get_account()
@@ -393,7 +398,7 @@ class ExecutionEngine:
                 logger.error(f"Failed to get account info: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
 
-    async def _execute_signal_async(self, signal: TradeSignal):
+    async def _execute_signal_async(self, signal: TradeSignal) -> None:
         """Execute signal asynchronously."""
         try:
             logger.info(f"Executing signal: {signal.id} for {signal.symbol}")
@@ -402,7 +407,7 @@ class ExecutionEngine:
             result = await self.order_manager.process_signal(signal)
 
             # Publish execution result
-            await self._publish_execution_result(signal, result)
+            await self._handle_execution_result(signal, result)
 
             logger.info(f"Signal {signal.id} execution completed: {result['success']}")
 
@@ -410,9 +415,9 @@ class ExecutionEngine:
             logger.error(f"Failed to execute signal {signal.id}: {e}")
             await self._publish_execution_error(signal, str(e))
 
-    async def _publish_execution_result(
+    async def _handle_execution_result(
         self, signal: TradeSignal, result: Dict[str, Any]
-    ):
+    ) -> None:
         """Publish execution result to Redis."""
         try:
             message = {
@@ -436,7 +441,7 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Failed to publish execution result: {e}")
 
-    async def _publish_execution_error(self, signal: TradeSignal, error: str):
+    async def _publish_execution_error(self, signal: TradeSignal, error: str) -> None:
         """Publish execution error to Redis."""
         try:
             message = {
@@ -460,7 +465,7 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Failed to publish execution error: {e}")
 
-    async def _start_background_tasks(self):
+    async def start_background_tasks(self) -> None:
         """Start all background monitoring tasks."""
         try:
             self._running = True
@@ -489,7 +494,7 @@ class ExecutionEngine:
             logger.error(f"Failed to start background tasks: {e}")
             raise
 
-    async def _signal_listener(self):
+    async def _signal_listener(self) -> None:
         """Listen for trade signals on Redis."""
         try:
             if self._redis:
@@ -521,7 +526,7 @@ class ExecutionEngine:
                 await asyncio.sleep(30)
                 asyncio.create_task(self._signal_listener())
 
-    async def _periodic_sync(self):
+    async def _periodic_sync(self) -> None:
         """Periodic synchronization with Alpaca."""
         while self._running:
             try:
@@ -532,7 +537,7 @@ class ExecutionEngine:
                 await self._update_account_snapshot()
 
                 # Sync order statuses
-                await self._sync_all_order_statuses()
+                await self._sync_order_statuses()
 
                 logger.debug("Periodic sync completed")
 
@@ -541,7 +546,7 @@ class ExecutionEngine:
 
             await asyncio.sleep(300)  # 5 minutes
 
-    async def _update_account_snapshot(self):
+    async def _update_account_snapshot(self) -> None:
         """Update account snapshot in database."""
         try:
             account = await self.alpaca_client.get_account()
@@ -571,7 +576,7 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Failed to update account snapshot: {e}")
 
-    async def _sync_all_order_statuses(self):
+    async def _sync_order_statuses(self) -> None:
         """Sync status of all active orders."""
         try:
             active_orders = await self.order_manager.get_active_orders()
@@ -585,7 +590,7 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Failed to sync order statuses: {e}")
 
-    async def _daily_cleanup(self):
+    async def _daily_cleanup(self) -> None:
         """Daily cleanup tasks."""
         while self._running:
             try:
@@ -619,7 +624,7 @@ class ExecutionEngine:
                 logger.error(f"Error in daily cleanup: {e}")
                 await asyncio.sleep(3600)
 
-    async def execute_signal(self, signal: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_signal(self, signal: TradeSignal) -> Dict[str, Any]:
         """
         Execute a trading signal.
 
@@ -636,30 +641,24 @@ class ExecutionEngine:
             from shared.models import SignalType, TradeSignal
 
             trade_signal = TradeSignal(
-                symbol=signal["symbol"],
-                signal_type=SignalType(signal["action"]),
-                confidence=float(signal.get("confidence", 0.8)),
-                quantity=int(signal["quantity"]) if signal.get("quantity") else None,
-                price=(
-                    Decimal(str(signal.get("price", 0)))
-                    if signal.get("price")
-                    else None
-                ),
+                symbol=signal.symbol,
+                signal_type=SignalType(signal.signal_type),
+                confidence=float(signal.confidence or 0.8),
+                quantity=int(signal.quantity) if signal.quantity else None,
+                price=(Decimal(str(signal.price)) if signal.price else None),
                 stop_loss=(
-                    Decimal(str(signal.get("stop_loss", 0)))
-                    if signal.get("stop_loss")
-                    else None
+                    Decimal(str(signal.stop_loss)) if signal.stop_loss else None
                 ),
                 take_profit=(
-                    Decimal(str(signal.get("take_profit", 0)))
-                    if signal.get("take_profit")
-                    else None
+                    Decimal(str(signal.take_profit)) if signal.take_profit else None
                 ),
-                strategy_name=signal.get("strategy", "unknown"),
+                strategy_name=signal.strategy_name or "unknown",
                 metadata={
                     "order_type": "MARKET",
-                    "reasoning": signal.get("reasoning", ""),
-                    **signal.get("metadata", {}),
+                    "reasoning": (
+                        signal.metadata.get("reasoning", "") if signal.metadata else ""
+                    ),
+                    **(signal.metadata or {}),
                 },
             )
 
@@ -745,56 +744,6 @@ class ExecutionEngine:
 
         except Exception as e:
             logger.error(f"Failed to place bracket order: {e}")
-            raise
-
-    async def get_account_summary(self) -> Dict[str, Any]:
-        """Get comprehensive account summary."""
-        try:
-            # Get account info
-            account = await self.alpaca_client.get_account()
-
-            # Get positions
-            positions = await self.position_tracker.get_all_positions()
-
-            # Get active orders
-            active_orders = await self.order_manager.get_active_orders()
-
-            # Get performance metrics
-            performance = await self.performance_tracker.get_performance_summary(
-                days=30
-            )
-
-            # Calculate portfolio metrics
-            portfolio_metrics = (
-                await self.position_tracker.calculate_portfolio_metrics()
-            )
-
-            return {
-                "account": {
-                    "equity": float(getattr(account, "equity", 0)),
-                    "cash": float(getattr(account, "cash", 0)),
-                    "buying_power": float(getattr(account, "buying_power", 0)),
-                    "day_trades_count": int(getattr(account, "daytrade_count", 0) or 0),
-                    "pattern_day_trader": bool(
-                        getattr(account, "pattern_day_trader", False)
-                    ),
-                },
-                "positions": {
-                    "count": len(positions),
-                    "total_market_value": portfolio_metrics.get(
-                        "total_market_value", 0
-                    ),
-                    "total_unrealized_pnl": portfolio_metrics.get(
-                        "total_unrealized_pnl", 0
-                    ),
-                },
-                "orders": {"active_count": len(active_orders)},
-                "performance_30d": performance,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get account summary: {e}")
             raise
 
     async def emergency_stop(self) -> Dict[str, Any]:
@@ -1100,7 +1049,7 @@ class ExecutionEngine:
             logger.error(f"Failed to get risk report: {e}")
             return {"error": str(e)}
 
-    async def run_server(self, host: str = "0.0.0.0", port: int = 8000):
+    async def run_server(self, host: str = "0.0.0.0", port: int = 8000) -> None:
         """
         Run the execution engine as a web service.
 
@@ -1133,15 +1082,15 @@ class ExecutionEngine:
             logger.info(f"Starting Trade Execution Engine on {host}:{port}")
 
             # Setup graceful shutdown
-            async def shutdown_handler():
+            async def _shutdown_handler() -> None:
                 logger.info("Shutting down execution engine...")
                 await self.cleanup()
 
             # Add shutdown handler
             import signal
 
-            def signal_handler(signum, frame):
-                asyncio.create_task(shutdown_handler())
+            def signal_handler(signum: int, frame: Any) -> None:
+                asyncio.create_task(_shutdown_handler())
 
             signal.signal(signal.SIGINT, signal_handler)
             signal.signal(signal.SIGTERM, signal_handler)
@@ -1162,7 +1111,7 @@ class ExecutionEngine:
 execution_engine = ExecutionEngine()
 
 
-async def main():
+async def main() -> None:
     """Main entry point for the execution engine."""
     try:
         await execution_engine.run_server(

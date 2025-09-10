@@ -46,20 +46,20 @@ class ServiceStatus:
         self.error: Optional[str] = None
         self.health_data: Dict[str, Any] = {}
 
-    def start(self):
+    def start(self) -> None:
         self.status = "running"
         self.started_at = datetime.now(timezone.utc)
         self.error = None
 
-    def stop(self):
+    def stop(self) -> None:
         self.status = "stopped"
         self.error = None
 
-    def set_error(self, error: str):
+    def set_error(self, error: str) -> None:
         self.status = "error"
         self.error = error
 
-    def update_health(self, health_data: Dict[str, Any]):
+    def update_health(self, health_data: Dict[str, Any]) -> None:
         self.health_data = health_data
 
 
@@ -93,7 +93,7 @@ class ServiceOrchestrator:
         # Initialize service status tracking
         self._init_service_status()
 
-    def _init_service_status(self):
+    def _init_service_status(self) -> None:
         """Initialize service status tracking."""
         service_names = [
             "mock_data_collector",
@@ -106,7 +106,7 @@ class ServiceOrchestrator:
         for name in service_names:
             self.services[name] = ServiceStatus(name)
 
-    async def start_all_services(self):
+    async def start_all_services(self) -> None:
         """Start all services in the correct order."""
         logger.info("🚀 Starting all services for integration testing...")
 
@@ -140,7 +140,7 @@ class ServiceOrchestrator:
             await self.stop_all_services()
             raise
 
-    async def stop_all_services(self):
+    async def stop_all_services(self) -> None:
         """Stop all services gracefully."""
         logger.info("🛑 Stopping all services...")
 
@@ -177,7 +177,7 @@ class ServiceOrchestrator:
 
         logger.info("✅ All services stopped")
 
-    async def _start_mock_data_collector(self):
+    async def _start_mock_data_collector(self) -> None:
         """Start the mock data collector."""
         logger.info("Starting Mock Data Collector...")
 
@@ -201,7 +201,7 @@ class ServiceOrchestrator:
             logger.error(f"Failed to start Mock Data Collector: {e}")
             raise
 
-    async def _start_strategy_engine(self):
+    async def _start_strategy_engine(self) -> None:
         """Start the strategy engine."""
         logger.info("Starting Strategy Engine...")
 
@@ -209,7 +209,7 @@ class ServiceOrchestrator:
             self.strategy_engine = StrategyEngineApp()
 
             # Run in thread to avoid blocking
-            def run_strategy_engine():
+            def run_strategy_engine() -> None:
                 if self.strategy_engine:
                     asyncio.run(self.strategy_engine.start())
 
@@ -228,7 +228,7 @@ class ServiceOrchestrator:
             logger.error(f"Failed to start Strategy Engine: {e}")
             raise
 
-    async def _start_risk_manager(self):
+    async def _start_risk_manager(self) -> None:
         """Start the risk manager."""
         logger.info("Starting Risk Manager...")
 
@@ -236,7 +236,7 @@ class ServiceOrchestrator:
             self.risk_manager = RiskManagerApp()
 
             # Run in thread to avoid blocking
-            def run_risk_manager():
+            def run_risk_manager() -> None:
                 if self.risk_manager:
                     asyncio.run(self.risk_manager.start())
 
@@ -254,7 +254,7 @@ class ServiceOrchestrator:
             logger.error(f"Failed to start Risk Manager: {e}")
             raise
 
-    async def _start_trade_executor(self):
+    async def _start_trade_executor(self) -> None:
         """Start the trade executor."""
         logger.info("Starting Trade Executor...")
 
@@ -262,7 +262,7 @@ class ServiceOrchestrator:
             self.trade_executor = TradeExecutorApp()
 
             # Run in thread to avoid blocking
-            def run_trade_executor():
+            def run_trade_executor() -> None:
                 if self.trade_executor:
                     asyncio.run(self.trade_executor.start())
 
@@ -280,7 +280,7 @@ class ServiceOrchestrator:
             logger.error(f"Failed to start Trade Executor: {e}")
             raise
 
-    async def _start_scheduler(self):
+    async def _start_scheduler(self) -> None:
         """Start the scheduler."""
         logger.info("Starting Scheduler...")
 
@@ -288,7 +288,7 @@ class ServiceOrchestrator:
             self.scheduler = SchedulerApp()
 
             # Run in thread to avoid blocking
-            def run_scheduler():
+            def run_scheduler() -> None:
                 if self.scheduler:
                     asyncio.run(self.scheduler.start())
 
@@ -306,7 +306,7 @@ class ServiceOrchestrator:
             logger.error(f"Failed to start Scheduler: {e}")
             raise
 
-    async def _stop_service(self, service_name: str, service_instance: Any):
+    async def _stop_service(self, service_name: str, service_instance: Any) -> None:
         """Stop a specific service."""
         logger.info(f"Stopping {service_name}...")
 
@@ -332,7 +332,7 @@ class ServiceOrchestrator:
             logger.error(f"Error stopping {service_name}: {e}")
             self.services[service_name].set_error(str(e))
 
-    async def _health_monitor_loop(self):
+    async def _health_monitor_loop(self) -> None:
         """Monitor service health continuously."""
         while self.is_running and not self._shutdown_event.is_set():
             try:
@@ -345,7 +345,7 @@ class ServiceOrchestrator:
                 logger.error(f"Health monitor error: {e}")
                 await asyncio.sleep(10)
 
-    async def _check_all_service_health(self):
+    async def _check_all_service_health(self) -> None:
         """Check health of all services."""
         for service_name in self.services:
             try:
@@ -442,7 +442,7 @@ class ServiceOrchestrator:
         logger.error(f"⏰ Timeout waiting for services to be ready after {timeout}s")
         return False
 
-    async def simulate_trading_day(self, duration_minutes: int = 30):
+    async def simulate_trading_day(self, duration_minutes: int = 30) -> None:
         """Simulate a trading day by advancing time and triggering events."""
         logger.info(
             f"🎭 Starting trading day simulation for {duration_minutes} minutes..."
@@ -484,7 +484,7 @@ async def create_service_orchestrator(
 
 if __name__ == "__main__":
 
-    async def main():
+    async def main() -> None:
         orchestrator = await create_service_orchestrator()
 
         try:

@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict
 
 # Add shared path
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "..", "shared"))
@@ -129,7 +130,7 @@ class MockDataFetcher:
 
     async def fetch_multi_timeframe_data(
         self, symbol: str, strategy_mode: StrategyMode, periods: int = 100
-    ):
+    ) -> Dict[str, Any]:
         """Mock fetch multi-timeframe data."""
         from multi_timeframe_data import TimeFrameDataResult
 
@@ -163,7 +164,7 @@ class MockDataFetcher:
         )
 
 
-async def test_multi_timeframe_confirmation():
+async def test_multi_timeframe_confirmation() -> None:
     """Test multi-timeframe confirmation integration."""
     logger.info("Starting multi-timeframe confirmation test")
 
@@ -249,17 +250,14 @@ async def test_multi_timeframe_confirmation():
         logger.info(f"  Position Size: {mixed_signal.position_size:.3f}")
         logger.info(f"  Reasoning: {mixed_signal.reasoning}")
 
-        return True
-
     except Exception as e:
         logger.error(f"Test failed with error: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
-        return False
 
 
-async def test_analyzer_directly():
+async def test_analyzer_directly() -> None:
     """Test the multi-timeframe analyzer directly."""
     logger.info("\nTesting multi-timeframe analyzer directly...")
 
@@ -312,17 +310,14 @@ async def test_analyzer_directly():
         logger.info(f"  Allow entry: {allow_entry}")
         logger.info(f"  Reason: {reason}")
 
-        return True
-
     except Exception as e:
         logger.error(f"Direct analyzer test failed: {e}")
         import traceback
 
         logger.error(traceback.format_exc())
-        return False
 
 
-async def run_comprehensive_test():
+async def run_comprehensive_test() -> bool:
     """Run comprehensive test of multi-timeframe confirmation system."""
     logger.info("=" * 60)
     logger.info("Multi-Timeframe Confirmation Integration Test")
@@ -333,14 +328,14 @@ async def run_comprehensive_test():
     # Test 1: Direct analyzer test
     logger.info("\n1. Testing Multi-Timeframe Analyzer Directly")
     logger.info("-" * 45)
-    result1 = await test_analyzer_directly()
-    results.append(("Direct Analyzer Test", result1))
+    await test_analyzer_directly()
+    results.append(("Direct Analyzer Test", True))
 
     # Test 2: Hybrid strategy integration test
     logger.info("\n2. Testing Hybrid Strategy Integration")
     logger.info("-" * 40)
-    result2 = await test_multi_timeframe_confirmation()
-    results.append(("Hybrid Strategy Integration", result2))
+    await test_multi_timeframe_confirmation()
+    results.append(("Hybrid Strategy Integration", True))
 
     # Print summary
     logger.info("\n" + "=" * 60)

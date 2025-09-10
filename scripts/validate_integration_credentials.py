@@ -392,7 +392,7 @@ class CredentialValidator:
 
         return errors
 
-    def create_integration_env_template(self):
+    def create_integration_env_template(self) -> None:
         """Create a template .env.integration file with safe defaults."""
         template_path = self.project_root / ".env.integration.template"
 
@@ -481,7 +481,7 @@ MOCK_EXTERNAL_APIS=true
             logger.error(f"Failed to create template: {e}")
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Validate integration test credentials"

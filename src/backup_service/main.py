@@ -165,7 +165,7 @@ class BackupStatus(BaseModel):
 class BackupService:
     """Main backup service class"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.config = ConfigWrapper(get_config())
         self.db_manager: Optional[DatabaseManager] = None
         self.redis_manager: Optional[RedisManager] = None
@@ -707,7 +707,7 @@ class BackupService:
 
     async def create_consolidated_archive(
         self, session_dir: Path, backup_id: str, request: BackupRequest
-    ):
+    ) -> str:
         """Create consolidated backup archive"""
         logger.info("Creating consolidated backup archive", backup_id=backup_id)
 
@@ -737,6 +737,7 @@ class BackupService:
             self.active_backups[backup_id].file_size = consolidated_file.stat().st_size
 
         logger.info("Consolidated archive created", file_path=str(consolidated_file))
+        return str(consolidated_file)
 
     async def encrypt_backup_file(self, backup_file: Path) -> None:
         """Encrypt backup file using GPG"""

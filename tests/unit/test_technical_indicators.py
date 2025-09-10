@@ -23,7 +23,7 @@ class TestTechnicalIndicators:
     """Test technical analysis indicators."""
 
     @pytest.fixture
-    def sample_price_data(self):
+    def sample_price_data(self) -> pl.DataFrame:
         """Create sample price data for testing."""
         np.random.seed(42)  # For reproducible tests
 
@@ -59,7 +59,7 @@ class TestTechnicalIndicators:
         return pl.DataFrame(data)
 
     @pytest.fixture
-    def trending_data(self):
+    def trending_data(self) -> pl.DataFrame:
         """Create data with clear uptrend for testing trend indicators."""
         data = []
         base_price = 100.0
@@ -81,7 +81,7 @@ class TestTechnicalIndicators:
         return pl.DataFrame(data)
 
     @pytest.mark.unit
-    def test_sma_calculation(self, sample_price_data):
+    def test_sma_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Simple Moving Average calculation."""
         result = TechnicalIndicators.sma(sample_price_data, period=20)
 
@@ -104,7 +104,7 @@ class TestTechnicalIndicators:
         assert abs(actual_sma - expected_sma) < 0.001
 
     @pytest.mark.unit
-    def test_ema_calculation(self, sample_price_data):
+    def test_ema_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Exponential Moving Average calculation."""
         result = TechnicalIndicators.ema(sample_price_data, period=12)
 
@@ -118,7 +118,7 @@ class TestTechnicalIndicators:
         assert all(val > 0 for val in valid_ema)
 
     @pytest.mark.unit
-    def test_rsi_calculation(self, sample_price_data):
+    def test_rsi_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Relative Strength Index calculation."""
         result = TechnicalIndicators.rsi(sample_price_data, period=14)
 
@@ -139,7 +139,7 @@ class TestTechnicalIndicators:
         assert all(0 <= val <= 100 for val in valid_rsi_list)
 
     @pytest.mark.unit
-    def test_macd_calculation(self, sample_price_data):
+    def test_macd_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test MACD calculation."""
         result = TechnicalIndicators.macd(sample_price_data, fast=12, slow=26, signal=9)
 
@@ -161,7 +161,7 @@ class TestTechnicalIndicators:
                 assert abs(hist_val - (macd_val - signal_val)) < 0.001
 
     @pytest.mark.unit
-    def test_bollinger_bands_calculation(self, sample_price_data):
+    def test_bollinger_bands_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Bollinger Bands calculation."""
         result = TechnicalIndicators.bollinger_bands(
             sample_price_data, period=20, std_dev=2
@@ -198,7 +198,7 @@ class TestTechnicalIndicators:
                     assert abs(middle_values[i] - sma_values[i]) < 0.001
 
     @pytest.mark.unit
-    def test_stochastic_calculation(self, sample_price_data):
+    def test_stochastic_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Stochastic Oscillator calculation."""
         result = TechnicalIndicators.stochastic(
             sample_price_data, k_period=14, d_period=3
@@ -220,7 +220,7 @@ class TestTechnicalIndicators:
             assert all(0 <= val <= 100 for val in valid_d)
 
     @pytest.mark.unit
-    def test_atr_calculation(self, sample_price_data):
+    def test_atr_calculation(self, sample_price_data: pl.DataFrame) -> None:
         """Test Average True Range calculation."""
         result = TechnicalIndicators.atr(sample_price_data, period=14)
 
@@ -234,7 +234,7 @@ class TestTechnicalIndicators:
             assert all(val >= 0 for val in valid_atr)
 
     @pytest.mark.unit
-    def test_volume_indicators(self, sample_price_data):
+    def test_volume_indicators(self, sample_price_data: pl.DataFrame) -> None:
         """Test volume-based indicators."""
         # Test OBV
         result_obv = TechnicalIndicators.obv(sample_price_data)
@@ -250,7 +250,7 @@ class TestTechnicalIndicators:
             assert all(val > 0 for val in vwap_values)
 
     @pytest.mark.unit
-    def test_trend_detection(self, trending_data):
+    def test_trend_detection(self, trending_data: pl.DataFrame) -> None:
         """Test trend detection with clear trending data."""
         # Add moving averages for trend detection
         result = TechnicalIndicators.sma(trending_data, period=10)
@@ -274,7 +274,7 @@ class TestTechnicalIndicators:
             assert bullish_count >= 7  # At least 70% bullish signals
 
     @pytest.mark.unit
-    def test_edge_cases(self):
+    def test_edge_cases(self) -> None:
         """Test edge cases and error handling."""
         # Empty data
         empty_data = pl.DataFrame(
@@ -309,7 +309,7 @@ class TestTechnicalIndicators:
         assert result.select("sma_20").to_series()[0] is None  # Should be null
 
     @pytest.mark.unit
-    def test_invalid_parameters(self, sample_price_data):
+    def test_invalid_parameters(self, sample_price_data: pl.DataFrame) -> None:
         """Test handling of invalid parameters."""
         # Period larger than data length
         result = TechnicalIndicators.sma(sample_price_data, period=200)
@@ -332,7 +332,7 @@ class TestTechnicalIndicators:
             pass
 
     @pytest.mark.unit
-    def test_data_types_consistency(self, sample_price_data):
+    def test_data_types_consistency(self, sample_price_data: pl.DataFrame) -> None:
         """Test that indicators return consistent data types."""
         result = TechnicalIndicators.sma(sample_price_data, period=20)
 

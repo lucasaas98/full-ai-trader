@@ -46,7 +46,7 @@ class OllamaClient:
         self.model = model
         self.session: Optional[aiohttp.ClientSession] = None
 
-    async def _ensure_session(self):
+    async def _ensure_session(self) -> None:
         """Ensure aiohttp session is created."""
         if self.session is None:
             self.session = aiohttp.ClientSession()
@@ -214,18 +214,18 @@ class OllamaClient:
             logger.error(f"Failed to pull model {model_name}: {e}")
             return False
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the aiohttp session."""
         if self.session:
             await self.session.close()
             self.session = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "OllamaClient":
         """Async context manager entry."""
         await self._ensure_session()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -408,6 +408,6 @@ Respond only with the JSON, no additional text."""
             "parsed_from_text": True,
         }
 
-    async def close(self):
+    async def close(self) -> None:
         """Close the Ollama client."""
         await self.client.close()
