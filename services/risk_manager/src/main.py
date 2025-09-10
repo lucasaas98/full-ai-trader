@@ -259,7 +259,7 @@ async def health_check() -> Dict[str, Any]:
 
 # Risk validation endpoints
 @app.post("/validate-trade", response_model=TradeValidationResponse)
-async def validate_trade(request: TradeValidationRequest) -> Dict[str, Any]:
+async def validate_trade(request: TradeValidationRequest) -> TradeValidationResponse:
     """Validate a trade request against risk parameters."""
     logger.debug(
         f"Trade validation request for {request.order_request.symbol}: {request.order_request.quantity} shares"
@@ -305,7 +305,7 @@ async def validate_trade(request: TradeValidationRequest) -> Dict[str, Any]:
 
 
 @app.post("/calculate-position-size", response_model=PositionSizing)
-async def calculate_position_size(request: PositionSizingRequest) -> Dict[str, Any]:
+async def calculate_position_size(request: PositionSizingRequest) -> PositionSizing:
     """Calculate optimal position size for a trade."""
     logger.debug(
         f"Position sizing request for {request.symbol} at ${request.current_price}"
@@ -335,7 +335,7 @@ async def calculate_position_size(request: PositionSizingRequest) -> Dict[str, A
 
 # Portfolio monitoring endpoints
 @app.post("/portfolio-metrics", response_model=PortfolioMetrics)
-async def get_portfolio_metrics(portfolio: PortfolioState) -> Dict[str, Any]:
+async def get_portfolio_metrics(portfolio: PortfolioState) -> PortfolioMetrics:
     """Get current portfolio risk metrics."""
     logger.debug(
         f"Portfolio metrics request for portfolio with {len(portfolio.positions)} positions"
@@ -366,7 +366,7 @@ async def get_portfolio_metrics(portfolio: PortfolioState) -> Dict[str, Any]:
 @app.post("/monitor-portfolio")
 async def monitor_portfolio(
     portfolio: PortfolioState, background_tasks: BackgroundTasks
-):
+) -> Dict[str, Any]:
     """Monitor portfolio and generate alerts."""
     logger.debug(
         f"Portfolio monitoring request for portfolio value ${portfolio.total_equity}"
@@ -411,7 +411,7 @@ async def monitor_portfolio(
 @app.post("/update-trailing-stops")
 async def update_trailing_stops(
     portfolio: PortfolioState, market_prices: Dict[str, Decimal]
-):
+) -> Dict[str, Any]:
     """Update trailing stops for all positions."""
     logger.debug(
         f"Updating trailing stops for {len(portfolio.positions)} positions with {len(market_prices)} price updates"
@@ -1098,8 +1098,8 @@ async def daily_cleanup_task() -> None:
 
 
 async def _generate_trade_recommendations(
-    request: TradeValidationRequest, filters
-) -> Dict:
+    request: TradeValidationRequest, filters: List[Any]
+) -> Dict[str, Any]:
     """Generate recommendations for fixing trade validation issues."""
     logger.debug(
         f"Generating trade recommendations for {len([f for f in filters if not f.passed])} failed filters"
@@ -1154,7 +1154,7 @@ def signal_handler(signum: int, frame: Any) -> None:
 class RiskManagerApp:
     """Application wrapper for Risk Manager service for integration testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Risk Manager application."""
         self.app = app
         self._initialized = False
@@ -1173,12 +1173,12 @@ class RiskManagerApp:
             self._initialized = True
             logger.debug("RiskManagerApp initialized successfully")
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the Risk Manager service."""
         logger.debug("Starting RiskManagerApp...")
         await self.initialize()
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the Risk Manager service."""
         logger.debug("Stopping RiskManagerApp...")
         if database_manager:
@@ -1186,7 +1186,7 @@ class RiskManagerApp:
         self._initialized = False
         logger.debug("RiskManagerApp stopped")
 
-    def get_app(self):
+    def get_app(self) -> FastAPI:
         """Get the FastAPI application instance."""
         return self.app
 

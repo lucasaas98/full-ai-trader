@@ -490,7 +490,7 @@ class SchedulerService:
         """Setup signal handlers for graceful shutdown."""
         logger.debug("Setting up signal handlers")
 
-        def signal_handler(signum: int, frame: any) -> None:
+        def signal_handler(signum: int, frame: Any) -> None:
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
             logger.debug(f"Signal handler triggered for signal {signum}")
             self.shutdown_event.set()
@@ -501,7 +501,7 @@ class SchedulerService:
         signal.signal(signal.SIGTERM, signal_handler)
 
         # Handle SIGUSR1 for configuration reload
-        def reload_handler(signum: int, frame: any) -> None:
+        def reload_handler(signum: int, frame: Any) -> None:
             logger.info("Received SIGUSR1, reloading configuration...")
             logger.debug("SIGUSR1 signal handler triggered for configuration reload")
             asyncio.create_task(self._reload_configuration())

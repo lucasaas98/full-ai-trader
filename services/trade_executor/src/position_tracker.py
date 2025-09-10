@@ -104,7 +104,7 @@ class PositionTracker:
         """Load active positions into cache."""
         try:
             if not self._db_pool:
-                return []
+                return
             async with self._db_pool.acquire() as conn:
                 rows = await conn.fetch(
                     """
@@ -967,7 +967,7 @@ class PositionTracker:
         """Update position status."""
         try:
             if not self._db_pool:
-                return False
+                return
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -988,7 +988,7 @@ class PositionTracker:
         """Update position quantity."""
         try:
             if not self._db_pool:
-                return False
+                return
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
                     """
@@ -1510,7 +1510,7 @@ class PositionTracker:
         """
         try:
             if not self._db_pool:
-                return 0.0
+                return
             async with self._db_pool.acquire() as conn:
                 deleted_count = await conn.fetchval(
                     """

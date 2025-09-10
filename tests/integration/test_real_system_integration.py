@@ -93,7 +93,7 @@ async def validate_credentials() -> None:
 
 
 @pytest.fixture(scope="session")
-async def redis_client() -> redis.Redis:
+async def redis_client() -> AsyncGenerator[redis.Redis, None]:
     """Create Redis client for tests."""
     config = get_config()
 
@@ -117,7 +117,7 @@ async def redis_client() -> redis.Redis:
 
 
 @pytest.fixture(scope="session")
-async def database_pool() -> asyncpg.Pool:
+async def db_pool() -> AsyncGenerator[asyncpg.Pool, None]:
     """Create database connection pool for tests."""
     config = get_config()
 
@@ -682,7 +682,7 @@ def pytest_configure(config: Any) -> None:
     )
 
 
-async def run_integration_test_suite() -> None:
+async def run_integration_test_suite() -> bool:
     """Run the complete integration test suite."""
     logger.info("🚀 Starting Real System Integration Test Suite")
 

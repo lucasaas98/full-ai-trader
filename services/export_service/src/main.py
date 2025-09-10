@@ -18,13 +18,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import aiofiles
 import asyncpg
 import pandas as pd
 from fastapi import Depends, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Add parent directories to Python path for shared imports
@@ -33,7 +32,7 @@ from shared.config import Config  # noqa: E402
 
 
 # Simplified logging setup
-def setup_logging(name: str):
+def setup_logging(name: str) -> logging.Logger:
     """Simple logging setup without complex dependencies"""
     logging.basicConfig(
         level=logging.DEBUG,
@@ -53,7 +52,7 @@ security = HTTPBearer()
 
 # Database connection pool
 class DatabaseManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.pool = None
 
     async def initialize(self) -> None:
@@ -90,7 +89,7 @@ class DatabaseManager:
         else:
             logger.debug("No database pool to close")
 
-    async def get_connection(self):
+    async def get_connection(self) -> asyncpg.Connection:
         """Get database connection from pool"""
         logger.debug("Acquiring database connection from pool")
         if not self.pool:
@@ -884,7 +883,7 @@ class ExportService:
 
 # FastAPI app with lifespan management
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     await startup_event()
     yield
@@ -985,7 +984,7 @@ async def export_tradenote(
     strategies: Optional[str] = Query(None, description="Comma-separated strategies"),
     service: ExportService = Depends(get_export_service),
     token: str = Depends(verify_token),
-):
+) -> Dict[str, Any]:
     """Export trades in TradeNote compatible format"""
     logger.debug(
         f"TradeNote export request - start_date: {start_date}, end_date: {end_date}"
@@ -1005,11 +1004,16 @@ async def export_tradenote(
 
         file_path = await service.export_tradenote_format(request)
         logger.debug(f"Export completed, returning file: {file_path}")
-        return FileResponse(
-            path=file_path,
-            filename=f"tradenote_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            media_type="text/csv",
-        )
+
+        # Return dict instead of FileResponse to match return type annotation
+        return {
+            "status": "success",
+            "message": "Export completed successfully",
+            "file_path": str(file_path),
+            "filename": f"tradenote_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            "media_type": "text/csv",
+            "timestamp": datetime.now().isoformat(),
+        }
     except Exception as e:
         logger.error(f"TradeNote export failed: {e}")
         logger.debug(f"TradeNote export error details: {type(e).__name__}")

@@ -8,6 +8,7 @@ testing only the functionality that actually exists and works as implemented.
 # Import scheduler components
 import sys
 from datetime import datetime
+from typing import Any, Dict
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -79,7 +80,9 @@ class TestTradingScheduler:
         return MockConfig(timezone="US/Eastern")
 
     @pytest.fixture
-    def scheduler(self, mock_redis, scheduler_config) -> TradingScheduler:
+    def scheduler(
+        self, mock_redis: Any, scheduler_config: Dict[str, Any]
+    ) -> TradingScheduler:
         """Create TradingScheduler instance for testing."""
         with patch("redis.asyncio.from_url", return_value=mock_redis):
             scheduler = TradingScheduler(scheduler_config)
@@ -185,7 +188,7 @@ class TestScheduledTask:
     def test_scheduler_task_management(self) -> None:
         """Test ScheduledTask dataclass creation."""
 
-        def dummy_function():
+        def dummy_function() -> None:
             pass
 
         task = ScheduledTask(
@@ -208,7 +211,7 @@ class TestScheduledTask:
     def test_scheduled_task_with_custom_values(self) -> None:
         """Test ScheduledTask with custom values."""
 
-        def dummy_function():
+        def dummy_function() -> None:
             pass
 
         task = ScheduledTask(

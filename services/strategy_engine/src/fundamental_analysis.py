@@ -1002,7 +1002,7 @@ class FinVizDataProcessor:
         try:
 
             def safe_float(
-                value: any, default: Optional[float] = None
+                value: Any, default: Optional[float] = None
             ) -> Optional[float]:
                 """Safely convert value to float."""
                 if value in [None, "", "-", "N/A"]:

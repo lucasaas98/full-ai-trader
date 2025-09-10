@@ -234,7 +234,7 @@ class TestTechnicalIndicators:
             assert all(val >= 0 for val in valid_atr)
 
     @pytest.mark.unit
-    def test_volume_indicators(self, sample_price_data) -> None:
+    def test_volume_indicators(self, sample_price_data: pl.DataFrame) -> None:
         """Test volume-based indicators."""
         # Test OBV
         result_obv = TechnicalIndicators.obv(sample_price_data)

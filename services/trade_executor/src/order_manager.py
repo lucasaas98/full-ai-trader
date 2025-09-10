@@ -1155,7 +1155,7 @@ class OrderManager:
         """Store bracket order relationship."""
         try:
             if not self._db_pool:
-                return []
+                return
             async with self._db_pool.acquire() as conn:
                 # Assume first order is entry, subsequent are stop/profit
                 entry_order = orders[0] if len(orders) > 0 else None
@@ -1414,7 +1414,7 @@ class OrderManager:
         """Log execution error to database."""
         try:
             if not self._db_pool:
-                return []
+                return
             async with self._db_pool.acquire() as conn:
                 await conn.execute(
                     """

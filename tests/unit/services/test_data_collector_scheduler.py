@@ -368,7 +368,7 @@ class TestBackwardCompatibility:
 
     @pytest.mark.unit
     def test_backward_compatibility_basic_usage(
-        self, basic_api_limits, all_timeframes
+        self, basic_api_limits: dict[str, int], all_timeframes: list
     ) -> None:
         """Test that basic usage patterns still work as expected."""
         # This simulates how the function was called before enhancement
@@ -507,7 +507,17 @@ class TestEdgeCasesAndValidation:
         # Run calculation multiple times
         results = []
         for _ in range(5):
-            intervals = calculate_optimal_intervals(**test_params)
+            intervals = calculate_optimal_intervals(
+                api_rate_limits=dict(test_params["api_rate_limits"]),
+                active_tickers=int(test_params["active_tickers"]),
+                timeframes=list(test_params["timeframes"]),
+                market_volatility=float(test_params["market_volatility"]),
+                priority_weights=(
+                    dict(test_params["priority_weights"])
+                    if test_params["priority_weights"]
+                    else None
+                ),
+            )
             results.append(intervals)
 
         # All results should be identical
@@ -611,7 +621,17 @@ class TestPerformanceAndScalability:
 
         # Run multiple calculations
         for _ in range(50):
-            calculate_optimal_intervals(**test_params)
+            calculate_optimal_intervals(
+                api_rate_limits=dict(test_params["api_rate_limits"]),
+                active_tickers=int(test_params["active_tickers"]),
+                timeframes=list(test_params["timeframes"]),
+                market_volatility=float(test_params["market_volatility"]),
+                priority_weights=(
+                    dict(test_params["priority_weights"])
+                    if test_params["priority_weights"]
+                    else None
+                ),
+            )
 
         end_time = time.perf_counter()
         avg_time = (end_time - start_time) / 50
@@ -700,7 +720,9 @@ class TestAlgorithmValidation:
             ), f"Rate limit violation for {timeframe}: {requests_per_minute} > {safe_rate}"
 
     @pytest.mark.unit
-    def test_priority_weight_monotonicity(self, basic_api_limits) -> None:
+    def test_priority_weight_monotonicity(
+        self, basic_api_limits: dict[str, int]
+    ) -> None:
         """Test that higher priority weights consistently lead to shorter or equal intervals."""
         active_tickers = 40
         timeframes = [TimeFrame.FIVE_MINUTES, TimeFrame.ONE_HOUR]
@@ -736,7 +758,9 @@ class TestAlgorithmValidation:
             assert 0.8 <= ratio <= 1.2, f"Priority weights not monotonic: {ratio}"
 
     @pytest.mark.unit
-    def test_consistency_across_runs(self, basic_api_limits, all_timeframes) -> None:
+    def test_consistency_across_runs(
+        self, basic_api_limits: dict[str, int], all_timeframes: list
+    ) -> None:
         """Test that the function returns consistent results for identical inputs."""
         test_params = {
             "api_rate_limits": basic_api_limits,
@@ -748,7 +772,19 @@ class TestAlgorithmValidation:
         # Call function multiple times with identical parameters
         results = []
         for _ in range(10):
-            intervals = calculate_optimal_intervals(**test_params)
+            # Convert test_params to proper types
+            converted_config = {
+                "api_rate_limits": dict(test_params["api_rate_limits"]),
+                "active_tickers": int(test_params["active_tickers"]),
+                "timeframes": list(test_params["timeframes"]),
+                "market_volatility": float(test_params["market_volatility"]),
+                "priority_weights": (
+                    dict(test_params["priority_weights"])
+                    if test_params["priority_weights"]
+                    else None
+                ),
+            }
+            intervals = calculate_optimal_intervals(**converted_config)
             results.append(intervals)
 
         # All results should be identical
@@ -757,7 +793,7 @@ class TestAlgorithmValidation:
 
     @pytest.mark.unit
     def test_minimum_interval_enforcement(
-        self, basic_api_limits, all_timeframes
+        self, basic_api_limits: dict[str, int], all_timeframes: list
     ) -> None:
         """Test that all algorithm outputs are within expected bounds."""
         # Test various extreme scenarios

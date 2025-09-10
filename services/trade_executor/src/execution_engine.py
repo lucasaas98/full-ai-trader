@@ -98,7 +98,7 @@ class ExecutionEngine:
             await self.performance_tracker.initialize()
 
             # Start background tasks
-            await self._start_background_tasks()
+            await self.start_background_tasks()
 
             logger.info("Trade Execution Engine initialized successfully")
 
@@ -407,7 +407,7 @@ class ExecutionEngine:
             result = await self.order_manager.process_signal(signal)
 
             # Publish execution result
-            await self._publish_execution_result(signal, result)
+            await self._handle_execution_result(signal, result)
 
             logger.info(f"Signal {signal.id} execution completed: {result['success']}")
 
@@ -441,7 +441,7 @@ class ExecutionEngine:
         except Exception as e:
             logger.error(f"Failed to publish execution result: {e}")
 
-    async def _publish_execution_error(self, signal: TradeSignal, error: str):
+    async def _publish_execution_error(self, signal: TradeSignal, error: str) -> None:
         """Publish execution error to Redis."""
         try:
             message = {
@@ -494,7 +494,7 @@ class ExecutionEngine:
             logger.error(f"Failed to start background tasks: {e}")
             raise
 
-    async def _signal_listener(self):
+    async def _signal_listener(self) -> None:
         """Listen for trade signals on Redis."""
         try:
             if self._redis:
@@ -526,7 +526,7 @@ class ExecutionEngine:
                 await asyncio.sleep(30)
                 asyncio.create_task(self._signal_listener())
 
-    async def _periodic_sync(self):
+    async def _periodic_sync(self) -> None:
         """Periodic synchronization with Alpaca."""
         while self._running:
             try:
@@ -537,7 +537,7 @@ class ExecutionEngine:
                 await self._update_account_snapshot()
 
                 # Sync order statuses
-                await self._sync_all_order_statuses()
+                await self._sync_order_statuses()
 
                 logger.debug("Periodic sync completed")
 
@@ -641,30 +641,24 @@ class ExecutionEngine:
             from shared.models import SignalType, TradeSignal
 
             trade_signal = TradeSignal(
-                symbol=signal["symbol"],
-                signal_type=SignalType(signal["action"]),
-                confidence=float(signal.get("confidence", 0.8)),
-                quantity=int(signal["quantity"]) if signal.get("quantity") else None,
-                price=(
-                    Decimal(str(signal.get("price", 0)))
-                    if signal.get("price")
-                    else None
-                ),
+                symbol=signal.symbol,
+                signal_type=SignalType(signal.signal_type),
+                confidence=float(signal.confidence or 0.8),
+                quantity=int(signal.quantity) if signal.quantity else None,
+                price=(Decimal(str(signal.price)) if signal.price else None),
                 stop_loss=(
-                    Decimal(str(signal.get("stop_loss", 0)))
-                    if signal.get("stop_loss")
-                    else None
+                    Decimal(str(signal.stop_loss)) if signal.stop_loss else None
                 ),
                 take_profit=(
-                    Decimal(str(signal.get("take_profit", 0)))
-                    if signal.get("take_profit")
-                    else None
+                    Decimal(str(signal.take_profit)) if signal.take_profit else None
                 ),
-                strategy_name=signal.get("strategy", "unknown"),
+                strategy_name=signal.strategy_name or "unknown",
                 metadata={
                     "order_type": "MARKET",
-                    "reasoning": signal.get("reasoning", ""),
-                    **signal.get("metadata", {}),
+                    "reasoning": (
+                        signal.metadata.get("reasoning", "") if signal.metadata else ""
+                    ),
+                    **(signal.metadata or {}),
                 },
             )
 

@@ -498,7 +498,7 @@ class TestOllamaWithPrompts:
                 f"RSI: {scenario_data['rsi']}, Change: {scenario_data['daily_change']}%"  # type: ignore[index]
             )
 
-            decision = await trading_simulator.process_signal(scenario["data"])
+            decision = await trading_simulator.process_signal(dict(scenario["data"]))  # type: ignore[arg-type]
 
             print(f"Decision: {decision['decision']} ({decision['confidence']}%)")
             print(f"Reasoning: {decision['reasoning'][:100]}...")

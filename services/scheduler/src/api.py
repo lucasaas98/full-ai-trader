@@ -662,7 +662,7 @@ async def get_system_metrics(
 async def get_historical_metrics(
     hours: int = Query(default=24, description="Hours of historical data"),
     scheduler: TradingScheduler = Depends(get_scheduler),
-):
+) -> Dict[str, Any]:
     """Get historical system metrics."""
     try:
         # Get historical metrics from Redis time series
@@ -782,7 +782,7 @@ async def run_maintenance_task(
     task_name: str,
     request: MaintenanceTaskRequest,
     scheduler: TradingScheduler = Depends(get_scheduler),
-) -> Dict[str, str]:
+) -> MaintenanceResponse:
     """Run a specific maintenance task."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -845,7 +845,9 @@ async def run_all_maintenance_tasks(
 
 
 @app.get("/maintenance/status")
-async def get_maintenance_status(scheduler: TradingScheduler = Depends(get_scheduler)):
+async def get_maintenance_status(
+    scheduler: TradingScheduler = Depends(get_scheduler),
+) -> Dict[str, Any]:
     """Get maintenance system status."""
     try:
         if hasattr(scheduler, "maintenance_manager"):
@@ -1209,7 +1211,7 @@ async def run_emergency_maintenance(
                 else:
 
                     class Result:
-                        def __init__(self):
+                        def __init__(self) -> None:
                             self.success = False
                             self.message = "Task runner not available"
                             self.duration = 0
@@ -1450,7 +1452,7 @@ async def run_strategy_backtest(
     start_date: str = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(default=None, description="End date (YYYY-MM-DD)"),
     symbols: str = Query(default=None, description="Comma-separated symbols"),
-):
+) -> Dict[str, Any]:
     """Run backtest for a specific strategy."""
     try:
         params = {"strategy": strategy_name}

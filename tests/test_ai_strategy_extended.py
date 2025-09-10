@@ -9,7 +9,7 @@ import asyncio
 import os
 import sys
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -826,7 +826,7 @@ def mock_open(read_data: str = "") -> Any:
 
 
 @pytest.fixture(autouse=True)
-def reset_singletons() -> None:
+def reset_singletons() -> Generator[None, None, None]:
     """Reset any singleton instances between tests."""
     yield
     # Cleanup if needed

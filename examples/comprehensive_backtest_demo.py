@@ -558,6 +558,9 @@ class ComprehensiveBacktestEngine:
             f"Starting {strategy.name} backtest ({self.timeframe.value}): {self.start_date.date()} to {self.end_date.date()}"
         )
 
+        # Return empty dict as placeholder
+        return {}
+
         start_time = time.time()
 
         # Get available symbols

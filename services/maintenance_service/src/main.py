@@ -321,6 +321,18 @@ class MaintenanceManager:
             },
         )
 
+        return {
+            "status": "maintenance_mode_entered",
+            "mode": mode.value,
+            "reason": reason,
+            "estimated_duration": (
+                estimated_duration.total_seconds() if estimated_duration else None
+            ),
+            "affected_services": affected_services or [],
+            "initiated_by": initiated_by,
+            "timestamp": self.current_state.started_at.isoformat(),
+        }
+
     async def exit_maintenance_mode(self, initiated_by: str = "system") -> dict:
         """Exit maintenance mode and return to normal operation"""
         if self.current_state and self.current_state.mode == MaintenanceMode.NORMAL:
@@ -361,6 +373,14 @@ class MaintenanceManager:
             "EXIT_MAINTENANCE",
             {"previous_mode": previous_mode.value, "reason": "Maintenance completed"},
         )
+
+        return {
+            "status": "maintenance_mode_exited",
+            "previous_mode": previous_mode.value,
+            "current_mode": "NORMAL",
+            "initiated_by": initiated_by,
+            "timestamp": self.current_state.started_at.isoformat(),
+        }
 
     async def check_service_health(self) -> Dict[str, ServiceHealthStatus]:
         """Check health of all services"""
@@ -661,7 +681,9 @@ class MaintenanceManager:
             ),
         }
 
-    async def emergency_shutdown(self, reason: str, initiated_by: str = "system") -> None:
+    async def emergency_shutdown(
+        self, reason: str, initiated_by: str = "system"
+    ) -> None:
         """Perform emergency shutdown of all trading operations"""
         logger.critical(f"EMERGENCY SHUTDOWN initiated: {reason}")
         logger.debug(f"Emergency shutdown initiated by: {initiated_by}")
@@ -721,7 +743,9 @@ async def get_maintenance_manager() -> MaintenanceManager:
     return maintenance_manager
 
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+async def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> str:
     """Verify API token"""
     logger.debug("Verifying API token")
     # In production, implement proper token verification
@@ -801,7 +825,9 @@ async def health_check() -> dict:
 
 
 @app.get("/status")
-async def get_status(manager: MaintenanceManager = Depends(get_maintenance_manager)) -> dict:
+async def get_status(
+    manager: MaintenanceManager = Depends(get_maintenance_manager),
+) -> dict:
     """Get current system status"""
     logger.debug("System status requested")
     return await manager.get_system_status()

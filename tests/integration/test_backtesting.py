@@ -9,7 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -50,11 +50,11 @@ class BacktestEngine:
         strategy: Optional[str] = None,
         symbols: Optional[List[str]] = None,
         data_source: Optional[str] = None,
-        strategy_func: Optional[Callable] = None,
+        strategy_func: Optional[Callable[..., Any]] = None,
         data: Optional[pd.DataFrame] = None,
         initial_capital: Optional[float] = None,
         commission: Optional[float] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> BacktestResults:
         return BacktestResults(
             strategy_name="test",
@@ -76,17 +76,17 @@ class BacktestEngine:
             execution_time_ms=100.0,
         )
 
-    def run_portfolio_backtest(self, **kwargs) -> BacktestResults:
+    def run_portfolio_backtest(self, **kwargs: Any) -> BacktestResults:
         return self.run_backtest(**kwargs)
 
-    def walk_forward_analysis(self, **kwargs) -> List[BacktestResults]:
+    def walk_forward_analysis(self, **kwargs: Any) -> List[BacktestResults]:
         results = []
         for i in range(5):
             result = self.run_backtest(**kwargs)
             results.append(result)
         return results
 
-    def run_backtest_with_custom_metrics(self, **kwargs) -> BacktestResults:
+    def run_backtest_with_custom_metrics(self, **kwargs: Any) -> BacktestResults:
         return self.run_backtest(**kwargs)
 
 
@@ -94,37 +94,39 @@ class MonteCarloSimulator:
     def __init__(self, config: Optional[dict] = None) -> None:
         self.config = config or {}
 
-    def run_simulation(self, **kwargs) -> List[BacktestResults]:
-        num_simulations = kwargs.get('num_simulations', 100)
+    def run_simulation(self, **kwargs: Any) -> List[BacktestResults]:
+        num_simulations = kwargs.get("num_simulations", 100)
         results = []
         for i in range(num_simulations):
             # Generate slightly different results for each simulation
-            base_return = 0.15 + (i - num_simulations/2) * 0.001
-            results.append(BacktestResults(
-                strategy_name="monte_carlo",
-                start_date=datetime(2023, 1, 1),
-                end_date=datetime(2023, 12, 31),
-                initial_capital=100000.0,
-                final_value=100000.0 * (1 + base_return),
-                total_return=base_return,
-                annualized_return=base_return,
-                max_drawdown=0.05 + i * 0.0001,
-                sharpe_ratio=1.2 + i * 0.001,
-                sortino_ratio=1.5 + i * 0.001,
-                total_trades=50 + i,
-                winning_trades=30 + int(i * 0.3),
-                losing_trades=20 + int(i * 0.7),
-                avg_win=500.0 + i,
-                avg_loss=-200.0 - i,
-                profit_factor=1.5 + i * 0.001,
-                execution_time_ms=100.0 + i,
-            ))
+            base_return = 0.15 + (i - num_simulations / 2) * 0.001
+            results.append(
+                BacktestResults(
+                    strategy_name="monte_carlo",
+                    start_date=datetime(2023, 1, 1),
+                    end_date=datetime(2023, 12, 31),
+                    initial_capital=100000.0,
+                    final_value=100000.0 * (1 + base_return),
+                    total_return=base_return,
+                    annualized_return=base_return,
+                    max_drawdown=0.05 + i * 0.0001,
+                    sharpe_ratio=1.2 + i * 0.001,
+                    sortino_ratio=1.5 + i * 0.001,
+                    total_trades=50 + i,
+                    winning_trades=30 + int(i * 0.3),
+                    losing_trades=20 + int(i * 0.7),
+                    avg_win=500.0 + i,
+                    avg_loss=-200.0 - i,
+                    profit_factor=1.5 + i * 0.001,
+                    execution_time_ms=100.0 + i,
+                )
+            )
         return results
 
-    def run_portfolio_simulation(self, **kwargs) -> List[BacktestResults]:
+    def run_portfolio_simulation(self, **kwargs: Any) -> List[BacktestResults]:
         return self.run_simulation(**kwargs)
 
-    def analyze_strategy_risk(self, **kwargs) -> Dict:
+    def analyze_strategy_risk(self, **kwargs: Any) -> Dict[str, Any]:
         return {
             "var_5": -0.05,
             "var_1": -0.10,
@@ -1077,7 +1079,8 @@ class TestBacktestingInfrastructure:
 
         # Find best parameters
         best_result = max(
-            optimization_results, key=lambda x: x["sharpe"] if x["sharpe"] is not None else -999.0
+            optimization_results,
+            key=lambda x: float(x["sharpe"]) if x["sharpe"] is not None else -999.0,
         )
 
         assert len(optimization_results) == 4, "Not all parameter combinations tested"

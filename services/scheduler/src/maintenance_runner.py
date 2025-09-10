@@ -727,6 +727,14 @@ class MaintenanceOrchestrator:
                 # Remove from running tasks if we get here
                 self.running_tasks.pop(task_name, None)
 
+                # If we reach here, all attempts failed but no exception was raised
+                return {
+                    "success": False,
+                    "duration": time.time() - start_time,
+                    "message": f"Task failed after {self.config.retry_attempts} attempts",
+                    "attempts": self.config.retry_attempts,
+                }
+
         # Execute all tasks
         task_coroutines = [execute_single_task(task) for task in tasks]
         task_results = await asyncio.gather(*task_coroutines, return_exceptions=True)

@@ -422,7 +422,7 @@ def test_comparative_analysis() -> None:
 
         # Old algorithm (no volatility/priority support)
         old_intervals = old_simple_algorithm(
-            scenario["api_limits"], scenario["tickers"], timeframes
+            scenario["api_limits"], len(list(scenario["tickers"])), timeframes
         )
 
         # Enhanced algorithm

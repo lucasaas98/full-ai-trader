@@ -1299,7 +1299,7 @@ class ServiceOrchestrator:
             "is_orchestrator_running": self.is_running,
         }
 
-    async def cleanup_failed_services(self) -> None:
+    async def cleanup_failed_services(self) -> int:
         """Clean up resources from failed services."""
         logger.info("Cleaning up failed services...")
 

@@ -476,7 +476,7 @@ class TestErrorHandlingLogic:
                 self.last_failure_time: float | None = None
                 self.state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
 
-            def call(self, func: Callable, *args, **kwargs) -> Any:
+            def call(self, func: Callable, *args: Any, **kwargs: Any) -> Any:
                 if self.state == "OPEN":
                     if self._should_attempt_reset():
                         self.state = "HALF_OPEN"
@@ -617,7 +617,7 @@ class TestServiceHealthCheck:
 
         def check_component_health(
             component_name: str, is_healthy: bool, response_time: float | None = None
-        ) -> dict:
+        ) -> dict[str, str | float]:
             """Check individual component health"""
             status = "healthy" if is_healthy else "unhealthy"
             result = {
@@ -627,7 +627,7 @@ class TestServiceHealthCheck:
             }
 
             if response_time is not None:
-                metrics["response_time"] = response_time
+                result["response_time"] = response_time
 
             return result
 

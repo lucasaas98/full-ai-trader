@@ -310,8 +310,6 @@ async def test_analyzer_directly() -> None:
         logger.info(f"  Allow entry: {allow_entry}")
         logger.info(f"  Reason: {reason}")
 
-        return True
-
     except Exception as e:
         logger.error(f"Direct analyzer test failed: {e}")
         import traceback

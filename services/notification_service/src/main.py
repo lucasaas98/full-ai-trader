@@ -250,7 +250,10 @@ class NotificationService:
             except json.JSONDecodeError:
                 logger.warning(f"Failed to parse message data: {data_str}")
                 logger.debug(f"Raw data that failed parsing: {repr(data_str)}")
-                return
+                return {
+                    "status": "parse_error",
+                    "message": "Failed to parse message data",
+                }
 
             logger.debug(f"Received message on {channel}: {data.get('symbol', 'N/A')}")
 
@@ -298,6 +301,9 @@ class NotificationService:
             logger.debug(
                 f"Failed message channel: {message.get('channel')}, data preview: {str(message.get('data', ''))[:100]}"
             )
+            return {"status": "error", "message": str(e)}
+
+        return {"status": "success", "channel": channel}
 
     async def _handle_execution(self, data: Dict[str, Any]) -> None:
         """Handle trade execution notification."""
@@ -883,7 +889,7 @@ Strategy: {data.get('strategy_name', 'Unknown')}
             logger.debug(f"Shutdown error details: {type(e).__name__}: {str(e)}")
 
 
-async def main():
+async def main() -> None:
     """Main entry point for the notification service."""
     logger.debug("Starting main function")
     service = NotificationService()

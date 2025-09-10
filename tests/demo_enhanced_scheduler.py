@@ -344,7 +344,9 @@ def demonstrate_algorithm_improvements() -> None:
             TimeFrame.ONE_DAY: 86400,
         }
 
-        requests_per_update = {tf: max(1, active_tickers // 100) for tf in timeframes}
+        requests_per_update = {
+            tf: max(1, len(active_tickers) // 100) for tf in timeframes
+        }
 
         optimal_intervals = {}
         for timeframe in timeframes:
@@ -382,7 +384,7 @@ def demonstrate_algorithm_improvements() -> None:
 
         # Old simple calculation
         old_intervals = simple_calculate_optimal_intervals(
-            case["api_limits"], case["tickers"], timeframes
+            dict(case["api_limits"]), len(list(case["tickers"])), timeframes
         )
 
         # New enhanced calculation

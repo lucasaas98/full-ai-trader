@@ -463,12 +463,16 @@ class SharedDatabaseManager:
                             else 0
                         ),
                         "avg_win": float(trade_row.avg_win) if trade_row.avg_win else 0,
-                        "avg_loss": float(trade_row.avg_loss) if trade_row.avg_loss else 0,
+                        "avg_loss": (
+                            float(trade_row.avg_loss) if trade_row.avg_loss else 0
+                        ),
                         "total_pnl": (
                             float(trade_row.total_pnl) if trade_row.total_pnl else 0
                         ),
                         "max_win": float(trade_row.max_win) if trade_row.max_win else 0,
-                        "min_loss": float(trade_row.min_loss) if trade_row.min_loss else 0,
+                        "min_loss": (
+                            float(trade_row.min_loss) if trade_row.min_loss else 0
+                        ),
                         "risk_events": risk_events,
                         "period_days": days,
                     }

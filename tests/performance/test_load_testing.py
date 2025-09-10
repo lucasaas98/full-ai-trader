@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
 import numpy as np
@@ -363,7 +363,9 @@ class TradingSystemLoadTests:
         assert execution_analysis.p95_response_time < 10.0  # 95% under 10 seconds
 
     @pytest.mark.performance
-    async def test_portfolio_manager_load(self, load_test_runner: LoadTestRunner) -> None:
+    async def test_portfolio_manager_load(
+        self, load_test_runner: LoadTestRunner
+    ) -> None:
         """Test scheduler service under load"""
 
         scheduler_results = await load_test_runner.run_concurrent_requests(
@@ -379,7 +381,9 @@ class TradingSystemLoadTests:
         assert scheduler_analysis.p95_response_time < 0.5
 
     @pytest.mark.performance
-    async def test_end_to_end_trading_flow_load(self, load_test_runner: LoadTestRunner) -> None:
+    async def test_end_to_end_trading_flow_load(
+        self, load_test_runner: LoadTestRunner
+    ) -> None:
         """Test complete trading flow under load"""
 
         async def execute_trading_flow(
@@ -765,7 +769,9 @@ class MemoryLeakTests:
                     assert memory_growth < 100, f"Memory grew by {memory_growth:.2f}MB"
 
     @pytest.mark.performance
-    async def test_redis_connection_pool_stability(self, mock_redis_client: MagicMock) -> None:
+    async def test_redis_connection_pool_stability(
+        self, mock_redis_client: MagicMock
+    ) -> None:
         """Test Redis connection pool stability under load"""
 
         # Simulate rapid connection usage
@@ -860,7 +866,9 @@ class LatencyOptimizationTests:
     """Tests for latency optimization"""
 
     @pytest.mark.performance
-    async def test_signal_generation_latency(self, load_test_runner: LoadTestRunner) -> None:
+    async def test_signal_generation_latency(
+        self, load_test_runner: LoadTestRunner
+    ) -> None:
         """Test signal generation latency optimization"""
 
         # Test with different data sizes

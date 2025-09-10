@@ -924,7 +924,7 @@ class MaintenanceSystemDemo:
 
         console.input("\nPress Enter to continue...")
 
-    async def _demo_monitoring(self) -> None:
+    async def _demo_monitoring(self) -> Dict[str, Any]:
         """Demonstrate monitoring capabilities."""
         console.print("[bold yellow]📊 Monitoring & Metrics Demo[/bold yellow]")
 
@@ -989,7 +989,7 @@ class MaintenanceSystemDemo:
             console.print("[yellow]Monitoring system not available[/yellow]")
 
         console.input("\nPress Enter to continue...")
-        return
+        return {}
 
     async def _demo_reporting(self) -> Dict[str, Any]:
         """Demonstrate reporting capabilities."""
@@ -1062,6 +1062,12 @@ class MaintenanceSystemDemo:
             console.print(f"  Weekly (PDF): {pdf_path}")
 
         console.input("\nPress Enter to continue...")
+
+        return {
+            "daily_report": daily_report,
+            "weekly_report": weekly_report,
+            "status": "completed",
+        }
 
     async def demonstrate_error_handling(self) -> None:
         """Demonstrate error handling and recovery."""

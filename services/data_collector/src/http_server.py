@@ -122,7 +122,7 @@ class DataCollectorHTTPServer:
             self.logger.error(f"Error stopping HTTP server: {e}")
 
     @web.middleware
-    async def cors_handler(self, request: Request, handler) -> Response:
+    async def cors_handler(self, request: Request, handler: Any) -> Response:
         """CORS middleware."""
         response = await handler(request)
         response.headers["Access-Control-Allow-Origin"] = "*"
@@ -131,7 +131,7 @@ class DataCollectorHTTPServer:
         return response
 
     @web.middleware
-    async def error_handler(self, request: Request, handler) -> Response:
+    async def error_handler(self, request: Request, handler: Any) -> Response:
         """Error handling middleware."""
         try:
             return await handler(request)
@@ -335,6 +335,8 @@ class DataCollectorHTTPServer:
 
         try:
             # Get service status
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             service_status = await self.data_service.get_service_status()
 
             # Check if service is running
@@ -348,7 +350,8 @@ class DataCollectorHTTPServer:
 
             # Check individual components if available
             if (
-                hasattr(self.data_service, "finviz_screener")
+                self.data_service is not None
+                and hasattr(self.data_service, "finviz_screener")
                 and self.data_service.finviz_screener
             ):
                 try:
@@ -367,12 +370,13 @@ class DataCollectorHTTPServer:
                     components_dict["finviz"] = {"status": "unknown"}
 
             if (
-                hasattr(self.data_service, "twelvedata_client")
+                self.data_service is not None
+                and hasattr(self.data_service, "twelvedata_client")
                 and self.data_service.twelvedata_client
             ):
                 try:
                     twelvedata_healthy = (
-                        await self.data_service.twelvedata_client.test_connection()
+                        await self.data_service.twelvedata_client.get_health()
                     )
                     components_dict = cast(Dict[str, Any], health_info["components"])
                     components_dict["twelvedata"] = {
@@ -386,7 +390,8 @@ class DataCollectorHTTPServer:
                     components_dict["twelvedata"] = {"status": "unknown"}
 
             if (
-                hasattr(self.data_service, "redis_client")
+                self.data_service is not None
+                and hasattr(self.data_service, "redis_client")
                 and self.data_service.redis_client
             ):
                 try:
@@ -551,7 +556,9 @@ class DataCollectorHTTPServer:
             timeframe = timeframe_map.get(timeframe_str, TimeFrame.FIVE_MINUTES)
 
             # Trigger the update
-            if hasattr(self.data_service, "_update_price_data"):
+            if self.data_service is not None and hasattr(
+                self.data_service, "_update_price_data"
+            ):
                 await self.data_service._update_price_data(timeframe)
 
                 return web.json_response(
@@ -580,7 +587,9 @@ class DataCollectorHTTPServer:
         """
         try:
             # Trigger the scan
-            if hasattr(self.data_service, "_run_finviz_scan"):
+            if self.data_service is not None and hasattr(
+                self.data_service, "_run_finviz_scan"
+            ):
                 await self.data_service._run_finviz_scan()
 
                 return web.json_response(
@@ -621,7 +630,9 @@ class DataCollectorHTTPServer:
                 )
 
             # Trigger the cleanup
-            if hasattr(self.data_service, "cleanup_expired_tickers"):
+            if self.data_service is not None and hasattr(
+                self.data_service, "cleanup_expired_tickers"
+            ):
                 removed_tickers = await self.data_service.cleanup_expired_tickers(
                     expiry_hours
                 )
@@ -659,7 +670,9 @@ class DataCollectorHTTPServer:
         Get ticker management statistics.
         """
         try:
-            if hasattr(self.data_service, "get_ticker_statistics"):
+            if self.data_service is not None and hasattr(
+                self.data_service, "get_ticker_statistics"
+            ):
                 stats = await self.data_service.get_ticker_statistics()
 
                 return web.json_response(
@@ -719,6 +732,8 @@ class DataCollectorHTTPServer:
             start_date = end_date - timedelta(days=days)
 
             # Get data from store
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             df = await self.data_service.data_store.load_market_data(
                 ticker=symbol,
                 timeframe=timeframe,
@@ -799,6 +814,8 @@ class DataCollectorHTTPServer:
                 )
 
             # Get latest data
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             df = await self.data_service.data_store.get_latest_data(
                 ticker=symbol, timeframe=timeframe, limit=limit
             )
@@ -869,6 +886,8 @@ class DataCollectorHTTPServer:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             df = await self.data_service.data_store.load_market_data(
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
@@ -966,6 +985,8 @@ class DataCollectorHTTPServer:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             df1 = await self.data_service.data_store.load_market_data(
                 ticker=symbol1,
                 timeframe=TimeFrame.ONE_DAY,
@@ -1089,6 +1110,8 @@ class DataCollectorHTTPServer:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             df = await self.data_service.data_store.load_market_data(
                 ticker=symbol,
                 timeframe=TimeFrame.ONE_DAY,
@@ -1189,6 +1212,8 @@ class DataCollectorHTTPServer:
                 )
 
             # Get quote from TwelveData
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             quote_data = await self.data_service.twelvedata_client.get_quote(symbol)
 
             if quote_data is None:
@@ -1260,6 +1285,8 @@ class DataCollectorHTTPServer:
             timeframe = interval_map.get(interval, TimeFrame.FIVE_MINUTES)
 
             # Get time series data
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             market_data_list = (
                 await self.data_service.twelvedata_client.get_time_series(
                     symbol=symbol,
@@ -1325,7 +1352,9 @@ class DataCollectorHTTPServer:
                     {"status": "error", "message": "Symbols list required"}, status=400
                 )
 
-            if not hasattr(self.data_service, "twelvedata_client"):
+            if self.data_service is None or not hasattr(
+                self.data_service, "twelvedata_client"
+            ):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
                     status=503,
@@ -1374,7 +1403,9 @@ class DataCollectorHTTPServer:
             query = request.match_info["query"]
             exchange = request.query.get("exchange")
 
-            if not hasattr(self.data_service, "twelvedata_client"):
+            if self.data_service is None or not hasattr(
+                self.data_service, "twelvedata_client"
+            ):
                 return web.json_response(
                     {"status": "error", "message": "TwelveData client not available"},
                     status=503,
@@ -1432,6 +1463,8 @@ class DataCollectorHTTPServer:
             timeframe = interval_map.get(interval, TimeFrame.ONE_DAY)
 
             # Get technical indicator data
+            if self.data_service is None:
+                raise web.HTTPServiceUnavailable(text="Data service not available")
             indicator_data = (
                 await self.data_service.twelvedata_client.get_technical_indicators(
                     symbol=symbol,

@@ -312,7 +312,9 @@ class TestRealBacktestEngine:
             pytest.skip(f"Convenience test skipped: {e}")
 
     @pytest.mark.asyncio
-    async def test_error_handling(self, sample_backtest_config: RealBacktestConfig) -> None:
+    async def test_error_handling(
+        self, sample_backtest_config: RealBacktestConfig
+    ) -> None:
         """Test error handling in various scenarios."""
 
         # Test with invalid date range

@@ -11,7 +11,15 @@ sys.path.append("/app/shared")
 from datetime import datetime, timedelta, timezone  # noqa: E402
 from decimal import Decimal  # noqa: E402
 from pathlib import Path  # noqa: E402
-from typing import Any, AsyncGenerator, Callable, Dict, Generator, List, Optional  # noqa: E402
+from typing import (  # noqa: E402
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+)
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 import numpy as np  # noqa: E402
@@ -588,7 +596,7 @@ def mock_prometheus_metrics() -> MagicMock:
 
 
 @pytest.fixture
-def mock_twelve_data_api() -> MagicMock:
+def mock_twelve_data_api() -> Callable[[str, str], Dict[str, Any]]:
     """Mock TwelveData API responses"""
 
     def mock_response(symbol: str = "AAPL", interval: str = "1min") -> Dict[str, Any]:
@@ -627,7 +635,7 @@ def mock_twelve_data_api() -> MagicMock:
 
 
 @pytest.fixture
-def mock_alpaca_api():
+def mock_alpaca_api() -> Dict[str, Any]:
     """Mock Alpaca API responses"""
     return {
         "account": {

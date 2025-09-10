@@ -16,7 +16,7 @@ import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 # Import MaintenanceResult for type compatibility
 from .maintenance import MaintenanceResult
@@ -35,12 +35,13 @@ class MaintenanceSystemTester:
         self.test_results: dict = {}
         self.failed_tests: list = []
         self.passed_tests: list = []
-        self.temp_dir: Path = None
-        self.config = None
+        self.temp_dir: Optional[Path] = None
+        self.mock_config: Optional[Any] = None
         self.redis_client = None
         self.maintenance_manager = None
+        self.maintenance_scheduler: Optional[Any] = None
 
-    async def setup_test_environment(self) -> bool:
+    async def _cleanup_test_environment(self) -> bool:
         """Setup test environment with mock data and configurations."""
         try:
             logger.info("Setting up test environment...")
@@ -68,7 +69,7 @@ class MaintenanceSystemTester:
             logger.error(f"Failed to setup test environment: {e}")
             return False
 
-    async def _create_test_data_structure(self) -> None:
+    async def _create_test_data_structure(self) -> bool:
         """Create test data directories and files."""
         # Create directory structure
         directories = [
@@ -158,6 +159,7 @@ class MaintenanceSystemTester:
         os.utime(old_export, (old_timestamp, old_timestamp))
 
         logger.info("Test data structure created successfully")
+        return True
 
     async def _setup_mock_config(self) -> None:
         """Setup mock configuration for testing."""
@@ -175,17 +177,17 @@ class MaintenanceSystemTester:
                 self.retention_days = 30
 
         class MockLoggingConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.max_file_size = 1024 * 1024  # 1MB
                 self.backup_count = 5
 
         class MockBackupConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.remote_enabled = False
                 self.compression_level = 6
 
         class MockRedisConfig:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.url = "redis://localhost:6379/0"
                 self.host = "localhost"
                 self.port = 6379
@@ -194,17 +196,17 @@ class MaintenanceSystemTester:
 
         if self.temp_dir is None:
             raise RuntimeError("Temp directory not initialized")
-        self.config = MockConfig(self.temp_dir)
+        self.mock_config: MockConfig = MockConfig(self.temp_dir)
         logger.info("Mock configuration setup completed")
 
     async def _setup_redis_client(self) -> None:
         """Setup Redis client (mock or real)."""
         try:
-            if self.config is None:
+            if self.mock_config is None:
                 raise RuntimeError("Config not initialized")
             import redis.asyncio as redis
 
-            self.redis_client = redis.from_url(self.config.redis.url)
+            self.redis_client = redis.from_url(self.mock_config.redis.url)
 
             # Test connection
             await self.redis_client.ping()
@@ -228,7 +230,7 @@ class MaintenanceSystemTester:
             await self.maintenance_manager.register_tasks()
 
             self.maintenance_scheduler = MaintenanceScheduler(self.maintenance_manager)
-            await self.maintenance_scheduler.initialize()
+            await self.maintenance_scheduler.start()
 
             logger.info("Maintenance system initialized")
 
@@ -241,7 +243,7 @@ class MaintenanceSystemTester:
         logger.info("Starting comprehensive maintenance system tests...")
 
         test_suite = [
-            ("setup", self.setup_test_environment),
+            ("setup", self._cleanup_test_environment),
             ("data_cleanup", self.test_data_cleanup_task),
             ("log_rotation", self.test_log_rotation_task),
             ("cache_cleanup", self.test_cache_cleanup_task),
@@ -311,7 +313,7 @@ class MaintenanceSystemTester:
 
         return results
 
-    async def test_data_cleanup_task(self) -> None:
+    async def test_data_cleanup_task(self) -> bool:
         """Test data cleanup task functionality."""
         try:
             if self.maintenance_manager is None:
@@ -339,7 +341,7 @@ class MaintenanceSystemTester:
             logger.error(f"Data cleanup test failed: {e}")
             return False
 
-    async def test_log_rotation_task(self) -> None:
+    async def test_log_rotation_task(self) -> bool:
         """Test log rotation task functionality."""
         try:
             # Check initial state
@@ -405,14 +407,15 @@ class MaintenanceSystemTester:
             )
 
         except Exception as e:
-            logger.error(f"Backup test failed: {e}")
+            logger.error(f"Stress test failed: {e}")
             return False
+        return True
 
     async def test_database_maintenance_task(self) -> None:
         """Test database maintenance task functionality."""
         try:
             if self.maintenance_manager is None:
-                return False
+                return None
             result = await self.maintenance_manager.run_task("database_maintenance")
 
             return (
@@ -423,7 +426,7 @@ class MaintenanceSystemTester:
 
         except Exception as e:
             logger.error(f"Database maintenance test failed: {e}")
-            return False
+            return None
 
     async def test_system_health_check_task(self) -> bool:
         """Test system health check task functionality."""
@@ -549,7 +552,7 @@ class MaintenanceSystemTester:
         try:
             if (
                 not hasattr(self, "maintenance_scheduler")
-                or not self.maintenance_scheduler
+                or self.maintenance_scheduler is None
             ):
                 return False
 
@@ -714,6 +717,16 @@ class MaintenanceSystemTester:
         # Export test results
         await self._export_test_results(results, total_duration)
 
+        return {
+            "total_tests": total_count,
+            "passed": passed_count,
+            "failed": failed_count,
+            "success_rate": passed_count / total_count * 100 if total_count > 0 else 0,
+            "duration": total_duration,
+            "passed_tests": self.passed_tests,
+            "failed_tests": self.failed_tests,
+        }
+
     async def _export_test_results(
         self, results: Dict[str, Any], total_duration: float
     ) -> str:
@@ -769,7 +782,7 @@ class MockRedisClient:
     """Mock Redis client for testing when Redis is not available."""
 
     def __init__(self) -> None:
-        self.data = {}
+        self.data: Dict[str, str] = {}
 
     async def ping(self) -> bool:
         return True
@@ -825,7 +838,7 @@ class MockRedisClient:
 class MockMaintenanceResult(MaintenanceResult):
     """Mock maintenance result for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             task_name="test_task",
             success=True,

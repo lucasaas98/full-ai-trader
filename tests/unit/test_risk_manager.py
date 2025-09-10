@@ -417,7 +417,10 @@ class TestTradeValidation:
 
     @pytest.mark.asyncio
     async def test_validate_trade_request_emergency_stop(
-        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_order_request: OrderRequest,
     ) -> None:
         """Test validation fails when emergency stop is active."""
         # Activate emergency stop
@@ -585,7 +588,10 @@ class TestRiskLimits:
 
     @pytest.mark.asyncio
     async def test_check_position_limits_within_limits(
-        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_order_request: OrderRequest,
     ) -> None:
         """Test position limits check when within limits."""
         risk_filter = await risk_manager._check_position_limits(
@@ -598,7 +604,10 @@ class TestRiskLimits:
 
     @pytest.mark.asyncio
     async def test_check_buying_power_sufficient(
-        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_order_request: OrderRequest,
     ) -> None:
         """Test buying power check with sufficient funds."""
         risk_filter = await risk_manager._check_buying_power(
@@ -797,7 +806,10 @@ class TestVolatilityAndCorrelation:
 
     @pytest.mark.asyncio
     async def test_check_correlation_within_limits(
-        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_order_request: OrderRequest,
     ) -> None:
         """Test correlation check within limits."""
         with patch.object(risk_manager, "_get_symbol_correlation") as mock_corr:
@@ -814,7 +826,10 @@ class TestVolatilityAndCorrelation:
 
     @pytest.mark.asyncio
     async def test_check_correlation_exceeds_limits(
-        self, risk_manager: RiskManager, sample_portfolio: PortfolioState, sample_order_request: OrderRequest
+        self,
+        risk_manager: RiskManager,
+        sample_portfolio: PortfolioState,
+        sample_order_request: OrderRequest,
     ) -> None:
         """Test correlation check when correlation exceeds limits."""
         with patch.object(risk_manager, "_get_symbol_correlation") as mock_corr:

@@ -1206,7 +1206,11 @@ class RiskDatabaseManager:
                 events_by_severity: Dict[str, int] = {}
 
                 for row in events_rows:
-                    count_value = int(row.count) if hasattr(row, 'count') else row[2]
+                    count_value = (
+                        row.count
+                        if hasattr(row, "count") and not callable(row.count)
+                        else row[2]
+                    )
                     events_by_type[row.event_type] = (
                         events_by_type.get(row.event_type, 0) + count_value
                     )

@@ -13,7 +13,7 @@ import signal
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, AsyncGenerator, Dict, Optional
 
 import redis.asyncio as redis
 import uvicorn
@@ -209,7 +209,7 @@ class TradeExecutorService:
                 logger.debug("Restarting signal processing after error delay")
                 # Restart after delay
                 await asyncio.sleep(10)
-                asyncio.create_task(self.start_signal_processing())
+                asyncio.create_task(self._setup_signal_processing())
 
     async def _process_screener_message(self, message: Dict) -> None:
         """
@@ -267,7 +267,7 @@ class TradeExecutorService:
         except Exception as e:
             logger.error(f"Error processing screener message: {e}", exc_info=True)
 
-    async def _process_signal_message(self, message) -> None:
+    async def _process_signal_message(self, message: Dict[str, Any]) -> None:
         """Process individual signal message."""
         try:
             logger.debug(f"Processing signal message: {message}")
@@ -307,17 +307,8 @@ class TradeExecutorService:
 
             # Execute signal
             logger.debug(f"Executing signal {signal.id}")
-            # Convert TradeSignal to dict for execute_signal
-            signal_dict = {
-                "symbol": signal.symbol,
-                "action": signal.signal_type.value,
-                "confidence": signal.confidence,
-                "quantity": signal.quantity,
-                "price": float(signal.price) if signal.price else None,
-                "strategy": signal.strategy_name,
-                "metadata": signal.metadata,
-            }
-            result = await self.execution_engine.execute_signal(signal_dict)
+
+            result = await self.execution_engine._execute_signal(signal)
             logger.debug(f"Signal execution result: {result}")
 
             # Update execution stats
@@ -366,7 +357,7 @@ class TradeExecutorService:
                 try:
                     logger.debug("Getting system status for broadcast")
                     # Get current status
-                    status = await self._get_system_status()
+                    status = await self.get_health_status()
                     logger.debug(f"System status retrieved: {status}")
 
                     # Publish to Redis
@@ -405,7 +396,7 @@ class TradeExecutorService:
 
             # Get account summary
             logger.debug("Getting account summary")
-            account_summary = await self.execution_engine.get_account_summary()
+            account_summary = await self.execution_engine.alpaca_client.get_account()
             logger.debug(f"Account summary retrieved: {account_summary}")
 
             # Get active orders count
@@ -537,7 +528,7 @@ class TradeExecutorService:
 
 # Create FastAPI app with lifespan management
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifespan."""
     # Startup
     logger.debug("Starting application lifespan management")
@@ -550,7 +541,7 @@ async def lifespan(app: FastAPI):
 
         # Start background tasks
         logger.debug("Starting background tasks")
-        task1 = asyncio.create_task(service.start_signal_processing())
+        task1 = asyncio.create_task(service._setup_signal_processing())
         task2 = asyncio.create_task(service.start_status_broadcaster())
         logger.debug(
             f"Background tasks created: signal_processing={task1}, status_broadcaster={task2}"
@@ -649,7 +640,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
 
 @app.get("/")
-async def root():
+async def root() -> Dict[str, Any]:
     """Root endpoint."""
     logger.debug("Root endpoint accessed")
     response = {
@@ -698,7 +689,7 @@ async def healthcheck() -> Dict[str, Any]:
 
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats() -> Dict[str, Any]:
     """Get service statistics."""
     logger.debug("Stats endpoint accessed")
     try:
@@ -725,7 +716,7 @@ async def get_stats():
 
 
 @app.post("/signals/execute")
-async def execute_signal_direct(signal: TradeSignal):
+async def execute_signal_direct(signal: TradeSignal) -> Dict[str, Any]:
     """Direct signal execution endpoint."""
     logger.debug(f"Direct signal execution requested: {signal}")
     try:
@@ -802,7 +793,7 @@ async def get_positions() -> Dict[str, Any]:
 
 
 @app.get("/positions/{symbol}")
-async def get_position(symbol: str):
+async def get_position(symbol: str) -> Dict[str, Any]:
     """Get position for specific symbol."""
     logger.debug(f"Get position endpoint accessed for symbol: {symbol}")
     try:
@@ -824,7 +815,7 @@ async def get_position(symbol: str):
 
 
 @app.post("/positions/{symbol}/close")
-async def close_position(symbol: str, percentage: float = 1.0):
+async def close_position(symbol: str, percentage: float = 1.0) -> Dict[str, Any]:
     """Close position for symbol."""
     logger.debug(
         f"Close position endpoint accessed for symbol: {symbol}, percentage: {percentage}"
@@ -921,7 +912,7 @@ async def get_daily_performance() -> Dict[str, Any]:
 
 
 @app.get("/performance/risk")
-async def get_risk_report():
+async def get_risk_report() -> Dict[str, Any]:
     """Get risk analysis report."""
     logger.debug("Get risk report endpoint accessed")
     try:
@@ -1096,7 +1087,7 @@ def setup_signal_handlers(service: TradeExecutorService) -> None:
     """Setup graceful shutdown signal handlers."""
     logger.debug("Setting up signal handlers for graceful shutdown")
 
-    def signal_handler(signum, frame) -> None:
+    def signal_handler(signum: int, frame: Any) -> None:
         logger.info(f"Received signal {signum}, initiating shutdown...")
         logger.debug(f"Signal handler triggered: signum={signum}, frame={frame}")
         asyncio.create_task(service.cleanup())
@@ -1131,7 +1122,7 @@ async def main() -> None:
         # Start background tasks with error handling
         try:
             logger.debug("Starting background tasks")
-            task1 = asyncio.create_task(service.start_signal_processing())
+            task1 = asyncio.create_task(service._setup_signal_processing())
             task2 = asyncio.create_task(service.start_status_broadcaster())
             logger.info("Background tasks started")
             logger.debug(
@@ -1221,6 +1212,8 @@ class TradeExecutorApp:
 
     def get_service(self) -> TradeExecutorService:
         """Get the underlying service instance."""
+        if self.service is None:
+            raise RuntimeError("Service not initialized")
         return self.service
 
 

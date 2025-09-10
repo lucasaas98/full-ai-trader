@@ -3,7 +3,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import List
 from uuid import uuid4
 
 import numpy as np
@@ -163,11 +163,7 @@ class SimpleBacktestEngine:
         # Calculate additional metrics
         max_drawdown = 0.0  # Simplified - should calculate actual drawdown
         avg_trade_return = returns.mean() if len(returns) > 0 else 0.0
-        volatility = returns.std() if len(returns) > 0 else 0.0
         total_trades = len(trades)
-        benchmark_return = 0.05  # Simplified benchmark return
-        alpha = total_return - benchmark_return
-        beta = 1.0  # Simplified beta
 
         return PerformanceMetrics(
             total_return=float(total_return),
@@ -175,8 +171,10 @@ class SimpleBacktestEngine:
             sharpe_ratio=float(sharpe_ratio),
             max_drawdown=float(max_drawdown),
             win_rate=float(win_rate),
-            profit_factor=float(abs(avg_trade_return)) if avg_trade_return != 0 else 1.0,
-            total_trades=total_trades
+            profit_factor=(
+                float(abs(avg_trade_return)) if avg_trade_return != 0 else 1.0
+            ),
+            total_trades=total_trades,
         )
 
 

@@ -200,7 +200,7 @@ class MockDataCollector:
                 # Publish market data updates for each symbol
                 for symbol in self.config.available_symbols:
                     if symbol in self._cached_data and self._cached_data[symbol]:
-                        await self._publish_symbol_update(symbol, current_time)
+                        await self._publish_data_updates(symbol, current_time)
 
                 await asyncio.sleep(self.config.redis_publish_interval)
 

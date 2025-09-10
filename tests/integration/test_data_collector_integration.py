@@ -9,7 +9,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, List, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -437,29 +437,29 @@ class TestDataCollectorPerformance:
 
 def create_sample_finviz_data(
     symbols: Optional[List[str]] = None,
-) -> List[FinVizData]:
+) -> List[Any]:
     """Create sample FinViz data for testing"""
     if symbols is None:
         symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
 
-    from shared.models import FinVizData
+    # Use dict instead of FinVizData model for compatibility
 
     sample_data = []
     for i, symbol in enumerate(symbols):
         sample_data.append(
-            FinVizData(
-                ticker=symbol,
-                symbol=symbol,
-                company=f"{symbol} Inc.",
-                industry="Technology",
-                country="USA",
-                price=Decimal(f"{100.0 + i * 10:.2f}"),
-                change=0.25 + i * 0.1,
-                volume=1000000 + i * 100000,
-                market_cap=Decimal(f"{1000000000000 + i * 100000000000}"),
-                pe_ratio=20.0 + i * 2.0,
-                sector="Technology",
-            )
+            {
+                "ticker": symbol,
+                "symbol": symbol,
+                "company": f"{symbol} Inc.",
+                "industry": "Technology",
+                "country": "USA",
+                "price": Decimal(f"{100.0 + i * 10:.2f}"),
+                "change": 0.25 + i * 0.1,
+                "volume": 1000000 + i * 100000,
+                "market_cap": Decimal(f"{1000000000000 + i * 100000000000}"),
+                "pe_ratio": 20.0 + i * 2.0,
+                "sector": "Technology",
+            }
         )
 
     return sample_data

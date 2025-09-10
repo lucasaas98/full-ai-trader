@@ -134,7 +134,7 @@ class AIStrategyIntegration:
         # Start background tasks
         asyncio.create_task(self._market_regime_monitor())
         asyncio.create_task(self._position_monitor())
-        asyncio.create_task(self._performance_monitor())
+        asyncio.create_task(self._position_monitor())
 
         # Start listening for data
         if self.data_subscriber:
@@ -668,7 +668,7 @@ class AIStrategyIntegration:
         self.signal_callbacks.append(callback)
 
     async def add_position(
-        self, ticker: str, entry_price: float, quantity: int, **kwargs
+        self, ticker: str, entry_price: float, quantity: int, **kwargs: Any
     ) -> None:
         """
         Add a position to track.

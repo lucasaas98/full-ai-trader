@@ -33,7 +33,7 @@ class SchedulerClient:
         self.base_url = base_url.rstrip("/")
 
     async def _make_request(
-        self, method: str, endpoint: str, **kwargs
+        self, method: str, endpoint: str, **kwargs: Any
     ) -> Dict[str, Any]:
         """Make HTTP request to scheduler API."""
         url = f"{self.base_url}{endpoint}"
@@ -105,10 +105,10 @@ class SchedulerClient:
         return await self._make_request("GET", f"/logs?lines={lines}")
 
 
-def run_async(func) -> Callable:
+def run_async(func: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator to run async functions in typer commands."""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         return asyncio.run(func(*args, **kwargs))
 
     return wrapper
@@ -726,7 +726,9 @@ async def config(
             # Display configuration as a tree
             tree = Tree("Configuration")
 
-            def add_to_tree(parent, data, prefix="") -> None:
+            def add_to_tree(
+                parent: Tree, data: Dict[str, Any], prefix: str = ""
+            ) -> None:
                 for key, value in data.items():
                     if isinstance(value, dict):
                         branch = parent.add(f"[cyan]{key}[/cyan]")
@@ -1788,7 +1790,7 @@ def main(
         False, "--verbose", "-v", help="Enable verbose output"
     ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug output"),
-):
+) -> None:
     """
     Trading Scheduler CLI - Control and monitor your automated trading system.
 

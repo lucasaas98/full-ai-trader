@@ -51,6 +51,18 @@ class DatabaseManager:
     async def disconnect(self) -> None:
         pass
 
+    async def execute_query(self, query: str) -> Dict[str, Any]:
+        """Execute a database query and return result."""
+        return {"success": True, "result": []}
+
+    async def insert_market_data(self, data: Dict[str, Any]) -> bool:
+        """Insert market data into database."""
+        return True
+
+    async def insert_trade(self, trade_data: Dict[str, Any]) -> bool:
+        """Insert trade data into database."""
+        return True
+
 
 class RedisPubSubTester:
     """Test Redis pub/sub functionality."""
@@ -831,7 +843,8 @@ class TestDatabaseOperations:
                 "timestamp": datetime.now(timezone.utc),
             }
 
-            database_tester.cursor.execute(position_query, position_params)
+            if database_tester.cursor:
+                database_tester.cursor.execute(position_query, position_params)
 
             # Commit transaction
             assert database_tester.connection is not None
@@ -1324,8 +1337,8 @@ class TestDatabaseIntegration:
     ) -> None:
         """Test concurrent read and write operations."""
 
-        def reader_worker(worker_id: int, results: List) -> None:
-            """Worker that performs read operations."""
+        def writer_worker(worker_id: int, results: List) -> None:
+            """Worker that performs write operations."""
             worker_db = DatabaseTester(database_tester.db_config)
             worker_db.connect()
 
@@ -1588,7 +1601,7 @@ class TestDataPipeline:
 
         # Store some data in database for persistence testing
         for data in published_data[:3]:
-            db_result = database_tester.insert_market_data(data)
+            db_result = database_tester.insert_market_data(test_data)
             assert db_result[
                 "success"
             ], f"Failed to persist data: {db_result.get('error')}"
@@ -1718,9 +1731,7 @@ class TestSystemResilience:
 
         print("Redis connection recovery test passed")
 
-    def test_database_connection_pool(
-        self, database_tester: DatabaseTester
-    ) -> None:
+    def test_database_connection_pool(self, database_tester: DatabaseTester) -> None:
         """Test database connection pool behavior under stress."""
         # Create multiple connections to test pool behavior
         connection_count = 20

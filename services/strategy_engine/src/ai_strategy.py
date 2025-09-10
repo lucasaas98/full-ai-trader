@@ -282,11 +282,11 @@ class RateLimiter:
     async def acquire(self, model: AIModel) -> None:
         """Wait if necessary to respect rate limits."""
         if model in self.last_request_time:
-            elapsed = (datetime.now() - self.last_request_time[model]).total_seconds()
+            elapsed = datetime.now().timestamp() - self.last_request_time[model]
             if elapsed < self.min_delay[model]:
                 await asyncio.sleep(self.min_delay[model] - elapsed)
 
-        self.last_request_time[model] = datetime.now()
+        self.last_request_time[model] = datetime.now().timestamp()
 
 
 class ResponseCache:
