@@ -519,29 +519,27 @@ class TestStrategyEngineService:
             for i in range(50)
         ]
 
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetch.return_value = (
-            mock_rows
-        )
+        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_db_pool.acquire.return_value.__aenter__.return_value.fetch.return_value = (
+                mock_rows
+            )
 
-        result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, limit=50)
+            result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, limit=50)
 
-        assert len(result) == 50
-        assert all(isinstance(item, MarketData) for item in result)
+            assert len(result) == 50
+            assert all(isinstance(item, MarketData) for item in result)
 
     @pytest.mark.asyncio
     async def test_get_historical_data_database_error(
         self, service: StrategyEngineService
     ) -> None:
         """Test handling of database errors during data retrieval"""
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetch.side_effect = Exception(
-            "Database error"
-        )
-
-        result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, days=30)
-
-        assert result == []
+        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_db_pool.acquire.return_value.__aenter__.return_value.fetch.side_effect = Exception(
+                "Database error"
+            )
+            result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, limit=50)
+            assert result == []
 
     @pytest.mark.asyncio
     async def test_store_signal_success(self, service: StrategyEngineService) -> None:
@@ -559,14 +557,14 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute = (
-            AsyncMock()
-        )
+        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_db_pool.acquire.return_value.__aenter__.return_value.execute = (
+                AsyncMock()
+            )
 
-        await service.store_signal(signal)
+            await service.store_signal(signal)
 
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute.assert_called_once()
+            mock_db_pool.acquire.return_value.__aenter__.return_value.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_store_signal_database_error(
@@ -586,13 +584,13 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.execute.side_effect = Exception(
-            "Database error"
-        )
+        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_db_pool.acquire.return_value.__aenter__.return_value.execute.side_effect = Exception(
+                "Database error"
+            )
 
-        # Should not raise exception
-        await service.store_signal(signal)
+            with pytest.raises(Exception, match="Database error"):
+                await service.store_signal(signal)
 
     @pytest.mark.asyncio
     async def test_publish_signal_to_redis(
@@ -612,12 +610,12 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        service.redis_client = AsyncMock()
-        await service.publish_signal(signal)
+        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client:
+            await service.publish_signal(signal)
 
-        service.redis_client.publish.assert_called_once()
-        call_args = service.redis_client.publish.call_args
-        assert call_args[0][0] == "trade_signals"  # Channel name
+            mock_redis_client.publish.assert_called_once()
+            call_args = mock_redis_client.publish.call_args
+            assert call_args[0][0] == "trade_signals"  # Channel name
 
     @pytest.mark.asyncio
     async def test_signal_filtering_by_confidence(
@@ -748,36 +746,36 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test health check for healthy service"""
-        service.redis_client = AsyncMock()
-        service.redis_client.ping = AsyncMock(return_value=True)
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
-            AsyncMock(return_value={"version": "15.0"})
-        )
+        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client, \
+             patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_redis_client.ping = AsyncMock(return_value=True)
+            mock_db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
+                AsyncMock(return_value={"version": "15.0"})
+            )
 
-        health = await service.get_health()
+            health = await service.get_health()
 
-        assert health["status"] == "healthy"
-        assert health["redis"] == "connected"
-        assert health["database"] == "connected"
+            assert health["status"] == "healthy"
+            assert health["redis"] == "connected"
+            assert health["database"] == "connected"
 
     @pytest.mark.asyncio
     async def test_health_check_unhealthy_service(
         self, service: StrategyEngineService
     ) -> None:
         """Test health check with unhealthy dependencies"""
-        service.redis_client = AsyncMock()
-        service.redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
-        service.db_pool = AsyncMock()
-        service.db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
-            AsyncMock(side_effect=Exception("Database error"))
-        )
+        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client, \
+             patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+            mock_redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
+            mock_db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
+                AsyncMock(side_effect=Exception("Database error"))
+            )
 
-        health = await service.get_health()
+            health = await service.get_health()
 
-        assert health["status"] == "unhealthy"
-        assert health["redis"] == "disconnected"
-        assert health["database"] == "disconnected"
+            assert health["status"] == "unhealthy"
+            assert health["redis"] == "disconnected"
+            assert health["database"] == "disconnected"
 
 
 class TestStrategyEngineAPI:

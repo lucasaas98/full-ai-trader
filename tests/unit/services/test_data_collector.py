@@ -376,7 +376,7 @@ class TestDataCollectorApp:
 
     def test_parse_twelve_data_response_empty(self, service: DataCollectorApp) -> None:
         """Test parsing empty TwelveData response"""
-        response_data = {}
+        response_data: dict[str, str] = {}
 
         result = service._parse_twelve_data_response(response_data)
         assert isinstance(result, dict)
@@ -1280,7 +1280,9 @@ class TestDataFlow:
                     and service.data_service._stats.get("total_records_saved")
                     is not None
                 ):
-                    service.data_service._stats["total_records_saved"] += 1
+                    service.data_service._stats["total_records_saved"] = (
+                        service.data_service._stats["total_records_saved"] or 0
+                    ) + 1
 
             # Publish to Redis
             await mock_redis_client.publish_market_data_update(
@@ -1553,7 +1555,9 @@ class TestDataFlow:
                 service.data_service
                 and service.data_service._stats.get("total_records_saved") is not None
             ):
-                service.data_service._stats["total_records_saved"] += len(test_data)
+                service.data_service._stats["total_records_saved"] = (
+                    service.data_service._stats["total_records_saved"] or 0
+                ) + len(test_data)
 
             # 2. Publish updates to Redis for each ticker
             for data in test_data:
@@ -1762,7 +1766,9 @@ class TestDataFlow:
                 and service.data_service._stats
                 and service.data_service._stats.get("screener_runs") is not None
             ):
-                service.data_service._stats["screener_runs"] += 1
+                service.data_service._stats["screener_runs"] = (
+                    service.data_service._stats["screener_runs"] or 0
+                ) + 1
 
             # 2. Add new tickers to tracking
             for stock in screener_result.data:
@@ -1903,9 +1909,9 @@ class TestDataFlow:
                     and service.data_service._stats.get("total_records_saved")
                     is not None
                 ):
-                    service.data_service._stats["total_records_saved"] += len(
-                        market_data
-                    )
+                    service.data_service._stats["total_records_saved"] = (
+                        service.data_service._stats["total_records_saved"] or 0
+                    ) + len(market_data)
 
                 return len(market_data)
 
@@ -2208,7 +2214,9 @@ class TestPerformance:
                     and service.data_service._stats
                     and service.data_service._stats.get("data_updates") is not None
                 ):
-                    service.data_service._stats["data_updates"] += 1
+                    service.data_service._stats["data_updates"] = (
+                        service.data_service._stats["data_updates"] or 0
+                    ) + 1
 
             # Execute all requests concurrently
             start_time = time.time()

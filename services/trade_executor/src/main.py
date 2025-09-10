@@ -1180,7 +1180,7 @@ class TradeExecutorApp:
 
     def __init__(self) -> None:
         """Initialize the Trade Executor application."""
-        self.service = None
+        self.service: Optional[TradeExecutorService] = None
         self._initialized = False
 
     async def initialize(self) -> None:

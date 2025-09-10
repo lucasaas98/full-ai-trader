@@ -47,15 +47,15 @@ class ExecutionEngine:
         )
 
         # Initialize components
-        self.alpaca_client = AlpacaClient()
-        self.order_manager = OrderManager(self.alpaca_client)
-        self.position_tracker = PositionTracker(self.alpaca_client)
-        self.performance_tracker = PerformanceTracker()
+        self.alpaca_client: AlpacaClient = AlpacaClient()
+        self.order_manager: OrderManager = OrderManager(self.alpaca_client)
+        self.position_tracker: PositionTracker = PositionTracker(self.alpaca_client)
+        self.performance_tracker: PerformanceTracker = PerformanceTracker()
 
         # Redis and database
-        self._redis = None
-        self._db_pool = None
-        self._running = False
+        self._redis: Optional[redis.Redis] = None
+        self._db_pool: Optional[asyncpg.Pool] = None
+        self._running: bool = False
 
         # Setup FastAPI routes
         self._setup_routes()

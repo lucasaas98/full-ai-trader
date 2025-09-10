@@ -31,14 +31,16 @@ logger = logging.getLogger(__name__)
 class MaintenanceSystemTester:
     """Comprehensive tester for the maintenance system."""
 
+    redis_client: Any
+
     def __init__(self) -> None:
         self.test_results: dict = {}
         self.failed_tests: list = []
         self.passed_tests: list = []
         self.temp_dir: Optional[Path] = None
         self.mock_config: Optional[Any] = None
-        self.redis_client: Optional[MockRedisClient] = None
-        self.maintenance_manager = None
+        self.redis_client: Any = None
+        self.maintenance_manager: Optional[Any] = None
         self.maintenance_scheduler: Optional[Any] = None
 
     async def _cleanup_test_environment(self) -> bool:
@@ -206,7 +208,7 @@ class MaintenanceSystemTester:
                 raise RuntimeError("Config not initialized")
             import redis.asyncio as redis
 
-            self.redis_client = redis.from_url(self.mock_config.redis.url)
+            self.redis_client = redis.from_url(self.mock_config.redis.url)  # type: ignore
 
             # Test connection
             if self.redis_client:
@@ -231,7 +233,7 @@ class MaintenanceSystemTester:
             await self.maintenance_manager.register_tasks()
 
             self.maintenance_scheduler = MaintenanceScheduler(self.maintenance_manager)
-            await self.maintenance_scheduler.start()
+            await self.maintenance_scheduler.initialize()
 
             logger.info("Maintenance system initialized")
 
@@ -412,11 +414,11 @@ class MaintenanceSystemTester:
             return False
         return True
 
-    async def test_database_maintenance_task(self) -> None:
+    async def test_database_maintenance_task(self) -> bool:
         """Test database maintenance task functionality."""
         try:
             if self.maintenance_manager is None:
-                return None
+                return False
             result = await self.maintenance_manager.run_task("database_maintenance")
 
             return (
@@ -427,7 +429,7 @@ class MaintenanceSystemTester:
 
         except Exception as e:
             logger.error(f"Database maintenance test failed: {e}")
-            return None
+            return False
 
     async def test_system_health_check_task(self) -> bool:
         """Test system health check task functionality."""
