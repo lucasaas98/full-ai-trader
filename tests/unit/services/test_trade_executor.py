@@ -587,7 +587,9 @@ class TestTradeExecutorService:
 
         # Mock Redis publish
         if service._redis is not None:
-            with patch.object(service._redis, 'publish', return_value=1) as mock_publish:
+            with patch.object(
+                service._redis, "publish", return_value=1
+            ) as mock_publish:
                 # Simulate signal publishing (this would depend on actual implementation)
                 result = await service._redis.publish("trade_signals", str(signal_data))
 
@@ -734,7 +736,9 @@ class TestTradeExecutorService:
         #     "timestamp": datetime.now(timezone.utc).isoformat(),
         # }
 
-        with patch.object(service, "process_fill_notification", create=True) as mock_process:
+        with patch.object(
+            service, "process_fill_notification", create=True
+        ) as mock_process:
             # Mock fill handling
             with patch("asyncio.create_task") as mock_task:
                 mock_task.return_value = Mock()
@@ -761,7 +765,9 @@ class TestTradeExecutorService:
 
             # Should track partial fill and continue monitoring order
             # This would be handled by the order manager
-            assert int(partial_fill["filled_quantity"]) < int(partial_fill["total_quantity"])
+            assert int(partial_fill["filled_quantity"]) < int(
+                partial_fill["total_quantity"]
+            )
 
     def test_missing_type_annotation_function(
         self, service: TradeExecutorService
