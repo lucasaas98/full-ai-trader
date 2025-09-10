@@ -687,7 +687,7 @@ class TestInputValidation:
         ), "Valid trading params rejected"
 
         # Invalid parameters
-        invalid_params = [
+        invalid_params: list[dict[str, object]] = [
             {"symbol": "AAPL", "quantity": -100},  # Negative quantity
             {"symbol": "AAPL", "quantity": "invalid"},  # Non-numeric quantity
             {"symbol": "A" * 20, "quantity": 100},  # Symbol too long
@@ -1229,8 +1229,10 @@ class TestAuditingAndCompliance:
         ), "Trading history structure changed"
 
         # Verify trading data values are preserved (for analysis)
-        trading_history_anon = list(anonymized_data["trading_history"])
-        trading_history_orig = list(user_data["trading_history"])
+        trading_history_anon: list[dict[str, Any]] = list(
+            anonymized_data["trading_history"]
+        )
+        trading_history_orig: list[dict[str, Any]] = list(user_data["trading_history"])
         for orig, anon in zip(trading_history_orig, trading_history_anon):
             assert (
                 orig["symbol"] == anon["symbol"]
