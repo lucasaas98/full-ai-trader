@@ -777,7 +777,7 @@ class TestAlgorithmValidation:
                 active_tickers=test_params["active_tickers"],  # type: ignore
                 timeframes=test_params["timeframes"],  # type: ignore
                 market_volatility=test_params["market_volatility"],  # type: ignore
-                priority_weights=test_params.get("priority_weights")  # type: ignore
+                priority_weights=test_params.get("priority_weights"),  # type: ignore
             )
             results.append(intervals)
 
