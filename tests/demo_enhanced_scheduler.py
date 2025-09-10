@@ -16,6 +16,7 @@ The enhanced algorithm considers:
 
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -356,7 +357,7 @@ def demonstrate_algorithm_improvements() -> None:
         return optimal_intervals
 
     # Test scenarios
-    test_cases = [
+    test_cases: list[dict[str, Any]] = [
         {
             "name": "High volatility, many tickers",
             "api_limits": {"api": 100},

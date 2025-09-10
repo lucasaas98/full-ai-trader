@@ -276,7 +276,7 @@ class MaintenanceSystemTester:
                         test_name: {
                             "passed": False,
                             "duration": 0.0,
-                            "error": "Maintenance manager not initialized",
+                            "error": None,
                         }
                         for test_name, _ in test_suite
                     }
@@ -301,7 +301,7 @@ class MaintenanceSystemTester:
                 results[test_name] = {
                     "passed": False,
                     "duration": test_duration,
-                    "error": str(e),
+                    "error": None,
                 }
                 self.failed_tests.append(test_name)
                 logger.error(f"❌ {test_name} failed with exception: {e}")

@@ -698,7 +698,7 @@ class TestInputValidation:
 
         for invalid_param in invalid_params:
             combined_params = dict(valid_params)
-            combined_params.update(dict(invalid_param))
+            combined_params.update(invalid_param)
             assert not security_manager.validate_trading_params(
                 combined_params
             ), f"Invalid params accepted: {invalid_param}"
@@ -1233,9 +1233,9 @@ class TestAuditingAndCompliance:
         trading_history_orig = list(user_data["trading_history"])
         for orig, anon in zip(trading_history_orig, trading_history_anon):
             assert (
-                orig["symbol"] == list(anon)[0]
+                orig["symbol"] == anon["symbol"]
             ), "Trading symbol changed during anonymization"
-            assert orig["quantity"] == list(anon)[1], "Trading quantity changed"
+            assert orig["quantity"] == anon["quantity"], "Trading quantity changed"
 
 
 @pytest.mark.security
