@@ -61,7 +61,7 @@ class TradeExecutorService:
         )
         self.execution_engine = ExecutionEngine()
         logger.debug("ExecutionEngine instance created")
-        self._redis = None
+        self._redis: Optional[redis.Redis] = None
         self._running = False
         self._websocket_connections: set = set()
         self._signal_processing_stats = {

@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
@@ -642,7 +642,7 @@ class TestTradeExecutorService:
         with patch("asyncio.create_task") as mock_task:
             mock_task.return_value = Mock()
             # Mock fragmentation logic
-            fragment_orders = fragment_result
+            fragment_orders: list[dict[str, Any]] = fragment_result
 
             # Should create multiple smaller orders
             assert len(fragment_orders) > 1
@@ -661,10 +661,10 @@ class TestTradeExecutorService:
         }
 
         # Mock smart routing logic
-        routing = routing_result
+        routing: dict[str, Any] = routing_result
 
         assert routing["recommended_venue"] == "dark_pool"
-        assert routing["expected_savings"] > 0
+        assert routing["expected_savings"] > 0.0
 
     @pytest.mark.asyncio
     async def test_order_timing_optimization(
@@ -672,7 +672,10 @@ class TestTradeExecutorService:
     ) -> None:
         """Test optimal order timing detection"""
         # Test timing optimization
-        timing_result = {"recommendation": "execute_now", "delay_seconds": 0}
+        timing_result: dict[str, Any] = {
+            "recommendation": "execute_now",
+            "delay_seconds": 0,
+        }
 
         # Mock timing optimization logic
         timing = timing_result
@@ -765,7 +768,9 @@ class TestTradeExecutorService:
 
             # Should track partial fill and continue monitoring order
             # This would be handled by the order manager
-            assert partial_fill["filled_quantity"] < partial_fill["total_quantity"]
+            assert int(partial_fill["filled_quantity"]) < int(
+                partial_fill["total_quantity"]
+            )
 
     def test_missing_type_annotation_function(
         self, service: TradeExecutorService
