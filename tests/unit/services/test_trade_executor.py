@@ -587,9 +587,7 @@ class TestTradeExecutorService:
 
         # Mock Redis publish
         if service._redis is not None:
-            with patch.object(
-                service._redis, "publish", return_value=1
-            ) as mock_publish:
+            with patch.object(service._redis, 'publish', return_value=1) as mock_publish:
                 # Simulate signal publishing (this would depend on actual implementation)
                 result = await service._redis.publish("trade_signals", str(signal_data))
 
@@ -727,18 +725,16 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_order_fill_notification(self, service: TradeExecutorService) -> None:
         """Test order fill notification system"""
-        fill_notification = {
-            "order_id": "order_123",
-            "symbol": "AAPL",
-            "side": "buy",
-            "quantity": 100,
-            "fill_price": 199.80,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        # fill_notification = {
+        #     "order_id": "order_123",
+        #     "symbol": "AAPL",
+        #     "side": "buy",
+        #     "quantity": 100,
+        #     "fill_price": 199.80,
+        #     "timestamp": datetime.now(timezone.utc).isoformat(),
+        # }
 
-        with patch.object(
-            service, "process_fill_notification", create=True
-        ) as mock_process:
+        with patch.object(service, "process_fill_notification", create=True) as mock_process:
             # Mock fill handling
             with patch("asyncio.create_task") as mock_task:
                 mock_task.return_value = Mock()
@@ -796,12 +792,12 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_calculate_trading_costs(self, service: TradeExecutorService) -> None:
         """Test trading cost calculation"""
-        order_details = {
-            "symbol": "AAPL",
-            "quantity": 100,
-            "price": 200.0,
-            "side": "buy",
-        }
+        # order_details = {
+        #     "symbol": "AAPL",
+        #     "quantity": 100,
+        #     "price": 200.0,
+        #     "side": "buy",
+        # }
 
         # Mock the calculate_trading_costs method since it doesn't exist
         # Mock cost calculation

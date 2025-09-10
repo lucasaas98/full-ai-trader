@@ -687,7 +687,7 @@ class TestInputValidation:
         ), "Valid trading params rejected"
 
         # Invalid parameters
-        invalid_params: list[dict[str, object]] = [
+        invalid_params = [
             {"symbol": "AAPL", "quantity": -100},  # Negative quantity
             {"symbol": "AAPL", "quantity": "invalid"},  # Non-numeric quantity
             {"symbol": "A" * 20, "quantity": 100},  # Symbol too long
@@ -698,7 +698,7 @@ class TestInputValidation:
 
         for invalid_param in invalid_params:
             combined_params = dict(valid_params)
-            combined_params.update(invalid_param)
+            combined_params.update(dict(invalid_param))
             assert not security_manager.validate_trading_params(
                 combined_params
             ), f"Invalid params accepted: {invalid_param}"
@@ -1229,15 +1229,15 @@ class TestAuditingAndCompliance:
         ), "Trading history structure changed"
 
         # Verify trading data values are preserved (for analysis)
-        trading_history_anon: list[dict[str, Any]] = list(
-            anonymized_data["trading_history"]
-        )
-        trading_history_orig: list[dict[str, Any]] = list(user_data["trading_history"])
+        trading_history_anon = list(anonymized_data["trading_history"])
+        trading_history_orig = list(user_data["trading_history"])
         for orig, anon in zip(trading_history_orig, trading_history_anon):
             assert (
-                orig["symbol"] == anon["symbol"]
+                orig["symbol"] == list(anon)[0]
             ), "Trading symbol changed during anonymization"
-            assert orig["quantity"] == anon["quantity"], "Trading quantity changed"
+            assert (
+                orig["quantity"] == list(anon)[1]
+            ), "Trading quantity changed"
 
 
 @pytest.mark.security
