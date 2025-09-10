@@ -37,7 +37,7 @@ class MaintenanceSystemTester:
         self.passed_tests: list = []
         self.temp_dir: Optional[Path] = None
         self.mock_config: Optional[Any] = None
-        self.redis_client = None
+        self.redis_client: Optional[MockRedisClient] = None
         self.maintenance_manager = None
         self.maintenance_scheduler: Optional[Any] = None
 
@@ -196,7 +196,7 @@ class MaintenanceSystemTester:
 
         if self.temp_dir is None:
             raise RuntimeError("Temp directory not initialized")
-        self.mock_config: MockConfig = MockConfig(self.temp_dir)
+        self.mock_config = MockConfig(self.temp_dir)
         logger.info("Mock configuration setup completed")
 
     async def _setup_redis_client(self) -> None:
@@ -209,23 +209,24 @@ class MaintenanceSystemTester:
             self.redis_client = redis.from_url(self.mock_config.redis.url)
 
             # Test connection
-            await self.redis_client.ping()
+            if self.redis_client:
+                await self.redis_client.ping()
             logger.info("Redis connection established")
 
         except Exception as e:
             logger.warning(f"Redis connection failed, using mock: {e}")
             # Use mock Redis for testing
-            self.redis_client: MockRedisClient = MockRedisClient()
+            self.redis_client = MockRedisClient()
 
     async def _initialize_maintenance_system(self) -> None:
         """Initialize the maintenance system."""
         try:
             from .maintenance import MaintenanceManager, MaintenanceScheduler
 
-            if self.config is None or self.redis_client is None:
+            if self.mock_config is None or self.redis_client is None:
                 raise RuntimeError("Config or Redis client not initialized")
             self.maintenance_manager = MaintenanceManager(
-                self.config, self.redis_client
+                self.mock_config, self.redis_client
             )
             await self.maintenance_manager.register_tasks()
 

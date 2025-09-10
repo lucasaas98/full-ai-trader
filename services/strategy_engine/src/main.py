@@ -12,7 +12,7 @@ import logging
 import os
 import sys
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
 import polars as pl
@@ -183,7 +183,7 @@ class StrategyEngineService:
     @property
     def redis_client(self) -> Optional[Any]:
         """Redis client property for test compatibility."""
-        return self.redis_engine.client if self.redis_engine else None
+        return self.redis_engine.redis if self.redis_engine else None
 
     async def initialize(self) -> bool:
         """Initialize all service components."""
@@ -467,38 +467,51 @@ class StrategyEngineService:
                 hybrid_signal = signal
 
             if hybrid_signal:
-                formatted_signal = signal_generator.generate_formatted_signal(
-                    request.symbol, hybrid_signal, strategy.config.mode.value
+                formatted_signal: Dict[str, Any] = (
+                    signal_generator.generate_formatted_signal(
+                        request.symbol, hybrid_signal, strategy.config.mode.value
+                    )
                 )
             else:
                 formatted_signal = {"error": "No signal generated"}
 
             # Add analysis details if requested
-            if request.include_analysis:
-                formatted_signal["analysis_details"] = {
+            if request.include_analysis and isinstance(formatted_signal, dict):
+                strategy_info = strategy.get_strategy_info()
+                if isinstance(strategy_info, dict):
+                    strategy_info_dict = strategy_info
+                else:
+                    strategy_info_dict = {"info": str(strategy_info)}
+
+                analysis_details = {
                     "technical_score": getattr(signal, "technical_score", 0.0),
                     "fundamental_score": getattr(signal, "fundamental_score", 0.0),
                     "signal_metadata": (
                         signal.metadata if hasattr(signal, "metadata") else {}
                     ),
-                    "strategy_info": strategy.get_strategy_info(),
+                    "strategy_info": strategy_info_dict,
                 }
+                formatted_signal["analysis_details"] = analysis_details
 
             # Publish signal if Redis is available
             if (
                 self.redis_engine
                 and self.redis_engine.publisher
-                and signal.confidence >= strategy.config.min_confidence
+                and hybrid_signal
+                and hybrid_signal.confidence >= strategy.config.min_confidence
             ):
                 self.logger.debug(
-                    f"Publishing signal for {request.symbol} to Redis (confidence: {signal.confidence})"
+                    f"Publishing signal for {request.symbol} to Redis (confidence: {hybrid_signal.confidence})"
                 )
                 await self.redis_engine.publisher.publish_signal(
                     request.symbol, hybrid_signal, strategy.name
                 )
-            elif signal.confidence < strategy.config.min_confidence:
+            elif (
+                hybrid_signal
+                and hybrid_signal.confidence < strategy.config.min_confidence
+            ):
                 self.logger.debug(
-                    f"Signal confidence {signal.confidence} below threshold {strategy.config.min_confidence}, not publishing"
+                    f"Signal confidence {hybrid_signal.confidence} below threshold {strategy.config.min_confidence}, not publishing"
                 )
 
             return {
@@ -1456,7 +1469,7 @@ class StrategyEngineService:
             return None
 
     async def generate_bollinger_signal(
-        self, symbol: str, period: int = 20
+        self, symbol: str, period: int = 20, std_dev: float = 2.0
     ) -> Optional[Any]:
         """Generate Bollinger Bands signal - test compatibility method."""
         request = SignalGenerationRequest(
@@ -1468,7 +1481,7 @@ class StrategyEngineService:
         except Exception:
             return None
 
-    async def generate_macd_signal(self, symbol: str) -> Optional[Any]:
+    async def generate_macd_signal(self, symbol: str, **kwargs) -> Optional[Any]:
         """Generate MACD signal - test compatibility method."""
         request = SignalGenerationRequest(symbol=symbol, strategy_name="MACDStrategy")
         try:
@@ -1479,19 +1492,51 @@ class StrategyEngineService:
 
     def calculate_sma(self, prices: List[float], period: int) -> List[float]:
         """Calculate Simple Moving Average - test compatibility method."""
-        return self.technical_engine.calculate_sma(prices, period)
+        # Convert list to polars DataFrame for processing
+        import polars as pl
+
+        df = pl.DataFrame({"close": prices})
+        result_df = self.technical_engine.indicators.sma(df, period)
+        return result_df.select(f"sma_{period}").to_series().to_list()
 
     def calculate_ema(self, prices: List[float], period: int) -> List[float]:
         """Calculate Exponential Moving Average - test compatibility method."""
-        return self.technical_engine.calculate_ema(prices, period)
+        # Convert list to polars DataFrame for processing
+        import polars as pl
+
+        df = pl.DataFrame({"close": prices})
+        result_df = self.technical_engine.indicators.ema(df, period)
+        return result_df.select(f"ema_{period}").to_series().to_list()
 
     def calculate_rsi(self, prices: List[float], period: int = 14) -> List[float]:
         """Calculate RSI - test compatibility method."""
-        return self.technical_engine.calculate_rsi(prices, period)
+        # Convert list to polars DataFrame for processing
+        import polars as pl
 
-    def calculate_macd(self, prices: List[float]) -> Dict[str, List[float]]:
+        df = pl.DataFrame({"close": prices})
+        result_df = self.technical_engine.indicators.rsi(df, period)
+        return result_df.select(f"rsi_{period}").to_series().to_list()
+
+    def calculate_macd(self, prices: List[float], **kwargs) -> Dict[str, List[float]]:
         """Calculate MACD - test compatibility method."""
-        return self.technical_engine.calculate_macd(prices)
+        # Convert list to polars DataFrame for processing
+        import polars as pl
+
+        df = pl.DataFrame({"close": prices})
+
+        # Extract parameters with defaults
+        fast = kwargs.get("fast", 12)
+        slow = kwargs.get("slow", 26)
+        signal_period = kwargs.get("signal_period", 9)
+
+        result_df = self.technical_engine.indicators.macd(
+            df, fast=fast, slow=slow, signal=signal_period
+        )
+        return {
+            "macd": result_df.select("macd").to_series().to_list(),
+            "signal": result_df.select("macd_signal").to_series().to_list(),
+            "histogram": result_df.select("macd_histogram").to_series().to_list(),
+        }
 
     async def generate_volume_confirmed_signal(
         self, symbol: str, signal: Any
@@ -1500,16 +1545,44 @@ class StrategyEngineService:
         return signal  # Simplified for test compatibility
 
     async def generate_consensus_signal(
-        self, symbol: str, signals: List[Any]
+        self, signals: Optional[List[Any]] = None
     ) -> Optional[Any]:
         """Generate consensus signal - test compatibility method."""
+        if signals is None:
+            signals = []
         if not signals:
             return None
         return signals[0]  # Simplified for test compatibility
 
-    async def get_historical_data(self, symbol: str, period: str = "1y") -> List[Any]:
+    async def get_historical_data(
+        self,
+        symbol: str,
+        period: str = "1y",
+        limit: Optional[int] = None,
+        days: Optional[int] = None,
+    ) -> List[Any]:
         """Get historical data - test compatibility method."""
-        return await self._get_historical_data(symbol, period)
+        try:
+            # Parse period to get days
+            if days is not None:
+                days_value = days
+            else:
+                days_value = 365 if period == "1y" else 30  # Default fallback
+
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_value)
+            historical_data = await self._get_historical_data(
+                symbol, start_date, end_date
+            )
+            if historical_data is not None:
+                # Convert polars DataFrame to dict records
+                records = historical_data.to_dicts()
+                if limit:
+                    return records[:limit]
+                return records
+            return []
+        except Exception:
+            return []
 
     async def store_signal(self, signal: Any) -> bool:
         """Store signal - test compatibility method."""
@@ -1522,8 +1595,10 @@ class StrategyEngineService:
     async def publish_signal(self, signal: Any) -> bool:
         """Publish signal to Redis - test compatibility method."""
         try:
-            if self.redis_engine:
-                await self.redis_engine.publish_signal(signal)
+            if self.redis_engine and self.redis_engine.publisher and signal:
+                # Extract symbol from signal if available
+                symbol = getattr(signal, "symbol", "UNKNOWN")
+                await self.redis_engine.publisher.publish_signal(symbol, signal)
                 return True
             return False
         except Exception:

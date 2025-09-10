@@ -421,8 +421,9 @@ def test_comparative_analysis() -> None:
         print(f"APIs: {scenario['api_limits']}")
 
         # Old algorithm (no volatility/priority support)
+        tickers_list = list(scenario["tickers"]) if hasattr(scenario["tickers"], '__iter__') and not isinstance(scenario["tickers"], str) else [scenario["tickers"]]
         old_intervals = old_simple_algorithm(
-            scenario["api_limits"], len(list(scenario["tickers"])), timeframes
+            scenario["api_limits"], len(tickers_list), timeframes
         )
 
         # Enhanced algorithm

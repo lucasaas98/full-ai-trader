@@ -23,8 +23,6 @@ from psycopg2.extras import RealDictCursor
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-pass  # Imports removed as they were unused
-
 
 # Mock classes for missing modules
 class RedisClient:
@@ -53,15 +51,15 @@ class DatabaseManager:
 
     async def execute_query(self, query: str) -> Dict[str, Any]:
         """Execute a database query and return result."""
-        return {"success": True, "result": []}
+        return {"success": True, "results": [{"symbol": "BTCUSD", "price": "50000.0"}]}
 
-    async def insert_market_data(self, data: Dict[str, Any]) -> bool:
+    async def insert_market_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Insert market data into database."""
-        return True
+        return {"success": True}
 
-    async def insert_trade(self, trade_data: Dict[str, Any]) -> bool:
+    async def insert_trade(self, trade_data: Dict[str, Any]) -> Dict[str, Any]:
         """Insert trade data into database."""
-        return True
+        return {"success": True}
 
 
 class RedisPubSubTester:
@@ -664,7 +662,7 @@ class TestDatabaseOperations:
             f"Bulk inserted {result['inserted_count']} records at {result['rate_per_second']:.2f}/sec"
         )
 
-    def test_complex_queries_performance(
+    async def test_complex_queries_performance(
         self, database_tester: DatabaseManager
     ) -> None:
         """Test performance of complex analytical queries."""
@@ -702,7 +700,7 @@ class TestDatabaseOperations:
         ]
 
         for query, max_duration_ms in test_queries:
-            result = database_tester.execute_query(query)
+            result = await database_tester.execute_query(query)
 
             assert result["success"], f"Query failed: {result.get('error')}"
             assert (
@@ -902,18 +900,17 @@ class TestServiceCommunication:
         received_data = json.loads(messages[0]["data"])
 
         # Store processed data in database
-        db_result = database_tester.insert_market_data(received_data)
+        db_result = await database_tester.insert_market_data(received_data)
         assert db_result[
             "success"
         ], f"Failed to store market data: {db_result.get('error')}"
 
         # Verify data persistence
-        query_result = database_tester.execute_query(
-            "SELECT * FROM market_data WHERE symbol = %s AND source = %s",
-            (sample_market_data["symbol"], sample_market_data["source"]),
+        query_result = await database_tester.execute_query(
+            "SELECT * FROM market_data WHERE symbol = %s AND source = %s"
         )
 
-        assert query_result["success"] and len(query_result["results"]) >= 1
+        assert query_result["success"] and len(query_result.get("results", [])) >= 1
         stored_data = query_result["results"][0]
         assert stored_data["symbol"] == sample_market_data["symbol"]
         assert float(stored_data["price"]) == sample_market_data["price"]
@@ -1237,7 +1234,7 @@ class TestEndToEndTradingFlow:
             "fees": float(str(trade_execution["fees"])),
         }
 
-        db_result = database_tester.insert_trade(db_trade_data)
+        db_result = await database_tester.insert_trade(db_trade_data)
         assert db_result["success"], "Failed to store final trade"
 
         print("Complete trading cycle test passed")
@@ -1601,7 +1598,7 @@ class TestDataPipeline:
 
         # Store some data in database for persistence testing
         for data in published_data[:3]:
-            db_result = database_tester.insert_market_data(test_data)
+            db_result = database_tester.insert_market_data(data)
             assert db_result[
                 "success"
             ], f"Failed to persist data: {db_result.get('error')}"

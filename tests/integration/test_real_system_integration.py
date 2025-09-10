@@ -146,7 +146,7 @@ async def db_pool() -> AsyncGenerator[asyncpg.Pool, None]:
 
 
 @pytest.fixture(scope="session")
-async def mock_data_collector() -> MockDataCollector:
+async def mock_data_collector() -> AsyncGenerator[MockDataCollector, None]:
     """Create and start mock data collector."""
     config = MockDataCollectorConfig(
         historical_data_path="data/parquet",
@@ -168,7 +168,7 @@ async def mock_data_collector() -> MockDataCollector:
 
 
 @pytest.fixture(scope="session")
-async def service_orchestrator(mock_data_collector) -> AsyncGenerator[object, None]:
+async def service_orchestrator(mock_data_collector: MockDataCollector) -> AsyncGenerator[object, None]:
     """Create and start service orchestrator."""
     orchestrator = await create_service_orchestrator()
 

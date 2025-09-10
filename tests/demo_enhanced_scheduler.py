@@ -334,7 +334,7 @@ def demonstrate_algorithm_improvements() -> None:
 
     # Simulate the old simple calculation
     def simple_calculate_optimal_intervals(
-        api_rate_limits: dict, active_tickers: list, timeframes: list
+        api_rate_limits: dict, active_tickers: int, timeframes: list
     ) -> dict:
         """Original simple implementation for comparison."""
         base_intervals = {
@@ -344,9 +344,7 @@ def demonstrate_algorithm_improvements() -> None:
             TimeFrame.ONE_DAY: 86400,
         }
 
-        requests_per_update = {
-            tf: max(1, len(active_tickers) // 100) for tf in timeframes
-        }
+        requests_per_update = {tf: max(1, active_tickers // 100) for tf in timeframes}
 
         optimal_intervals = {}
         for timeframe in timeframes:
@@ -384,7 +382,7 @@ def demonstrate_algorithm_improvements() -> None:
 
         # Old simple calculation
         old_intervals = simple_calculate_optimal_intervals(
-            dict(case["api_limits"]), len(list(case["tickers"])), timeframes
+            case["api_limits"], int(case["tickers"]), timeframes
         )
 
         # New enhanced calculation

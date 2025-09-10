@@ -1,5 +1,5 @@
 # AI and LLM
-anthropic==0.19.1
-tenacity==8.2.3
+anthropic
+tenacity
 # Basic math and statistics
-scipy>=1.11.4
+scipy

@@ -620,7 +620,7 @@ class TestServiceHealthCheck:
         ) -> dict[str, str | float]:
             """Check individual component health"""
             status = "healthy" if is_healthy else "unhealthy"
-            result = {
+            result: dict[str, str | float] = {
                 "component": component_name,
                 "status": status,
                 "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -74,7 +74,7 @@ class LoadTestRunner:
             await self.session.close()
 
     async def make_request(
-        self, method: str, endpoint: str, data: Optional[Dict] = None
+        self, method: str, endpoint: str, data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Make a single HTTP request and measure performance"""
         start_time = time.time()
@@ -475,6 +475,8 @@ class TradingSystemLoadTests:
 
         async def limited_flow(flow_id: int) -> Dict[str, Any]:
             async with semaphore:
+                if load_test_runner.session is None:
+                    raise RuntimeError("Session is not initialized")
                 return await execute_trading_flow(load_test_runner.session, flow_id)
 
         # Run 50 complete trading flows
@@ -910,7 +912,7 @@ class LatencyOptimizationTests:
                 )
 
             latency_results[data_size] = load_test_runner.analyze_results(
-                f"signal_generation_data_size_{data_size}", result
+                result, f"signal_generation_data_size_{data_size}"
             )
 
         # Verify latency increases with data size

@@ -240,7 +240,7 @@ class TestRateLimitingJWTIntegration:
 
         mock_client = Mock()
         mock_client.host = "192.168.1.1"
-        mock_request.client.host = "192.168.1.1"
+        mock_request.client = mock_client
 
         # Create rate limit rule
         rule = RateLimitRule(
@@ -747,7 +747,7 @@ class TestEndToEndJWTFlow:
         mock_response.status_code = 200
         mock_response.headers = {}
 
-        async def mock_api_call(request) -> MagicMock:
+        async def mock_api_call(request: Any) -> MagicMock:
             return mock_response
 
         # 6. Execute the middleware
@@ -767,7 +767,7 @@ class TestEndToEndJWTFlow:
         assert "X-Request-ID" in response.headers
 
     def test_fallback_chain_functionality(
-        self, mock_request, mock_audit_logger
+        self, mock_request: Any, mock_audit_logger: Any
     ) -> None:
         """Test the complete fallback chain for user identification."""
         from unittest.mock import MagicMock

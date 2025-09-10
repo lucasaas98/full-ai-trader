@@ -426,21 +426,15 @@ class TradeExecutorService:
                 "timestamp": datetime.now(timezone.utc),
                 "signal_processing": self._signal_processing_stats,
                 "account": {
-                    "equity": account_summary.get("account", {}).get("equity", 0),
-                    "buying_power": account_summary.get("account", {}).get(
-                        "buying_power", 0
-                    ),
-                    "day_trades": account_summary.get("account", {}).get(
-                        "day_trades_count", 0
-                    ),
+                    "equity": getattr(account_summary, "equity", 0),
+                    "buying_power": getattr(account_summary, "buying_power", 0),
+                    "day_trades": getattr(account_summary, "daytrade_count", 0),
                 },
                 "positions": {
                     "count": len(positions),
-                    "total_value": account_summary.get("positions", {}).get(
-                        "total_market_value", 0
-                    ),
-                    "unrealized_pnl": account_summary.get("positions", {}).get(
-                        "total_unrealized_pnl", 0
+                    "total_value": getattr(account_summary, "portfolio_value", 0),
+                    "unrealized_pnl": getattr(
+                        account_summary, "total_unrealized_pnl", 0
                     ),
                 },
                 "orders": {"active_count": len(active_orders)},
@@ -746,7 +740,7 @@ async def execute_signal_direct(signal: TradeSignal) -> Dict[str, Any]:
 
 
 @app.post("/emergency/stop")
-async def emergency_stop() -> Dict[str, str]:
+async def emergency_stop() -> Dict[str, Any]:
     """Emergency stop endpoint."""
     logger.debug("Emergency stop endpoint accessed")
     logger.warning("Emergency stop initiated via API")
@@ -1184,7 +1178,7 @@ async def main() -> None:
 class TradeExecutorApp:
     """Application wrapper for Trade Executor service for integration testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Trade Executor application."""
         self.service = None
         self._initialized = False
@@ -1201,7 +1195,7 @@ class TradeExecutorApp:
         await self.initialize()
         # Start background tasks
         if self.service:
-            asyncio.create_task(self.service.start_signal_processing())
+            asyncio.create_task(self.service._setup_signal_processing())
             asyncio.create_task(self.service.start_status_broadcaster())
 
     async def stop(self) -> None:

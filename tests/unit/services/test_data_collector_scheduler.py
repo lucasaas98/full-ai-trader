@@ -9,7 +9,7 @@ function and other scheduler-related functionality in the data collector service
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, cast
 
 import pytest
 
@@ -508,12 +508,12 @@ class TestEdgeCasesAndValidation:
         results = []
         for _ in range(5):
             intervals = calculate_optimal_intervals(
-                api_rate_limits=dict(test_params["api_rate_limits"]),
-                active_tickers=int(test_params["active_tickers"]),
-                timeframes=list(test_params["timeframes"]),
-                market_volatility=float(test_params["market_volatility"]),
+                api_rate_limits=cast(Dict[str, int], test_params["api_rate_limits"]),
+                active_tickers=cast(int, test_params["active_tickers"]),
+                timeframes=cast(List[TimeFrame], test_params["timeframes"]),
+                market_volatility=cast(float, test_params["market_volatility"]),
                 priority_weights=(
-                    dict(test_params["priority_weights"])
+                    cast(Dict[TimeFrame, float], test_params["priority_weights"])
                     if test_params["priority_weights"]
                     else None
                 ),
@@ -622,12 +622,12 @@ class TestPerformanceAndScalability:
         # Run multiple calculations
         for _ in range(50):
             calculate_optimal_intervals(
-                api_rate_limits=dict(test_params["api_rate_limits"]),
-                active_tickers=int(test_params["active_tickers"]),
-                timeframes=list(test_params["timeframes"]),
-                market_volatility=float(test_params["market_volatility"]),
+                api_rate_limits=cast(Dict[str, int], test_params["api_rate_limits"]),
+                active_tickers=cast(int, test_params["active_tickers"]),
+                timeframes=cast(List[TimeFrame], test_params["timeframes"]),
+                market_volatility=cast(float, test_params["market_volatility"]),
                 priority_weights=(
-                    dict(test_params["priority_weights"])
+                    cast(Dict[TimeFrame, float], test_params["priority_weights"])
                     if test_params["priority_weights"]
                     else None
                 ),
@@ -774,17 +774,24 @@ class TestAlgorithmValidation:
         for _ in range(10):
             # Convert test_params to proper types
             converted_config = {
-                "api_rate_limits": dict(test_params["api_rate_limits"]),
-                "active_tickers": int(test_params["active_tickers"]),
-                "timeframes": list(test_params["timeframes"]),
-                "market_volatility": float(test_params["market_volatility"]),
+                "api_rate_limits": cast(Dict[str, int], test_params["api_rate_limits"]),
+                "active_tickers": cast(int, test_params["active_tickers"]),
+                "timeframes": cast(List[TimeFrame], test_params["timeframes"]),
+                "market_volatility": cast(float, test_params["market_volatility"]),
                 "priority_weights": (
-                    dict(test_params["priority_weights"])
-                    if test_params["priority_weights"]
+                    cast(Dict[TimeFrame, float], test_params["priority_weights"])
+                    if "priority_weights" in test_params
+                    and test_params["priority_weights"]
                     else None
                 ),
             }
-            intervals = calculate_optimal_intervals(**converted_config)
+            intervals = calculate_optimal_intervals(
+                api_rate_limits=converted_config["api_rate_limits"],
+                active_tickers=converted_config["active_tickers"],
+                timeframes=converted_config["timeframes"],
+                market_volatility=converted_config["market_volatility"],
+                priority_weights=converted_config["priority_weights"]
+            )
             results.append(intervals)
 
         # All results should be identical

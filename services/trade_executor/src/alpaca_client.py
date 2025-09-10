@@ -503,7 +503,7 @@ class AlpacaClient:
                             position_obj = type("Position", (), position)
                             for k, v in position.items():
                                 setattr(position_obj, k, v)
-                            position_model = self._convert_alpaca_position(position_obj)
+                            position_model = self._convert_alpaca_position(position_obj)  # type: ignore
                         elif hasattr(position, "__dict__"):
                             position_model = self._convert_alpaca_position(position)
                         else:
@@ -526,9 +526,9 @@ class AlpacaClient:
                         pos_obj = type("Position", (), pos)
                         for k, v in pos.items():
                             setattr(pos_obj, k, v)
-                        position_models.append(self._convert_alpaca_position(pos_obj))
+                        position_models.append(self._convert_alpaca_position(pos_obj))  # type: ignore
                     elif hasattr(pos, "__dict__"):
-                        position_models.append(self._convert_alpaca_position(pos))
+                        position_models.append(self._convert_alpaca_position(pos))  # type: ignore
                     else:
                         # Skip invalid position data
                         continue
@@ -620,7 +620,7 @@ class AlpacaClient:
                 for k, v in alpaca_order.items():
                     setattr(order_obj, k, v)
                 order_response = self._convert_alpaca_order_response(
-                    order_obj, order_request
+                    order_obj, order_request  # type: ignore
                 )
             elif hasattr(alpaca_order, "__dict__"):
                 order_response = self._convert_alpaca_order_response(
@@ -1127,9 +1127,7 @@ class AlpacaClient:
                     GetOrdersRequest as AlpacaGetOrdersRequest,
                 )
 
-                request = AlpacaGetOrdersRequest(
-                    status=str(alpaca_status) if alpaca_status else None, limit=limit
-                )
+                request = AlpacaGetOrdersRequest(status=status_param, limit=limit)
 
             alpaca_orders = self._trading_client.get_orders(request)
 

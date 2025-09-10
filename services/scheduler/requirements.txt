@@ -1,2 +1,2 @@
-tenacity==8.2.3
+tenacity
 typer
