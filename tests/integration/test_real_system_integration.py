@@ -168,7 +168,9 @@ async def mock_data_collector() -> AsyncGenerator[MockDataCollector, None]:
 
 
 @pytest.fixture(scope="session")
-async def service_orchestrator(mock_data_collector: MockDataCollector) -> AsyncGenerator[object, None]:
+async def service_orchestrator(
+    mock_data_collector: MockDataCollector,
+) -> AsyncGenerator[object, None]:
     """Create and start service orchestrator."""
     orchestrator = await create_service_orchestrator()
 

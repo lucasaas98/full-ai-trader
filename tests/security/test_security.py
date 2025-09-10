@@ -1235,9 +1235,7 @@ class TestAuditingAndCompliance:
             assert (
                 orig["symbol"] == list(anon)[0]
             ), "Trading symbol changed during anonymization"
-            assert (
-                orig["quantity"] == list(anon)[1]
-            ), "Trading quantity changed"
+            assert orig["quantity"] == list(anon)[1], "Trading quantity changed"
 
 
 @pytest.mark.security

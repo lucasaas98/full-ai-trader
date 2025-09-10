@@ -1080,7 +1080,12 @@ class TestBacktestingInfrastructure:
         # Find best parameters
         best_result = max(
             optimization_results,
-            key=lambda x: float(x["sharpe"]) if x["sharpe"] is not None and isinstance(x["sharpe"], (int, float, str)) else -999.0,
+            key=lambda x: (
+                float(x["sharpe"])
+                if x["sharpe"] is not None
+                and isinstance(x["sharpe"], (int, float, str))
+                else -999.0
+            ),
         )
 
         assert len(optimization_results) == 4, "Not all parameter combinations tested"

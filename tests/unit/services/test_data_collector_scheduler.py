@@ -790,7 +790,7 @@ class TestAlgorithmValidation:
                 active_tickers=converted_config["active_tickers"],
                 timeframes=converted_config["timeframes"],
                 market_volatility=converted_config["market_volatility"],
-                priority_weights=converted_config["priority_weights"]
+                priority_weights=converted_config["priority_weights"],
             )
             results.append(intervals)
 

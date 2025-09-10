@@ -1427,7 +1427,9 @@ class TestDataFlow:
         service.data_service.twelvedata_client = mock_twelve_client
         service.data_service.data_store = mock_data_store
         if service.data_service:
-            if service.data_service and hasattr(service.data_service, '_active_tickers'):
+            if service.data_service and hasattr(
+                service.data_service, "_active_tickers"
+            ):
                 service.data_service._active_tickers.add("AAPL")
         service.data_service._stats = {"screener_runs": 0, "total_records_saved": 0}
 
@@ -1742,12 +1744,18 @@ class TestDataFlow:
 
             # 2. Add new tickers to tracking
             for stock in screener_result.data:
-                if service.data_service and service.data_service._active_tickers is not None:
+                if (
+                    service.data_service
+                    and service.data_service._active_tickers is not None
+                ):
                     service.data_service._active_tickers.add(stock.symbol)
 
             # 3. Collect price data for new tickers
             collected_data = []
-            if service.data_service and service.data_service._active_tickers is not None:
+            if (
+                service.data_service
+                and service.data_service._active_tickers is not None
+            ):
                 active_tickers = service.data_service._active_tickers
             else:
                 active_tickers = []
