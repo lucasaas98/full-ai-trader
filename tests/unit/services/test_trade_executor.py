@@ -734,9 +734,7 @@ class TestTradeExecutorService:
         }
 
         with patch.object(service, "process_fill_notification") as mock_process:
-            with patch.object(
-                service, "handle_order_fill", create=True
-            ):
+            with patch.object(service, "handle_order_fill", create=True):
                 await service.handle_order_fill(fill_notification)
 
                 mock_process.assert_called_once_with(fill_notification)

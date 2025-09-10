@@ -519,12 +519,14 @@ class TestStrategyEngineService:
             for i in range(50)
         ]
 
-        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(service, "db_pool", new_callable=AsyncMock) as mock_db_pool:
             mock_db_pool.acquire.return_value.__aenter__.return_value.fetch.return_value = (
                 mock_rows
             )
 
-            result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, limit=50)
+            result = await service.get_historical_data(
+                "AAPL", TimeFrame.ONE_HOUR, limit=50
+            )
 
             assert len(result) == 50
             assert all(isinstance(item, MarketData) for item in result)
@@ -534,11 +536,13 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test handling of database errors during data retrieval"""
-        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(service, "db_pool", new_callable=AsyncMock) as mock_db_pool:
             mock_db_pool.acquire.return_value.__aenter__.return_value.fetch.side_effect = Exception(
                 "Database error"
             )
-            result = await service.get_historical_data("AAPL", TimeFrame.ONE_HOUR, limit=50)
+            result = await service.get_historical_data(
+                "AAPL", TimeFrame.ONE_HOUR, limit=50
+            )
             assert result == []
 
     @pytest.mark.asyncio
@@ -557,7 +561,7 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(service, "db_pool", new_callable=AsyncMock) as mock_db_pool:
             mock_db_pool.acquire.return_value.__aenter__.return_value.execute = (
                 AsyncMock()
             )
@@ -584,7 +588,7 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        with patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(service, "db_pool", new_callable=AsyncMock) as mock_db_pool:
             mock_db_pool.acquire.return_value.__aenter__.return_value.execute.side_effect = Exception(
                 "Database error"
             )
@@ -610,7 +614,9 @@ class TestStrategyEngineService:
             take_profit=Decimal("210.00"),
         )
 
-        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client:
+        with patch.object(
+            service, "redis_client", new_callable=AsyncMock
+        ) as mock_redis_client:
             await service.publish_signal(signal)
 
             mock_redis_client.publish.assert_called_once()
@@ -746,8 +752,11 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test health check for healthy service"""
-        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client, \
-             patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(
+            service, "redis_client", new_callable=AsyncMock
+        ) as mock_redis_client, patch.object(
+            service, "db_pool", new_callable=AsyncMock
+        ) as mock_db_pool:
             mock_redis_client.ping = AsyncMock(return_value=True)
             mock_db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
                 AsyncMock(return_value={"version": "15.0"})
@@ -764,8 +773,11 @@ class TestStrategyEngineService:
         self, service: StrategyEngineService
     ) -> None:
         """Test health check with unhealthy dependencies"""
-        with patch.object(service, 'redis_client', new_callable=AsyncMock) as mock_redis_client, \
-             patch.object(service, 'db_pool', new_callable=AsyncMock) as mock_db_pool:
+        with patch.object(
+            service, "redis_client", new_callable=AsyncMock
+        ) as mock_redis_client, patch.object(
+            service, "db_pool", new_callable=AsyncMock
+        ) as mock_db_pool:
             mock_redis_client.ping = AsyncMock(side_effect=Exception("Redis error"))
             mock_db_pool.acquire.return_value.__aenter__.return_value.fetchrow = (
                 AsyncMock(side_effect=Exception("Database error"))
