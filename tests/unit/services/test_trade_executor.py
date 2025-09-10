@@ -633,7 +633,9 @@ class TestTradeExecutorService:
         )
 
         # Mock fragmentation result
-        fragment_result = [
+        from typing import Any, Dict, List
+
+        fragment_result: List[Dict[str, Any]] = [
             {"symbol": "AAPL", "qty": 500},
             {"symbol": "AAPL", "qty": 500},
         ]
@@ -655,7 +657,9 @@ class TestTradeExecutorService:
     ) -> None:
         """Test smart order routing optimization"""
         # Test order routing logic
-        routing_result = {
+        from typing import Any, Dict
+
+        routing_result: Dict[str, Any] = {
             "recommended_venue": "dark_pool",
             "expected_savings": 0.05,
         }
@@ -750,7 +754,9 @@ class TestTradeExecutorService:
     @pytest.mark.asyncio
     async def test_database_error_handling(self, service: TradeExecutorService) -> None:
         """Test handling of partial order fills"""
-        partial_fill = {
+        from typing import Any, Dict
+
+        partial_fill: Dict[str, Any] = {
             "order_id": "order_123",
             "symbol": "AAPL",
             "total_quantity": 100,
