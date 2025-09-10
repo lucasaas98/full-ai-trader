@@ -587,9 +587,7 @@ class TestTradeExecutorService:
 
         # Mock Redis publish
         if service._redis is not None:
-            with patch.object(
-                service._redis, "publish", return_value=1
-            ) as mock_publish:
+            with patch.object(service._redis, 'publish', return_value=1) as mock_publish:
                 # Simulate signal publishing (this would depend on actual implementation)
                 result = await service._redis.publish("trade_signals", str(signal_data))
 
@@ -646,7 +644,7 @@ class TestTradeExecutorService:
 
             # Should create multiple smaller orders
             assert len(fragment_orders) > 1
-            total_qty = sum(order["qty"] for order in fragment_orders)
+            total_qty = sum(int(order["qty"]) for order in fragment_orders)
             assert total_qty <= large_order.quantity
 
     @pytest.mark.asyncio
@@ -664,7 +662,7 @@ class TestTradeExecutorService:
         routing = routing_result
 
         assert routing["recommended_venue"] == "dark_pool"
-        assert routing["expected_savings"] > 0
+        assert float(routing["expected_savings"]) > 0
 
     @pytest.mark.asyncio
     async def test_order_timing_optimization(
@@ -736,9 +734,7 @@ class TestTradeExecutorService:
         #     "timestamp": datetime.now(timezone.utc).isoformat(),
         # }
 
-        with patch.object(
-            service, "process_fill_notification", create=True
-        ) as mock_process:
+        with patch.object(service, "process_fill_notification", create=True) as mock_process:
             # Mock fill handling
             with patch("asyncio.create_task") as mock_task:
                 mock_task.return_value = Mock()
@@ -765,7 +761,7 @@ class TestTradeExecutorService:
 
             # Should track partial fill and continue monitoring order
             # This would be handled by the order manager
-            assert partial_fill["filled_quantity"] < partial_fill["total_quantity"]
+            assert int(partial_fill["filled_quantity"]) < int(partial_fill["total_quantity"])
 
     def test_missing_type_annotation_function(
         self, service: TradeExecutorService
