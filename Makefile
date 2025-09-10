@@ -211,11 +211,9 @@ format: ## Format code
 	@echo "✓ Code formatted"
 
 format-check:
-	@echo "Starting virtual environment..."
-	@source venv/bin/activate
 	@echo "Running format checks..."
-	@black --check .
-	@isort --check-only .
+	@source venv/bin/activate && black --check .
+	@source venv/bin/activate && isort --check-only .
 	@echo "✓ Format checking completed"
 
 # =============================================================================
