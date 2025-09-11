@@ -216,7 +216,7 @@ class LoggingConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", case_sensitive=False)
 
-    @field_validator("log_level")
+    @field_validator("level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
         """Validate log level."""
